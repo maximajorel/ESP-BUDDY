@@ -1,0 +1,17 @@
+sleep 5000
+steercal
+sleep 400
+imufake 0 0 1 0 0 0
+press
+sleep 4500
+shippos
+imufake 0.45 0 0.89 0 0 0
+sleep 700
+shippos
+imufake -0.45 0 0.89 0 0 0
+sleep 700
+shippos
+imufake 0 0 1 0 0 0
+sleep 300
+shippos
+imureal

@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#11131a">
+<title>ESP32 Gadget</title>
+<link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNyIgZmlsbD0iIzExMTMxYSIvPjxwYXRoIGQ9Ik0xNiA0IEwyOCAxNiBMMTYgMjggTDQgMTYgWiIgZmlsbD0iI2ZmZDcwMCIvPjwvc3ZnPg==">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">◆</span>
+    <div>
+      <h1>ESP32 Gadget</h1>
+      <p class="sub" id="firmwareLine">Panel de administración</p>
+    </div>
+  </div>
+  <div class="pill" id="connPill"><span class="dot"></span><span id="connText">Conectando…</span></div>
+</header>
+
+<nav class="chips" id="nav">
+  <a href="#estado" class="chip">Estado</a>
+  <a href="#wifi" class="chip">WiFi de casa</a>
+  <a href="#acceso" class="chip">Punto de acceso</a>
+  <a href="#pantalla" class="chip">Pantalla</a>
+  <a href="#luz" class="chip">Luz RGB</a>
+  <a href="#juegos" class="chip">Juegos</a>
+  <a href="#spotify" class="chip">Spotify</a>
+</nav>
+
+<main>
+
+  <section id="estado" class="card">
+    <h2>Estado del dispositivo</h2>
+    <p class="hint">Estos son los datos de conexión que también se ven en la pantalla del equipo.</p>
+    <div class="grid">
+      <div class="stat"><span class="k">Red del dispositivo</span><span class="v" id="stApSsid">—</span></div>
+      <div class="stat"><span class="k">Contraseña</span><span class="v" id="stApPass">—</span></div>
+      <div class="stat"><span class="k">Dirección del panel</span><span class="v mono" id="stApIp">—</span></div>
+      <div class="stat"><span class="k">WiFi de casa</span><span class="v" id="stSta">—</span></div>
+      <div class="stat"><span class="k">Hora del equipo</span><span class="v mono" id="stTime">—</span></div>
+      <div class="stat"><span class="k">Encendido hace</span><span class="v" id="stUptime">—</span></div>
+      <div class="stat"><span class="k">Memoria libre</span><span class="v" id="stHeap">—</span></div>
+      <div class="stat"><span class="k">Pantalla activa</span><span class="v" id="stScreen">—</span></div>
+    </div>
+  </section>
+
+  <section id="wifi" class="card">
+    <h2>Conectar a tu WiFi de casa</h2>
+    <p class="hint">Con esto el reloj se pone en hora solo. Si no lo configurás, el equipo igual funciona y muestra la hora cuando lo conectes.</p>
+    <div class="row">
+      <button class="btn ghost" id="scanBtn" type="button">Buscar redes</button>
+      <span class="hint inline" id="scanHint">Toca para ver las redes cercanas</span>
+    </div>
+    <div class="netlist" id="netlist" hidden></div>
+    <form id="wifiForm" class="form">
+      <label>Nombre de la red (SSID)
+        <input id="wifiSsid" name="ssid" autocomplete="off" maxlength="32" required placeholder="MiWiFi">
+      </label>
+      <label>Contraseña
+        <input id="wifiPass" name="pass" type="password" autocomplete="off" maxlength="64" placeholder="••••••••">
+      </label>
+      <div class="actions">
+        <button class="btn" type="submit">Guardar y conectar</button>
+        <button class="btn ghost" type="button" id="wifiForget">Olvidar red</button>
+        <button class="btn ghost" type="button" id="wifiDiagBtn">¿Por qué no conecta?</button>
+      </div>
+      <p class="warn" id="wifiDiag" hidden></p>
+    </form>
+  </section>
+
+  <section id="acceso" class="card">
+    <h2>Punto de acceso del dispositivo</h2>
+    <p class="hint">Es la red que crea el equipo para que te conectes a este panel. El nombre y la contraseña se muestran en la pantalla RED.</p>
+    <form id="apForm" class="form">
+      <label>Nombre de la red
+        <input id="apSsid" name="ssid" autocomplete="off" maxlength="32" required>
+      </label>
+      <label>Contraseña <span class="tag">mínimo 8 caracteres</span>
+        <input id="apPass" name="pass" autocomplete="off" maxlength="64">
+      </label>
+      <div class="actions">
+        <button class="btn" type="submit">Aplicar cambios</button>
+      </div>
+      <p class="warn" id="apWarn" hidden>Si cambiás estos datos, vas a tener que reconectarte a la nueva red.</p>
+    </form>
+  </section>
+
+  <section id="pantalla" class="card">
+    <h2>Pantalla</h2>
+    <p class="hint">Podés cambiar de pantalla desde acá, sin tocar el botón del equipo.</p>
+    <div class="screens" id="screenPicker">
+      <button class="tile" data-screen="0"><span class="ico">🕒</span><span class="tile-name">RELOJ</span></button>
+      <button class="tile" data-screen="1"><span class="ico">🎰</span><span class="tile-name">TRAGAMONEDAS</span></button>
+      <button class="tile" data-screen="2"><span class="ico">🚀</span><span class="tile-name">METEORITOS</span></button>
+      <button class="tile" data-screen="3"><span class="ico">📶</span><span class="tile-name">RED</span></button>
+      <button class="tile" data-screen="4"><span class="ico">🎵</span><span class="tile-name">MUSICA</span></button>
+    </div>
+
+    <h3>Nombres y orden del menú</h3>
+    <p class="hint">Elegí cómo se llama cada pantalla (hasta 12 letras) y en qué orden aparecen al mantener el botón 1 segundo. Los cambios quedan guardados en el equipo.</p>
+    <ul class="order" id="orderList"></ul>
+    <div class="actions">
+      <button class="btn" id="orderSave" type="button">Guardar cambios</button>
+      <button class="btn ghost" id="orderReset" type="button">Nombres y orden originales</button>
+    </div>
+
+    <label class="slider">Brillo
+      <input type="range" id="brightness" min="5" max="100" step="5">
+      <output id="brightnessOut">—</output>
+    </label>
+
+    <label>Orientación de la pantalla <span class="tag">según cómo apoyes el equipo</span>
+      <select id="orientation">
+        <option value="1">Horizontal</option>
+        <option value="2">Horizontal invertida</option>
+      </select>
+    </label>
+
+    <label class="switch">
+      <input type="checkbox" id="steerInvert">
+      <span>Invertir izquierda/derecha del juego (si la nave va al revés)</span>
+    </label>
+
+    <label class="switch">
+      <input type="checkbox" id="steerInvertY">
+      <span>Invertir arriba/abajo del juego (si la nave sube cuando querés bajar)</span>
+    </label>
+
+    <label class="switch">
+      <input type="checkbox" id="clock24">
+      <span>Reloj en formato 24 horas</span>
+    </label>
+
+    <h3>Apagado automático</h3>
+    <p class="hint">Sin usar el equipo, la pantalla y la luz de atrás se apagan solas. Elegí después de cuánto y en qué pantallas; un toque en el botón las vuelve a prender.</p>
+    <label>Apagar después de
+      <select id="screenTimeout">
+        <option value="0">Nunca</option>
+        <option value="30">30 segundos</option>
+        <option value="60">1 minuto</option>
+        <option value="120">2 minutos</option>
+        <option value="300">5 minutos</option>
+        <option value="600">10 minutos</option>
+        <option value="1800">30 minutos</option>
+      </select>
+    </label>
+    <div class="row" id="timeoutScreens"></div>
+
+    <div class="row">
+      <button class="btn ghost" id="setTime" type="button">Usar la hora de este teléfono</button>
+    </div>
+
+    <div class="row">
+      <button class="btn ghost" id="pressShort" type="button">Simular toque</button>
+      <button class="btn ghost" id="pressLong" type="button">Simular mantener 3s</button>
+    </div>
+  </section>
+
+  <section id="luz" class="card">
+    <h2>Luz RGB</h2>
+    <p class="hint">Es la luz que está detrás del equipo. En el tragamonedas se enciende sola cuando ganás.</p>
+    <div class="row">
+      <input type="color" id="rgbColor" value="#ffd700">
+      <div class="swatches" id="swatches">
+        <button type="button" data-color="#ffd700" style="--c:#ffd700" title="Oro"></button>
+        <button type="button" data-color="#dc143c" style="--c:#dc143c" title="Carmesí"></button>
+        <button type="button" data-color="#00a86b" style="--c:#00a86b" title="Esmeralda"></button>
+        <button type="button" data-color="#ffa500" style="--c:#ffa500" title="Ámbar"></button>
+        <button type="button" data-color="#ffffff" style="--c:#ffffff" title="Blanco"></button>
+      </div>
+    </div>
+    <label class="slider">Intensidad
+      <input type="range" id="rgbLevel" min="0" max="255" step="5">
+      <output id="rgbLevelOut">—</output>
+    </label>
+    <label>Modo
+      <select id="rgbEffect">
+        <option value="0">Color fijo</option>
+        <option value="1">Arcoíris</option>
+        <option value="2">Apagada</option>
+      </select>
+    </label>
+    <div class="actions">
+      <button class="btn" id="rgbApply" type="button">Aplicar</button>
+    </div>
+  </section>
+
+  <section id="juegos" class="card">
+    <h2>Juegos</h2>
+    <div class="grid">
+      <div class="stat"><span class="k">Récord · Esquivar</span><span class="v" id="scoreGame">—</span></div>
+      <div class="stat"><span class="k">Mejor premio · Tragamonedas</span><span class="v" id="scoreSlot">—</span></div>
+    </div>
+    <p class="hint">¿La nave no responde como esperás? Recalibrá con la guía de cinco pasos:
+      quieto, hacia vos, alejando, izquierda y derecha.</p>
+    <div class="actions">
+      <button class="btn ghost" id="steerRecal" type="button">Recalibrar controles</button>
+      <button class="btn ghost" id="steerSwap" type="button">Cambiar eje del control</button>
+    </div>
+    <div class="actions">
+      <button class="btn ghost" id="resetScores" type="button">Borrar récords</button>
+    </div>
+  </section>
+
+  <section id="spotify" class="card">
+    <h2>Spotify</h2>
+    <p class="hint">Para que el equipo muestre la canción que está sonando. Se configura una sola vez y queda guardado.</p>
+
+    <h3>Cómo prepararlo</h3>
+    <ol class="steps">
+      <li>Entrá a <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">developer.spotify.com/dashboard</a> con tu cuenta de Spotify y creá una app. El nombre que le pongas da igual.</li>
+      <li>Dentro de esa app, agregá esta dirección como <em>Redirect URI</em>, copiada tal cual y sin espacios: <span class="mono">http://127.0.0.1:8888/callback</span></li>
+      <li>Copiá el <strong>Client ID</strong> que muestra la app y pegalo acá abajo.</li>
+    </ol>
+
+    <form id="spotifyForm" class="form">
+      <label>Client ID de tu app
+        <input id="spotifyClientId" name="clientId" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="63" required placeholder="Pegá el Client ID acá">
+      </label>
+      <div class="actions">
+        <button class="btn" type="submit">Guardar Client ID</button>
+      </div>
+    </form>
+
+    <h3>Autorizar el equipo</h3>
+    <ol class="steps">
+      <li>Tocá <strong>Autorizar</strong> y abrí el enlace que aparece.</li>
+      <li>Entrá con tu cuenta de Spotify y tocá <strong>Aceptar</strong>.</li>
+      <li>El navegador va a intentar volver a la dirección de abajo y va a mostrar un error de conexión. <strong>Eso es esperado</strong>: esa dirección vive en tu computadora, no en el teléfono.</li>
+      <li>Sin cerrar esa pestaña, copiá de la barra de direcciones todo lo que está después de <span class="mono">code=</span> y antes del próximo <span class="mono">&amp;</span>. Ese valor es el código.</li>
+    </ol>
+    <div class="actions">
+      <button class="btn ghost" id="spotifyAuthBtn" type="button">Autorizar</button>
+    </div>
+
+    <div class="authbox" id="spotifyAuthBox" hidden>
+      <p class="hint inline">Enlace para dar el permiso (se abre en una pestaña nueva):</p>
+      <a class="link mono" id="spotifyAuthLink" href="#" target="_blank" rel="noopener"></a>
+      <p class="warn">Después de aprobar, la página va a fallar al volver y vas a ver un error de conexión con <span class="mono">127.0.0.1</span>. Es normal. No cierres esa pestaña: copiá el valor de <span class="mono">code=</span> desde la barra de direcciones y pegalo abajo.</p>
+      <p class="hint inline">La dirección de vuelta configurada en tu app tiene que ser <span class="mono" id="spotifyRedirect">http://127.0.0.1:8888/callback</span></p>
+    </div>
+
+    <form id="spotifyCodeForm" class="form">
+      <label>Código de autorización
+        <input id="spotifyCode" name="code" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Pegá la dirección completa (empieza con http://127.0.0.1:8888/callback?code=...)">
+      </label>
+      <p class="hint inline">Sirve la dirección entera o sólo lo que está después de <span class="mono">code=</span>: el equipo saca el código solo.</p>
+      <div class="actions">
+        <button class="btn" type="submit">Enviar código</button>
+        <button class="btn ghost" id="spotifyForget" type="button">Olvidar autorización</button>
+      </div>
+    </form>
+
+    <h3>Estado en vivo</h3>
+    <div class="sp-state" id="spotifyStateBox">
+      <span class="dot"></span><span id="spotifyState">Consultando…</span>
+    </div>
+    <p class="hint" id="spotifyStateHint">Todavía no hablamos con el equipo.</p>
+    <p class="sp-error" id="spotifyError" hidden></p>
+    <div class="sp-panel" id="spotifyTrack" hidden>
+      <p class="sp-title" id="spotifyTitle">—</p>
+      <p class="sp-artist" id="spotifyArtist">—</p>
+      <div class="sp-bar"><span id="spotifyBar"></span></div>
+      <p class="sp-time"><span id="spotifyPlay">—</span> · <span id="spotifyTime">—</span></p>
+    </div>
+    <p class="hint" id="spotifyFeedNote"></p>
+  </section>
+
+  <section class="card danger">
+    <h2>Mantenimiento</h2>
+    <p class="hint">Reiniciar no borra nada. Restablecer de fábrica borra el WiFi de casa y los récords.</p>
+    <div class="actions">
+      <button class="btn ghost" id="restartBtn" type="button">Reiniciar equipo</button>
+      <button class="btn danger" id="factoryBtn" type="button">Restablecer de fábrica</button>
+    </div>
+    <div class="row">
+      <button class="btn ghost" id="panelColors" type="button">Probar colores de la pantalla</button>
+    </div>
+    <p class="hint">La pantalla se pone roja, verde, azul y blanca. Si no ves esos colores, el problema es del panel y no de las pantallas.</p>
+  </section>
+
+</main>
+
+<footer>
+  <p>ESP32 Gadget · Waveshare ESP32-S3-LCD-1.47B</p>
+  <p class="hint">Este panel vive dentro del equipo: no necesita internet.</p>
+</footer>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="/app.js"></script>
+</body>
+</html>

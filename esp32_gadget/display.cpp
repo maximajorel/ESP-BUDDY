@@ -1,0 +1,251 @@
+#include "display.h"
+
+#include "gfx.h"
+
+#include <SPI.h>
+#include <esp_heap_caps.h>
+
+// Pins fixed by the board layout (Waveshare ESP32-S3-LCD-1.47B schematic).
+#define PIN_MOSI 45
+#define PIN_SCLK 40
+#define PIN_CS 42
+#define PIN_DC 41
+#define PIN_RST 39
+#define PIN_BL 46
+
+#define SPI_FREQ 80000000
+#define BL_FREQ 1000
+#define BL_RES 10
+
+static SPIClass s_spi(FSPI);
+
+static uint16_t *s_panel = nullptr;  // transpose target, panel scan order
+static uint8_t s_orientation = ORIENT_CW;
+static uint8_t s_backlight = 90;
+static bool s_awake = true;
+
+static void applyBacklight() {
+  uint32_t duty = s_awake ? (uint32_t)s_backlight * 1024 / 100 : 0;
+  ledcWrite(PIN_BL, duty);
+}
+
+static void writeCommand(uint8_t cmd) {
+  s_spi.beginTransaction(SPISettings(SPI_FREQ, MSBFIRST, SPI_MODE0));
+  digitalWrite(PIN_CS, LOW);
+  digitalWrite(PIN_DC, LOW);
+  s_spi.transfer(cmd);
+  digitalWrite(PIN_CS, HIGH);
+  s_spi.endTransaction();
+}
+
+static void writeData(uint8_t data) {
+  s_spi.beginTransaction(SPISettings(SPI_FREQ, MSBFIRST, SPI_MODE0));
+  digitalWrite(PIN_CS, LOW);
+  digitalWrite(PIN_DC, HIGH);
+  s_spi.transfer(data);
+  digitalWrite(PIN_CS, HIGH);
+  s_spi.endTransaction();
+}
+
+static void writeDataBulk(const uint8_t *data, size_t len) {
+  s_spi.beginTransaction(SPISettings(SPI_FREQ, MSBFIRST, SPI_MODE0));
+  digitalWrite(PIN_CS, LOW);
+  digitalWrite(PIN_DC, HIGH);
+  s_spi.writeBytes(data, len);
+  digitalWrite(PIN_CS, HIGH);
+  s_spi.endTransaction();
+}
+
+void displaySetBacklight(uint8_t percent) {
+  if (percent > 100) percent = 100;
+  s_backlight = percent;
+  applyBacklight();
+}
+
+uint8_t displayGetBacklight() { return s_backlight; }
+
+void displaySetAwake(bool awake) {
+  s_awake = awake;
+  applyBacklight();
+}
+
+bool displayIsAwake() { return s_awake; }
+
+void displayInitPanel() {
+  pinMode(PIN_CS, OUTPUT);
+  pinMode(PIN_DC, OUTPUT);
+  pinMode(PIN_RST, OUTPUT);
+
+  ledcAttach(PIN_BL, BL_FREQ, BL_RES);
+  displaySetBacklight(s_backlight);
+
+  s_spi.begin(PIN_SCLK, -1, PIN_MOSI);
+
+  // Hardware reset.
+  digitalWrite(PIN_CS, LOW);
+  delay(50);
+  digitalWrite(PIN_RST, LOW);
+  delay(50);
+  digitalWrite(PIN_RST, HIGH);
+  delay(50);
+
+  // Initialisation sequence taken from Waveshare's reference driver. Only the
+  // values that matter for this panel are commented; the rest is the vendor
+  // power/gamma tuning and is left as published.
+  writeCommand(0x11);  // sleep out
+  delay(120);
+  writeCommand(0x36);  // MADCTL
+  // 0x00: no address transposition. This is the configuration Waveshare's own
+  // driver actually executes - its VERTICAL/HORIZONTAL macros are a leftover and
+  // `if (HORIZONTAL)` is a constant true, so the 0x70 branch is dead code that
+  // was never validated. Using it produced a 240-column clamped window and a
+  // sheared image.
+  writeData(0x00);
+  writeCommand(0x3A);  // pixel format
+  writeData(0x05);     // 16 bits per pixel
+  writeCommand(0xB0);
+  writeData(0x00);
+  writeData(0xE8);
+  writeCommand(0xB2);
+  writeData(0x0C);
+  writeData(0x0C);
+  writeData(0x00);
+  writeData(0x33);
+  writeData(0x33);
+  writeCommand(0xB7);
+  writeData(0x35);
+  writeCommand(0xBB);
+  writeData(0x35);
+  writeCommand(0xC0);
+  writeData(0x2C);
+  writeCommand(0xC2);
+  writeData(0x01);
+  writeCommand(0xC3);
+  writeData(0x13);
+  writeCommand(0xC4);
+  writeData(0x20);
+  writeCommand(0xC6);
+  writeData(0x0F);
+  writeCommand(0xD0);
+  writeData(0xA4);
+  writeData(0xA1);
+  writeCommand(0xD6);
+  writeData(0xA1);
+  writeCommand(0xE0);
+  writeData(0xF0);
+  writeData(0x00);
+  writeData(0x04);
+  writeData(0x04);
+  writeData(0x04);
+  writeData(0x05);
+  writeData(0x29);
+  writeData(0x33);
+  writeData(0x3E);
+  writeData(0x38);
+  writeData(0x12);
+  writeData(0x12);
+  writeData(0x28);
+  writeData(0x30);
+  writeCommand(0xE1);
+  writeData(0xF0);
+  writeData(0x07);
+  writeData(0x0A);
+  writeData(0x0D);
+  writeData(0x0B);
+  writeData(0x07);
+  writeData(0x28);
+  writeData(0x33);
+  writeData(0x3E);
+  writeData(0x36);
+  writeData(0x14);
+  writeData(0x14);
+  writeData(0x29);
+  writeData(0x32);
+  writeCommand(0x21);  // inversion on
+  writeCommand(0x11);
+  delay(120);
+  writeCommand(0x29);  // display on
+}
+
+bool displayBegin() {
+  s_panel = (uint16_t *)heap_caps_malloc(PANEL_PIXELS * 2, MALLOC_CAP_SPIRAM);
+  if (!s_panel) return false;
+  memset(s_panel, 0, PANEL_PIXELS * 2);
+  displayInitPanel();
+  return true;
+}
+
+void displaySetOrientation(uint8_t orientation) {
+  if (orientation > 3) return;
+  s_orientation = orientation;
+}
+
+uint8_t displayGetOrientation() { return s_orientation; }
+
+void displayPush(const uint16_t *fb) {
+  if (!s_panel) return;
+
+  // The panel wants the high byte first while the ESP32 keeps uint16_t low byte
+  // first, so the swap happens here; doing it during the transpose costs
+  // nothing extra.
+  for (int y = 0; y < DISPLAY_H; y++) {
+    const uint16_t *src = fb + (size_t)y * DISPLAY_W;
+    for (int x = 0; x < DISPLAY_W; x++) {
+      int px, py;
+      switch (s_orientation) {
+        case ORIENT_MIRROR:
+          px = y;
+          py = x;
+          break;
+        case ORIENT_CCW:
+          px = y;
+          py = DISPLAY_W - 1 - x;
+          break;
+        case ORIENT_MIRROR2:
+          px = PANEL_W - 1 - y;
+          py = DISPLAY_W - 1 - x;
+          break;
+        case ORIENT_CW:
+        default:
+          px = PANEL_W - 1 - y;
+          py = x;
+          break;
+      }
+      uint16_t v = src[x];
+      s_panel[py * PANEL_W + px] = (uint16_t)((v << 8) | (v >> 8));
+    }
+  }
+
+  // Full-frame window. With MADCTL 0x00 the column address is the panel's 172
+  // source lines, centred by a 34-column offset, and the row address is its 320
+  // gate lines. Writing 320 columns instead would exceed the ST7789's 240-column
+  // limit and shear the image.
+  writeCommand(0x2A);
+  writeData(0x00);
+  writeData(0x00 + PANEL_COL_OFFSET);
+  writeData((PANEL_W - 1) >> 8);
+  writeData((PANEL_W - 1 + PANEL_COL_OFFSET) & 0xFF);
+  writeCommand(0x2B);
+  writeData(0x00);
+  writeData(0x00);
+  writeData((PANEL_H - 1) >> 8);
+  writeData((PANEL_H - 1) & 0xFF);
+  writeCommand(0x2C);
+
+  writeDataBulk((const uint8_t *)s_panel, (uint32_t)PANEL_PIXELS * 2);
+}
+
+// Proof that the panel is actually being driven: four saturated full-screen
+// colours. This used to run at every boot, which flashed the room red before the
+// splash; now it only runs when someone asks for it.
+void displayColorTest() {
+  static const uint16_t COLORS[4] = {0xF800, 0x07E0, 0x001F, 0xFFFF};
+  static const char *const NAMES[4] = {"red", "green", "blue", "white"};
+  for (int i = 0; i < 4; i++) {
+    gfxClear(COLORS[i]);
+    displayPush(gfxBuffer());
+    Serial.printf("panel test: %s\n", NAMES[i]);
+    delay(420);
+  }
+  Serial.println("color test done");
+}

@@ -1,0 +1,33 @@
+# --- Build outputs -----------------------------------------------------------
+# Arduino/arduino-cli build directories (.build-main, .build-clean, ...).
+.build-*/
+build/
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# --- Vendored upstream SDK ---------------------------------------------------
+# Waveshare demo bundle: ESP-IDF, LVGL and firmware blobs (~264 MB). These are
+# re-downloadable upstream sources, never project code. Keep _legacy/ itself
+# versioned so the prototype lineage and notes survive.
+_legacy/waveshare-demo/
+
+# --- Generated artifacts -----------------------------------------------------
+*.log
+*.o
+*.a
+*.elf
+*.map
+*.hex
+*.merged.bin
+__pycache__/
+*.py[cod]
+
+# --- Editor / OS -------------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+.idea/
+.vscode/

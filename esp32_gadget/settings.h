@@ -1,0 +1,92 @@
+// Persistent device settings in NVS.
+//
+// Everything the user can change survives a power cycle: credentials, the access
+// point name and password, brightness, timezone and the game high score. NVS is
+// the only storage the firmware needs, so there is no filesystem to mount.
+#pragma once
+
+#include <Arduino.h>
+
+#include "screen_name.h"
+
+#define SETTINGS_SSID_MAX 32
+#define SETTINGS_PASS_MAX 64
+#define SETTINGS_AP_SSID_MAX 32
+#define SETTINGS_AP_PASS_MAX 64
+
+// Factory access point password: eight digits are far easier to type on a phone
+// than a word, and WPA2 needs at least eight characters anyway.
+#define SETTINGS_AP_PASS_DEFAULT "12345678"
+// The first builds shipped this one. It is migrated away on boot so an existing
+// owner is not left typing a word-shaped secret.
+#define SETTINGS_AP_PASS_LEGACY "luckyseven"
+
+struct Settings {
+  char staSsid[SETTINGS_SSID_MAX + 1];
+  char staPass[SETTINGS_PASS_MAX + 1];
+  char apSsid[SETTINGS_AP_SSID_MAX + 1];
+  char apPass[SETTINGS_AP_PASS_MAX + 1];
+  int8_t tzOffsetHours;
+  uint8_t brightness;   // 0..100
+  uint16_t slotHighScore;
+  uint32_t gameHighScore;
+  bool clock24h;
+};
+
+void settingsBegin();
+const Settings &settingsGet();
+Settings &settingsMutable();
+
+// Writes the whole struct back to NVS. Returns false on a storage error.
+bool settingsSave();
+
+// Restores factory defaults; used by the "reset" button in the web panel.
+void settingsResetDefaults();
+
+// True when station credentials are present.
+bool settingsHasSta();
+
+// How the landscape image is rotated onto the portrait panel. Stored under its
+// own NVS key rather than inside the settings blob, so changing the layout of
+// the blob never invalidates a user's credentials.
+uint8_t settingsGetOrientation();
+void settingsSetOrientation(uint8_t value);
+
+// Which sensor axes steer the dodge game, learned from a one-off gesture so it
+// works no matter how the board is held. Stored under its own keys for the same
+// reason as the orientation.
+struct SteerCalibration {
+  uint8_t latAxis;   // accelerometer axis that reads the left/right tilt
+  uint8_t upAxis;    // accelerometer axis that carries gravity
+  int8_t sign;       // -1 inverts the left/right controls
+  int8_t signY;      // -1 inverts the up/down controls
+  uint8_t gain;      // sensitivity percentage
+  bool valid;        // false until a calibration gesture has been recorded
+  float baseline;    // neutral reading on latAxis
+  float baselineY;   // neutral reading on the axis that reads up/down tilt
+};
+
+// Order the screen picker walks through. Its own NVS key, and generic over the
+// count, so neither the settings blob layout nor this file needs to know how many
+// screens the UI has.
+void settingsGetScreenOrder(uint8_t *out, uint8_t count);
+bool settingsSetScreenOrder(const uint8_t *order, uint8_t count);
+
+// Owner-chosen name for one screen. Each name lives under its own NVS key so the
+// settings blob layout stays untouched; an absent key means "use the built-in
+// name". A get that finds nothing returns false and leaves `out` empty, and a
+// set with an empty name removes the override instead of storing a blank.
+bool settingsGetScreenName(uint8_t index, char *out, size_t cap);
+bool settingsSetScreenName(uint8_t index, const char *name);
+
+// Auto-off for the glass and the LED bead. Separate keys, same reason as the
+// orientation: the settings blob is versioned by size.
+struct ScreenTimeout {
+  uint16_t seconds;  // 0 = never
+  uint8_t mask;      // bit per screen id; see screen_sleep.h
+};
+ScreenTimeout settingsGetScreenTimeout();
+void settingsSetScreenTimeout(const ScreenTimeout &t);
+
+SteerCalibration settingsGetSteerCalibration();
+void settingsSetSteerCalibration(const SteerCalibration &cal);

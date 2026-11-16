@@ -1,0 +1,11 @@
+sleep 5000
+steercal
+sleep 300
+press
+sleep 4200
+gamestate
+sleep 13000
+gamestate
+sleep 13000
+gamestate
+status

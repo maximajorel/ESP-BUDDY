@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ESP32-S3 LCD 1.47B — consola</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <h1>ESP32-S3 LCD 1.47B</h1>
+      <p id="endpoint">—</p>
+    </div>
+    <div id="status" class="pill offline">desconectado</div>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>Pantalla <span class="tag">172 × 320</span></h2>
+
+      <label class="field">
+        <span>Brillo</span>
+        <input type="range" id="bl" min="0" max="100" value="80">
+        <output id="bl-out">80</output>
+      </label>
+
+      <div class="row">
+        <label class="field">
+          <span>Color de fondo</span>
+          <input type="color" id="fill-color" value="#1b2a6b">
+        </label>
+        <button id="fill-apply">Pintar</button>
+        <button id="bars" class="ghost">Barras de test</button>
+      </div>
+
+      <div class="uploader">
+        <label class="file">
+          <input type="file" id="image-file" accept="image/*">
+          <span>Elegir imagen…</span>
+        </label>
+        <div class="preview">
+          <canvas id="preview" width="172" height="320"></canvas>
+          <p id="preview-hint">La imagen se recorta y escala a 172 × 320 en tu navegador.<br>
+             La placa recibe los píxeles ya listos, sin decodificar nada.</p>
+        </div>
+        <button id="image-send" disabled>Enviar al LCD</button>
+        <progress id="image-progress" max="100" value="0" hidden></progress>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Tira RGB <span class="tag">WS2812 · GPIO38</span></h2>
+
+      <div class="row">
+        <label class="field">
+          <span>Color</span>
+          <input type="color" id="rgb-color" value="#ff8800">
+        </label>
+        <label class="field grow">
+          <span>Intensidad</span>
+          <input type="range" id="rgb-level" min="0" max="255" value="64">
+          <output id="rgb-level-out">64</output>
+        </label>
+      </div>
+
+      <div class="row effects">
+        <button data-effect="solid">Sólido</button>
+        <button data-effect="rainbow" class="ghost">Arcoíris</button>
+        <button data-effect="off" class="ghost">Apagado</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Telemetría <span class="tag">en vivo</span></h2>
+      <div class="telemetry">
+        <div><span>Aceleración (g)</span><b id="accel">—</b></div>
+        <div><span>Giroscopio (°/s)</span><b id="gyro">—</b></div>
+      </div>
+      <div class="meta">
+        <span id="uptime">—</span>
+        <span id="heap">—</span>
+        <span id="clients">—</span>
+      </div>
+      <p class="hint">Mové la placa y mirá cómo cambian los valores: es el mismo IMU
+        que alimenta el simulador de partículas.</p>
+    </section>
+
+    <section class="card">
+      <h2>Red</h2>
+      <p class="hint">La placa crea su propio punto de acceso. Si preferís que se
+        conecte a tu red, cargá las credenciales: se guardan y la placa reinicia.</p>
+      <div class="row stack">
+        <input id="wifi-ssid" placeholder="SSID" autocomplete="off">
+        <input id="wifi-pass" type="password" placeholder="contraseña" autocomplete="off">
+        <button id="wifi-save" class="ghost">Guardar y reiniciar</button>
+      </div>
+      <p id="wifi-msg" class="hint"></p>
+    </section>
+  </main>
+
+  <footer>
+    <span>Comandos por WebSocket a <code id="ws-endpoint">—</code></span>
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>

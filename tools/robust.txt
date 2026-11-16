@@ -1,0 +1,14 @@
+sleep 5000
+status
+api POST /api/wifi {"ssid":"VICTORWIFI","pass":"clave-equivocada-000"}
+sleep 9000
+status
+api GET /api/status
+sleep 20000
+api GET /api/status
+screen 0
+sleep 400
+dump 5
+api POST /api/wifi/forget
+sleep 1500
+status

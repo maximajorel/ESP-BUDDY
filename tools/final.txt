@@ -1,0 +1,24 @@
+sleep 8000
+screen 0
+sleep 400
+dump 5
+screen 1
+sleep 400
+dump 5
+screen 2
+sleep 400
+dump 5
+screen 3
+sleep 400
+dump 5
+screen 0
+hold
+sleep 3800
+hold
+sleep 3800
+hold
+sleep 3800
+hold
+sleep 3800
+status
+api GET /api/status
