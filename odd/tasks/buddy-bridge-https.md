@@ -178,3 +178,38 @@ host that has to fail costs a few seconds and the snapshot only changes when a
 poll lands. Measuring a transition needs either a longer wait or sampling until
 the value changes; the five-second read in the first live script produced one
 false "regression" this way.
+
+L15 (second verifier pass, gentle-ai-verify): one residual blocker (B1) and one
+inaccurate comment, everything else pass.
+
+B1: the X509 band fix was right but not sufficient. A transport failure does not
+always come with a fresh TLS reason — `NetworkClientSecure::connect` returns on a
+DNS failure *before* assigning `last_error`, and `stop_ssl_socket` preserves the old
+value — so a stale X509 code from an earlier certificate failure could be blamed on
+a host that does not resolve. My own L13 sequence could not catch it: the refused
+port wrote `-1` first, so the stale code was already overwritten.
+
+Fixed in 8ce9069 by resolving the https host before the request (the same lookup the
+client performs, cached by lwIP; an IP literal skips it). A name that does not
+resolve now fails before the TLS client is consulted at all. Re-measured on the
+device in the order that used to break: `self-signed.badssl.com` → `tls`, then
+`nohay-tal-host.invalid` → `offline` (stable over six samples) and the ask answers
+"No pude conectar al bridge"; the same certificate failure afterwards still reads
+`tls`, and `https://192.168.100.64:9999` reads `offline`.
+
+The comment the verifier caught was true-but-wrong: PKCS5's codes (-0x2E00..-0x2F80)
+do sit inside the X509 band numerically. They never appear on a handshake path, so
+the band keeps its shape and the overlap is documented and pinned in
+`tools/buddy_link_test.cpp` (band edges -0x0C80/-0x3080, PKCS5 inside).
+
+Still open, recorded as decisions rather than defects: a 503 reads as `http` (a
+managed challenge is documented as 403, and a 503 also means a bridge that is down);
+a failed transport-lock take answers "no pude conectar" instead of "busy"; and the
+keep-alive socket is trusted for a host the client no longer compares, which the
+seven-sample host switch in L13 did not reproduce.
+
+L16 (measurement lesson, again): reading the cause right after a URL change shows the
+previous value for one or two seconds, and a "wait until it stops changing" loop
+returns early when the change has not arrived yet. A patient fixed window (10 samples
+at 2 s) is what distinguishes a wrong cause from a stale one; both false alarms in
+this feature came from reading too early.
