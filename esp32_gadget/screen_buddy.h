@@ -44,3 +44,14 @@ void buddyGetView(BuddyView *out);
 // Starts a run through the bridge (POST /buddy/ask). The panel's prompt box uses
 // this; the device never holds the Hermes key, only the bridge token.
 bool buddyAsk(const char *prompt, char *err, size_t errCap);
+
+// Console diagnostic: the geometry of the last face drawn (no readable bus).
+void buddyDumpDraw();
+
+// What the face is feeling right now, so the rear bead can match it: anger is
+// red, deep sleep is a faint ember, everything else follows the bridge phase.
+enum BuddyMood { BUDDY_MOOD_CALM, BUDDY_MOOD_ANGRY, BUDDY_MOOD_SLEEPING };
+BuddyMood buddyMood();
+
+// Console debug: put the idle distraction on the glass for `holdMs`.
+void buddyForceBug(uint32_t holdMs);

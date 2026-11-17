@@ -104,36 +104,27 @@ int main() {
     // Angry: 16 deg tilt makes extentY ~59 for a 48 px box, lid 34%.
     int extentY = (int)ceilf(buddyEyeExtentY(48.0f, 48.0f, 16.0f));
     check("the angry rotation is taller than the box", extentY > 48);
-    BuddyLidBand top = buddyLidBandTop(88, extentY, BUDDY_GLOW_PAD, 0.34f);
-    check("the top band starts above the glow",
-          top.y0 <= 88 - extentY - BUDDY_GLOW_PAD);
-    check("and reaches the lid line",
-          top.y0 + top.h - 1 >= 88 - extentY + (int)(2.0f * extentY * 0.34f));
+    check("a lid line never leaves the eye",
+          buddyLidScreenY(88, extentY, 0.34f, 0.0f, 0.0f) >= 88 - extentY);
     BuddyLidBand bot = buddyLidBandBottom(88, extentY, BUDDY_GLOW_PAD, 0.35f);
     check("the bottom band reaches below the glow",
           bot.y0 + bot.h - 1 >= 88 + extentY + BUDDY_GLOW_PAD);
     check("and starts at the bottom lid line",
           bot.y0 <= 88 + extentY - (int)(2.0f * extentY * 0.35f));
-    check("an open eye asks for no band",
-          buddyLidBandTop(88, extentY, BUDDY_GLOW_PAD, 0.0f).h == 0);
   }
 
   printf("-- lid line sub-pixel\n");
   {
     // S6: the band fill lands on a row; the renderer dithers the fraction so the
     // lid slides between rows instead of stepping.
-    checkNear("a half lid lands on the centre row", buddyLidLineTop(88, 48, 0.5f),
-              88.0f, 0.001f);
-    checkNear("a closed lid reaches the bottom of the eye",
-              buddyLidLineTop(88, 48, 1.0f), 136.0f, 0.001f);
-    checkNear("an open lid is the top of the eye", buddyLidLineTop(88, 48, 0.0f),
-              40.0f, 0.001f);
-    check("a clamped lid never leaves the eye",
-          buddyLidLineTop(88, 48, 9.0f) == buddyLidLineTop(88, 48, 1.0f));
+    checkNear("a half lid lands on the centre row",
+              buddyLidScreenY(88, 48, 0.5f, 0.0f, 0.0f), 88.0f, 0.001f);
+    checkNear("an open lid is the top of the eye",
+              buddyLidScreenY(88, 48, 0.0f, 0.0f, 0.0f), 40.0f, 0.001f);
     checkNear("the bottom lid mirrors it", buddyLidLineBottom(88, 48, 0.5f),
               88.0f, 0.001f);
     check("a fractional lid keeps its sub-pixel rest",
-          fabsf(buddyLidLineTop(88, 48, 0.51f) - 88.96f) < 0.01f);
+          fabsf(buddyLidScreenY(88, 48, 0.51f, 0.0f, 0.0f) - 88.96f) < 0.01f);
   }
 
   printf("-- easing\n");
@@ -214,6 +205,25 @@ int main() {
     check("the tremble keeps shaking", changed && lo < -0.5f && hi > 0.5f);
   }
 
+  printf("-- the eyelid angles with the eye\n");
+  {
+    // S14/S17: no brows; the black eyelid block is the expression. A positively
+    // rotated eye gets a lid that falls to the right, so the angry pair reads
+    // "\/" when the two eyes rotate opposite ways.
+    float leftInner = buddyLidScreenY(88, 48, 0.46f, 11.0f, 20.0f);
+    float leftOuter = buddyLidScreenY(88, 48, 0.46f, 11.0f, -20.0f);
+    float rightInner = buddyLidScreenY(88, 48, 0.46f, -11.0f, -20.0f);
+    float rightOuter = buddyLidScreenY(88, 48, 0.46f, -11.0f, 20.0f);
+    check("the left lid falls towards the nose", leftInner > leftOuter);
+    check("the right lid falls towards the nose too", rightInner > rightOuter);
+    check("an unrotated lid is flat",
+          fabsf(buddyLidScreenY(88, 48, 0.46f, 0.0f, 20.0f) -
+                buddyLidScreenY(88, 48, 0.46f, 0.0f, -20.0f)) < 0.01f);
+    check("a wider lid cuts lower on the glass",
+          buddyLidScreenY(88, 48, 0.8f, 0.0f, 0.0f) >
+              buddyLidScreenY(88, 48, 0.2f, 0.0f, 0.0f));
+  }
+
   printf("-- soft edges: coverage and ordered dither\n");
   {
     // S6: the panel has no alpha, so an edge pixel is either the eye colour or
@@ -255,18 +265,16 @@ int main() {
   printf("-- new pose channels default to the previous look\n");
   {
     BuddyPose base;
-    check("no brows", base.browL == 0.0f && base.browR == 0.0f);
     check("no growth", base.grow == 1.0f);
     check("no tremble", base.tremble == 0.0f);
     BuddyPoseFilter f;
     buddyPoseFilterReset(&f);
     BuddyPose target;
-    target.browL = 1.0f;
     target.grow = 1.12f;
     target.tremble = 1.0f;
     BuddyPose out = buddyPoseFilterStep(&f, target, 50);
     check("the filter carries the new channels",
-          out.browL == 1.0f && out.grow == 1.12f && out.tremble == 1.0f);
+          out.grow == 1.12f && out.tremble == 1.0f);
   }
 
   if (g_failures) {

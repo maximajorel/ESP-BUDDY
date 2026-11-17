@@ -324,9 +324,6 @@ static void happyEyeGlow(int cx, int cy, uint16_t glow) {
   }
 }
 
-// One angled brow above an eye. Positive drops the inner corner (anger),
-// negative lifts it (worry); `left` mirrors the slant so both inner corners
-// move together. Drawn after the lid band, because the band is black.
 // One dithered row at a lid line. The band already painted the row black, so
 // this only puts the eye colour back where the dither leaves it visible; only
 // pixels inside the rotated eye are touched, so nothing leaks into the halo.
@@ -345,15 +342,58 @@ static void ditherLidRow(int x, int y, int halfW, int halfH, float deg,
   }
 }
 
-static void drawBrow(int x, int topY, int halfW, float brow, bool left,
-                     uint16_t color) {
-  if (fabsf(brow) < 0.04f) return;
-  float slant = brow * 9.0f * (left ? 1.0f : -1.0f);
-  int innerY = topY + (int)lroundf(slant * 0.5f);
-  int outerY = topY - (int)lroundf(slant * 0.5f);
-  int outerX = left ? x - halfW : x + halfW;
-  int innerX = left ? x + halfW : x - halfW;
-  thickLine(outerX, outerY, innerX, innerY, color);
+// Diagnostic snapshot of the last face the glass actually drew. The panel has
+// no readable bus, so when a pixel looks wrong the question is always "which
+// numbers produced it"; `buddydraw` on the console answers it.
+struct BuddyDrawInfo {
+  bool have = false;
+  int x[2] = {0, 0};
+  int rx[2] = {0, 0};
+  int ry[2] = {0, 0};
+  int extentY[2] = {0, 0};
+  float deg[2] = {0, 0};
+  float grow = 1.0f;
+  float lid = 0;
+  float hot = 0;
+  int push = 0;
+};
+static BuddyDrawInfo s_draw;
+// What the bead and the face are feeling right now, for buddy_led.cpp.
+static BuddyMood s_mood = BUDDY_MOOD_CALM;
+// The distraction currently on the glass, and the one the owner cancelled by
+// talking to Sofía (it never comes back for that event).
+static BuddyBug s_bug;
+static uint32_t s_bugCancelled = 0xFFFFFFFFu;
+static uint32_t s_bugForcedUntil = 0;
+static bool s_zzz = false;
+
+// A bug for the idle face to watch: an amber body, six legs and an antennae
+// pair, wiggling. It is the only warm colour on the glass, so the eye finds it
+// at once.
+static void drawBug(const BuddyBug &b, uint32_t nowMs) {
+  int x = (int)lroundf(b.x);
+  int y = (int)lroundf(b.y);
+  uint16_t body = gfxHex(0xFFB020);
+  uint16_t leg = gfxHex(0x7A4A10);
+  int wig = ((nowMs / 90u) % 2u) ? 1 : -1;
+  gfxLine(x - 2, y + 2, x - 7, y + 5 + wig, leg);
+  gfxLine(x - 1, y + 3, x - 6, y + 7 - wig, leg);
+  gfxLine(x + 2, y + 2, x + 7, y + 5 - wig, leg);
+  gfxLine(x + 1, y + 3, x + 6, y + 7 + wig, leg);
+  gfxFillEllipse(x + 1, y, 6, 4, body);
+  gfxFillCircle(x - 6, y - 1, 2, body);
+  gfxLine(x - 7, y - 3, x - 12, y - 6, body);
+  gfxLine(x - 7, y, x - 12, y + 2, body);
+}
+
+// The sleeping animation: three Z letters drifting up and fading. Nothing else
+// moves while the face sleeps, so the letters are the whole show.
+static void drawZzz(uint32_t nowMs, uint32_t eyeRgb) {
+  for (int i = 0; i < BUDDY_ZZZ_COUNT; i++) {
+    int x = 0, y = 0, alpha = 0;
+    buddyZzz(nowMs, i, &x, &y, &alpha);
+    gfxChar(x, y, 2, 'Z', gfxHex(buddyEyeScale(eyeRgb, alpha)));
+  }
 }
 
 // --- HUD: the functional channel --------------------------------------------
@@ -491,13 +531,24 @@ static void drawFace(BuddyState state, const BuddyPose &pose, uint32_t nowMs,
       (float)(eyeExtentX[1] + BUDDY_GLOW_PAD), (float)BUDDY_EYE_GAP_MIN);
   eyeX[0] -= push;
   eyeX[1] += push;
+  s_draw.have = true;
+  s_draw.push = push;
+  s_draw.grow = grow;
+  s_draw.lid = pose.lid;
+  s_draw.hot = pose.hot;
+  for (int i = 0; i < 2; i++) {
+    s_draw.x[i] = eyeX[i];
+    s_draw.rx[i] = eyeRx[i];
+    s_draw.ry[i] = baseRy;
+    s_draw.extentY[i] = eyeExtentY[i];
+    s_draw.deg[i] = eyeDeg[i];
+  }
 
   for (int i = 0; i < 2; i++) {
     // Solid eyes, no pupils: life comes from the gaze and the lids. The error
     // face adds a per-eye offset so the eyes point at each other.
     int x = eyeX[i];
     int y = cy + bob + (int)pose.gazeY;
-    float brow = i == 0 ? pose.browL : pose.browR;
     if (happy) {
       happyEyeGlow(x, y, glowMid);
       happyEye(x, y, color);
@@ -519,15 +570,10 @@ static void drawFace(BuddyState state, const BuddyPose &pose, uint32_t nowMs,
     // lids (the EMO thinking wink) and a bottom lid cuts the tired look.
     float top = pose.lid + (i == 0 ? pose.lidL : pose.lidR);
     int bandHalfX = eyeExtentX[i] + BUDDY_GLOW_PAD + 2;
-    BuddyLidBand topBand =
-        buddyLidBandTop(y, eyeExtentY[i], BUDDY_GLOW_PAD, top);
-    if (topBand.h > 0) {
-      gfxFillRect(x - bandHalfX, topBand.y0, bandHalfX * 2, topBand.h,
-                  GFX_BLACK);
-      float line = buddyLidLineTop(y, eyeExtentY[i], top);
-      ditherLidRow(x, y, eyeRx[i], baseRy, deg, bandHalfX,
-                   topBand.y0 + topBand.h - 1, color, line - floorf(line));
-    }
+    // The eyelid is a black block whose edge is parallel to the eye's top edge:
+    // flat on a straight eye, slanted when the eye is turned. It also covers the
+    // halo above it, so no tinted sliver survives.
+    gfxLidCutRot(x, y, eyeRx[i], baseRy, deg, top, BUDDY_GLOW_PAD, GFX_BLACK);
     BuddyLidBand bottomBand =
         buddyLidBandBottom(y, eyeExtentY[i], BUDDY_GLOW_PAD, pose.bottom);
     if (bottomBand.h > 0) {
@@ -542,11 +588,26 @@ static void drawFace(BuddyState state, const BuddyPose &pose, uint32_t nowMs,
       thickLine(x - 20, y - 22, x + 20, y + 22, GFX_BLACK);
       thickLine(x - 20, y + 22, x + 20, y - 22, GFX_BLACK);
     }
-    // The brow sits above the lid band, on black, so it is drawn last: anger
-    // drops the inner corners, worry lifts them.
-    drawBrow(x, y - eyeExtentY[i] - 7, eyeRx[i], brow, i == 0,
-             gfxHex(buddyEyeScale(eyeRgb, 85)));
   }
+
+  // The two things that can share the glass with the eyes: the sleeping letters
+  // and the bug the face is watching. Both are drawn last, on top.
+  if (s_zzz) drawZzz(nowMs, eyeRgb);
+  if (s_bug.active) drawBug(s_bug, nowMs);
+}
+
+// One sensor sample into the reaction machine. The live path and the debug pin
+// share it, so a pinned face still knows whether the board is lying down.
+static BuddyImuPose readImu(uint32_t nowMs) {
+  float accel[3], gyro[3];
+  imuReadAll(accel, gyro);
+  // The face reads the board, not the glass: when the image is the other one of
+  // the pair she has to lean the other way to keep leaning downhill to the owner.
+  rotMirrorInPlane(accel, gyro, rotationInPlaneSign());
+  uint32_t dt = s_imuAt ? (nowMs - s_imuAt) : BUDDY_FRAME_MS;
+  s_imuAt = nowMs;
+  buddyImuFeed(&s_imu, accel, gyro, nowMs, dt);
+  return buddyImuPose(&s_imu, nowMs);
 }
 
 bool buddyTick(uint32_t nowMs) {
@@ -561,8 +622,20 @@ bool buddyTick(uint32_t nowMs) {
     } else {
       if ((uint32_t)(nowMs - s_lastDraw) < BUDDY_FRAME_MS) return false;
       s_drawnState = s_pinState;
+      BuddyImuPose ip = readImu(nowMs);
       BuddyPose pose =
           buddyPose(s_pinState, s_pinAge + (nowMs - s_pinStart), nowMs, s_seed);
+      if (ip.wake && pose.closed) {
+        pose.closed = false;
+        pose.surprise = true;
+        pose.rx = 50;
+        pose.ry = 60;
+      }
+      s_bug.active = false;
+      s_zzz = pose.closed && ip.lying && ip.lyingMs > 6000;
+      s_mood = pose.closed ? BUDDY_MOOD_SLEEPING
+                           : (ip.angry || pose.tremble > 0.5f) ? BUDDY_MOOD_ANGRY
+                                                               : BUDDY_MOOD_CALM;
       drawFace(s_pinState, pose, nowMs, false);
       s_lastDraw = nowMs;
       s_dirty = false;
@@ -609,15 +682,7 @@ bool buddyTick(uint32_t nowMs) {
   // Physical layer: the IMU is local and the bridge never sees it. A missing
   // sensor reads zero, which the feed ignores, and every reaction expires, so
   // the face can always come back to the state pose.
-  float accel[3], gyro[3];
-  imuReadAll(accel, gyro);
-  // The face reads the board, not the glass: when the image is the other one of
-  // the pair she has to lean the other way to keep leaning downhill to the owner.
-  rotMirrorInPlane(accel, gyro, rotationInPlaneSign());
-  uint32_t dt = s_imuAt ? (nowMs - s_imuAt) : 100;
-  s_imuAt = nowMs;
-  buddyImuFeed(&s_imu, accel, gyro, nowMs, dt);
-  BuddyImuPose ip = buddyImuPose(&s_imu, nowMs);
+  BuddyImuPose ip = readImu(nowMs);
   pose.gazeX += ip.gazeX;
   pose.gazeY += ip.gazeY;
   if (ip.lid > pose.lid) pose.lid = ip.lid;
@@ -626,11 +691,9 @@ bool buddyTick(uint32_t nowMs) {
   pose.rotL += ip.rotL;
   pose.rotR += ip.rotR;
   if (ip.hot > pose.hot) pose.hot = ip.hot;
-  // The expression anatomy the IMU adds: anger grows the eye, angles the brows
-  // down and shakes; dizziness lifts the brows into a worried arch.
+  // The expression anatomy the IMU adds: anger grows the eye, turns the lids
+  // into the angled blocks and shakes; dizziness only droops.
   if (ip.grow > 1.0f) pose.grow = ip.grow;
-  pose.browL += ip.browL;
-  pose.browR += ip.browR;
   if (ip.bottom > pose.bottom) pose.bottom = ip.bottom;
   if (ip.tremble > pose.tremble) pose.tremble = ip.tremble;
   if (ip.wide) {
@@ -639,9 +702,9 @@ bool buddyTick(uint32_t nowMs) {
     pose.ry = 60;
   }
   if (ip.faceDown) pose.lid = 0.6f;
-  // Lifted off the table while bored asleep: wake with a start, then let the
-  // state take over again.
-  if (ip.wake && shown == BUDDY_BORED) {
+  // Lifted off the table, or the board moved while the face was asleep: wake
+  // with a start, then let the state take over again.
+  if (ip.wake && (pose.closed || shown == BUDDY_BORED)) {
     pose.closed = false;
     pose.lid = 0.0f;
     pose.surprise = true;
@@ -649,6 +712,40 @@ bool buddyTick(uint32_t nowMs) {
     pose.ry = 60;
   }
   if (poke) pose.happy = true;
+
+  // Distractions: only while the face is genuinely idle and Sofía is doing
+  // nothing. The moment she is spoken to (any other state, phase or a tap) the
+  // event is cancelled for good; the eyes follow the bug otherwise.
+  BuddyBug bug = buddyBugAt(nowMs, s_seed);
+  // Console override: `bug <seconds>` puts the distraction on the glass now, so
+  // the probe can prove it without waiting for the hashed window.
+  if ((int32_t)(s_bugForcedUntil - nowMs) > 0) {
+    bug.active = true;
+    bug.eventId = 0xFFFFFFFEu;
+    bug.x = 40.0f + (float)((nowMs / 20u) % 240u);
+    bug.y = 70.0f;
+  }
+  // "Idle" here means awake and not being talked to: the idle face and the bored
+  // ladder (which is exactly when the owner expects her to find something to
+  // play with). A face whose eyes are shut is asleep, and sleeps through it.
+  bool awakeIdle = (shown == BUDDY_IDLE || shown == BUDDY_BORED) && !pose.closed;
+  bool quiet = awakeIdle && view.phase == BUDDY_PHASE_IDLE && !poke;
+  if (!quiet && bug.active) s_bugCancelled = bug.eventId;
+  if (bug.active && bug.eventId == s_bugCancelled) bug.active = false;
+  if (bug.active) {
+    float gx = 0, gy = 0;
+    buddyBugGaze(bug, &gx, &gy);
+    pose.gazeX = gx;
+    pose.gazeY = gy;
+  }
+  s_bug = bug;
+
+  // The sleeping letters need both halves: eyes shut (deep boredom) and the
+  // board lying on the table for a while.
+  s_zzz = pose.closed && ip.lying && ip.lyingMs > 6000;
+  s_mood = pose.closed ? BUDDY_MOOD_SLEEPING
+                       : (ip.angry || pose.tremble > 0.5f) ? BUDDY_MOOD_ANGRY
+                                                           : BUDDY_MOOD_CALM;
 
   // Ease the whole pose. dt is clamped so a stalled frame (or returning from a
   // pinned face) never turns one step into a jump.
@@ -673,6 +770,27 @@ bool buddyTick(uint32_t nowMs) {
   s_lastDraw = nowMs;
   s_dirty = false;
   return true;
+}
+
+BuddyMood buddyMood() { return s_mood; }
+
+void buddyForceBug(uint32_t holdMs) {
+  s_bugForcedUntil = millis() + holdMs;
+  s_bugCancelled = 0xFFFFFFFFu;
+}
+
+void buddyDumpDraw() {
+  if (!s_draw.have) {
+    Serial.println("buddydraw: todavia no dibujo");
+    return;
+  }
+  Serial.printf("draw grow=%.2f lid=%.2f hot=%.2f push=%d\n", s_draw.grow,
+                s_draw.lid, s_draw.hot, s_draw.push);
+  for (int i = 0; i < 2; i++) {
+    Serial.printf("eye%d x=%d rx=%d ry=%d extY=%d deg=%.1f\n", i, s_draw.x[i],
+                  s_draw.rx[i], s_draw.ry[i], s_draw.extentY[i],
+                  s_draw.deg[i]);
+  }
 }
 
 bool buddyAsk(const char *prompt, char *err, size_t errCap) {

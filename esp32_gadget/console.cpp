@@ -220,6 +220,8 @@ static void printHelp() {
   Serial.println("  tz <hours>                 UTC offset, e.g. -3 for Tucuman");
   Serial.println("  api <METHOD> <path> [json] call the HTTP API in-process");
   Serial.println("  dump [step]                ASCII render of the framebuffer");
+  Serial.println("  buddydraw                  geometria de la ultima cara dibujada");
+  Serial.println("  bug [seg]                  fuerza la distraccion del bicho");
   Serial.println("  reboot                     restart");
 }
 
@@ -348,6 +350,16 @@ static void handleCommand(char *line) {
     buddyPinFace(st, age, 20000);
     Serial.printf("buddy face pinned: %s age %lus\n", buddyStateWireName(st),
                   (unsigned long)(age / 1000));
+    return;
+  }
+  if (!strcmp(argv[0], "bug")) {
+    uint32_t hold = argc >= 2 ? (uint32_t)atoi(argv[1]) * 1000u : 6000u;
+    buddyForceBug(hold);
+    Serial.printf("bug: %lus en pantalla\n", (unsigned long)(hold / 1000));
+    return;
+  }
+  if (!strcmp(argv[0], "buddydraw")) {
+    buddyDumpDraw();
     return;
   }
   if (!strcmp(argv[0], "fbpix")) {

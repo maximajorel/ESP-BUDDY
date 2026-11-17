@@ -36,6 +36,10 @@ struct BuddyImu {
   bool resting = false;
   float lowAzMs = 0;
   uint32_t wakeUntil = 0;
+  // Sleeping on the table: how long the board has been lying flat, and when it
+  // started. Any real movement clears it.
+  bool lying = false;
+  uint32_t lyingSince = 0;
 };
 
 struct BuddyImuPose {
@@ -55,13 +59,14 @@ struct BuddyImuPose {
   float rotR = 0;
   float hot = 0;       // 0..1 tint towards red
   // The anatomy that makes anger a different face instead of the dizzy one
-  // with a red tint: the eye grows, the brows angle down towards the nose and
-  // the whole pair trembles. Dizzy keeps all three at their neutral values and
-  // carries worried brows instead.
+  // with a red tint: the eye grows, the eyelid block angles with the eye and
+  // the whole pair trembles. Dizzy keeps both neutral: no growth, no tremble.
   float grow = 1.0f;
-  float browL = 0;
-  float browR = 0;
   float tremble = 0;
+  // Lying flat on the table (either face) for a while is what the sleeping
+  // animation reads; `wake` clears it the moment the board is moved.
+  bool lying = false;
+  uint32_t lyingMs = 0;
 };
 
 static inline float buddyImuClamp(float v, float lo, float hi) {
@@ -111,6 +116,26 @@ static inline void buddyImuFeed(BuddyImu *s, const float a[3], const float g[3],
     } else {
       s->dizzyUntil = nowMs + 2500;
     }
+  }
+
+  // Lying flat (either face up on the table or glass down) is what the sleeping
+  // animation reads. Any real movement on the desk wakes the face at once: the
+  // owner asked for "se despierta si muevo el ESP", not for a timer.
+  bool flat = s->faceDown || s->resting;
+  if (flat) {
+    if (!s->lying) {
+      s->lying = true;
+      s->lyingSince = nowMs;
+    }
+  } else {
+    s->lying = false;
+  }
+  float dev = fabsf(mag - 1.0f);
+  bool moved = dev > 0.35f || fabsf(g[0]) > 60.0f || fabsf(g[1]) > 60.0f ||
+               fabsf(g[2]) > 60.0f;
+  if (moved && !s->faceDown) {
+    s->wakeUntil = nowMs + 4000;
+    s->lying = false;
   }
 
   // A sharp single hit is a startle, not a shake: high peak, short duration.
@@ -169,6 +194,8 @@ static inline BuddyImuPose buddyImuPose(const BuddyImu *s, uint32_t nowMs) {
     p.gazeX += s->followX * 8.0f;
   }
   if ((int32_t)(s->wakeUntil - nowMs) > 0) p.wake = true;
+  p.lying = s->lying;
+  p.lyingMs = s->lying ? (nowMs - s->lyingSince) : 0;
   if ((int32_t)(s->likeUntil - nowMs) > 0) {
     p.like = true;
     p.lid = 0.3f;
@@ -181,15 +208,15 @@ static inline BuddyImuPose buddyImuPose(const BuddyImu *s, uint32_t nowMs) {
     // droop and the worried brows, so the two reactions never read alike.
     p.angry = true;
     p.grow = 1.12f;
-    p.browL = 0.9f;
-    p.browR = 0.9f;
     p.tremble = 1.0f;
-    p.rotL = 8.0f;
-    p.rotR = -8.0f;
-    p.lid = 0.32f;
-    p.bottom = 0.12f;
+    // The lids carry the emotion: each eye turns so its upper lid falls towards
+    // the nose, and the pair reads "\/". No droopy bottom lid: that was what
+    // made anger look tired.
+    p.rotL = 11.0f;
+    p.rotR = -11.0f;
+    p.lid = 0.46f;
     p.gazeY = 1.0f;
-    p.hot = 0.9f;
+    p.hot = 1.0f;
     // The eyes slam from one screen edge to the other: a triangle wave, so the
     // direction flips hard at the walls instead of sliding like a sine, and the
     // eye line leans into each hit. 640 ms per round trip reads as a tantrum.
@@ -203,8 +230,6 @@ static inline BuddyImuPose buddyImuPose(const BuddyImu *s, uint32_t nowMs) {
     // Dizzy: the eyes orbit, the lids droop, the head wobbles and the inner
     // corners lift. Worried, not cross; no growth, no tremble.
     p.dizzy = true;
-    p.browL = -0.5f;
-    p.browR = -0.5f;
     p.gazeX = sinf((float)nowMs * 0.012f) * 10.0f;
     p.gazeY = cosf((float)nowMs * 0.009f) * 6.0f + 2.0f;
     p.rot = sinf((float)nowMs * 0.007f) * 9.0f;

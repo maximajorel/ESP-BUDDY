@@ -83,7 +83,10 @@ int main() {
     check("idle breathes", fabsf(bobA - bobB) > 0.2f);
     float asleep = buddyPose(BUDDY_BORED, 130000, 130000, seed).bob;
     float asleepLater = buddyPose(BUDDY_BORED, 130000, 131500, seed).bob;
-    check("even the asleep face breathes", fabsf(asleep - asleepLater) > 0.5f);
+    check("the bored face breathes until it falls asleep",
+          fabsf(buddyPose(BUDDY_BORED, 70000, 70000, seed).bob -
+                buddyPose(BUDDY_BORED, 70000, 71500, seed).bob) > 0.3f);
+    check("and then it stops completely", asleep == 0.0f && asleepLater == 0.0f);
   }
 
   printf("-- gesture rotation\n");
@@ -148,8 +151,6 @@ int main() {
         p.surprise && p.ry > 56 && p.rx <= 50);
   p = buddyPose(BUDDY_ERROR, 1000, 1000, seed);
   check("error crosses the eyes", p.eyeGazeL > 0 && p.eyeGazeR < 0);
-  check("error raises one brow and drops the other: sceptical",
-        p.browL < -0.2f && p.browR > 0.2f);
   p = buddyPose(BUDDY_DONE, 100, 100, seed);
   check("done is happy for the first second", p.happy);
   p = buddyPose(BUDDY_DONE, 2000, 2000, seed);
@@ -282,6 +283,98 @@ int main() {
     check("the regular rhythm stays inside 2-6 s",
           maxGap <= 6200u && minGap < 1500u);
     check("there is at least one long blink", longBlink > 0);
+  }
+
+  printf("-- the asleep face freezes\n");
+  {
+    // S12/S17: bored past two minutes the eyes shut and nothing moves at all.
+    bool moved = false;
+    for (uint32_t t = 0; t < 6000; t += 50) {
+      BuddyPose a = buddyPose(BUDDY_BORED, 130000, 1000 + t, seed);
+      BuddyPose b = buddyPose(BUDDY_BORED, 130000, 1050 + t, seed);
+      if (!a.closed) moved = true;
+      if (fabsf(a.bob) > 0.001f || fabsf(a.gazeX) > 0.001f ||
+          fabsf(a.gazeY) > 0.001f) {
+        moved = true;
+      }
+      if (a.blink || b.blink) moved = true;
+    }
+    BuddyPose asleep = buddyPose(BUDDY_BORED, 130000, 5000, seed);
+    check("deep boredom shuts the eyes", asleep.closed);
+    check("and nothing at all happens there", !moved);
+  }
+
+  printf("-- idle distractions\n");
+  {
+    // S13: a bug crawls across the glass now and then; the eyes follow it.
+    int events = 0;
+    uint32_t lastId = 0xFFFFFFFFu;
+    bool offscreen = false;
+    bool wentWide = false;
+    bool monotone = true;
+    float prevX = 0;
+    float lastStep = 0.0f;
+    for (uint32_t t = 0; t < 400000; t += 100) {
+      BuddyBug b = buddyBugAt(t, seed);
+      if (b.active) {
+        if (b.eventId != lastId) {
+          events++;
+          lastId = b.eventId;
+          prevX = b.x;
+          lastStep = 0.0f;
+        }
+        if (b.x < -25.0f || b.x > 345.0f || b.y < 10.0f || b.y > 160.0f) {
+          offscreen = true;
+        }
+        float gx = 0, gy = 0;
+        buddyBugGaze(b, &gx, &gy);
+        if (fabsf(gx) > 22.01f || fabsf(gy) > 14.01f) offscreen = true;
+        if (fabsf(gx) > 12.0f) wentWide = true;
+        if (b.eventId == lastId) {
+          // The bug never turns around inside one event: the step keeps its
+          // sign for the whole crawl.
+          float step = b.x - prevX;
+          if (fabsf(step) > 0.5f) {
+            if (lastStep != 0.0f && step * lastStep < 0.0f) monotone = false;
+            lastStep = step;
+          }
+          prevX = b.x;
+        }
+      }
+    }
+    check("a distraction shows up now and then", events >= 4);
+    check("the bug stays on the glass", !offscreen);
+    check("the eyes have to travel to follow it", wentWide);
+    check("the bug crawls one way, it does not bounce", monotone);
+    BuddyBug none = buddyBugAt(0, seed);
+    check("the schedule is deterministic", none.active == buddyBugAt(0, seed).active);
+  }
+
+  printf("-- sleeping ZzZ\n");
+  {
+    // S15: three letters rise and fade on a loop, always moving up and right.
+    int prevY[3] = {0, 0, 0};
+    bool rises = true;
+    bool fades = true;
+    int minAlpha = 100, maxAlpha = 0;
+    bool inBox = true;
+    for (uint32_t t = 0; t < 4800; t += 40) {
+      for (int i = 0; i < 3; i++) {
+        int x = 0, y = 0, a = 0;
+        buddyZzz(t, i, &x, &y, &a);
+        if (x < 230 || x > 285 || y < 40 || y > 120) inBox = false;
+        if (a < minAlpha) minAlpha = a;
+        if (a > maxAlpha) maxAlpha = a;
+        // A wrap from the top back to the bottom is the loop restarting, not a
+        // fall: only a small backward step counts as going down.
+        if (t > 0 && y > prevY[i] && (y - prevY[i]) < 40) rises = false;
+        prevY[i] = y;
+        if (a < 0 || a > 80) fades = false;
+      }
+    }
+    check("a Z drifts up and to the right", rises);
+    check("the letters stay next to the face", inBox);
+    check("and fade as they rise", fades && minAlpha < 10 && maxAlpha > 60);
   }
 
   printf("-- idle breathing\n");

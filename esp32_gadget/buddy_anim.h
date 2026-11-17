@@ -36,9 +36,8 @@ struct BuddyPose {
   float hot = 0;       // 0 = owner colour .. 1 = hot red (anger, dizziness)
   float bob = 0;       // vertical offset in px: breathing and bouncing
   // Expression channels added by the life pass. All default to the previous
-  // look, so every existing expression is unchanged at zero.
-  float browL = 0;     // -1 inner corner up (worry) .. +1 inner corner down (anger)
-  float browR = 0;
+  // look, so every existing expression is unchanged at zero. There are no
+  // brows on purpose: the only upper feature of this face is the black eyelid.
   float grow = 1.0f;   // eye scale: anger makes the eye bigger
   float tremble = 0;   // 0..1 shake the renderer adds after the easing
   bool blink = false;
@@ -250,6 +249,82 @@ static inline float buddyBreath(uint32_t nowMs) {
   return sinf((float)nowMs * (6.2831853f / BUDDY_BREATH_MS));
 }
 
+// --- idle distractions --------------------------------------------------------
+//
+// Every so often the idle face finds something to look at: a bug crawls across
+// the glass and the eyes follow it. The event is scheduled in 50 s windows, so
+// two events never overlap, and it dies the instant anything else happens on the
+// bridge: the owner talking to Sofía always wins over the bug.
+#define BUDDY_EVENT_EPOCH_MS 50000u
+#define BUDDY_EVENT_SPREAD_MS 38000u  // the bug lands anywhere in the window
+#define BUDDY_EVENT_MIN_MS 7000u
+#define BUDDY_EVENT_MAX_MS 12000u
+
+struct BuddyBug {
+  bool active = false;
+  uint32_t eventId = 0;  // the epoch, so the renderer can cancel this one
+  float x = 0;           // screen px
+  float y = 0;
+  uint32_t startMs = 0;
+  uint32_t durationMs = 0;
+};
+
+static inline BuddyBug buddyBugAt(uint32_t nowMs, uint32_t seed) {
+  BuddyBug b;
+  uint32_t epoch = nowMs / BUDDY_EVENT_EPOCH_MS;
+  uint32_t base = epoch * BUDDY_EVENT_EPOCH_MS;
+  uint32_t h = buddyHash32(seed ^ (epoch * 0xB5297A4Du));
+  uint32_t start = base + (h % BUDDY_EVENT_SPREAD_MS);
+  uint32_t duration =
+      BUDDY_EVENT_MIN_MS + ((h >> 8) % (BUDDY_EVENT_MAX_MS - BUDDY_EVENT_MIN_MS));
+  if ((int32_t)(nowMs - start) < 0) return b;
+  uint32_t in = nowMs - start;
+  if (in >= duration) return b;
+  float t = (float)in / (float)duration;
+  b.active = true;
+  b.eventId = epoch;
+  b.startMs = start;
+  b.durationMs = duration;
+  // Crawls in from one side and out the other, wandering up and down.
+  float dir = ((h >> 16) & 1u) ? 1.0f : -1.0f;
+  float from = dir > 0.0f ? -20.0f : 340.0f;
+  float to = dir > 0.0f ? 340.0f : -20.0f;
+  b.x = from + (to - from) * t;
+  float wobble = sinf(t * 6.2831853f * 1.5f + (float)((h >> 20) % 100u));
+  b.y = 96.0f + wobble * 34.0f - (float)in * 0.0015f;
+  return b;
+}
+
+// Where the eyes should look to follow the bug: a bounded offset from the eye
+// line, so the pair leans towards it without leaving the glass.
+static inline void buddyBugGaze(const BuddyBug &b, float *gazeX, float *gazeY) {
+  float gx = (b.x - 160.0f) / 9.0f;
+  float gy = (b.y - 88.0f) / 12.0f;
+  if (gx > 22.0f) gx = 22.0f;
+  if (gx < -22.0f) gx = -22.0f;
+  if (gy > 14.0f) gy = 14.0f;
+  if (gy < -14.0f) gy = -14.0f;
+  *gazeX = gx;
+  *gazeY = gy;
+}
+
+// One Z of the sleeping animation: three letters rise and fade on a 2.4 s loop.
+#define BUDDY_ZZZ_MS 2400u
+#define BUDDY_ZZZ_COUNT 3
+
+static inline void buddyZzz(uint32_t nowMs, int index, int *x, int *y,
+                            int *alphaPercent) {
+  if (index < 0) index = 0;
+  if (index >= BUDDY_ZZZ_COUNT) index = BUDDY_ZZZ_COUNT - 1;
+  float t = (float)(nowMs % BUDDY_ZZZ_MS) / (float)BUDDY_ZZZ_MS;
+  float local = t + (float)index / (float)BUDDY_ZZZ_COUNT;
+  local -= floorf(local);
+  *x = 244 + (int)(local * 30.0f);
+  *y = 112 - (int)(local * 54.0f) - index * 6;
+  float fade = 1.0f - local;
+  *alphaPercent = (int)(fade * 80.0f);
+}
+
 // One gesture slot: the doc wants a new one every 3-6 s while the state does
 // not change. The duration comes from the seed and the slot, so the rhythm is
 // irregular instead of a mechanical 4 s beat.
@@ -301,15 +376,11 @@ static inline BuddyPose buddyPose(BuddyState state, uint32_t ageMs,
       }
       break;
     case BUDDY_ERROR:
-      // Confusion: eyes point at each other, blink fast, and the brows disagree
-      // with each other (one lifted, one dropped): the sceptical squint.
+      // Confusion: eyes point at each other and blink on a fast, fixed beat.
       genericBlink = false;
       p.eyeGazeL = 7;
       p.eyeGazeR = -7;
       p.lid = 0.05f;
-      p.browL = -0.5f;
-      p.browR = 0.6f;
-      // Nervous on purpose: the error face blinks on a fast, fixed beat.
       p.blink = (nowMs % 900) < 120;
       break;
     case BUDDY_WAITING:
@@ -417,9 +488,13 @@ static inline BuddyPose buddyPose(BuddyState state, uint32_t ageMs,
         p.lid = 0.35f;
         p.gazeY = sinf((float)ageMs * 0.002f) * 3.0f;
       } else {
-        // Asleep with a slow breath; only a real state change wakes it.
+        // Deeply bored: the eyes shut and the face stops. No breath, no drift,
+        // no blink. The owner asked for exactly that ("que ahi no pase nada");
+        // motion is what wakes it, not time.
         p.closed = true;
+        p.bob = 0.0f;
         genericBlink = false;
+        return p;
       }
       break;
     case BUDDY_IDLE:

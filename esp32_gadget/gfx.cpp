@@ -267,6 +267,39 @@ void gfxFillSquircleRotAA(int cx, int cy, int halfW, int halfH, float deg,
   }
 }
 
+// The eyelid, drawn in the eye's rotated frame: every pixel whose local y is
+// above the lid line becomes the band colour. Rotating the line with the eye is
+// the whole point: the angry pair turns its eyes opposite ways and the black
+// blocks read "\/" instead of a flat, tired line. The pad makes the cut reach
+// over the halo, so no tinted sliver survives above the eye.
+void gfxLidCutRot(int cx, int cy, int halfW, int halfH, float deg, float lid,
+                  int pad, uint16_t color) {
+  if (!s_fb || halfW <= 0 || halfH <= 0 || !(lid > 0.0f)) return;
+  if (lid > 1.0f) lid = 1.0f;
+  float a = deg * 0.0174532925f;
+  float ca = cosf(a), sa = sinf(a);
+  int ex = (int)(fabsf((float)halfW * ca) + fabsf((float)halfH * sa)) + pad + 2;
+  int ey = (int)(fabsf((float)halfW * sa) + fabsf((float)halfH * ca)) + pad + 2;
+  float lidY = -(float)halfH + 2.0f * (float)halfH * lid;
+  float absSa = fabsf(sa);
+  for (int dy = -ey; dy <= ey; dy++) {
+    int y = cy + dy;
+    if (y < 0 || y >= DISPLAY_H) continue;
+    // Lowest local y this row can reach: if it is already below the lid line the
+    // whole row is eye, and the cut has nothing to do.
+    if ((float)dy * ca - absSa * (float)ex > lidY) continue;
+    for (int dx = -ex; dx <= ex; dx++) {
+      int x = cx + dx;
+      if (x < 0 || x >= DISPLAY_W) continue;
+      float ly = -(float)dx * sa + (float)dy * ca;
+      float above = lidY - ly;
+      if (above <= 0.0f) continue;
+      if (above < 1.0f && !buddyDitherLit(above, x, y)) continue;
+      s_fb[(size_t)y * DISPLAY_W + x] = color;
+    }
+  }
+}
+
 static const uint8_t *glyphFor(char ch) {
   uint8_t code = (uint8_t)ch;
   if (code < FONT_FIRST || code > FONT_LAST) return FONT_FALLBACK;

@@ -55,10 +55,8 @@ int main() {
   check("a 300 ms shake makes it dizzy", p.dizzy);
   check("the dizzy face drops its lids", p.lid >= 0.25f);
   check("dizziness is not anger", !p.angry);
-  check("dizzy eyes keep their size", p.grow == 1.0f);
   check("dizzy does not tremble", p.tremble == 0.0f);
-  check("dizzy raises the inner corners: worried, not angry",
-        p.browL < 0.0f && p.browR < 0.0f);
+  check("dizzy is not angry and does not grow", p.grow == 1.0f);
   // Keep the dizzy face: once the second shake escalates, the state machine no
   // longer answers for the earlier moment.
   BuddyImuPose dizzyFace = p;
@@ -80,15 +78,16 @@ int main() {
   check("the inner corners drop", p.rotL > 0.0f && p.rotR < 0.0f);
   check("anger replaces the dizzy wobble", !p.dizzy);
   check("anger grows the eyes", p.grow > 1.05f && p.grow <= 1.3f);
-  check("anger angles both brows down towards the nose",
-        p.browL > 0.5f && p.browR > 0.5f);
+  check("anger turns the eyes fully red", p.hot > 0.95f);
+  check("the angry eyelid is high enough to read as a block, not a slit",
+        p.lid >= 0.4f);
   check("anger trembles", p.tremble >= 0.8f);
-  check("anger cuts the bottom lid too: a slit, not a droop", p.bottom > 0.0f);
-  check("the two faces do not share their brows",
-        p.browL - dizzyFace.browL > 0.5f);
+  check("anger does not drop a tired bottom lid", p.bottom <= 0.01f);
   check("the two faces do not share their body",
         dizzyFace.grow == 1.0f && dizzyFace.tremble == 0.0f &&
-            dizzyFace.browL < 0.0f);
+            p.grow > dizzyFace.grow && p.tremble > dizzyFace.tremble);
+  check("anger turns the eyes further than dizziness",
+        p.rotL > dizzyFace.rotL + 5.0f && p.rotR < dizzyFace.rotR - 5.0f);
   {
     float maxAbs = 0.0f, lo = 0.0f, hi = 0.0f;
     for (uint32_t t = 3400; t < 4100; t += 40) {
@@ -123,6 +122,28 @@ int main() {
   check("a hit opens the eyes wide", p.wide);
   p = buddyImuPose(&st, 800);
   check("startle expires", !p.wide);
+
+  printf("-- lying flat, ZzZ and waking up\n");
+  {
+    // S15: face up on the table counts as lying, and the timer runs.
+    BuddyImu ly;
+    for (uint32_t t = 0; t <= 4000; t += 100) feed(ly, 0, 0, 1.0f, t, 100);
+    p = buddyImuPose(&ly, 4000);
+    check("resting face up is lying flat", p.lying && p.lyingMs >= 1000);
+    // A real movement wakes it at once.
+    feed(ly, 0, 0, 1.6f, 4100, 100);
+    p = buddyImuPose(&ly, 4200);
+    check("moving the board wakes it", p.wake);
+    check("and stops counting the lying time", !p.lying || p.lyingMs < 200);
+    BuddyImu fd2;
+    for (uint32_t t = 0; t <= 3000; t += 100) feed(fd2, 0, 0, -1.0f, t, 100);
+    p = buddyImuPose(&fd2, 3000);
+    check("glass down on the table is lying too", p.lying && p.lyingMs >= 1000);
+    BuddyImu up;
+    for (uint32_t t = 0; t <= 3000; t += 100) feed(up, 0.55f, 0, 0.55f, t, 100);
+    p = buddyImuPose(&up, 3000);
+    check("leaning on a support is not lying down", !p.lying);
+  }
 
   printf("-- face down and garbage\n");
   BuddyImu fd;

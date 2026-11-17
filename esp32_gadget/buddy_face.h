@@ -172,6 +172,18 @@ static inline BuddyPerspective buddyPerspective(float gazeX) {
   return p;
 }
 
+// Where the eyelid line lands on screen at `dx` px from the eye centre. The lid
+// is parallel to the eye's top edge, so a rotated eye gets a slanted lid: with a
+// positive rotation the line falls to the right ("\"), with a negative one it
+// rises ("/"). Angry eyes rotate opposite ways, which is what draws the "\/"
+// the owner asked for.
+static inline float buddyLidScreenY(int cy, int halfH, float lid, float deg,
+                                    float dx) {
+  float a = deg * 0.0174532925f;
+  float y0 = -(float)halfH + 2.0f * (float)halfH * lid;
+  return (float)cy + dx * tanf(a) + y0 / cosf(a);
+}
+
 // --- tremble ------------------------------------------------------------------
 //
 // Anger shakes. The pose filter is there to smooth intent, so it would eat a
@@ -214,23 +226,6 @@ struct BuddyLidBand {
   int h;
 };
 
-// The band that covers everything from above the eye's rotated extent (and its
-// glow) down to the lid line. A lid of zero asks for nothing.
-static inline BuddyLidBand buddyLidBandTop(int cy, int extentY, int pad,
-                                           float lid) {
-  BuddyLidBand b;
-  b.y0 = cy - extentY - pad - 2;
-  if (!(lid > 0.02f)) {
-    b.h = 0;
-    return b;
-  }
-  float lidLine = (float)cy - (float)extentY +
-                  2.0f * (float)extentY * (lid > 1.0f ? 1.0f : lid);
-  b.h = (int)lidLine - b.y0 + 1;
-  if (b.h < 1) b.h = 1;
-  return b;
-}
-
 // The bottom lid is the same band mirrored: it starts at the bottom lid line
 // and covers down past the rotated extent and the glow.
 static inline BuddyLidBand buddyLidBandBottom(int cy, int extentY, int pad,
@@ -247,15 +242,6 @@ static inline BuddyLidBand buddyLidBandBottom(int cy, int extentY, int pad,
   b.h = end - b.y0 + 1;
   if (b.h < 1) b.h = 1;
   return b;
-}
-
-// The exact lid line in screen pixels. The band fill can only work in whole
-// rows; the renderer dithers the row the line lands on, so a lid that creeps at
-// 20 fps slides instead of popping a whole pixel.
-static inline float buddyLidLineTop(int cy, int extentY, float lid) {
-  if (lid < 0.0f) lid = 0.0f;
-  if (lid > 1.0f) lid = 1.0f;
-  return (float)cy - (float)extentY + 2.0f * (float)extentY * lid;
 }
 
 static inline float buddyLidLineBottom(int cy, int extentY, float bottom) {
@@ -288,7 +274,7 @@ struct BuddyPoseFilter {
   float rx, ry;
   float lid, lidL, lidR, bottom;
   float rot, rotL, rotR, hot, bob;
-  float browL, browR, grow, tremble;
+  float grow, tremble;
 };
 
 static inline void buddyPoseFilterReset(BuddyPoseFilter *f) {
@@ -317,8 +303,6 @@ static inline BuddyPose buddyPoseFilterStep(BuddyPoseFilter *f,
     f->rotR = target.rotR;
     f->hot = target.hot;
     f->bob = target.bob;
-    f->browL = target.browL;
-    f->browR = target.browR;
     f->grow = target.grow;
     f->tremble = target.tremble;
     return target;
@@ -341,8 +325,6 @@ static inline BuddyPose buddyPoseFilterStep(BuddyPoseFilter *f,
   f->rotR = buddyEase(f->rotR, target.rotR, dtMs, tau);
   f->hot = buddyEase(f->hot, target.hot, dtMs, tau);
   f->bob = buddyEase(f->bob, target.bob, dtMs, tau);
-  f->browL = buddyEase(f->browL, target.browL, dtMs, tau);
-  f->browR = buddyEase(f->browR, target.browR, dtMs, tau);
   f->grow = buddyEase(f->grow, target.grow, dtMs, tau);
   f->tremble = buddyEase(f->tremble, target.tremble, dtMs, tau);
 
@@ -361,8 +343,6 @@ static inline BuddyPose buddyPoseFilterStep(BuddyPoseFilter *f,
   p.rotR = f->rotR;
   p.hot = f->hot;
   p.bob = f->bob;
-  p.browL = f->browL;
-  p.browR = f->browR;
   p.grow = f->grow;
   p.tremble = f->tremble;
   return p;

@@ -55,6 +55,14 @@ void gfxFillSquircleRot(int cx, int cy, int halfW, int halfH, float deg,
 void gfxFillSquircleRotAA(int cx, int cy, int halfW, int halfH, float deg,
                           uint16_t color, uint16_t edgeColor);
 
+// The upper eyelid: everything above a line parallel to the eye's top edge, in
+// the eye's own rotated frame, over the eye and its glow. Because the line is
+// parallel to the eye, a rotated eye gets a slanted lid ("\" one way, "/" the
+// other), which is how anger reads without any eyebrows. The cut edge is
+// dithered at its sub-pixel position.
+void gfxLidCutRot(int cx, int cy, int halfW, int halfH, float deg, float lid,
+                  int pad, uint16_t color);
+
 // Text: every glyph sits in a 6x8 cell scaled by `scale` (5x7 ink plus a
 // one-pixel gap). Both cases exist in the font, because the network screen has
 // to print a WiFi password exactly as stored.

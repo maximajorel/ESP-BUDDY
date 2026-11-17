@@ -1,28 +1,35 @@
-boot 4
-# The face is drawn on a 20 fps beat: give each expression a few frames before
-# the dump, because a state pinned and dumped in the same millisecond would show
-# the previous pose.
-buddyface idle
-sleep 600
+boot
+buddyphase busy 10
+sleep 1200
+buddyphase idle 10
+sleep 500
 dump 4
-# A thinking gesture with the brows still neutral: the older expressions must
-# look exactly as before the brows existed.
-buddyface thinking 25
-sleep 600
+sleep 3600
 dump 4
-# The angry anatomy: bigger eye, angled brows, tremble. The first shake makes it
-# dizzy, the second one (while still dizzy) is what makes it angry.
 imufake 0 0 3 0 0 0
+sleep 500
+dump 2
 sleep 400
-dump 4
-sleep 3200
-dump 4
+dump 2
+buddydraw
 imureal
-# The HUD: a phase drop that fabricates the check on the glass.
-buddyphase busy 2
-sleep 2200
-buddyphase idle 6
-sleep 300
+sleep 1000
+bug 8
+sleep 900
+fbpix 0 60 320 20
+buddyphase busy 6
+sleep 900
+fbpix 0 60 320 20
+buddyphase idle 1
+buddyface idle
+sleep 700
 dump 4
-sleep 4500
+buddyface thinking 2
+sleep 700
 dump 4
+buddyface error
+sleep 700
+dump 4
+buddyface bored 130
+sleep 9000
+dump 2

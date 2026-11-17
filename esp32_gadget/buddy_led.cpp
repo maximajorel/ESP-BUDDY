@@ -53,6 +53,20 @@ void buddyLedTick(uint32_t nowMs) {
     s_prev = phase;
   }
 
+  // The face's own mood outranks the phase light: the owner asked for the bead
+  // to go red while the board is angry, and to go to a faint ember while it is
+  // asleep on the table.
+  BuddyMood mood = buddyMood();
+  if (mood == BUDDY_MOOD_ANGRY) {
+    BuddyRgb red = {255, 30, 20};
+    setScaled(red, (nowMs % 500u) < 300u ? 1.0f : 0.3f);
+    return;
+  }
+  if (mood == BUDDY_MOOD_SLEEPING) {
+    setScaled(buddyEyesCyan(), 0.07f);
+    return;
+  }
+
   if (s_celebrating) {
     uint32_t elapsed = nowMs - s_celebrationStart;
     if (elapsed >= CELEBRATE_MS) {
