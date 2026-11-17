@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#11131a">
+<title>ESP32 Gadget · Administración</title>
+<link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNyIgZmlsbD0iIzExMTMxYSIvPjxwYXRoIGQ9Ik0xNiA0IEwyOCAxNiBMMTYgMjggTDQgMTYgWiIgZmlsbD0iI2ZmZDcwMCIvPjwvc3ZnPg==">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<a class="skip" href="#contenido">Saltar al contenido</a>
+
+<!-- Inline icon sprite: no icon pack and no CDN, the panel lives on the board. -->
+<svg class="sprite" aria-hidden="true" focusable="false"><defs>
+  <symbol id="i-apps" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+  <symbol id="i-display" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></symbol>
+  <symbol id="i-light" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+  <symbol id="i-game" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="11" rx="4"/><path d="M7 11v3M5.5 12.5h3"/><circle cx="16" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="18.5" cy="14.5" r="1" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V6l10-2v12"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/></symbol>
+  <symbol id="i-wifi" viewBox="0 0 24 24"><path d="M2 8.5a15 15 0 0 1 20 0M5 12a10.5 10.5 0 0 1 14 0M8.5 15.5a6 6 0 0 1 7 0"/><circle cx="12" cy="19" r="1"/></symbol>
+  <symbol id="i-smile" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2.5 4 2.5 4-2.5 4-2.5"/><circle cx="9" cy="10" r=".7" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r=".7" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="2" fill="currentColor" stroke="none"/><circle cx="8" cy="18" r="2" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-slot" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/><circle cx="8" cy="15" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="15" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="15" r="1" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><circle cx="12" cy="15.5" r="1.2" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-rocket" viewBox="0 0 24 24"><path d="M12 3c3 2 4.5 5 4.5 9L14 15h-4l-2.5-3C7.5 8 9 5 12 3z"/><path d="M9.5 16.5 7 20l4-1M14.5 16.5 17 20l-4-1"/><circle cx="12" cy="9" r="1.4"/></symbol>
+</defs></svg>
+
+<header class="topbar">
+  <button class="nav-toggle" id="navToggle" type="button" aria-label="Abrir menú" aria-controls="nav" aria-expanded="false">
+    <span></span><span></span><span></span>
+  </button>
+  <div class="brand">
+    <span class="logo">◆</span>
+    <div>
+      <h1>ESP32 Gadget</h1>
+      <p class="sub" id="firmwareLine">Administración</p>
+    </div>
+  </div>
+  <div class="topbar-end">
+    <div class="pill" id="connPill"><span class="dot"></span><span id="connText">Conectando…</span></div>
+    <div class="who" id="whoChip" hidden>
+      <span class="who-user" id="whoUser">—</span>
+      <button class="btn ghost sm" id="logoutBtn" type="button">Salir</button>
+    </div>
+  </div>
+</header>
+
+<div class="shell">
+
+  <nav class="sidenav" id="nav" aria-label="Secciones del panel">
+    <div class="nav-head">
+      <p class="nav-title">Menú</p>
+      <button class="nav-close" id="navClose" type="button" aria-label="Cerrar menú">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="nav-group">
+      <p class="nav-label">Uso diario</p>
+      <a class="nav-item" href="#aplicaciones"><svg class="nav-ico" aria-hidden="true"><use href="#i-apps"/></svg><span>Aplicaciones</span></a>
+      <a class="nav-item" href="#pantalla"><svg class="nav-ico" aria-hidden="true"><use href="#i-display"/></svg><span>Pantalla</span></a>
+      <a class="nav-item" href="#luz"><svg class="nav-ico" aria-hidden="true"><use href="#i-light"/></svg><span>Luz RGB</span></a>
+      <a class="nav-item" href="#juegos"><svg class="nav-ico" aria-hidden="true"><use href="#i-game"/></svg><span>Juegos</span></a>
+      <a class="nav-item" href="#spotify"><svg class="nav-ico" aria-hidden="true"><use href="#i-music"/></svg><span>Música</span></a>
+    </div>
+    <div class="nav-group">
+      <p class="nav-label">Conectividad</p>
+      <a class="nav-item" href="#red"><svg class="nav-ico" aria-hidden="true"><use href="#i-wifi"/></svg><span>Red</span></a>
+      <a class="nav-item" href="#sofia"><svg class="nav-ico" aria-hidden="true"><use href="#i-smile"/></svg><span>Sofía</span></a>
+    </div>
+    <div class="nav-group">
+      <p class="nav-label">Sistema</p>
+      <a class="nav-item" href="#sistema"><svg class="nav-ico" aria-hidden="true"><use href="#i-settings"/></svg><span>Sistema</span></a>
+      <a class="nav-item" href="#cuenta"><svg class="nav-ico" aria-hidden="true"><use href="#i-lock"/></svg><span>Cuenta</span></a>
+    </div>
+  </nav>
+
+  <div class="nav-backdrop" id="navBackdrop"></div>
+
+  <main id="contenido" tabindex="-1">
+
+    <!-- ── Aviso de credenciales por defecto (S6) ──────────────────────── -->
+    <div class="banner" id="mustChangeBanner" role="alert" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-lock"/></svg>
+      <div>
+        <strong>Estás usando la contraseña por defecto.</strong>
+        <p>Cualquiera que se conecte a la red del equipo puede entrar a este panel. Cambiala en <a href="#cuenta">Cuenta</a> y el aviso desaparece.</p>
+      </div>
+    </div>
+
+    <!-- ── Aplicaciones: la acción principal del panel ─────────────────── -->
+    <div class="region" id="aplicaciones">
+      <div class="region-head">
+        <p class="eyebrow">Uso diario</p>
+        <h2>Aplicaciones</h2>
+        <p class="lead">Elegí qué se ve en la pantalla del equipo. <span class="now" id="nowScreen">Ahora: —</span></p>
+      </div>
+
+      <section class="card">
+        <div class="screens" id="screenPicker">
+          <button class="tile" data-screen="0" type="button">
+            <svg class="tile-ico" aria-hidden="true"><use href="#i-clock"/></svg>
+            <span class="tile-name">RELOJ</span>
+            <span class="tile-desc">Hora digital</span>
+            <span class="tile-badge">Ahora</span>
+          </button>
+          <button class="tile" data-screen="1" type="button">
+            <svg class="tile-ico" aria-hidden="true"><use href="#i-slot"/></svg>
+            <span class="tile-name">TRAGAMONEDAS</span>
+            <span class="tile-desc">Juego de casino</span>
+            <span class="tile-badge">Ahora</span>
+          </button>
+          <button class="tile" data-screen="2" type="button">
+            <svg class="tile-ico" aria-hidden="true"><use href="#i-rocket"/></svg>
+            <span class="tile-name">METEORITOS</span>
+            <span class="tile-desc">Esquivar con el sensor</span>
+            <span class="tile-badge">Ahora</span>
+          </button>
+          <button class="tile" data-screen="3" type="button">
+            <svg class="tile-ico" aria-hidden="true"><use href="#i-wifi"/></svg>
+            <span class="tile-name">RED</span>
+            <span class="tile-desc">Datos de conexión</span>
+            <span class="tile-badge">Ahora</span>
+          </button>
+          <button class="tile" data-screen="4" type="button">
+            <svg class="tile-ico" aria-hidden="true"><use href="#i-music"/></svg>
+            <span class="tile-name">MUSICA</span>
+            <span class="tile-desc">Lo que suena en Spotify</span>
+            <span class="tile-badge">Ahora</span>
+          </button>
+          <button class="tile" data-screen="5" type="button">
+            <svg class="tile-ico" aria-hidden="true"><use href="#i-smile"/></svg>
+            <span class="tile-name">SOFIA</span>
+            <span class="tile-desc">Tu buddy companion</span>
+            <span class="tile-badge">Ahora</span>
+          </button>
+          <button class="tile" data-screen="6" type="button">
+            <svg class="tile-ico" aria-hidden="true"><use href="#i-settings"/></svg>
+            <span class="tile-name">CONFIG</span>
+            <span class="tile-desc">Brillo del LCD y del LED</span>
+            <span class="tile-badge">Ahora</span>
+          </button>
+        </div>
+
+        <details class="fold">
+          <summary>Nombres y orden del menú del equipo</summary>
+          <p class="hint">Elegí cómo se llama cada pantalla (hasta 12 letras) y en qué orden aparecen al mantener el botón 1 segundo. Los cambios quedan guardados en el equipo.</p>
+          <ul class="order" id="orderList"></ul>
+          <div class="actions">
+            <button class="btn" id="orderSave" type="button">Guardar nombres y orden</button>
+            <button class="btn ghost" id="orderReset" type="button">Nombres y orden originales</button>
+          </div>
+        </details>
+      </section>
+    </div>
+
+    <!-- ── Pantalla ─────────────────────────────────────────────────────── -->
+    <div class="region" id="pantalla">
+      <div class="region-head">
+        <p class="eyebrow">Uso diario</p>
+        <h2>Pantalla</h2>
+        <p class="lead">Brillo, color y comportamiento de la pantalla del equipo.</p>
+      </div>
+
+      <section class="card">
+        <h3>Aspecto</h3>
+        <label class="slider">Brillo
+          <input type="range" id="brightness" min="5" max="100" step="5">
+          <output id="brightnessOut">—</output>
+        </label>
+
+        <label>Color de la interfaz <span class="tag">el acento del equipo y del panel</span>
+          <input type="color" id="uiColor" value="#ffd700">
+        </label>
+
+        <label>Rotación de la pantalla <span class="tag">según cómo apoyes el equipo</span>
+          <select id="rotationMode">
+            <option value="auto">Automática</option>
+            <option value="horizontal">Horizontal</option>
+            <option value="inverted">Horizontal invertida</option>
+          </select>
+        </label>
+
+        <label class="switch">
+          <input type="checkbox" id="rotationLock">
+          <span>Bloquear la rotación actual</span>
+        </label>
+        <p class="hint">Acostado de espaldas, el sensor no puede notar el giro: el equipo
+          se queda con la última orientación. Bloqueá para fijarla vos.</p>
+
+        <h3>Reloj</h3>
+        <label class="switch">
+          <input type="checkbox" id="clock24">
+          <span>Reloj en formato 24 horas</span>
+        </label>
+        <div class="row">
+          <button class="btn ghost" id="setTime" type="button">Usar la hora de este teléfono</button>
+        </div>
+
+        <h3>Apagado automático</h3>
+        <p class="hint">Sin usar el equipo, la pantalla y la luz de atrás se apagan solas. Elegí después de cuánto y en qué pantallas; un toque en el botón las vuelve a prender.</p>
+        <label>Apagar después de
+          <select id="screenTimeout">
+            <option value="0">Nunca</option>
+            <option value="30">30 segundos</option>
+            <option value="60">1 minuto</option>
+            <option value="120">2 minutos</option>
+            <option value="300">5 minutos</option>
+            <option value="600">10 minutos</option>
+            <option value="1800">30 minutos</option>
+          </select>
+        </label>
+        <div class="row" id="timeoutScreens"></div>
+      </section>
+    </div>
+
+    <!-- ── Luz RGB ──────────────────────────────────────────────────────── -->
+    <div class="region" id="luz">
+      <div class="region-head">
+        <p class="eyebrow">Uso diario</p>
+        <h2>Luz RGB</h2>
+        <p class="lead">La luz que está detrás del equipo. En el tragamonedas se enciende sola cuando ganás.</p>
+      </div>
+
+      <section class="card">
+        <p class="hint" id="rgbBuddyNote" hidden>Sofía está configurada y usa esta
+          luz para mostrar su estado: el color y el modo los decide ella. El brillo
+          sí se ajusta desde acá.</p>
+        <div class="row" id="rgbColorRow">
+          <input type="color" id="rgbColor" value="#ffd700">
+          <div class="swatches" id="swatches">
+            <button type="button" data-color="#ffd700" style="--c:#ffd700" title="Oro"></button>
+            <button type="button" data-color="#dc143c" style="--c:#dc143c" title="Carmesí"></button>
+            <button type="button" data-color="#00a86b" style="--c:#00a86b" title="Esmeralda"></button>
+            <button type="button" data-color="#ffa500" style="--c:#ffa500" title="Ámbar"></button>
+            <button type="button" data-color="#ffffff" style="--c:#ffffff" title="Blanco"></button>
+          </div>
+        </div>
+        <label class="slider">Intensidad
+          <input type="range" id="rgbLevel" min="0" max="100" step="5">
+          <output id="rgbLevelOut">—</output>
+        </label>
+        <label id="rgbEffectRow">Modo
+          <select id="rgbEffect">
+            <option value="0">Color fijo</option>
+            <option value="1">Arcoíris</option>
+            <option value="2">Apagada</option>
+          </select>
+        </label>
+        <div class="actions">
+          <button class="btn" id="rgbApply" type="button">Aplicar</button>
+        </div>
+      </section>
+    </div>
+
+    <!-- ── Juegos ───────────────────────────────────────────────────────── -->
+    <div class="region" id="juegos">
+      <div class="region-head">
+        <p class="eyebrow">Uso diario</p>
+        <h2>Juegos</h2>
+        <p class="lead">Récords y controles del sensor para Meteoritos.</p>
+      </div>
+
+      <section class="card">
+        <div class="grid">
+          <div class="stat"><span class="k">Récord · Esquivar</span><span class="v" id="scoreGame">—</span></div>
+          <div class="stat"><span class="k">Mejor premio · Tragamonedas</span><span class="v" id="scoreSlot">—</span></div>
+        </div>
+
+        <h3>Controles del sensor</h3>
+        <p class="hint">¿La nave no responde como esperás? Recalibrá con la guía de cinco pasos: quieto, hacia vos, alejando, izquierda y derecha.</p>
+        <div class="actions">
+          <button class="btn ghost" id="steerRecal" type="button">Recalibrar controles</button>
+          <button class="btn ghost" id="steerSwap" type="button">Cambiar eje del control</button>
+        </div>
+
+        <label class="switch">
+          <input type="checkbox" id="steerInvert">
+          <span>Invertir izquierda/derecha del juego (si la nave va al revés)</span>
+        </label>
+
+        <label class="switch">
+          <input type="checkbox" id="steerInvertY">
+          <span>Invertir arriba/abajo del juego (si la nave sube cuando querés bajar)</span>
+        </label>
+
+        <h3>Récords</h3>
+        <div class="actions">
+          <button class="btn ghost" id="resetScores" type="button">Borrar récords</button>
+        </div>
+      </section>
+    </div>
+
+    <!-- ── Música (Spotify) ─────────────────────────────────────────────── -->
+    <div class="region" id="spotify">
+      <div class="region-head">
+        <p class="eyebrow">Uso diario</p>
+        <h2>Música</h2>
+        <p class="lead">Lo que está sonando en Spotify, en la pantalla del equipo. Se configura una sola vez.</p>
+      </div>
+
+      <section class="card">
+        <h3>Estado en vivo</h3>
+        <div class="sp-state" id="spotifyStateBox">
+          <span class="dot"></span><span id="spotifyState">Consultando…</span>
+        </div>
+        <p class="hint" id="spotifyStateHint">Todavía no hablamos con el equipo.</p>
+        <p class="sp-error" id="spotifyError" hidden></p>
+        <div class="sp-panel" id="spotifyTrack" hidden>
+          <p class="sp-title" id="spotifyTitle">—</p>
+          <p class="sp-artist" id="spotifyArtist">—</p>
+          <div class="sp-bar"><span id="spotifyBar"></span></div>
+          <p class="sp-time"><span id="spotifyPlay">—</span> · <span id="spotifyTime">—</span></p>
+        </div>
+        <p class="hint" id="spotifyFeedNote"></p>
+
+        <h3>Conectar tu cuenta</h3>
+
+        <form id="spotifyForm" class="form">
+          <label>Client ID de tu app
+            <input id="spotifyClientId" name="clientId" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="63" required placeholder="Pegá el Client ID acá">
+          </label>
+          <div class="actions">
+            <button class="btn" type="submit">Guardar Client ID</button>
+          </div>
+        </form>
+
+        <details class="fold">
+          <summary>Cómo preparar la app de Spotify</summary>
+          <ol class="steps">
+            <li>Entrá a <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">developer.spotify.com/dashboard</a> con tu cuenta de Spotify y creá una app. El nombre que le pongas da igual.</li>
+            <li>Dentro de esa app, agregá esta dirección como <em>Redirect URI</em>, copiada tal cual y sin espacios: <span class="mono">http://127.0.0.1:8888/callback</span></li>
+            <li>Copiá el <strong>Client ID</strong> que muestra la app y pegalo en el campo de arriba.</li>
+          </ol>
+        </details>
+
+        <h3>Autorizar el equipo</h3>
+        <ol class="steps">
+          <li>Tocá <strong>Autorizar</strong> y abrí el enlace que aparece.</li>
+          <li>Entrá con tu cuenta de Spotify y tocá <strong>Aceptar</strong>.</li>
+          <li>El navegador va a intentar volver a la dirección de abajo y va a mostrar un error de conexión. <strong>Eso es esperado</strong>: esa dirección vive en tu computadora, no en el teléfono.</li>
+          <li>Sin cerrar esa pestaña, copiá de la barra de direcciones todo lo que está después de <span class="mono">code=</span> y antes del próximo <span class="mono">&amp;</span>. Ese valor es el código.</li>
+        </ol>
+        <div class="actions">
+          <button class="btn ghost" id="spotifyAuthBtn" type="button">Autorizar</button>
+        </div>
+
+        <div class="authbox" id="spotifyAuthBox" hidden>
+          <p class="hint inline">Enlace para dar el permiso (se abre en una pestaña nueva):</p>
+          <a class="link mono" id="spotifyAuthLink" href="#" target="_blank" rel="noopener"></a>
+          <p class="warn">Después de aprobar, la página va a fallar al volver y vas a ver un error de conexión con <span class="mono">127.0.0.1</span>. Es normal. No cierres esa pestaña: copiá el valor de <span class="mono">code=</span> desde la barra de direcciones y pegalo abajo.</p>
+          <p class="hint inline">La dirección de vuelta configurada en tu app tiene que ser <span class="mono" id="spotifyRedirect">http://127.0.0.1:8888/callback</span></p>
+        </div>
+
+        <form id="spotifyCodeForm" class="form">
+          <label>Código de autorización
+            <input id="spotifyCode" name="code" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Pegá la dirección completa (empieza con http://127.0.0.1:8888/callback?code=...)">
+          </label>
+          <p class="hint inline">Sirve la dirección entera o sólo lo que está después de <span class="mono">code=</span>: el equipo saca el código solo.</p>
+          <div class="actions">
+            <button class="btn" type="submit">Enviar código</button>
+            <button class="btn ghost" id="spotifyForget" type="button">Olvidar autorización</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <!-- ── Red ──────────────────────────────────────────────────────────── -->
+    <div class="region" id="red">
+      <div class="region-head">
+        <p class="eyebrow">Conectividad</p>
+        <h2>Red</h2>
+        <p class="lead">Conectá el equipo a tu WiFi de casa y ajustá la red que crea para este panel.</p>
+      </div>
+
+      <section class="card" id="wifi">
+        <h3>WiFi de casa</h3>
+        <p class="hint">Con esto el reloj se pone en hora solo. Si no lo configurás, el equipo igual funciona y muestra la hora cuando lo conectes.</p>
+        <div class="row">
+          <button class="btn ghost" id="scanBtn" type="button">Buscar redes</button>
+          <span class="hint inline" id="scanHint">Toca para ver las redes cercanas</span>
+        </div>
+        <div class="netlist" id="netlist" hidden></div>
+        <form id="wifiForm" class="form">
+          <label>Nombre de la red (SSID)
+            <input id="wifiSsid" name="ssid" autocomplete="off" maxlength="32" required placeholder="MiWiFi">
+          </label>
+          <label>Contraseña
+            <input id="wifiPass" name="pass" type="password" autocomplete="off" maxlength="64" placeholder="••••••••">
+          </label>
+          <div class="actions">
+            <button class="btn" type="submit">Guardar y conectar</button>
+            <button class="btn ghost" type="button" id="wifiForget">Olvidar red</button>
+            <button class="btn ghost" type="button" id="wifiDiagBtn">¿Por qué no conecta?</button>
+          </div>
+          <p class="warn" id="wifiDiag" hidden></p>
+        </form>
+      </section>
+
+      <section class="card" id="acceso">
+        <h3>Punto de acceso del equipo</h3>
+        <p class="hint">Es la red que crea el equipo para que te conectes a este panel. El nombre y la contraseña se muestran en la pantalla RED.</p>
+        <form id="apForm" class="form">
+          <label>Nombre de la red
+            <input id="apSsid" name="ssid" autocomplete="off" maxlength="32" required>
+          </label>
+          <label>Contraseña <span class="tag">mínimo 8 caracteres</span>
+            <input id="apPass" name="pass" autocomplete="off" maxlength="64">
+          </label>
+          <div class="actions">
+            <button class="btn" type="submit">Aplicar cambios</button>
+          </div>
+          <p class="warn" id="apWarn" hidden>Si cambiás estos datos, vas a tener que reconectarte a la nueva red.</p>
+        </form>
+      </section>
+    </div>
+
+    <!-- ── Sofía ────────────────────────────────────────────────────────── -->
+    <div class="region" id="sofia">
+      <div class="region-head">
+        <p class="eyebrow">Conectividad</p>
+        <h2>Sofía (buddy)</h2>
+        <p class="lead">La cara de la pantalla SOFIA reacciona a lo que hace Hermes, consultando el bridge. Acepta la dirección de tu LAN o una URL pública con HTTPS.</p>
+      </div>
+
+      <section class="card">
+        <form id="buddyForm" class="form">
+          <label>URL del bridge
+            <input id="buddyUrl" name="url" autocomplete="off" spellcheck="false" maxlength="96" placeholder="http://192.168.100.64:8787">
+          </label>
+          <label>Token del buddy <span class="tag">vacío = no cambiarlo</span>
+            <input id="buddyToken" name="token" type="password" autocomplete="off" maxlength="64" placeholder="••••••••">
+          </label>
+          <p class="hint inline">El panel guarda la URL y el token; la clave de Hermes no pasa por el equipo. Ejemplos: <span class="mono">http://192.168.100.64:8787</span> en tu LAN, o <span class="mono">https://bridge.tu-dominio.com</span> con un túnel. Con <span class="mono">https://</span> el equipo valida el certificado solo: no hay que subir nada.</p>
+          <div class="actions">
+            <button class="btn" type="submit">Guardar</button>
+            <button class="btn ghost" id="buddyForget" type="button">Olvidar token</button>
+          </div>
+        </form>
+
+        <h3>Estado en vivo</h3>
+        <div class="grid">
+          <div class="stat"><span class="k">Estado</span><span class="v" id="buddyState">—</span></div>
+          <div class="stat"><span class="k">Etiqueta</span><span class="v" id="buddyLabel">—</span></div>
+          <div class="stat"><span class="k">Runs activos</span><span class="v" id="buddyActive">—</span></div>
+          <div class="stat"><span class="k">Bridge</span><span class="v" id="buddyOnline">—</span></div>
+          <div class="stat"><span class="k">Enlace</span><span class="v" id="buddyLink">—</span></div>
+        </div>
+
+        <h3>Color de los ojos</h3>
+        <div class="row">
+          <input type="color" id="buddyEyeColor" value="#00b4ff">
+          <div class="swatches" id="buddyEyeSwatches">
+            <button type="button" data-color="#00b4ff" style="--c:#00b4ff" title="Cyan original"></button>
+            <button type="button" data-color="#ff3c1e" style="--c:#ff3c1e" title="Rojo"></button>
+            <button type="button" data-color="#9b5cff" style="--c:#9b5cff" title="Violeta"></button>
+            <button type="button" data-color="#00ff9c" style="--c:#00ff9c" title="Verde"></button>
+            <button type="button" data-color="#ffd700" style="--c:#ffd700" title="Ámbar"></button>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn ghost" id="buddyEyeReset" type="button">Volver al cyan original</button>
+        </div>
+        <p class="hint">Se guarda en el equipo y sobrevive a un reinicio. El enojo y el mareo lo tiñen un momento y después vuelve a tu color; la luz RGB sigue el estado del bridge.</p>
+
+        <form id="buddyAskForm" class="form">
+          <label>Pedirle algo a Sofía <span class="tag">se ve en la cara</span>
+            <input id="buddyPrompt" autocomplete="off" maxlength="200" placeholder="Resumí las novedades del repo">
+          </label>
+          <div class="actions">
+            <button class="btn" type="submit">Pedir</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <!-- ── Sistema: estado y mantenimiento al final ─────────────────────── -->
+    <div class="region" id="sistema">
+      <div class="region-head">
+        <p class="eyebrow">Sistema</p>
+        <h2>Sistema</h2>
+        <p class="lead">Estado del equipo y mantenimiento. No hace falta entrar acá para el uso diario.</p>
+      </div>
+
+      <section class="card" id="estado">
+        <h3>Estado del dispositivo</h3>
+        <p class="hint">Estos son los datos de conexión que también se ven en la pantalla del equipo.</p>
+        <div class="grid">
+          <div class="stat"><span class="k">Red del dispositivo</span><span class="v" id="stApSsid">—</span></div>
+          <div class="stat"><span class="k">Contraseña</span><span class="v" id="stApPass">—</span></div>
+          <div class="stat"><span class="k">Dirección del panel</span><span class="v mono" id="stApIp">—</span></div>
+          <div class="stat"><span class="k">WiFi de casa</span><span class="v" id="stSta">—</span></div>
+          <div class="stat"><span class="k">Hora del equipo</span><span class="v mono" id="stTime">—</span></div>
+          <div class="stat"><span class="k">Encendido hace</span><span class="v" id="stUptime">—</span></div>
+          <div class="stat"><span class="k">Memoria libre</span><span class="v" id="stHeap">—</span></div>
+          <div class="stat"><span class="k">Pantalla activa</span><span class="v" id="stScreen">—</span></div>
+        </div>
+      </section>
+
+      <section class="card danger" id="mantenimiento">
+        <h3>Mantenimiento</h3>
+        <p class="hint">Reiniciar no borra nada. Restablecer de fábrica borra el WiFi de casa y los récords.</p>
+        <div class="actions">
+          <button class="btn ghost" id="restartBtn" type="button">Reiniciar equipo</button>
+          <button class="btn danger" id="factoryBtn" type="button">Restablecer de fábrica</button>
+        </div>
+
+        <h3>Probar el equipo</h3>
+        <p class="hint">Estos botones hacen lo mismo que el botón BOOT y sirven para revisar el panel sin tocar el equipo.</p>
+        <div class="actions">
+          <button class="btn ghost" id="pressShort" type="button">Simular toque</button>
+          <button class="btn ghost" id="pressLong" type="button">Simular mantener 3s</button>
+        </div>
+        <div class="actions">
+          <button class="btn ghost" id="panelColors" type="button">Probar colores de la pantalla</button>
+        </div>
+        <p class="hint">La pantalla se pone roja, verde, azul y blanca. Si no ves esos colores, el problema es del panel y no de las pantallas.</p>
+      </section>
+    </div>
+
+    <!-- ── Cuenta: con qué se entra al panel ───────────────────────────── -->
+    <div class="region" id="cuenta">
+      <div class="region-head">
+        <p class="eyebrow">Acceso</p>
+        <h2>Cuenta</h2>
+        <p class="lead">Con qué usuario y contraseña se entra a este panel. El equipo guarda un hash con sal, así que la contraseña no se puede leer desde acá.</p>
+      </div>
+
+      <section class="card">
+        <h3>Cambiar usuario y contraseña</h3>
+        <p class="hint" id="accountWho">Sesión iniciada como —.</p>
+        <form id="accountForm" class="form">
+          <label>Usuario
+            <input id="acctUser" name="user" autocomplete="username" maxlength="32" required>
+          </label>
+          <label>Contraseña actual
+            <input id="acctCurrent" name="current" type="password" autocomplete="current-password" required>
+          </label>
+          <label>Contraseña nueva <span class="tag">mínimo 8 caracteres</span>
+            <input id="acctPass" name="pass" type="password" autocomplete="new-password" minlength="8" maxlength="64" required>
+          </label>
+          <label>Repetir la contraseña nueva
+            <input id="acctRepeat" name="repeat" type="password" autocomplete="new-password" minlength="8" maxlength="64" required>
+          </label>
+          <div class="actions">
+            <button class="btn" type="submit">Guardar credenciales</button>
+            <button class="btn ghost" type="button" id="logoutBtnCard">Salir del panel</button>
+          </div>
+          <p class="hint">Al guardar, los demás dispositivos que tengan el panel abierto van a tener que volver a entrar.</p>
+        </form>
+      </section>
+    </div>
+
+  </main>
+</div>
+
+<footer>
+  <p>ESP32 Gadget · Waveshare ESP32-S3-LCD-1.47B</p>
+  <p class="hint">Este panel vive dentro del equipo: no necesita internet.</p>
+</footer>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="/app.js"></script>
+</body>
+</html>

@@ -50,6 +50,14 @@
         } catch (err) {
           throw new Error('El equipo respondió algo inesperado');
         }
+        if (response.status === 401) {
+          // The session expired or was closed from another device. Send the
+          // owner to the door and remember which page they wanted, so logging in
+          // lands them back here instead of at the top of the panel.
+          var back = window.location.pathname + window.location.hash;
+          window.location.replace('/login?next=' + encodeURIComponent(back));
+          throw new Error('La sesión venció');
+        }
         if (!response.ok) {
           throw new Error(parsed && parsed.error ? parsed.error : 'Error ' + response.status);
         }
@@ -1298,6 +1306,44 @@
         .then(function (ok) { if (ok) refresh(); });
     });
 
+    if ($('accountForm')) {
+      $('accountForm').addEventListener('submit', function (event) {
+        event.preventDefault();
+        var pass = $('acctPass').value;
+        if (pass !== $('acctRepeat').value) {
+          toast('Las contraseñas nuevas no coinciden', 'err');
+          $('acctRepeat').focus();
+          return;
+        }
+        var button = event.target.querySelector('button[type="submit"]');
+        busy(button, 'Guardando…', function () {
+          return api('POST', '/api/admin/credentials', {
+            current: $('acctCurrent').value,
+            user: $('acctUser').value.trim(),
+            pass: pass
+          });
+        }).then(
+          function () {
+            toast('Credenciales guardadas', 'ok');
+            session.user = $('acctUser').value.trim();
+            session.mustChange = false;
+            renderSession();
+            $('acctCurrent').value = '';
+            $('acctPass').value = '';
+            $('acctRepeat').value = '';
+          },
+          function (error) { toast(error.message, 'err'); }
+        );
+      });
+    }
+
+    if ($('logoutBtn')) {
+      $('logoutBtn').addEventListener('click', function (event) { logout(event.target); });
+    }
+    if ($('logoutBtnCard')) {
+      $('logoutBtnCard').addEventListener('click', function (event) { logout(event.target); });
+    }
+
     $('restartBtn').addEventListener('click', function (event) {
       if (!confirm('¿Reiniciar el equipo? No se borra nada.')) return;
       submit(event.target, '/api/restart', undefined, 'Reiniciando… recargá en unos 10 segundos');
@@ -1310,10 +1356,67 @@
     });
   }
 
+  // --- sesión y cuenta ------------------------------------------------------
+
+  // What the device says about the browser holding this page. The cookie itself
+  // is HttpOnly, so this cache is the only copy the panel has.
+  var session = { user: '', mustChange: false };
+
+  function loadSession() {
+    return fetch('/api/session', { headers: { Accept: 'application/json' } })
+      .then(function (response) { return response.json(); })
+      .then(function (state) {
+        if (!state) return;
+        if (!state.authenticated) {
+          // Not logged in (a stale tab, or the session expired between two
+          // requests): the panel has nothing to show.
+          window.location.replace('/login?next=' +
+            encodeURIComponent(window.location.pathname));
+          return;
+        }
+        session.user = state.user || '';
+        session.mustChange = !!state.mustChange;
+        renderSession();
+      })
+      .catch(function () {
+        // A dead link already has its own message through the status poll.
+      });
+  }
+
+  function renderSession() {
+    var chip = $('whoChip');
+    if (chip && $('whoUser')) {
+      setText('whoUser', session.user || '—');
+      chip.hidden = false;
+    }
+    var who = $('accountWho');
+    if (who) who.textContent = 'Sesión iniciada como ' + (session.user || '—') + '.';
+    var userField = $('acctUser');
+    if (userField && !userField.value) userField.value = session.user;
+    // The default pair is a working password, which is exactly why the warning
+    // stays until it is replaced. No close button on purpose.
+    var banner = $('mustChangeBanner');
+    if (banner) banner.hidden = !session.mustChange;
+  }
+
+  function logout(button) {
+    return busy(button, 'Saliendo…', function () {
+      return fetch('/api/session/logout', { method: 'POST' }).then(function (response) {
+        return response.text();
+      });
+    }).then(
+      function () { window.location.replace('/login'); },
+      // Even if the device did not answer, the local cookie is useless now; the
+      // login page is the right place to be either way.
+      function () { window.location.replace('/login'); }
+    );
+  }
+
   function init() {
     if (!$('toast')) return;
     wireNav();
     wire();
+    loadSession();
     refresh();
     setInterval(refresh, POLL_MS);
     watchSpotify();

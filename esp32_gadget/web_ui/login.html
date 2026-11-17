@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#11131a">
+<title>Entrar · ESP32 Gadget</title>
+<link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNyIgZmlsbD0iIzExMTMxYSIvPjxwYXRoIGQ9Ik0xNiA0IEwyOCAxNiBMMTYgMjggTDQgMTYgWiIgZmlsbD0iI2ZmZDcwMCIvPjwvc3ZnPg==">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body class="login-body">
+
+<main class="login" id="contenido">
+
+  <div class="login-brand">
+    <span class="logo">◆</span>
+    <h1>ESP32 Gadget</h1>
+    <p class="sub">Panel de administración</p>
+  </div>
+
+  <section class="card login-card">
+    <h2>Entrá para configurar el equipo</h2>
+    <p class="hint">El usuario y la contraseña salen del <code>.env</code> con el que se
+      compiló el firmware, y se pueden cambiar después desde el panel.</p>
+
+    <form id="loginForm" class="form" autocomplete="on">
+      <label>Usuario
+        <input id="loginUser" name="user" autocomplete="username" maxlength="32" required autofocus>
+      </label>
+      <label>Contraseña
+        <input id="loginPass" name="pass" type="password" autocomplete="current-password" maxlength="64" required>
+      </label>
+      <div class="actions">
+        <button class="btn" type="submit" id="loginBtn">Entrar</button>
+      </div>
+      <p class="warn" id="loginError" role="alert" hidden></p>
+    </form>
+  </section>
+
+  <footer>
+    <p class="hint"><a href="/">Volver al inicio</a></p>
+  </footer>
+
+</main>
+
+<script src="/login.js"></script>
+</body>
+</html>

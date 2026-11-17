@@ -25,7 +25,7 @@ import time
 import urllib.error
 import urllib.request
 
-GET_ROUTES = ["/api/status", "/api/spotify"]
+GET_ROUTES = ["/api/status", "/api/spotify", "/api/session"]
 
 # Not asserted with the others. A WiFi scan blocks the WebServer for ~7 s and the
 # open socket is dropped before it answers (measured: HTTP 000 at 7.3 s, and the
@@ -37,6 +37,11 @@ SLOW_ROUTES = ["/api/scan"]
 # harmful. An empty object makes most handlers answer 400, which is fine: the
 # point is that the route exists and accepts POST.
 POST_ROUTES = [
+    # The session routes are the only ones that answer without being logged in.
+    # An empty body is refused (401/400/403), which is enough: the point is that
+    # the route exists and the transport reaches it.
+    ("/api/session", {}),
+    ("/api/admin/credentials", {}),
     ("/api/wifi", {}),
     ("/api/time", {}),
     ("/api/ap", {}),

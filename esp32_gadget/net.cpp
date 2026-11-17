@@ -3,8 +3,10 @@
 #include <ArduinoJson.h>
 #include <WebServer.h>
 #include <WiFi.h>
+#include <esp_random.h>
 #include <time.h>
 
+#include "admin_auth.h"
 #include "console.h"
 #include "display.h"
 #include "rgb.h"
@@ -37,6 +39,12 @@ static uint32_t s_staSince = 0;
 static volatile int s_disconnectReason = 0;
 #define STA_FAIL_HINT_MS 25000
 static char s_lastError[96] = "";
+
+// Web panel sessions and the login throttle live in RAM only: a reboot logs
+// every device out, which is the one logout this board can guarantee. Nothing
+// here survives a power cycle and nothing here is worth persisting.
+static AdminSessionTable s_sessions;
+static AdminThrottle s_throttle;
 
 const NetStatus &netStatus() { return s_status; }
 const char *netLastError() { return s_lastError; }
@@ -740,6 +748,85 @@ static ApiResult apiSpotifyForget() {
   return apiOk();
 }
 
+// --- web credentials (API) --------------------------------------------------
+
+// Logging in is the only endpoint that hands out authority, so it is also the
+// only one that answers the same way to a wrong password and to a lockout: an
+// attacker learns nothing, and the owner reads the panel's own message.
+static const char *const LOGIN_REJECTED = "Usuario o contrasena incorrectos";
+
+static ApiResult apiSessionLogin(const String &body) {
+  JsonDocument doc;
+  if (!parseRequiredJson(body, doc)) return apiFail(400, API_BAD_JSON);
+
+  uint32_t now = millis();
+  if (adminThrottleBlocked(&s_throttle, now)) {
+    return apiFail(401, LOGIN_REJECTED);
+  }
+
+  const char *user = doc["user"] | "";
+  const char *pass = doc["pass"] | "";
+  if (!settingsAdminMatches(user, pass)) {
+    adminThrottleFail(&s_throttle, now);
+    return apiFail(401, LOGIN_REJECTED);
+  }
+  adminThrottleReset(&s_throttle);
+
+  // The token is the only secret the browser holds, and it is random rather than
+  // derived from the password, so it cannot be guessed from a leak of the seed.
+  uint8_t raw[ADMIN_HASH_LEN];
+  for (size_t i = 0; i < sizeof(raw); i++) raw[i] = (uint8_t)esp_random();
+  adminSessionOpen(&s_sessions, now, raw);
+
+  const AdminCredentials &creds = settingsGetAdmin();
+  ApiResult result;
+  JsonDocument out;
+  out["ok"] = true;
+  out["user"] = creds.user;
+  // The panel cannot be used while the fallback pair is in place (S6).
+  out["mustChange"] = creds.isDefault;
+  serializeJson(out, result.body);
+  result.sessionOpened = true;
+  adminHexEncode(raw, sizeof(raw), result.sessionToken,
+                 sizeof(result.sessionToken));
+  memset(raw, 0, sizeof(raw));
+  return result;
+}
+
+// Changes the pair the panel accepts. The current password is required, so a
+// session left open on a desk cannot be used to lock the owner out of their own
+// device. It is POST-only and protected like every other write; the transport
+// then drops the other sessions, which is why this answer says nothing about
+// them.
+static ApiResult apiAdminCredentials(const String &body) {
+  JsonDocument doc;
+  if (!parseRequiredJson(body, doc)) return apiFail(400, API_BAD_JSON);
+
+  const AdminCredentials &creds = settingsGetAdmin();
+  const char *current = doc["current"] | "";
+  const char *user = doc["user"] | "";
+  const char *pass = doc["pass"] | "";
+
+  if (!settingsAdminMatches(creds.user, current)) {
+    return apiFail(403, "La contrasena actual no es correcta");
+  }
+  if (!adminUserValid(user)) {
+    return apiFail(400, "El usuario necesita entre 1 y 32 caracteres sin espacios");
+  }
+  if (!adminPassValid(pass)) {
+    return apiFail(400, "La contrasena nueva necesita entre 8 y 64 caracteres");
+  }
+
+  uint8_t salt[ADMIN_SALT_LEN];
+  for (size_t i = 0; i < sizeof(salt); i++) salt[i] = (uint8_t)esp_random();
+  uint8_t hash[ADMIN_HASH_LEN];
+  adminHashDerive(salt, user, pass, hash);
+  bool ok = settingsSetAdminCredentials(user, salt, hash, false);
+  memset(hash, 0, sizeof(hash));
+  if (!ok) return apiFail(500, "No se pudo guardar la credencial");
+  return apiOk();
+}
+
 // Paths that only accept POST. Listed so a wrong method on a real endpoint
 // answers 405 while a path that does not exist answers 404 - conflating them
 // makes a typo in a client look like a permission problem.
@@ -755,7 +842,7 @@ static const char *const POST_PATHS[] = {
     "/api/steer/swap",     "/api/restart",     "/api/factory",
     "/api/spotify/config", "/api/spotify/url", "/api/spotify/code",
     "/api/spotify/forget", "/api/screens/order", "/api/screens/names",
-    "/api/panel/colors", "/api/buddy/ask",
+    "/api/panel/colors", "/api/buddy/ask", "/api/admin/credentials",
 };
 static const uint32_t POST_PATH_COUNT = sizeof(POST_PATHS) / sizeof(POST_PATHS[0]);
 
@@ -768,6 +855,15 @@ static bool isPostOnlyPath(const char *path) {
 
 ApiResult netHandleApi(const char *method, const char *path, const String &body) {
   const bool isPost = strcmp(method, "POST") == 0;
+
+  // The only endpoint reachable without a session, because it is the one that
+  // creates it. It is also the serial console's answer to "do the credentials I
+  // stored actually work?", which is why it lives in the dispatcher rather than
+  // in the HTTP layer.
+  if (!strcmp(path, "/api/session")) {
+    if (!isPost) return apiFail(405, "Metodo no permitido");
+    return apiSessionLogin(body);
+  }
 
   if (!strcmp(path, "/api/scan")) {
     return isPost ? apiScanStart() : apiScanRead();
@@ -787,6 +883,9 @@ ApiResult netHandleApi(const char *method, const char *path, const String &body)
   if (!isPostOnlyPath(path)) return apiFail(404, "No existe ese recurso");
   if (!isPost) return apiFail(405, "Metodo no permitido");
 
+  if (!strcmp(path, "/api/admin/credentials")) {
+    return apiAdminCredentials(body);
+  }
   if (!strcmp(path, "/api/wifi")) return apiWifi(body);
   if (!strcmp(path, "/api/buddy/ask")) return apiBuddyAsk(body);
   if (!strcmp(path, "/api/panel/colors")) {
@@ -843,6 +942,11 @@ ApiResult netHandleApi(const char *method, const char *path, const String &body)
     // a reset that does not reset.
     spotifyStoreForgetAll();
     spotifyAuthReset();
+    // The panel's credentials go back to the built-in seed, and every session
+    // opened with the old pair dies: after a reset the device belongs to whoever
+    // holds it, not to whoever was logged in.
+    settingsResetAdminCredentials();
+    netSessionForgetAll();
     {
       uint8_t identity[SCREEN_COUNT];
       for (uint8_t i = 0; i < SCREEN_COUNT; i++) identity[i] = i;
@@ -863,6 +967,12 @@ ApiResult netHandleApi(const char *method, const char *path, const String &body)
 
 // --- transport --------------------------------------------------------------
 
+// --- web session (transport) ------------------------------------------------
+
+// The cookie name. Short because it travels in every request, and there is
+// exactly one: "sid" cannot be confused with a form field.
+static const char SESSION_COOKIE[] = "sid";
+
 static void sendApi(const ApiResult &result, bool allowRestart) {
   s_server.sendHeader("Cache-Control", "no-store");
   s_server.send(result.code, "application/json", result.body);
@@ -872,12 +982,141 @@ static void sendApi(const ApiResult &result, bool allowRestart) {
   }
 }
 
-static void handleApi() {
+// One value out of the request's Cookie header. Hand-parsed because the panel
+// ships exactly one cookie and pulling in a parser for it would be more code
+// than the thing it parses.
+static String requestCookie(const char *name) {
+  String header = s_server.header("Cookie");
+  if (header.length() == 0) return String();
+  size_t start = 0;
+  while (start < header.length()) {
+    int end = header.indexOf(';', start);
+    if (end < 0) end = (int)header.length();
+    String pair = header.substring(start, end);
+    pair.trim();
+    int eq = pair.indexOf('=');
+    if (eq > 0 && pair.substring(0, eq) == name) {
+      return pair.substring(eq + 1);
+    }
+    start = (size_t)end + 1;
+  }
+  return String();
+}
+
+// HttpOnly keeps the token away from any script on the page and SameSite=Strict
+// keeps another site from riding the session. There is no Secure flag on purpose:
+// the panel is served over the access point's plain HTTP, and a Secure cookie
+// would never be stored, leaving the owner unable to log in at all. That is a
+// known limit of serving a panel from a device with no TLS, and it is why the
+// session is bounded in time and the credentials are stored hashed.
+static void sendSessionCookie(const char *token) {
+  String value = String(SESSION_COOKIE) + "=" + token +
+                 "; Path=/; HttpOnly; SameSite=Strict; Max-Age=" +
+                 String((unsigned long)(ADMIN_SESSION_TTL_MS / 1000));
+  s_server.sendHeader("Set-Cookie", value);
+}
+
+static void clearSessionCookie() {
+  String value = String(SESSION_COOKIE) +
+                 "=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0";
+  s_server.sendHeader("Set-Cookie", value);
+}
+
+static String requestSessionToken() { return requestCookie(SESSION_COOKIE); }
+
+static bool requestAuthorized() {
+  String token = requestSessionToken();
+  if (token.length() == 0) return false;
+  return adminSessionValid(&s_sessions, token.c_str(), millis());
+}
+
+void netSessionForgetAll() { adminSessionReset(&s_sessions); }
+
+// The login page's own status call. It is public because it has to answer before
+// there is a session; it therefore says only whether this browser is logged in,
+// and reveals the user and the forced-change flag only to that browser.
+static void handleSessionState() {
+  const AdminCredentials &creds = settingsGetAdmin();
+  bool authenticated = requestAuthorized();
+  JsonDocument doc;
+  doc["ok"] = true;
+  doc["authenticated"] = authenticated;
+  if (authenticated) {
+    doc["user"] = creds.user;
+    doc["mustChange"] = creds.isDefault;
+  }
   String body;
-  if (s_server.method() == HTTP_POST) body = s_server.arg("plain");
-  ApiResult result =
-      netHandleApi(s_server.method() == HTTP_POST ? "POST" : "GET",
-                   s_server.uri().c_str(), body);
+  serializeJson(doc, body);
+  s_server.sendHeader("Cache-Control", "no-store");
+  s_server.send(200, "application/json", body);
+}
+
+// Logging out is closing a cookie: it needs no session of its own, and answering
+// it without one keeps a stale tab from showing an error when the owner leaves.
+static void handleSessionLogout() {
+  String token = requestSessionToken();
+  if (token.length() > 0) adminSessionClose(&s_sessions, token.c_str());
+  clearSessionCookie();
+  ApiResult result = apiOk();
+  sendApi(result, false);
+}
+
+static void sendUnauthorized() {
+  ApiResult result = apiFail(401, "Sesion requerida");
+  s_server.sendHeader("Cache-Control", "no-store");
+  s_server.send(result.code, "application/json", result.body);
+}
+
+// A browser that opens /admin without a session gets the login page and comes
+// back to where it was going. Remembering the target is what makes "log in and
+// land on the page I asked for" work instead of dumping the owner at the root.
+static void redirectToLogin(const String &path) {
+  String location = "/login";
+  if (path != "/admin" && path != "/admin/" && path != "/admin.html") {
+    location += "?next=";
+    location += path;
+  }
+  s_server.sendHeader("Cache-Control", "no-store");
+  s_server.sendHeader("Location", location);
+  s_server.send(302, "text/plain", "");
+}
+
+// The single place that decides whether a request may reach the dispatcher or
+// the asset table. Everything that answers without going through here would be a
+// hole, which is why the API handler, the not-found handler and the session
+// state handler are the only three entry points.
+static bool authorize(const char *method, const String &path) {
+  if (!adminRequiresSession(method, path.c_str())) return true;
+  if (requestAuthorized()) return true;
+  if (path.startsWith("/api/")) {
+    sendUnauthorized();
+  } else {
+    redirectToLogin(path);
+  }
+  return false;
+}
+
+static void handleApi() {
+  const bool isPost = s_server.method() == HTTP_POST;
+  const char *method = isPost ? "POST" : "GET";
+  if (!authorize(method, s_server.uri())) return;
+
+  String body;
+  if (isPost) body = s_server.arg("plain");
+  ApiResult result = netHandleApi(method, s_server.uri().c_str(), body);
+
+  if (result.sessionOpened) {
+    sendSessionCookie(result.sessionToken);
+    // Only the browser that just logged in keeps its session, so a changed
+    // password or a fresh login on another device cannot be shadowed by an old
+    // cookie that someone else still holds.
+    adminSessionCloseOthers(&s_sessions, result.sessionToken);
+  }
+  // Rotating the credentials logs out every other device; the caller keeps the
+  // session it used to make the change, which is the one that still works.
+  if (result.code == 200 && s_server.uri() == "/api/admin/credentials") {
+    adminSessionCloseOthers(&s_sessions, requestSessionToken().c_str());
+  }
   sendApi(result, true);
 }
 
@@ -895,6 +1134,8 @@ static bool serveAsset(const String &path) {
 
 static void handleNotFound() {
   String path = s_server.uri();
+  const bool isPost = s_server.method() == HTTP_POST;
+  if (!authorize(isPost ? "POST" : "GET", path)) return;
   if (path.startsWith("/api/")) {
     // Pass the method the client actually used, and its body. Hardcoding GET
     // here turned a missing route into "405 Metodo no permitido", which blames
@@ -906,7 +1147,12 @@ static void handleNotFound() {
     sendApi(result, false);
     return;
   }
-  if (path == "/") path = "/index.html";
+  // The panel's pages are one file each, and the routes are the names the owner
+  // types: "/" is the public placeholder, "/admin" is the configuration area,
+  // "/login" is the door.
+  if (path == "/" || path == "/index") path = "/index.html";
+  if (path == "/admin" || path == "/admin/") path = "/admin.html";
+  if (path == "/login" || path == "/login/") path = "/login.html";
   if (serveAsset(path)) return;
   s_server.send(404, "text/plain", "not found");
 }
@@ -948,6 +1194,14 @@ void netBegin() {
   netApplyTimeZone();
   refreshStatus();
 
+  // Sessions and the login throttle start empty on every boot: a session that
+  // survives a power cycle is a session nobody can revoke by unplugging.
+  adminSessionReset(&s_sessions);
+  adminThrottleReset(&s_throttle);
+  // Seed the credentials now, not on the first login: the fallback pair has to
+  // be in NVS for the panel to report that it must be changed.
+  settingsGetAdmin();
+
   // Registered explicitly per path so the request body is parsed by the same
   // well-tested path the rest of the firmware uses. POST routes come from
   // POST_PATHS, so a new endpoint cannot exist for the dispatcher and be missing
@@ -956,6 +1210,14 @@ void netBegin() {
   s_server.on("/api/scan", HTTP_GET, handleApi);
   s_server.on("/api/scan", HTTP_POST, handleApi);
   s_server.on("/api/spotify", HTTP_GET, handleApi);
+
+  // The two session endpoints the dispatcher does not own. Logging in is the one
+  // POST that has to work without a session, and the state call answers from the
+  // cookie the transport holds, so neither is listed in POST_PATHS.
+  s_server.on("/api/session", HTTP_GET, handleSessionState);
+  s_server.on("/api/session", HTTP_POST, handleApi);
+  s_server.on("/api/session/logout", HTTP_POST, handleSessionLogout);
+
   for (uint32_t i = 0; i < POST_PATH_COUNT; i++) {
     s_server.on(POST_PATHS[i], HTTP_POST, handleApi);
   }

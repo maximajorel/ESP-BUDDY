@@ -7,6 +7,8 @@
 
 #include <Arduino.h>
 
+#include "admin_auth.h"
+
 #define NET_AP_IP "192.168.4.1"
 
 // How the attempt to join the home network is going. "Connecting forever" gives
@@ -71,6 +73,12 @@ struct ApiResult {
   int code = 200;
   String body;
   bool restart = false;
+  // Set by the login endpoint and applied by the HTTP transport. The dispatcher
+  // decides that a request opened a session; the transport owns the cookie
+  // header, because a session is an HTTP concept and the serial console has
+  // cookies of none.
+  bool sessionOpened = false;
+  char sessionToken[ADMIN_TOKEN_CAP] = "";
 };
 
 // Pure request handler: every endpoint is a function of method, path and body.
@@ -86,3 +94,7 @@ uint32_t netAssetCount();
 const char *netAssetPath(uint32_t index);
 uint32_t netAssetLength(uint32_t index);
 uint32_t netAssetHash(uint32_t index);
+
+// Drops every web session, used when the credentials were reset to factory
+// values so an old cookie cannot outlive the pair that opened it.
+void netSessionForgetAll();
