@@ -48,13 +48,13 @@ el archivo exacto.
 
 | ID | Task | Specs | Route | Commit |
 | --- | --- | --- | --- | --- |
-| T1 | Documento de analisis (`docs/ARCHITECTURE.md` + hallazgos) | S1 | inline | |
-| T2 | `tools/run_tests.py`: corredor unico de pruebas + README | S3 | inline | |
-| T3 | Extraer la consola serie del `.ino` a `console.*` | S5 | inline | |
-| T4 | Unificar duplicaciones comprobadas (helpers, claves, constantes) | S4 | inline | |
-| T5 | Reorganizar `tools/`: `probes/`, limpiar artefactos | S6 | inline | |
-| T6 | README raiz + repaso de README/INSTALL del firmware | S7,S8 | inline | |
-| T7 | Verificacion final: `run_tests.py` + compilacion de firmware | S2 | inline | |
+| T1 | Documento de analisis (`docs/ARCHITECTURE.md` + hallazgos) | S1 | inline | 8e5abb1 |
+| T2 | `tools/run_tests.py`: corredor unico de pruebas + README | S3 | inline | a79f068 |
+| T3 | Extraer la consola serie del `.ino` a `console.*` | S5 | inline | 650cab8 |
+| T4 | Unificar duplicaciones comprobadas (helpers, claves, constantes) | S4 | inline | 218b8d3 |
+| T5 | Reorganizar `tools/`: `probes/`, limpiar artefactos | S6 | inline | c454e71 |
+| T6 | README raiz + repaso de README/INSTALL del firmware | S7,S8 | inline | ffc4682 |
+| T7 | Verificacion final: `run_tests.py` + compilacion de firmware | S2 | inline | — |
 
 Limites de rebanada: cada commit es una unidad revisable por si sola y ninguno
 cambia comportamiento. La rama no se pushea ni se mergea sin decision del dueno.
@@ -73,3 +73,52 @@ necesita `spotify_parse.cpp`, `spotify_pkce.cpp` y el include de ArduinoJson).
 `python tools/verify_assets.py esp32_gadget/web_ui esp32_gadget/web_assets.h`
 da 0 problemas. La compilacion `arduino-cli` con el FQBN de INSTALL.md se
 registra en T7 antes y despues.
+
+L3 (analisis, S1): hallazgos que se corrigieron, todos con evidencia en el codigo:
+
+- `esp32_gadget.ino` tenia 753 lineas y mezclaba arranque, boton, splash,
+  volcado del framebuffer, diagnostico y un dispatcher de ~500 lineas.
+- `net.cpp` repetia **11 veces** el guard
+  `deserializeJson(doc, body) != DeserializationError::Ok` y **11 veces** el
+  mismo mensaje `"Los datos enviados no son validos"`.
+- Dos helpers `static` no se llamaban en ningun lado: `fillEllipseRot`
+  (`screen_buddy.cpp`) y `hex32` (`spotify_store.cpp`).
+- `boot_watch.py` y `serial_log.py` tenian un `open_port()` identico byte a
+  byte.
+- `tools/` tenia 12 `.txt` sueltos (`fire.txt`, `vis2.txt`, `final.txt`, ...) sin
+  indice; el README del firmware no mencionaba `console.*`.
+- `INSTALL.md` documentaba `screen 0..4` con siete pantallas, listaba seis
+  pantallas, repetia la seccion 11 y hablaba de un boton de 3 s cuando es 1 s.
+- El repo no tenia README en la raiz ni documento de arquitectura.
+
+Lo que se reviso y **no** se toco por no ser duplicacion real: los helpers de
+dibujo de cada pantalla (comparten `gfx.*`, no se copian), el manejo de NVS
+(una sola clave por valor), y la API del panel (`api()` es el unico `fetch`).
+
+L4 (linea base, S2): antes de tocar codigo, compilacion `arduino-cli` con el
+FQBN de INSTALL.md: 1412086 bytes de programa (44%), 54740 bytes de globales.
+Los 18 tests de host y `verify_assets.py` en verde.
+
+L5 (T3): tras extraer la consola, la misma compilacion da 1412150 bytes
+(+64 por reacomodo de funciones) y **los mismos 54740 de globales**. Todos los
+comandos y textos de salida se movieron sin cambios; el unico cambio de salida
+fue corregir `screen <0-4>` a `<0-6>` en `printHelp`.
+
+L6 (T4): tras el guard unico y borrar el codigo muerto, 1412138 bytes
+(-12 por las dos funciones eliminadas), globales iguales. Tests verdes.
+
+L7 (T5, T6): `python -m py_compile` sobre los scripts tocados, import de
+`serial_port`, los 18 tests y el round-trip del panel siguen verdes. Los
+scripts de puerto no se pudieron ejecutar contra la placa en esta sesion.
+
+L8 (verificacion final, S2): en `HEAD` corren los 18 tests de host y
+`web_assets.py` con 0 problemas. La ultima compilacion verde
+(1412138 bytes) cubre todo el firmware porque despues de ella solo cambiaron
+`INSTALL.md` y `README.md` (`git diff --name-only 218b8d3..HEAD -- esp32_gadget`
+devuelve solo esos dos archivos). `git status` limpio.
+
+L9 (limites): no hubo placa conectada, asi que el gesto fisico, el panel real y
+los scripts serie no se ejercieron; quedan cubiertos por la compilacion y por la
+documentacion, no por una corrida de hardware. No se agrego `LICENSE` porque
+elegir licencia es decision del dueno, y no se agrego CI porque no hay remoto
+configurado todavia.
