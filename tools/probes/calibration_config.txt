@@ -1,0 +1,36 @@
+boot
+api GET /api/status
+api POST /api/steer/reset
+sleep 900
+dump 4
+imufake 0 0 1 0 0 0
+sleep 300
+press 300
+sleep 400
+imufake -0.5 0 1 0 0 0
+sleep 600
+imufake 0 0 1 0 0 0
+sleep 600
+press 300
+sleep 400
+imufake 0.5 0 1 0 0 0
+sleep 600
+imufake 0 0 1 0 0 0
+sleep 600
+press 300
+sleep 400
+imufake 0 -0.5 1 0 0 0
+sleep 600
+imufake 0 0 1 0 0 0
+sleep 600
+press 300
+sleep 400
+imufake 0 0.5 1 0 0 0
+sleep 600
+imufake 0 0 1 0 0 0
+sleep 600
+press 300
+sleep 1000
+api GET /api/status
+dump 4
+imureal

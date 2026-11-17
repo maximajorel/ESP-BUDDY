@@ -105,11 +105,6 @@ void gameInit();
 void gameEnter();
 bool gameTick(uint32_t nowMs);
 void gameShortPress();
-// Claims a long press when the calibration prompt is on screen, so a hold there
-// confirms the prompt instead of opening the screen menu. Returns false for any
-// other state and the menu opens as usual.
-bool gameLongPress();
-
 // Steering axes for the dodge game. The board can be held in several postures,
 // so which sensor axis reads lateral tilt is configurable at runtime instead of
 // guessed. latAxis/upAxis are 0=x, 1=y, 2=z; the remaining axis reads the
@@ -118,9 +113,8 @@ void gameSetSteer(uint8_t latAxis, uint8_t upAxis, int8_t sign, int8_t signY,
                   uint8_t gain);
 void gameGetSteer(uint8_t *latAxis, uint8_t *upAxis, int8_t *sign,
                   int8_t *signY, uint8_t *gain);
-// Discards the learned axes so the next game asks for the calibration gesture.
+// Discards the learned axes; the owner recalibrates from CONFIG.
 void gameInvalidateCalibration();
-bool gameIsCalibrating();
 // Swaps the learned tilt axis for the other in-plane one.
 void gameSwapSteerAxis();
 
@@ -179,3 +173,12 @@ void configEnter();
 void configLeave();
 bool configTick(uint32_t nowMs);
 void configShortPress();
+// Claims a long press while the calibration wizard is open, so a hold cancels it
+// instead of opening the screen menu. Returns false otherwise.
+bool configLongPress();
+// The wizard owns the glass and the sensor while it runs: CONFIG is then kept
+// awake and the image is not auto-rotated by the very tilts being measured.
+bool configWizardActive();
+// Starts the wizard from outside the screen (the panel's "recalibrar" button);
+// only meaningful after screensGoTo(SCREEN_SETTINGS).
+void configStartCalibration();

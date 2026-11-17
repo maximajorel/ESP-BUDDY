@@ -11,13 +11,13 @@
 // El control se apoya en dos cosas medidas, no supuestas:
 //   - el eje que lleva la gravedad se detecta al arrancar, porque según cómo
 //     apoyes la placa puede ser X, Y o Z;
-//   - el eje que lee la inclinación izquierda/derecha se aprende con un gesto de
-//     calibración de 3,5 segundos, y queda guardado en NVS.
-// Sin eso, los ejes fijos hacían que la nave no se moviera.
+//   - el eje que lee la inclinación y sus sentidos se calibran con el wizard de
+//     CONFIG (wizard guiado, `steer_wizard.h`) y quedan guardados en NVS.
+// Sin eso, los ejes fijos hacían que la nave no se moviera. El juego ya no pide
+// ni dibuja calibración: solo la usa.
 //
 // La inclinación se filtra de forma complementaria: el acelerómetro da la
 // posición absoluta (no deriva) y el giroscopio aporta la respuesta rápida.
-#include "calibration_gate.h"
 #include "game_difficulty.h"
 #include "game_hits.h"
 #include "imu.h"
@@ -25,8 +25,6 @@
 #include "rotation.h"
 #include "screens.h"
 #include "settings.h"
-#include "steer_solve.h"
-#include "tap_window.h"
 
 // --- grilla -----------------------------------------------------------------
 
@@ -49,13 +47,6 @@
 #define FIRE_COOLDOWN_MS 190
 #define TILT_FULL_SCALE_G 0.35f // inclinación que da el 100% del control
 #define TILT_DEADZONE 0.10f
-// Calibración guiada y confirmada con toques, sin relojes: el dueño tiene todo el
-// tiempo que quiera. Primero confirma el centro; después, por cada dirección,
-// inclina, vuelve al centro y confirma con un toque. El toque sólo vale si hubo
-// una inclinación real y el equipo ya volvió al centro.
-#define CAL_TILT_G 0.12f    // desvío que cuenta como gesto
-#define CAL_CENTER_G 0.06f  // desvío que cuenta como "de vuelta en el centro"
-
 // --- paleta -----------------------------------------------------------------
 
 #define STYLE_TEXT gfxHex(0xB8E986)
@@ -73,13 +64,7 @@
 
 // --- estado -----------------------------------------------------------------
 
-enum GameState {
-  GAME_READY,
-  GAME_CONFIRM,  // the "iniciar calibracion" prompt
-  GAME_CALIBRATING,
-  GAME_PLAYING,
-  GAME_OVER
-};
+enum GameState { GAME_READY, GAME_PLAYING, GAME_OVER };
 
 struct Meteor {
   float x;
@@ -122,8 +107,6 @@ static GameState s_state = GAME_READY;
 static float s_shipX = GRID_COLS / 2.0f;
 // The ship used to be pinned to the bottom row; the second tilt axis moves it.
 static float s_shipRow = GRID_ROWS - 1;
-// The prompt is open; SI is highlighted first because the owner asked for it.
-static bool s_confirmYes = true;
 static Meteor s_meteors[MAX_METEORS];
 static Bullet s_bullets[MAX_BULLETS];
 static Enemy s_enemies[MAX_ENEMIES];
@@ -156,7 +139,6 @@ static uint8_t s_rotAxis = 1;  // eje de giro, derivado de latAxis y upAxis
 static float s_fusedLat = 0.0f;
 static float s_fusedFwd = 0.0f;
 static bool s_tiltPrimed = false;
-static TapWindow s_taps;
 
 // Re-measured at the start of every game: the stored calibration chooses the
 // axes, but the neutral point is whatever posture the player is holding right
@@ -168,20 +150,6 @@ static uint32_t s_rebaselineStart = 0;
 static float s_rebaselineSum = 0.0f;
 static float s_rebaselineSumY = 0.0f;
 static uint32_t s_rebaselineCount = 0;
-
-// Calibración guiada. s_calStep 0 es el centro; 1..4 piden inclinar a la
-// izquierda, a la derecha, hacia vos y alejando, en ese orden. Cada paso se
-// cierra con un toque, no con un temporizador.
-static uint8_t s_calStep = 0;
-static uint8_t s_calCaptured = 0;
-static bool s_calNeutralSeeded = false;
-static float s_calNeutral[3] = {0, 0, 0};
-// Orden fijo: 0 izquierda, 1 derecha, 2 hacia vos, 3 alejando.
-static float s_calCaptures[4][3];
-// La inclinación más fuerte vista en el paso actual, y el desvío de ahora.
-static float s_calBest[3] = {0, 0, 0};
-static float s_calBestDev = 0.0f;
-static float s_calDeviation = 0.0f;
 
 static uint32_t nextRandom() {
   s_rng ^= s_rng << 13;
@@ -233,24 +201,18 @@ void gameInvalidateCalibration() {
   settingsSetSteerCalibration(s_cal);
 }
 
-bool gameIsCalibrating() { return s_state == GAME_CALIBRATING; }
-
 float gameShipColumn() { return s_shipX; }
 
 float gameShipRow() { return s_shipRow; }
 
 bool gameWantsScreenOn() {
-  // The panel may sleep on the ready/over screens, but never mid-run or while the
-  // calibration prompt is on screen.
-  return s_state == GAME_PLAYING || s_state == GAME_CALIBRATING ||
-         s_state == GAME_CONFIRM;
+  // The panel may sleep on the ready/over screens, but never mid-run.
+  return s_state == GAME_PLAYING;
 }
 
 const char *gameStateName() {
   switch (s_state) {
     case GAME_READY: return "READY";
-    case GAME_CONFIRM: return "CONFIRM";
-    case GAME_CALIBRATING: return "CALIBRATING";
     case GAME_PLAYING: return "PLAYING";
     case GAME_OVER: return "OVER";
   }
@@ -421,135 +383,8 @@ static void startGame(uint32_t nowMs) {
   s_rebaselineSum = 0.0f;
   s_rebaselineSumY = 0.0f;
   s_rebaselineCount = 0;
-  tapWindowReset(s_taps);
   s_needRedraw = true;
   rgbSetColor(20, 60, 120);
-}
-
-static void startCalibration(uint32_t nowMs) {
-  (void)nowMs;
-  s_state = GAME_CALIBRATING;
-  s_calStep = 0;
-  s_calCaptured = 0;
-  s_calNeutralSeeded = false;
-  s_calBestDev = 0.0f;
-  s_calDeviation = 0.0f;
-  for (int i = 0; i < 3; i++) {
-    s_calNeutral[i] = 0.0f;
-    s_calBest[i] = 0.0f;
-  }
-  s_needRedraw = true;
-  Serial.println("calibracion: dejalo en el centro y toca para confirmar");
-}
-
-static void finishCalibration(uint32_t nowMs) {
-  bool solved = false;
-  if (s_calCaptured == 4 && s_calNeutralSeeded) {
-    // steerSolve wants (toward, away, left, right); the flow captures
-    // (left, right, toward, away).
-    SteerSolution sol =
-        steerSolve(s_calNeutral, s_calCaptures[2], s_calCaptures[3],
-                   s_calCaptures[0], s_calCaptures[1]);
-    if (sol.ok) {
-      s_cal.latAxis = sol.latAxis;
-      s_cal.upAxis = sol.upAxis;
-      s_cal.sign = sol.sign;
-      s_cal.signY = sol.signY;
-      s_cal.baseline = sol.baseline;
-      s_cal.baselineY = sol.baselineY;
-      s_cal.valid = true;
-      if (s_cal.gain == 0) s_cal.gain = 100;
-      settingsSetSteerCalibration(s_cal);
-      deriveRotAxis();
-      s_tiltPrimed = false;
-      solved = true;
-      Serial.printf(
-          "calibrado: lat=%u fwd=%u up=%u sign=%d signY=%d base=%.2f "
-          "baseY=%.2f\n",
-          (unsigned)sol.latAxis, (unsigned)sol.fwdAxis, (unsigned)sol.upAxis,
-          (int)sol.sign, (int)sol.signY, sol.baseline, sol.baselineY);
-    }
-  }
-  if (!solved) {
-    // Una calibración incompleta no puede inventar ejes: se sigue con la que
-    // ya estaba, que es la que el dueño venía usando.
-    Serial.println("calibracion: incompleta, queda la anterior");
-  }
-  s_calStep = 0;
-  s_calCaptured = 0;
-  s_calNeutralSeeded = false;
-  s_calBestDev = 0.0f;
-  startGame(nowMs);
-}
-
-// Un paso de la calibración guiada: promedia el centro, y en cada dirección
-// recuerda la inclinación más fuerte. Nada de temporizadores: el toque del dueño
-// es el que cierra cada paso; el solver decide ejes y sentidos al final.
-static void calibrationTick(uint32_t nowMs) {
-  (void)nowMs;
-  if (!g_imuOk) {
-    finishCalibration(millis());
-    return;
-  }
-  float a[3], g[3];
-  imuReadAll(a, g);
-
-  if (s_calStep == 0) {
-    // Promedio suave: cuando el dueño toca, el neutro es la postura reciente,
-    // no la última muestra con ruido.
-    if (!s_calNeutralSeeded) {
-      for (int i = 0; i < 3; i++) s_calNeutral[i] = a[i];
-      s_calNeutralSeeded = true;
-    } else {
-      for (int i = 0; i < 3; i++) {
-        s_calNeutral[i] = 0.8f * s_calNeutral[i] + 0.2f * a[i];
-      }
-    }
-    return;
-  }
-
-  float dev = 0.0f;
-  for (int i = 0; i < 3; i++) {
-    float d = a[i] - s_calNeutral[i];
-    dev += d * d;
-  }
-  s_calDeviation = sqrtf(dev);
-  if (s_calDeviation > s_calBestDev) {
-    s_calBestDev = s_calDeviation;
-    for (int i = 0; i < 3; i++) s_calBest[i] = a[i];
-  }
-}
-
-// Un toque cierra el paso actual: confirma el centro o la inclinación recién
-// hecha. Si falta el gesto o el equipo sigue inclinado, no pasa nada (y el
-// cartel ya dice qué hacer).
-static void calibrationTap() {
-  if (s_calStep == 0) {
-    if (!s_calNeutralSeeded) return;
-    s_calStep = 1;
-    s_calCaptured = 0;
-    s_calBestDev = 0.0f;
-    s_calDeviation = 0.0f;
-    s_needRedraw = true;
-    Serial.println("calibracion: 1/4 izquierda");
-    return;
-  }
-  if (!calCanConfirm(s_calBestDev, s_calDeviation, CAL_TILT_G, CAL_CENTER_G)) {
-    Serial.println("calibracion: falta inclinar y volver al centro");
-    return;
-  }
-  for (int i = 0; i < 3; i++) {
-    s_calCaptures[s_calCaptured][i] = s_calBest[i];
-  }
-  s_calCaptured++;
-  s_calBestDev = 0.0f;
-  if (s_calCaptured >= 4) {
-    finishCalibration(millis());
-    return;
-  }
-  s_calStep = (uint8_t)(s_calCaptured + 1);
-  s_needRedraw = true;
-  Serial.printf("calibracion: %u/4 siguiente\n", (unsigned)s_calCaptured);
 }
 
 static void gameOver(uint32_t nowMs) {
@@ -959,96 +794,10 @@ static void drawReady() {
   snprintf(best, sizeof(best), "RECORD %lu",
            (unsigned long)settingsGet().gameHighScore);
   gfxTextCentered(116, 1, best, STYLE_BULLET);
-  gfxTextCentered(132, 1, "2 TOQUES RAPIDOS: CALIBRAR LA INCLINACION",
-                 CHROME_DIM);
-  chromeFooter(s_cal.valid ? "TOCA: EMPEZAR   MANTENE: MENU"
-                           : "TOCA: CALIBRAR   MANTENE: MENU");
-}
-
-// "Iniciar calibracion" con SI / NO. El toque mueve la eleccion y un mantener
-// confirma: el mantener no abre el menu mientras este cartel esta en pantalla.
-static void drawOption(int cx, int y, const char *label, bool selected) {
-  int w = gfxTextWidth(3, label);
-  int x = cx - w / 2;
-  if (selected) {
-    gfxRect(x - 12, y - 8, w + 24, 7 * 3 + 16, STYLE_SHIP);
+  if (!s_cal.valid) {
+    gfxTextCentered(132, 1, "CALIBRA LA INCLINACION EN CONFIG", CHROME_DIM);
   }
-  gfxText(x, y, 3, label, selected ? GFX_WHITE : CHROME_DIM);
-}
-
-static void drawConfirm() {
-  gfxClear(GFX_BLACK);
-  gfxTextCentered(24, 2, "INICIAR", STYLE_TEXT);
-  gfxTextCentered(46, 2, "CALIBRACION", STYLE_TEXT);
-  drawOption(110, 86, "SI", s_confirmYes);
-  drawOption(210, 86, "NO", !s_confirmYes);
-  gfxTextCentered(124, 1, "Se mide como sostenes el equipo", CHROME_DIM);
-  chromeFooter("TOCA: CAMBIAR   MANTENE: CONFIRMAR");
-}
-
-// Progreso de las cuatro capturas: lleno = capturada, aro blanco = la actual,
-// aro gris = pendiente.
-static void drawCalibrationDots(int y) {
-  const int gap = 20;
-  int x = (DISPLAY_W - 3 * gap) / 2 - 6;
-  for (uint8_t i = 0; i < 4; i++) {
-    int cx = x + i * gap;
-    if (i < s_calCaptured) {
-      gfxFillCircle(cx, y, 4, STYLE_BULLET);
-    } else if (i == s_calCaptured) {
-      gfxCircle(cx, y, 5, GFX_WHITE);
-    } else {
-      gfxCircle(cx, y, 4, CHROME_DIM);
-    }
-  }
-}
-
-static void drawCalibrating(uint32_t nowMs) {
-  (void)nowMs;
-  gfxClear(GFX_BLACK);
-  gfxTextCentered(8, 1, "CALIBRACION", CHROME_DIM);
-
-  static const char *const DIR[5] = {"", "IZQUIERDA", "DERECHA", "HACIA VOS",
-                                     "ALEJANDO"};
-  static const char *const HINT[5] = {
-      "", "Inclina hacia la izquierda", "Inclina hacia la derecha",
-      "Inclina el borde de arriba hacia vos", "Ahora aleja el borde de arriba"};
-
-  if (s_calStep == 0) {
-    gfxTextCentered(38, 2, "DEJALO EN", STYLE_TEXT);
-    gfxTextCentered(62, 2, "EL CENTRO", STYLE_TEXT);
-    gfxTextCentered(96, 1, "Apoyalo como para jugar, quieto", GFX_WHITE);
-    chromeFooter("TOCA: CONFIRMAR   MANTENE: CANCELAR");
-    return;
-  }
-
-  bool recorded = calExtremeRecorded(s_calBestDev, CAL_TILT_G);
-  bool centered = calAtCenter(s_calDeviation, CAL_CENTER_G);
-  if (!recorded) {
-    gfxTextCentered(34, 2, "AHORA", CHROME_DIM);
-    gfxTextCentered(58, 2, DIR[s_calStep], STYLE_TEXT);
-    gfxTextCentered(84, 1, HINT[s_calStep], GFX_WHITE);
-  } else if (!centered) {
-    gfxTextCentered(38, 2, "VOLVE AL CENTRO", STYLE_BULLET);
-    gfxTextCentered(84, 1, "Soltalo quieto, sin inclinar", GFX_WHITE);
-  } else {
-    gfxTextCentered(34, 2, "TOCA PARA", CHROME_DIM);
-    gfxTextCentered(58, 2, "CONFIRMAR", STYLE_SHIP);
-    gfxTextCentered(84, 1, DIR[s_calStep], STYLE_BULLET);
-  }
-
-  drawCalibrationDots(104);
-
-  // Barra viva con el desvío actual y la marca del umbral de gesto.
-  int w = DISPLAY_W - 80;
-  float full = CAL_TILT_G * 2.0f;
-  int permille = (int)(s_calDeviation / full * 1000.0f);
-  if (permille > 1000) permille = 1000;
-  gfxFillRect(40, 118, w, 8, STYLE_DIM);
-  gfxFillRect(40, 118, w * permille / 1000, 8, STYLE_BULLET);
-  gfxFillRect(40 + w / 2, 114, 2, 16, CHROME_LINE);
-
-  chromeFooter("MANTENE: CANCELAR");
+  chromeFooter("TOCA: EMPEZAR   MANTENE: MENU");
 }
 
 static void drawOver() {
@@ -1064,23 +813,14 @@ static void drawOver() {
   snprintf(line, sizeof(line), "%s %lu", record ? "NUEVO RECORD" : "RECORD",
            (unsigned long)settingsGet().gameHighScore);
   gfxTextCentered(108, 2, line, record ? STYLE_BULLET : CHROME_DIM);
-  gfxTextCentered(132, 1, "2 TOQUES RAPIDOS: CALIBRAR LA INCLINACION",
-                 CHROME_DIM);
+  if (!s_cal.valid) {
+    gfxTextCentered(132, 1, "CALIBRA LA INCLINACION EN CONFIG", CHROME_DIM);
+  }
 
   chromeFooter("TOCA: OTRA VEZ   MANTENE: MENU");
 }
 
 // --- interfaz de pantalla ---------------------------------------------------
-
-// Abre el cartel de calibracion. Se resetea la ventana de toques para que el
-// segundo toque del gesto no quede pendiente al volver.
-static void openConfirm() {
-  tapWindowReset(s_taps);
-  s_state = GAME_CONFIRM;
-  s_confirmYes = true;
-  s_needRedraw = true;
-  Serial.println("calibracion: pedir confirmacion");
-}
 
 void gameInit() {
   s_cal = settingsGetSteerCalibration();
@@ -1095,7 +835,6 @@ void gameEnter() {
   s_state = GAME_READY;
   s_needRedraw = true;
   resetField();
-  tapWindowReset(s_taps);
   rgbSetColor(20, 60, 120);
 }
 
@@ -1104,20 +843,9 @@ void gameShortPress() {
   switch (s_state) {
     case GAME_READY:
     case GAME_OVER:
-      // El primer toque no actua todavia: si viene un segundo dentro de la
-      // ventana, el gesto era "abrir calibracion" y no "empezar".
-      if (tapWindowPress(s_taps, now, TAP_DOUBLE_MS) == TAP_DOUBLE) {
-        openConfirm();
-      }
-      break;
-    case GAME_CONFIRM:
-      s_confirmYes = !s_confirmYes;
-      s_needRedraw = true;
-      Serial.printf("calibracion: %s\n", s_confirmYes ? "SI" : "NO");
-      break;
-    case GAME_CALIBRATING:
-      // Cada paso se confirma con un toque; ver calibrationTap().
-      calibrationTap();
+      // There is no calibration gesture on the glass anymore: a tap starts or
+      // restarts the run at once.
+      startGame(now);
       break;
     case GAME_PLAYING:
       fireBullet(now);
@@ -1125,38 +853,7 @@ void gameShortPress() {
   }
 }
 
-bool gameLongPress() {
-  if (s_state == GAME_CALIBRATING) {
-    // Mantener cancela la calibración a mitad de camino y deja la anterior.
-    Serial.println("calibracion: cancelada, queda la anterior");
-    s_calStep = 0;
-    s_calCaptured = 0;
-    s_calBestDev = 0.0f;
-    s_state = GAME_READY;
-    s_needRedraw = true;
-    return true;
-  }
-  if (s_state != GAME_CONFIRM) return false;
-  s_needRedraw = true;
-  if (s_confirmYes) {
-    Serial.println("calibracion: confirmada");
-    startCalibration(millis());
-  } else {
-    Serial.println("calibracion: descartada");
-    s_state = GAME_READY;
-  }
-  return true;
-}
-
 bool gameTick(uint32_t nowMs) {
-  if (s_state == GAME_CALIBRATING) {
-    calibrationTick(nowMs);
-    if (s_state != GAME_CALIBRATING) return true;
-    drawCalibrating(nowMs);
-    s_lastDraw = nowMs;
-    return true;
-  }
-
   if (s_state == GAME_PLAYING) {
     step(nowMs);
     if ((uint32_t)(nowMs - s_lastDraw) < 25 && !s_needRedraw) return false;
@@ -1165,28 +862,6 @@ bool gameTick(uint32_t nowMs) {
     drawField(nowMs);
     drawHud();
     return true;
-  }
-
-  if (s_state == GAME_CONFIRM) {
-    if (!s_needRedraw) return false;
-    s_needRedraw = false;
-    drawConfirm();
-    return true;
-  }
-
-  // Ready and game-over both wait out the double-tap window before acting on a
-  // single tap, so two quick taps always mean "calibration" instead of "start".
-  if (s_state == GAME_READY || s_state == GAME_OVER) {
-    TapResult tap = tapWindowPoll(s_taps, nowMs, TAP_DOUBLE_MS);
-    if (tap == TAP_WAIT) return false;
-    if (tap == TAP_SINGLE) {
-      if (s_state == GAME_READY && !s_cal.valid) {
-        startCalibration(nowMs);
-      } else {
-        startGame(nowMs);
-      }
-      return true;
-    }
   }
 
   if (!s_needRedraw) return false;

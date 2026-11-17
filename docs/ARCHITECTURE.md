@@ -17,7 +17,7 @@ esp32_gadget.ino        boot, botón, loop
 ├── screens.*           registro y ciclo de vida de las pantallas, menú, sleep
 │   ├── screen_clock    reloj
 │   ├── screen_slot     tragamonedas
-│   ├── screen_game     meteoritos + calibración de ejes
+│   ├── screen_game     meteoritos (la calibración vive en CONFIG)
 │   ├── screen_net      datos de la red
 │   ├── screen_music    Spotify
 │   ├── screen_buddy    cara de Sofía

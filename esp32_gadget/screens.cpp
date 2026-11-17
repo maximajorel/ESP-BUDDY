@@ -237,7 +237,9 @@ static void maybeSleep(uint32_t nowMs) {
   ScreenTimeout timeout = settingsGetScreenTimeout();
   if (timeout.seconds == 0) return;
   if (!screenSleepIncluded(timeout.mask, s_current)) return;
-  if (s_current == SCREEN_GAME && gameWantsScreenOn()) {
+  if ((s_current == SCREEN_GAME && gameWantsScreenOn()) ||
+      (s_current == SCREEN_SETTINGS && configWizardActive())) {
+    // Running, or measuring a calibration: the owner is busy, not idle.
     s_lastActivity = nowMs;
     return;
   }
@@ -259,7 +261,10 @@ bool screensTick(uint32_t nowMs, uint16_t holdPermille) {
   // the image must not follow the sensor while that is true. Same predicate the
   // sleep timer uses, raised and cleared here because this is where the current
   // screen is known.
-  rotationSetHeld(s_current == SCREEN_GAME && gameWantsScreenOn());
+  // A game in progress and the CONFIG calibration wizard both own the tilt: the
+  // image must not follow the sensor while someone is deliberately tilting it.
+  rotationSetHeld((s_current == SCREEN_GAME && gameWantsScreenOn()) ||
+                  (s_current == SCREEN_SETTINGS && configWizardActive()));
 
   if (s_asleep) return false;
   if (s_wakePush) {
@@ -335,10 +340,12 @@ void screensLongPress() {
   // The hold indicator is cleared by screensGoTo; nothing screen-specific has
   // to happen on the way out.
   s_holdPermille = 0;
-  // A screen may claim the hold for its own confirmation: the game uses it to
-  // accept "iniciar calibracion", and the picker must not open on top of that
-  // prompt. Every other screen leaves the hold to the menu.
-  if (!s_menuOpen && s_current == SCREEN_GAME && gameLongPress()) return;
+  // A screen may claim the hold for its own overlay: CONFIG uses it to cancel
+  // the calibration wizard, and the picker must not open on top of it. Every
+  // other screen leaves the hold to the menu.
+  if (!s_menuOpen && s_current == SCREEN_SETTINGS && configLongPress()) {
+    return;
+  }
   if (s_menuOpen) {
     // Second hold: enter the highlighted screen.
     s_menuOpen = false;

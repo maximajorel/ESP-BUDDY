@@ -1217,7 +1217,7 @@
 
     $('steerRecal').addEventListener('click', function (event) {
       submit(event.target, '/api/steer/reset', undefined,
-        'Listo: en la pantalla ESQUIVAR tocá una vez e incliná a los costados').then(
+        'Listo: te llevé a CONFIG y abrí la calibración guiada').then(
         function (ok) { if (ok) refresh(); });
     });
 

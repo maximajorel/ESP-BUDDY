@@ -819,8 +819,12 @@ ApiResult netHandleApi(const char *method, const char *path, const String &body)
     return apiOk();
   }
   if (!strcmp(path, "/api/steer/reset")) {
+    // Clearing the axes used to drop the owner into the game, which then asked
+    // for the gesture. The wizard lives in CONFIG now, so the button takes them
+    // there and opens it directly.
     gameInvalidateCalibration();
-    screensGoTo(SCREEN_GAME);
+    screensGoTo(SCREEN_SETTINGS);
+    configStartCalibration();
     return apiOk();
   }
   if (!strcmp(path, "/api/steer/swap")) {

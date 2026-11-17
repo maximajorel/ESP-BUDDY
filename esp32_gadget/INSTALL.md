@@ -240,7 +240,7 @@ otra vez, o pedile a tu router que le reserve siempre la misma dirección a la M
 ### Meteoritos
 
 - **Toque corto**: disparar; en la pantalla de inicio o de fin, empezar o volver a jugar.
-- **Dos toques rápidos** (inicio o fin de partida): abren el cartel **INICIAR CALIBRACION** con **SI / NO**. Un toque cambia la opción y **mantener 1 segundo** confirma. La calibración es guiada y se confirma con toques: centro, izquierda, derecha, hacia vos y alejando.
+- **Calibración de la inclinación**: se hace desde **CONFIG → CALIBRAR** (§9). El juego ya no la pide; si nunca calibraste, la pantalla de inicio muestra el aviso y el juego arranca con los ejes guardados (o los de fábrica).
 - Incliná el equipo para mover la nave por todo el espacio: izquierda/derecha y arriba/abajo; los meteoritos caen de arriba.
 - Cada 10 segundos sube el nivel: los meteoritos caen más rápido y aparecen más seguido.
 - **Cazas enemigos**: aparece uno cada tanto (el primero a los 6 segundos), se mueven de costado por la franja de arriba y **disparan hacia abajo**. Sólo los destruye **tu disparo** (150 puntos); sus balas y su cuerpo terminan la partida.
@@ -299,7 +299,7 @@ queda fijo a la izquierda.
 | **Aplicaciones** (primera) | Elegís qué se ve en la pantalla del equipo tocando una tarjeta; la activa queda marcada como **Ahora**. Debajo, plegado, está **Nombres y orden del menú**: escribís el nombre de cada pantalla (hasta 12 letras, se ve igual en la lista y en el equipo) y las movés con las flechas — ese orden es el que recorre el botón—; ambos cambios quedan guardados. |
 | **Pantalla** | Brillo, color de la interfaz, rotación automática (o fija), bloqueo de la rotación, reloj en 12/24 h, **Usar la hora de este teléfono** para ponerlo en hora sin internet y el **apagado automático** de la pantalla y la luz. |
 | **Luz RGB** | Intensidad en porcentaje (0 a 100, queda guardada en el equipo), color y modo (fijo, arcoíris, apagada) de la luz de atrás. Si **Sofía** está configurada, ella usa esa luz como luz de estado: la tarjeta lo dice y deja solo la intensidad, porque el color y el modo los decide el bridge. |
-| **Juegos** | Récords, borrarlos, **calibrar los controles** del juego de meteoritos y corregir los ejes si la nave va al revés. |
+| **Juegos** | Récords, borrarlos, **recalibrar los controles** del juego de meteoritos (te lleva a CONFIG y abre el wizard) y corregir los ejes si la nave va al revés. |
 | **Música** | Los pasos para conectar Spotify (crear la app, el Redirect URI, el Client ID) y el estado en vivo: si falta el Client ID, si falta autorizar, o qué está sonando. |
 | **Red** | **WiFi de casa**: busca redes, elegís la tuya, ponés la clave y guardás; con eso el reloj se pone en hora solo. Si te equivocaste de clave, **Olvidar red** borra las credenciales sin tocar los récords. **Punto de acceso**: cambia el nombre y la clave de la red que crea el equipo (lo que se ve en la pantalla RED); mínimo 8 caracteres. |
 | **Sofía** | URL del bridge (tu LAN por `http://` o una URL pública por `https://`) y token, estado en vivo del buddy con el motivo del enlace cuando falla, color de los ojos (elegilo o volvé al cyan original; queda guardado en el equipo) y un campo para pedirle algo al agente: el pedido se ve en la cara. |
@@ -311,8 +311,8 @@ Sin tocar el equipo, la pantalla y la luz de atrás se apagan solas después del
 tiempo elegido en **Pantalla → Apagado automático**. Cada pantalla tiene su
 casilla: por defecto se apagan **Reloj** y **Red**; **Tragamonedas**,
 **Meteoritos** y **Música** quedan siempre encendidas. En Meteoritos, mientras
-estás jugando, calibrando o confirmando la calibración no se apaga aunque la
-incluyas.
+estás jugando no se apaga aunque la incluyas; en CONFIG, el wizard de calibración
+también mantiene la pantalla encendida y la rotación bloqueada mientras medís.
 
 La pantalla **Sofía** arranca excluida del apagado: si querés que también duerma,
 marcala en la lista. **Config** también arranca excluida, porque es la pantalla en la
@@ -357,31 +357,35 @@ rotación. Todo queda guardado y sobrevive a un corte de luz.
 
 El juego mide los ejes del sensor, porque según cómo sostengas la placa la
 gravedad puede caer en cualquiera de los tres ejes y los dos ejes del plano
-pueden quedar cruzados. La calibración es guiada y se confirma con toques, sin apuro ni relojes:
+pueden quedar cruzados. La calibración es guiada, se confirma con toques y vive
+en **CONFIG**, no en el juego:
 
-1. **Dejalo en el centro**, como para jugar, y **tocá el botón** para confirmar.
-2. **Incliná hacia la izquierda**, volvé al centro y **tocá** para confirmar.
-3. Lo mismo hacia la **derecha**.
-4. Lo mismo con el borde de arriba **hacia vos**.
-5. Lo mismo **alejando** el borde de arriba.
+1. En **CONFIG**, con dos toques movés el foco hasta la fila **CALIBRAR** y con
+   un toque la abrís. El wizard ocupa la pantalla entera.
+2. **Dejalo en el centro**, como para jugar, y **tocá el botón** para confirmar.
+3. **Incliná hacia la izquierda**, volvé al centro y **tocá** para confirmar.
+4. Lo mismo hacia la **derecha**.
+5. Lo mismo con el borde de arriba **hacia vos**.
+6. Lo mismo **alejando** el borde de arriba.
 
 El cartel te va guiando: `AHORA IZQUIERDA` → `VOLVE AL CENTRO` → `TOCA PARA
 CONFIRMAR`. El toque sólo cuenta si hubo una inclinación de verdad y el equipo ya
 volvió al centro; si te apurás, no pasa nada y el cartel te sigue pidiendo. Los
 cuatro puntos muestran lo que ya quedó confirmado. Al terminar, el equipo deduce
-solo qué eje es horizontal, cuál es vertical y para qué lado va cada uno.
+solo qué eje es horizontal, cuál es vertical y para qué lado va cada uno, lo
+guarda y te devuelve a CONFIG con la fila en **HECHA**.
 
 Para cancelar a mitad de camino y quedarte con la calibración anterior, **mantené
 el botón** un segundo.
 
-La primera vez que tocás la pantalla METEORITOS te pide el gesto directamente;
-después, para recalibrar, usá **dos toques rápidos** o el botón del panel.
+Desde el panel, **Juegos → Recalibrar controles** borra la anterior, te lleva a
+CONFIG y abre el wizard directamente.
 
 Después de eso, si algo no cierra, en **Juegos** tenés:
 
 | Botón | Cuándo usarlo |
 |---|---|
-| **Recalibrar controles** | Vuelve a hacer la calibración guiada de cinco pasos. |
+| **Recalibrar controles** | Abre el wizard de cinco pasos en CONFIG (borra la calibración anterior). |
 | **Cambiar eje del control** | Si la nave responde al revés de lo que esperás en los costados, sin repetir la calibración. |
 | **Invertir izquierda/derecha** | Si la nave va para el lado contrario al que inclinás a los costados. |
 | **Invertir arriba/abajo** | Si al inclinar el equipo hacia adelante la nave sube cuando querés que baje (o al revés). |
@@ -460,7 +464,7 @@ panel web. Abrí el monitor serie a **115200** baudios y escribí `help`.
 | `status` | Estado completo: pantalla, orientación, WiFi, hora, ejes del juego, récords, memoria. |
 | `screen 0..6` | Salta a una pantalla (0 reloj, 1 tragamonedas, 2 meteoritos, 3 red, 4 música, 5 Sofía, 6 Config). |
 | `press [ms]` | Simula un toque corto. |
-| `doubletap` | Dos toques rápidos seguidos: abre el cartel de calibración del juego. |
+| `doubletap` | Dos toques rápidos por la ruta de la pantalla actual (en CONFIG mueve el foco). |
 | `tap` | Toque corto sin la temporización del botón (para probar la lógica de la pantalla). |
 | `longpress` | Mantener 1 segundo sin la temporización del botón. |
 | `hold` | Simula mantener 1 segundo: abre el menú, o entra a la pantalla seleccionada. |
@@ -471,7 +475,7 @@ panel web. Abrí el monitor serie a **115200** baudios y escribí `help`.
 | `rot 0..3` | Fija la imagen, igual que `orient`. |
 | `rot lock on\|off` | Bloquea o libera la rotación actual. |
 | `steer <lat> <up> <sign> <signY> <gain>` | Fija a mano los ejes del juego (0=x, 1=y, 2=z) y el sentido de cada dirección. |
-| `steercal` | Borra la calibración: el próximo toque en METEORITOS calibra de nuevo. |
+| `steercal` | Borra la calibración: se rehace desde CONFIG, fila CALIBRAR. |
 | `imu` | Una lectura del acelerómetro y del giroscopio. |
 | `imufake <ax> <ay> <az> <gx> <gy> <gz>` | Reemplaza el sensor por valores fijos (para probar el juego sin mover la placa). |
 | `imureal` | Vuelve al sensor real. |
@@ -550,8 +554,8 @@ siga mostrando `ESP32-GADGET-XXXXXX` y no tu red de casa.
 
 **La nave se mueve con el eje equivocado.**
 En el panel, **Juegos → Cambiar eje del control**. Si igual no responde, tocá
-**Recalibrar controles** y repetí el gesto subiendo y bajando los extremos
-izquierdo y derecho, no el borde de adelante.
+**Recalibrar controles** (te abre el wizard en CONFIG) y repetí el gesto
+inclinando y volviendo al centro en cada dirección, sin apuro.
 
 **La imagen de la pantalla se ve girada.**
 En el panel, **Pantalla → Rotación de la pantalla**: *Automática*, *Horizontal* o
@@ -594,7 +598,10 @@ esp32_gadget/
 ├── screen_order.h          validación del orden del menú (puro, test en host)
 ├── screen_clock.cpp        pantalla reloj
 ├── screen_slot.cpp         pantalla tragamonedas
-├── screen_game.cpp         pantalla meteoritos (ASCII) y calibración de ejes
+├── screen_game.cpp         pantalla meteoritos (ASCII)
+├── steer_solve.h           ejes y sentidos a partir de cuatro inclinaciones (puro, test en host)
+├── steer_wizard.h          wizard de calibración: centro + cuatro direcciones (puro, test en host)
+├── calibration_gate.h      cuándo vale confirmar un paso de la calibración (puro, test en host)
 ├── screen_net.cpp          pantalla de red
 ├── screen_music.cpp        pantalla de música (Spotify)
 ├── screen_buddy.cpp        pantalla Sofía (cara del buddy)

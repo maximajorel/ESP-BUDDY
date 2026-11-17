@@ -30,10 +30,13 @@
 
 #include "config_value.h"
 #include "display.h"
+#include "imu.h"
 #include "rgb.h"
 #include "rotation.h"
 #include "screens.h"
 #include "settings.h"
+#include "steer_solve.h"
+#include "steer_wizard.h"
 #include "tap_window.h"
 #include "theme.h"
 
@@ -41,7 +44,8 @@
 #define CFG_ROW_LED 1
 #define CFG_ROW_ROT 2
 #define CFG_ROW_LOCK 3
-#define CFG_ROW_COUNT 4
+#define CFG_ROW_CAL 4
+#define CFG_ROW_COUNT 5
 
 // Focus stops, in the order a double tap walks them. The bar rows contribute two
 // each because the two buttons do opposite things.
@@ -51,7 +55,8 @@
 #define CFG_FOCUS_LED_PLUS 3
 #define CFG_FOCUS_ROT 4
 #define CFG_FOCUS_LOCK 5
-#define CFG_FOCUS_COUNT 6
+#define CFG_FOCUS_CAL 6
+#define CFG_FOCUS_COUNT 7
 #define CFG_FOCUS_FIRST CFG_FOCUS_LCD_MINUS
 
 // Once the owner stops pressing for this long, the value is written to NVS. Long
@@ -72,8 +77,8 @@
 #define CFG_BAR_H 12
 #define CFG_PLUS_X 242
 #define CFG_VALUE_RIGHT 317
-#define CFG_ROW0_Y 48
-#define CFG_ROW_Y_STEP 26
+#define CFG_ROW0_Y 46
+#define CFG_ROW_Y_STEP 22
 
 // Live values in the same percent domain the screen shows. They are seeded from
 // the hardware whenever the screen is entered, so a change made from the panel is
@@ -86,6 +91,11 @@ static uint8_t s_focus = CFG_FOCUS_FIRST;
 
 static TapWindow s_taps;
 static bool s_needRedraw = true;
+// The guided tilt calibration, moved here from the meteor game. While it runs it
+// owns the glass and the button: tap closes a step, hold cancels.
+static SteerWizard s_wiz;
+static bool s_wizActive = false;
+static uint32_t s_wizDrawAt = 0;
 static bool s_savePending = false;
 static uint32_t s_saveDueAt = 0;
 
@@ -110,23 +120,13 @@ static void scheduleSave(uint32_t nowMs) {
 
 static int rowY(uint8_t row) { return CFG_ROW0_Y + row * CFG_ROW_Y_STEP; }
 
-static uint8_t rowOfFocus(uint8_t focus) {
-  switch (focus) {
-    case CFG_FOCUS_LCD_MINUS:
-    case CFG_FOCUS_LCD_PLUS: return CFG_ROW_LCD;
-    case CFG_FOCUS_LED_MINUS:
-    case CFG_FOCUS_LED_PLUS: return CFG_ROW_LED;
-    case CFG_FOCUS_ROT: return CFG_ROW_ROT;
-    default: return CFG_ROW_LOCK;
-  }
-}
-
 static const char *rowLabel(uint8_t row) {
   switch (row) {
     case CFG_ROW_LCD: return "BRILLO LCD";
     case CFG_ROW_LED: return "BRILLO LED";
     case CFG_ROW_ROT: return "ROTACION";
-    default: return "BLOQUEO";
+    case CFG_ROW_LOCK: return "BLOQUEO";
+    default: return "CALIBRAR";
   }
 }
 
@@ -137,7 +137,8 @@ static const char *focusLabel(uint8_t focus) {
     case CFG_FOCUS_LED_MINUS: return "BRILLO LED -";
     case CFG_FOCUS_LED_PLUS: return "BRILLO LED +";
     case CFG_FOCUS_ROT: return "ROTACION";
-    default: return "BLOQUEO";
+    case CFG_FOCUS_LOCK: return "BLOQUEO";
+    default: return "CALIBRAR";
   }
 }
 
@@ -193,9 +194,16 @@ static void drawBarRow(uint8_t row, int y, const char *label, uint8_t pct,
   gfxTextRight(CFG_VALUE_RIGHT, y, 2, value, rowFocused ? GFX_WHITE : CHROME_DIM);
 }
 
+static uint8_t discreteFocus(uint8_t row) {
+  switch (row) {
+    case CFG_ROW_ROT: return CFG_FOCUS_ROT;
+    case CFG_ROW_LOCK: return CFG_FOCUS_LOCK;
+    default: return CFG_FOCUS_CAL;
+  }
+}
+
 static void drawDiscreteRow(uint8_t row, int y, const char *text, uint8_t focus) {
-  bool focused = focus == (uint8_t)(row == CFG_ROW_ROT ? CFG_FOCUS_ROT
-                                                       : CFG_FOCUS_LOCK);
+  bool focused = focus == discreteFocus(row);
   uint16_t frameColor = focused ? uiAccent() : CHROME_LINE;
 
   gfxText(CFG_LABEL_X, y, 2, rowLabel(row), focused ? uiAccent() : CHROME_DIM);
@@ -216,7 +224,97 @@ static void drawScreen() {
   drawDiscreteRow(CFG_ROW_ROT, rowY(CFG_ROW_ROT), modeLabel(s_mode), s_focus);
   drawDiscreteRow(CFG_ROW_LOCK, rowY(CFG_ROW_LOCK), s_locked ? "SI" : "NO",
                   s_focus);
+  drawDiscreteRow(CFG_ROW_CAL, rowY(CFG_ROW_CAL),
+                  settingsGetSteerCalibration().valid ? "HECHA" : "HACER",
+                  s_focus);
   chromeFooter("TOCA: CAMBIAR  2 TOCS: SIGUIENTE");
+}
+
+// --- the calibration wizard, on its own glass -------------------------------
+//
+// Same flow the game used to draw: confirm the centre, then each direction, with
+// a progress ring and a live deviation bar so a tap that does nothing explains
+// itself. The palette is CONFIG's (owner accent), not the game's terminal green.
+
+static const char *const kWizDir[5] = {"", "IZQUIERDA", "DERECHA", "HACIA VOS",
+                                       "ALEJANDO"};
+static const char *const kWizHint[5] = {
+    "", "Inclina hacia la izquierda", "Inclina hacia la derecha",
+    "Inclina el borde de arriba hacia vos",
+    "Ahora aleja el borde de arriba"};
+
+static void drawWizardDots(int y) {
+  const int gap = 20;
+  int x = (DISPLAY_W - 3 * gap) / 2 - 6;
+  for (uint8_t i = 0; i < STEER_WIZ_DIRECTIONS; i++) {
+    int cx = x + i * gap;
+    if (i < s_wiz.captured) {
+      gfxFillCircle(cx, y, 4, uiAccent());
+    } else if (i == s_wiz.captured) {
+      gfxCircle(cx, y, 5, GFX_WHITE);
+    } else {
+      gfxCircle(cx, y, 4, CHROME_DIM);
+    }
+  }
+}
+
+static void drawWizard() {
+  gfxClear(GFX_BLACK);
+  gfxTextCentered(8, 1, "CALIBRACION", CHROME_DIM);
+
+  if (s_wiz.step == 0) {
+    gfxTextCentered(38, 2, "DEJALO EN", uiAccent());
+    gfxTextCentered(62, 2, "EL CENTRO", uiAccent());
+    gfxTextCentered(96, 1, "Apoyalo como para jugar, quieto", GFX_WHITE);
+    chromeFooter("TOCA: CONFIRMAR   MANTENE: CANCELAR");
+    return;
+  }
+
+  bool recorded = steerWizardRecorded(&s_wiz);
+  bool centered = steerWizardCentred(&s_wiz);
+  if (!recorded) {
+    gfxTextCentered(34, 2, "AHORA", CHROME_DIM);
+    gfxTextCentered(58, 2, kWizDir[s_wiz.step], uiAccent());
+    gfxTextCentered(84, 1, kWizHint[s_wiz.step], GFX_WHITE);
+  } else if (!centered) {
+    gfxTextCentered(38, 2, "VOLVE AL CENTRO", GFX_WHITE);
+    gfxTextCentered(84, 1, "Soltalo quieto, sin inclinar", GFX_WHITE);
+  } else {
+    gfxTextCentered(34, 2, "TOCA PARA", CHROME_DIM);
+    gfxTextCentered(58, 2, "CONFIRMAR", uiAccent());
+    gfxTextCentered(84, 1, kWizDir[s_wiz.step], GFX_WHITE);
+  }
+
+  drawWizardDots(104);
+
+  int w = DISPLAY_W - 80;
+  float full = STEER_WIZ_TILT_G * 2.0f;
+  int permille = (int)(s_wiz.deviation / full * 1000.0f);
+  if (permille > 1000) permille = 1000;
+  if (permille < 0) permille = 0;
+  gfxFillRect(40, 118, w, 8, CHROME_LINE);
+  gfxFillRect(40, 118, w * permille / 1000, 8, uiAccent());
+  gfxFillRect(40 + w / 2, 114, 2, 16, CHROME_DIM);
+
+  chromeFooter("MANTENE: CANCELAR");
+}
+
+// Writes the solved axes, signs and baselines to the same NVS the game reads.
+// The game re-reads it on entry, so it picks this up without a reboot.
+static void applySteerSolution(const SteerSolution &sol) {
+  SteerCalibration cal = settingsGetSteerCalibration();
+  cal.latAxis = sol.latAxis;
+  cal.upAxis = sol.upAxis;
+  cal.sign = sol.sign;
+  cal.signY = sol.signY;
+  cal.baseline = sol.baseline;
+  cal.baselineY = sol.baselineY;
+  cal.valid = true;
+  if (cal.gain == 0) cal.gain = 100;
+  settingsSetSteerCalibration(cal);
+  // The game keeps its own copy of the axes; reload it now so a later "swap
+  // axis" or manual `steer` command cannot write the pre-wizard values back.
+  gameInit();
 }
 
 static void applyFocus(uint32_t nowMs) {
@@ -251,6 +349,13 @@ static void applyFocus(uint32_t nowMs) {
       Serial.printf("config: rotacion %s\n", modeLabel(s_mode));
       break;
     }
+    case CFG_FOCUS_CAL: {
+      steerWizardReset(&s_wiz);
+      s_wizActive = true;
+      s_wizDrawAt = 0;
+      Serial.println("config: calibracion, deja el equipo en el centro");
+      break;
+    }
     default: {
       s_locked = !s_locked;
       rotationSetLocked(s_locked);
@@ -263,6 +368,7 @@ static void applyFocus(uint32_t nowMs) {
 
 void configEnter() {
   tapWindowReset(s_taps);
+  s_wizActive = false;
   // A pending save belongs to the previous visit; write it before reading the
   // live values back, or the read would overwrite what is still unsaved.
   flushSave();
@@ -276,10 +382,34 @@ void configLeave() {
   // starts where the footer says it does; a rotation change never gets here,
   // because it repaints without leaving the screen.
   flushSave();
+  s_wizActive = false;
   s_focus = CFG_FOCUS_FIRST;
 }
 
 void configShortPress() {
+  // While the wizard owns the glass, a tap closes its current step. It is not a
+  // double-tap gesture here: the owner is following a prompt, not navigating.
+  if (s_wizActive) {
+    SteerSolution sol;
+    SteerWizardTap r = steerWizardTap(&s_wiz, &sol);
+    if (r == STEER_WIZ_ADVANCED) {
+      Serial.printf("config: calibracion %u/4\n", (unsigned)s_wiz.captured);
+    } else if (r == STEER_WIZ_REJECTED) {
+      Serial.println("config: falta inclinar y volver al centro");
+    } else if (r == STEER_WIZ_SOLVED) {
+      applySteerSolution(sol);
+      s_wizActive = false;
+      rgbPulse(0, 200, 120, 900);
+      Serial.printf("config: calibrado lat=%u up=%u sign=%d signY=%d\n",
+                    (unsigned)sol.latAxis, (unsigned)sol.upAxis, (int)sol.sign,
+                    (int)sol.signY);
+    } else if (r == STEER_WIZ_INCOMPLETE) {
+      s_wizActive = false;
+      Serial.println("config: calibracion incompleta, queda la anterior");
+    }
+    s_needRedraw = true;
+    return;
+  }
   // The first tap of a double does nothing yet: the window has to expire before
   // it is known to be a single tap that presses the highlighted control.
   if (tapWindowPress(s_taps, millis(), TAP_DOUBLE_MS) == TAP_DOUBLE) {
@@ -289,8 +419,47 @@ void configShortPress() {
   }
 }
 
+bool configWizardActive() { return s_wizActive; }
+
+void configStartCalibration() {
+  steerWizardReset(&s_wiz);
+  s_wizActive = true;
+  s_wizDrawAt = 0;
+  s_needRedraw = true;
+  Serial.println("config: calibracion, deja el equipo en el centro");
+}
+
+bool configLongPress() {
+  if (!s_wizActive) return false;
+  // A hold is the way out of the wizard; the picker must not open on top of it.
+  s_wizActive = false;
+  s_needRedraw = true;
+  Serial.println("config: calibracion cancelada");
+  return true;
+}
+
 bool configTick(uint32_t nowMs) {
   if (s_savePending && (int32_t)(nowMs - s_saveDueAt) >= 0) flushSave();
+
+  if (s_wizActive) {
+    if (!g_imuOk) {
+      s_wizActive = false;
+      s_needRedraw = true;
+      Serial.println("config: sin IMU, calibracion cancelada");
+    } else {
+      float a[3], g[3];
+      imuReadAll(a, g);
+      steerWizardFeed(&s_wiz, a);
+      // 20 fps: the deviation bar and the prompt change with the tilt.
+      if ((uint32_t)(nowMs - s_wizDrawAt) >= 50 || s_needRedraw) {
+        s_wizDrawAt = nowMs;
+        s_needRedraw = false;
+        drawWizard();
+        return true;
+      }
+      return false;
+    }
+  }
 
   // The panel can change any of these while this screen is open. While nothing of
   // ours is waiting to be written, take what the hardware actually has, so the

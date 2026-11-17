@@ -182,7 +182,7 @@ static void printHelp() {
   Serial.println("  status                     device state");
   Serial.println("  screen <0-6>               reloj, tragamonedas, meteoritos, red, musica, sofia, config");
   Serial.println("  press [ms]                 synthetic short press (default 120)");
-  Serial.println("  doubletap                  two quick short presses (calibration prompt)");
+  Serial.println("  doubletap                  two quick short presses, routed to the current screen");
   Serial.println("  tap                        short press without button timing");
   Serial.println("  setship <col> <row>        mueve la nave (pruebas de punteria)");
   Serial.println("  closemenu                  cierra el menu de pantallas");
@@ -193,7 +193,7 @@ static void printHelp() {
   Serial.println("  orient <0-3>               landscape rotation onto the panel (pins it)");
   Serial.println("  rot [auto|0-3|lock on|off] automatic rotation, a pinned image, or the lock");
   Serial.println("  steer <lat> <up> <sign> <signY> <gain>  ejes del juego (0..2, x/y/z)");
-  Serial.println("  steercal                   borra la calibracion de ejes");
+  Serial.println("  steercal                   borra la calibracion (se rehace en CONFIG)");
   Serial.println("  imufake <ax> <ay> <az> <gx> <gy> <gz>   sensor simulado");
   Serial.println("  imureal                    vuelve al sensor real");
   Serial.println("  gamestate                  estado, nave, puntaje, nivel, meteoritos y cazas");
@@ -466,7 +466,7 @@ static void handleCommand(char *line) {
   }
   if (!strcmp(argv[0], "doubletap")) {
     // The probe cannot send two taps 120 ms apart, so this calls the same short
-    // press path twice. Used to check the calibration prompt end to end.
+    // press path twice. Used to drive a screen's double-tap gesture end to end.
     screensShortPress();
     delay(120);
     screensShortPress();
@@ -558,8 +558,9 @@ static void handleCommand(char *line) {
   }
   if (!strcmp(argv[0], "steercal")) {
     gameInvalidateCalibration();
-    screensGoTo(SCREEN_GAME);
-    Serial.println("calibracion borrada: el proximo toque calibra");
+    screensGoTo(SCREEN_SETTINGS);
+    configStartCalibration();
+    Serial.println("calibracion borrada: wizard abierto en CONFIG");
     return;
   }
   if (!strcmp(argv[0], "imufake") && argc >= 7) {
