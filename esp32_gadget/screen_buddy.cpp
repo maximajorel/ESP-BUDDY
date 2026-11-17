@@ -5,6 +5,7 @@
 #include <time.h>
 
 #include "buddy_anim.h"
+#include "buddy_badge.h"
 #include "buddy_face.h"
 #include "buddy_http.h"
 #include "buddy_imu.h"
@@ -73,6 +74,8 @@ static bool s_phasePinned = false;
 static BuddyPhase s_phasePinValue = BUDDY_PHASE_IDLE;
 static uint32_t s_phasePinUntil = 0;
 static bool s_dirty = true;
+// Whether the plate is currently the no-link badge instead of the face.
+static bool s_badge = false;
 // The eased face. The ladders produce a target every frame; this filter is what
 // actually moves the eyes, so no field ever jumps between two frames.
 static BuddyPoseFilter s_filter;
@@ -526,8 +529,47 @@ static void hudAsk(uint32_t nowMs) {
   gfxFillCircle(HUD_CX, HUD_CY + (int)(9.0f * scale), 2, red);
 }
 
-static void drawHud(BuddyPhase phase, BuddyRgb led, uint32_t nowMs) {
-  buddyHudStep(&s_hud, phase, nowMs);
+// No bridge: the plate says so instead of showing eyes with nothing behind them.
+//
+// The arcs are three concentric filled discs with the middle punched out by a
+// black disc one stroke thinner, and then everything below the centre is cleared:
+// what is left is the upper half of each ring, which is the WiFi glyph. The panel
+// has no alpha, so this is cheaper and cleaner than an arc rasteriser, and the
+// owner's colour keeps the badge recognisably hers while the dim shade marks the
+// link as dead.
+#define BUDDY_BADGE_CX 132
+#define BUDDY_BADGE_CY 112
+#define BUDDY_BADGE_STROKE 9
+#define BUDDY_BADGE_MARK_X 212
+#define BUDDY_BADGE_MARK_Y 52
+#define BUDDY_BADGE_MARK_W 20
+
+static void drawLinkBadge(uint32_t nowMs) {
+  gfxClear(GFX_BLACK);
+  uint32_t owner = settingsGetBuddyEyeColor();
+  uint16_t arc = gfxHex(buddyEyeScale(owner, 45));
+  static const int kRadii[3] = {66, 50, 34};
+  for (int i = 0; i < 3; i++) {
+    gfxFillCircle(BUDDY_BADGE_CX, BUDDY_BADGE_CY, kRadii[i], arc);
+    gfxFillCircle(BUDDY_BADGE_CX, BUDDY_BADGE_CY, kRadii[i] - BUDDY_BADGE_STROKE,
+                  GFX_BLACK);
+  }
+  gfxFillRect(BUDDY_BADGE_CX - 70, BUDDY_BADGE_CY + 1, 140, 72, GFX_BLACK);
+  // The dot the arcs radiate from.
+  gfxFillCircle(BUDDY_BADGE_CX, BUDDY_BADGE_CY, BUDDY_BADGE_STROKE, arc);
+  // The alert mark blinks: a steady "!" on a dead screen reads as a hung device,
+  // a slow pulse reads as something to fix. Drawn thick and square instead of with
+  // the 5x7 font, because at this size the font's one-pixel stem reads as a hair
+  // next to the arcs, and its cell would leave the pair visibly off-centre.
+  if ((nowMs % 1700u) < 1200u) {
+    uint16_t hot = gfxHex(BUDDY_EYE_HOT_COLOR);
+    gfxFillRect(BUDDY_BADGE_MARK_X, BUDDY_BADGE_MARK_Y, BUDDY_BADGE_MARK_W, 48, hot);
+    gfxFillCircle(BUDDY_BADGE_MARK_X + BUDDY_BADGE_MARK_W / 2, BUDDY_BADGE_MARK_Y + 62,
+                  11, hot);
+  }
+}
+
+static void drawHud(BuddyPhase phase, BuddyRgb led, uint32_t nowMs) {  buddyHudStep(&s_hud, phase, nowMs);
   BuddyPhase shown = buddyHudShown(&s_hud, nowMs);
   if (shown == BUDDY_PHASE_BUSY) {
     hudBusy(led, nowMs);
@@ -694,6 +736,25 @@ bool buddyTick(uint32_t nowMs) {
 
   BuddyView view;
   buddyGetView(&view);
+
+  // No bridge to read: the badge replaces the eyes entirely. It is checked before
+  // the pose, the anti-flicker hold and the HUD, because all three are pictures of
+  // a bridge state the device does not have. The HUD's own step is skipped, not
+  // reset, so the phase animation picks up where it was when the link returns; and
+  // the pose ease clamps its dt to 200 ms, so the way back does not jump.
+  if (buddyShowsLinkBadge(view.link)) {
+    bool badgeAnimate = (uint32_t)(nowMs - s_lastDraw) >= BUDDY_FRAME_MS;
+    bool badgeNews = s_dirty || !s_badge || view.revision != s_drawnRevision;
+    if (!badgeNews && !badgeAnimate) return false;
+    s_badge = true;
+    drawLinkBadge(nowMs);
+    s_drawnRevision = view.revision;
+    s_drawnState = view.state;
+    s_lastDraw = nowMs;
+    s_dirty = false;
+    return true;
+  }
+  s_badge = false;
 
   bool poke = (int32_t)(s_pokeUntil - nowMs) > 0;
   bool news = s_dirty || view.revision != s_drawnRevision;

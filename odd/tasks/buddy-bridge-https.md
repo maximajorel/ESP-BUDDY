@@ -213,3 +213,33 @@ previous value for one or two seconds, and a "wait until it stops changing" loop
 returns early when the change has not arrived yet. A patient fixed window (10 samples
 at 2 s) is what distinguishes a wrong cause from a stale one; both false alarms in
 this feature came from reading too early.
+
+L17 (follow-up, requested after the feature landed): with the link down, the glass
+draws a WiFi badge with a pulsing `!` instead of the eyes. Verbatim: "Necesito que
+el buddy, si no se puede conectar a la api, no dibuje los ojos si no un simbolo del
+icono del wifi con un ! al lado, puede ser?".
+
+Decision recorded, not asked: `unconfigured` keeps the dim calm face instead of the
+badge. The badge is an alarm, and "nobody paired me yet" is a pending setup — the
+existing `buddy_anim.h` comment already designed that face as "not an error face".
+`buddyShowsLinkBadge` (new `buddy_badge.h`) therefore answers yes for the seven
+failure causes and no for `ok` and `unconfigured`; the eight/seven arithmetic was
+the first thing the test caught (it is 7 of 9).
+
+Drawing: three concentric filled discs with a black disc punched out and everything
+below the centre cleared, which leaves the upper half of each ring — the WiFi glyph
+without an arc rasteriser. The `!` is drawn as a thick bar plus a dot rather than
+with the 5x7 font, because at scale 8 the font's one-pixel stem read as a hair next
+to the arcs. It blinks on a 1200/1700 ms duty cycle. Arcs use the owner's colour
+dimmed to 45%, the mark uses the existing hot colour.
+
+The badge replaces the face before the pose, the anti-flicker hold and the HUD,
+because all three describe a bridge state the device does not have; the HUD's step
+is skipped rather than reset, and the pose ease already clamps its dt to 200 ms, so
+the return to the eyes does not jump.
+
+Device evidence (COM5, `dump` renders the framebuffer as ASCII, which is how this
+board is verified): with the link broken the dump shows the three arcs and the mark;
+five dumps in a row read `mark, mark, plain, mark, mark`, matching the blink duty
+cycle; after restoring the LAN URL the dump shows the two eyes again (37 eye rows).
+`tools/run_tests.py` 21 passed plus the new `buddy_badge_test`.

@@ -244,7 +244,9 @@ otra vez, o pedile a tu router que le reserve siempre la misma dirección a la M
 ### Sofía
 
 - Una cara procedural: ojos, cejas y boca; parpadea y mira.
-- Reacciona al estado del bridge de Hermes: `EN CALMA`, `PENSANDO`, `TRABAJANDO`, `ESPERANDO`, `ERROR`, `LISTO`. Si el bridge no responde: `SIN SEÑAL`; si falta configurar: `CONFIGURAME`.
+- Reacciona al estado del bridge de Hermes: `EN CALMA`, `PENSANDO`, `TRABAJANDO`, `ESPERANDO`, `ERROR`, `LISTO`.
+- Si el bridge no contesta, en lugar de los ojos aparece el **ícono de WiFi con un `!`** que late: la cara no tiene nada que mostrar y unos ojos apagados se leían como aburrimiento. En el panel, **Sofía → Enlace** dice el motivo: sin hora sincronizada, certificado rechazado, bloqueado por Cloudflare, token rechazado o sin respuesta.
+- Si todavía no configuraste la URL o el token, la cara se queda en calma y atenuada: no es una falla, es que falta emparejarla.
 - **Toque corto**: la saludás (cara contenta y destello).
 - La luz RGB acompaña el estado. Por defecto **no entra** en el apagado automático.
 - Se configura en el panel: **Sofía → URL del bridge + token**. El equipo nunca guarda la clave de Hermes.
