@@ -114,11 +114,43 @@ rows came back and `Aplicar` sent
 A slider left at 55% without applying still read 55 % after a poll cycle, so the
 status refresh no longer stomps the control or its label.
 
-L8 (not verified here): the physical bead and the panel pixels. The hardware
-checks are `dump 4` on CONFIG (two bars with − and + and the focused box filled),
-a tap on `+` and on `−`, a double tap walking the focus, a rotation change with
-the row preserved, and the bead answering a panel write while the glass is
-asleep. They need the board flashed with this branch.
+L8 (hardware, authorized by the owner: "Sí, flasheá y verificá ahora"): built and
+uploaded to COM5, `Hash of data verified`. Flashed twice: the first build carried
+only T1-T5, and the sleep defect below was found by the probe, fixed and flashed
+again.
+
+L9 (hardware defect found by the probe, S2): entering CONFIG slept at once. The
+firmware's own log named it: `sleep: 4294967295ms idle >= 1800s, pantalla 6,
+mascara 0x49`. `loop()` reads `millis()` into `now` and *then* the button, console
+and network handlers stamp their own later `millis()` into `s_lastActivity`, so
+`now - s_lastActivity` wrapped to ~49 days and the timer fired on the spot. That
+is the owner's "cuando cambio la rotación o algo, se apaga la pantalla", and it
+was not the value wrap alone. Fixed in `screen_sleep_due` (a timestamp ahead of
+the caller's clock is not a wrap), pinned by five new cases in
+`tools/screen_sleep_test.cpp` written first (they failed with `got=1`), and the
+timer now logs the numbers that fired it.
+
+L10 (hardware evidence, `tools/probes/config_knobs.txt` on COM5): the log shows,
+in order: `tap` -> `config: brillo lcd 60%` (a `−`, the direction the screen did
+not have); `doubletap` -> `foco BRILLO LCD +`; `tap` -> `70%`; two `doubletap` ->
+`foco BRILLO LED -` then `foco BRILLO LED +`; `tap` -> `brillo led 80% (204/255)`;
+`doubletap` -> `foco ROTACION` + `tap` -> `rotacion HORIZONTAL`; `doubletap` ->
+`BLOQUEO` + `tap` -> `rotacion bloqueada`; five more `doubletap` walked the focus
+LCD-, LCD+, LED-, LED+, ROTACION, so it wraps and it survived the rotation change.
+All six `/api/status` reads in the run reported `awake: true` and there was no
+`sleep:` line.
+
+L11 (hardware evidence, LED and timer, over HTTP): with the glass asleep
+(`awake:false`, `rgb.asleep:true` after a 10 s timeout) a panel
+`{"rgb":{"level":128}}` answered `awake:true ledAsleep:false level:128`: the bead
+answers and wakes. With the timeout back at 1800 s, `POST /api/screen {"index":6}`
+left `awake:true` (the defect of L9 is gone) and the 10 s timeout still fired.
+Restored afterwards: brightness 90, `rot auto`, `rot lock off`, timeout 1800,
+`rgb.level` 255.
+
+L12 (not verified): the giro físico (the branch did not move the device) and the
+pixels seen by eye. `dump 4` renders the framebuffer the panel receives, which is
+what the catalogue of `tools/probes/` has always used as the honest substitute.
 
 L9 (bookkeeping): the repository hook quotes authored lines "since master", and
 `master` is an ancestor of the branch this work started from (`feat/buddy-bridge-https`,

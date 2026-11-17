@@ -1,0 +1,45 @@
+boot 4
+screen 6
+sleep 500
+dump 4
+tap
+sleep 900
+api GET /api/status
+doubletap
+sleep 900
+dump 4
+tap
+sleep 900
+api GET /api/status
+doubletap
+sleep 900
+doubletap
+sleep 900
+tap
+sleep 900
+api GET /api/status
+doubletap
+sleep 900
+tap
+sleep 900
+api GET /api/status
+doubletap
+sleep 900
+tap
+sleep 900
+api GET /api/status
+doubletap
+sleep 900
+doubletap
+sleep 900
+doubletap
+sleep 900
+doubletap
+sleep 900
+doubletap
+sleep 900
+dump 4
+api GET /api/status
+bl 90
+rot auto
+rot lock off

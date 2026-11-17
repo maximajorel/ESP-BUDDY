@@ -17,6 +17,7 @@ cámara es el comando `dump`, que escribe el framebuffer en ASCII.
 | `dump_screens.txt` | Render ASCII de las pantallas de red y música. |
 | `screens_and_menu.txt` | Recorre las pantallas, abre el menú y verifica la API. |
 | `config_screen.txt` | Las filas de CONFIG: brillo, rotación y bloqueo. |
+| `config_knobs.txt` | CONFIG con `−`/`+`: un toque aprieta el control marcado, doble toque mueve el foco, la rotación no pierde la fila y la pantalla no se apaga. |
 | `rotation.txt` | Modo automático, bloqueo e imagen fijada. |
 | `rotation_restore.txt` | Devuelve el equipo al estado de arranque tras la prueba. |
 | `steer_calibration.txt` | Calibración de ejes del juego con `imufake`. |
