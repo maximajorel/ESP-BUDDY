@@ -11,18 +11,7 @@ import argparse
 import sys
 import time
 
-import serial
-
-
-def open_port(port):
-    ser = serial.Serial()
-    ser.port = port
-    ser.baudrate = 115200
-    ser.timeout = 0.2
-    ser.dtr = False
-    ser.rts = False
-    ser.open()
-    return ser
+from serial_port import open_port
 
 
 def main(argv):

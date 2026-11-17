@@ -120,7 +120,7 @@ valores desde `/api/status`.
 
 L8 (hardware, autorizado por el dueno: "Si, flashea y verifica por consola"): subido a
 **COM5** con `arduino-cli upload`, `Hash of data verified`, hard reset por RTS. La
-secuencia `tools/rotation_cmds.txt` (via `python tools\gadget_probe.py` con el
+secuencia `tools/probes/rotation.txt` (via `python tools\gadget_probe.py` con el
 Python de Windows) mostro, en orden:
 
 - `status` al arrancar: `orient 1 (auto)` — el modo automatico es el default y la
@@ -137,7 +137,7 @@ automatica.
   rotationLocked}` presentes y coherentes con lo que dijeron los comandos.
 
 L9 (hardware, restaurado): la prueba dejo el equipo con la rotacion fijada, asi
-que se devolvio al estado de arranque con `tools/rotation_restore.txt`:
+que se devolvio al estado de arranque con `tools/probes/rotation_restore.txt`:
 `rot lock off`, `orient 1`, `rot auto` -> `rot mode=auto (4) lock=off image=1` y
 `/api/status` con `rotationMode: auto`, `rotationLocked: false`,
 `orientation: 1`. El unico valor que toco la prueba fue el brillo del LED trasero

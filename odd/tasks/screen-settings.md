@@ -70,7 +70,7 @@ L6 (verification): every `tools/*_test.cpp` compiles and passes with g++ except 
 
 L7 (decision): console `bl` and `rgb <r> <g> <b> <nivel>` now persist, because a console tweak that vanished on reboot would contradict a screen that shows the same value. Not requested explicitly; recorded here because it changes two existing commands.
 
-L8 (hardware evidence): the firmware was flashed to the board on COM5 (`arduino-cli upload`, hash verified) and driven over the serial console with `python tools/gadget_probe.py @tools/config_cmds.txt` (Windows Python + pyserial through PowerShell). Observed, in order:
+L8 (hardware evidence): the firmware was flashed to the board on COM5 (`arduino-cli upload`, hash verified) and driven over the serial console with `python tools/gadget_probe.py @tools/probes/config_screen.txt` (Windows Python + pyserial through PowerShell). Observed, in order:
 
 - `hold -> menu en SOFIA`, six `tap`, then `menu -> CONFIG`: the picker reaches the new screen by the real gesture path.
 - `dump 4` on entry: title, two rows, `BRILLO LCD` at 90% and `BRILLO LED` at 25%, caret on the LCD row.

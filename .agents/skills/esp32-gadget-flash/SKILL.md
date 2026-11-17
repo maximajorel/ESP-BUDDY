@@ -42,10 +42,10 @@ Do not activate for host-only work (g++ tests in `tools/`, editing `web_ui/`).
    then `upload -p COM<N> -b "<FQBN>" --build-path ... <same sketch path>`. Pass Windows paths to the Windows binary.
 5. Confirm `Hash of data verified` in the upload output.
 6. Verify on the device. Serial console goes through Windows Python, because the CDC port is not visible in WSL:
-   `powershell.exe -NoProfile -Command "cd 'C:\<repo>'; python tools\gadget_probe.py '@tools\config_cmds.txt'"`
+   `powershell.exe -NoProfile -Command "cd 'C:\<repo>'; python tools\gadget_probe.py '@tools\probes\config_screen.txt'"`
    Opening the port resets the board. First command file line `boot 4` waits for the banner.
 7. Prove the change: `dump 4` for pixels, `api GET /api/status` for state, plus the firmware's own serial log lines. Paste the evidence.
-8. Write the probe sequence into `tools/*_cmds.txt` so the check is reproducible, and record the result in the feature document's Log.
+8. Write the probe sequence into `tools/probes/*.txt` so the check is reproducible, and record the result in the feature document's Log.
 
 ## Output Contract
 
@@ -56,4 +56,4 @@ Return: commit or branch flashed, port, compile result, upload hash result, the 
 - `../../../esp32_gadget/INSTALL.md` — board configuration, console commands, common failures
 - `../../../ARRANCAR.md` — Windows-side setup and the traps that look like bugs
 - `../../../tools/gadget_probe.py` — serial driver used for verification
-- `../../../tools/config_cmds.txt` — example probe sequence
+- `../../../tools/probes/` — reproducible probe sequences (see its README)
