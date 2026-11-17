@@ -134,3 +134,47 @@ L11 (not verified live): the `no-time` cause. Its classifier case is pinned by
 `tools/buddy_link_test.cpp`, but forcing the device's SNTP state off on the bench
 would have meant breaking the clock the other checks depend on. The wiring is the
 three lines in `pollOnce`/`buddyAsk` that consult `netStatus().timeSynced`.
+
+L12 (independent verification, gentle-ai-verify): one blocker, five advisories.
+Verdicts: S1/S2 pass (`setInsecure` 0 hits; only explicit-client `begin`), S3 pass
+on code (`setReuse(true)`, static client) and cannot-verify on the device, S4
+partial, S5/S6/S7 pass with advisories, LAN path unchanged, `tools/run_tests.py`
+21 passed.
+
+The blocker was mine and real: an unreachable https host was reported as a
+rejected certificate. `NetworkClientSecure` stores the whole-connect result in
+`last_error`, and `ssl_client.cpp` returns `-1` for a TCP connect that never
+reached a handshake, so "any negative code" was the wrong test. Fixed in 8d3184a
+and the test gained the exact cases the verifier asked for (`-1`, `0`, `-11`,
+`-0x7280` false; X509 codes true; plus `https, no answer -> offline`).
+
+The first fix was still wrong and the device caught it: the band I guessed
+(-0x2700..-0x2900) excluded `MBEDTLS_ERR_X509_FATAL_ERROR` (-0x3000), which is
+exactly what the CA bundle's verify callback returns for a rejected chain, so
+self-signed went back to reading `offline`. The band is the X509 module's own,
+-0x2080..-0x3000, and the test now pins -0x3000.
+
+b291c3a carries the other advisories: a base path with a space, query or fragment
+is refused (it can only build a malformed request line), and a URL that parses but
+does not persist reports a storage failure instead of "the URL cannot be empty".
+The panel hint now shows both shapes as examples.
+
+Left as decisions, not defects: a 503 is reported as `http` rather than `blocked`
+(Cloudflare's documented status for a managed challenge is 403, and a 503 also
+means a bridge that is down), and a failed lock take answers "no pude conectar"
+instead of "busy".
+
+L13 (re-measured on the device after both fixes, COM5, same binary as 8d3184a +
+b291c3a): `https://192.168.100.64:9999` (nothing listening) → `link=offline`,
+ask → `502 No pude conectar al bridge`; unresolvable host → `link=offline`;
+`self-signed.badssl.com` → `link=tls` with the X509 text; LAN address → `link=ok`,
+`state=bored`. A host switch sampled poll by poll (example.com `http` → self-signed
+`tls`, seven samples, stable) rules out a keep-alive socket being reused across
+hosts.
+
+L14 (flakiness worth knowing): reading `/api/status` a fixed five seconds after
+changing the URL can still show the previous cause, because a TLS attempt to a
+host that has to fail costs a few seconds and the snapshot only changes when a
+poll lands. Measuring a transition needs either a longer wait or sampling until
+the value changes; the five-second read in the first live script produced one
+false "regression" this way.
