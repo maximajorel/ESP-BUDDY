@@ -21,15 +21,16 @@
 #define BUDDY_BALL_SCREEN_H 172.0f
 #define BUDDY_BALL_RADIUS 13.0f
 // How much dynamic lateral acceleration (in g) becomes ball acceleration. 2 g
-// of shake is already a deliberate flick, so 220 px/s^2 per g reads as a firm
+// of shake is already a deliberate flick, so 260 px/s^2 per g reads as a firm
 // push without teleporting the ball.
-#define BUDDY_BALL_SHAKE_GAIN 220.0f
-#define BUDDY_BALL_MAX_SPEED 430.0f
-// Each wall hit keeps this fraction of the incoming speed; a full-speed hit is
-// still lively, a tired one dies out instead of pinging forever.
-#define BUDDY_BALL_RESTITUTION 0.78f
-// Exponential speed decay, 1/s. The ball coasts for about a second and settles.
-#define BUDDY_BALL_FRICTION 1.6f
+#define BUDDY_BALL_SHAKE_GAIN 260.0f
+#define BUDDY_BALL_MAX_SPEED 520.0f
+// Each wall hit keeps this fraction of the incoming speed: this is a bouncy
+// ball, not a beanbag, so a lively hit stays lively through several walls.
+#define BUDDY_BALL_RESTITUTION 0.92f
+// Exponential speed decay, 1/s. Light ball: it coasts for a few seconds instead
+// of stopping almost at once.
+#define BUDDY_BALL_FRICTION 0.4f
 // A stalled frame must not integrate half a second of shake in one jump.
 #define BUDDY_BALL_MAX_DT_MS 100u
 

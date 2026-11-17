@@ -84,8 +84,10 @@ int main() {
     check("hitting the right wall clamps the ball inside",
           b.x <= BUDDY_BALL_SCREEN_W - BUDDY_BALL_RADIUS);
     check("hitting the right wall flips the velocity", b.vx < 0.0f);
-    check("the bounce loses energy",
+    check("the bounce loses some energy",
           fabsf(b.vx) < 200.0f * BUDDY_BALL_RESTITUTION + 20.0f);
+    check("but a bouncy ball keeps most of it",
+          fabsf(b.vx) > 200.0f * BUDDY_BALL_RESTITUTION - 30.0f);
 
     BuddyBall t;
     t.active = true;
@@ -115,6 +117,27 @@ int main() {
       }
     }
     check("a long violent shake keeps the ball on the glass", inside);
+  }
+
+  printf("-- a light ball keeps bouncing\n");
+  {
+    BuddyBall b;
+    b.active = true;
+    b.x = BUDDY_BALL_SCREEN_W * 0.5f;
+    b.y = BUDDY_BALL_SCREEN_H * 0.5f;
+    b.vx = 450.0f;
+    int hits = 0;
+    float lastSign = b.vx > 0.0f ? 1.0f : -1.0f;
+    for (int i = 0; i < 120; i++) {  // 6 s at 50 ms
+      buddyBallStep(&b, 0.0f, 0.0f, 50);
+      float sign = b.vx > 0.0f ? 1.0f : -1.0f;
+      if (b.vx != 0.0f && sign != lastSign) {
+        hits++;
+        lastSign = sign;
+      }
+    }
+    check("it bounces off the walls several times", hits >= 3);
+    check("and it is still moving after six seconds", fabsf(b.vx) > 20.0f);
   }
 
   printf("-- friction and speed cap\n");

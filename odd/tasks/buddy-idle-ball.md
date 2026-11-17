@@ -128,6 +128,18 @@ apart (its per-command drain takes ~1.7 s), which is why this only showed up wit
 a finger; `doubletap` and `press` both still exercise the path. Re-flashed and
 verified with `doubletap` (`ball on=1`) and a single `press` (boop).
 
+L7 (verbatim): "Mmm la pelotita tiene que ser mas liviana, rebotar más, es una
+pelotita rebotona..."
+
+The ball is lighter and bouncier: restitution 0.78 -> 0.92, friction 1.6 -> 0.4
+per second, shake gain 220 -> 260 px/s^2 per g and top speed 430 -> 520 px/s. The
+host test now also pins that it bounces at three or more walls inside six seconds
+and is still moving at the end. (The calibration move from the same message has
+its own document: `steer-calibration-config.md`.) Flashed together with the
+calibration move; the bounce constants are pinned by `buddy_ball_test` (three or
+more wall hits inside six seconds, still moving at the end) and the toy path was
+already verified on the glass in L5.
+
 - The expression rule from L4 is enforced in `.agents/skills/sofia-buddy-face/
   SKILL.md` and Engram (`buddy/face-expression-rule`). The new `buddyhappy`
   console pin is documented in the console help.
