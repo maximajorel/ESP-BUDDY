@@ -17,7 +17,9 @@ S3. Idle breathing — verbatim: "Ciclo lento de 4–5 s que mueve los ojos 1 px
 arriba/abajo, como pecho que sube y baja."
 
 S4. `busy → idle` synthesized on the board — verbatim: "La placa tiene que
-**fabricar** el tilde y el titileo verde al detectar esa transición" and
+**fabricar** el tilde y el titileo verde al detectar esa transición" and the same
+guard for the rear bead, which is why its whole envelope is pure and tested
+(`buddy_bead.h`, T11) and not inline next to `rgbSetColor`; and
 "⚠️ **Guardá el `phase` anterior.** Si titilás cada vez que el poll devuelve
 `idle`, el LED titila para siempre y pierde todo el sentido: el titileo es una
 **transición**, no un estado."
@@ -107,6 +109,7 @@ lid, brow, growth, push).
 | T8 | S13 | inline: `buddy_anim.h` distraction schedule and bug path, eyes track it, abort on any Sofía activity; test | 9dda017 |
 | T9 | S15 | inline: `buddy_imu.h` lying time and movement wake, ZzZ in `screen_buddy.cpp`; test | 9dda017 |
 | T10 | S9,S12-S17 | inline: dizzy spiral and the bead mood, then the host suite, compile, flash and probe on COM5 | ae7ad27 |
+| T11 | S4 | inline: the rear bead's envelope and its guard move to pure `buddy_bead.h` with `tools/buddy_bead_test.cpp` | bec54a4 |
 
 ## Log
 
@@ -264,3 +267,19 @@ firmware:
   halo above it: the only colour anywhere above the cut line is black.
 - The angry eye's pixels are 0xF9E3 = rgb(248,60,24) with `hot=1.00`, and
   `buddydraw` reports mood=angry, grow=1.12, lid=0.46, deg +11.2/-10.8.
+
+L11 (closing the last untested requirement). The bead was the one piece of the
+objective with no host coverage: its twinkle, its guard and its fade lived in
+`buddy_led.cpp`, and a WS2812 cannot be read back, so the owner's warning ("si
+titilás cada vez que el poll devuelve `idle`, el LED titila para siempre") could
+only be checked by eye. `buddy_bead.h` now owns the envelope and
+`tools/buddy_bead_test.cpp` pins it: the twinkle is green at 2 Hz for five
+seconds and fades back in 300 ms; only a phase *change* starts one, so fifty
+seconds of idle polls never re-light it while a new `busy -> idle` does; `ok ->
+idle` lets the ok twinkle finish; `ask` pulses; anger outranks a busy phase.
+`buddy_led.cpp` is nine lines of decision-free painting now. Host suite 19/19,
+firmware 1,417,574 B, flashed: `buddydraw` answers and the finish check still
+draws and expires.
+
+The only thing left that no probe can prove is the colour the LED physically
+emits; everything that decides it is now measured.
