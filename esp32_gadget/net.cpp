@@ -10,6 +10,7 @@
 #include "rgb.h"
 #include "rotation.h"
 #include "buddy_face.h"
+#include "buddy_url.h"
 #include "screen_buddy.h"
 #include "screen_sleep.h"
 #include "screens.h"
@@ -119,6 +120,22 @@ static ApiResult apiOk() {
 // One guard and one message for every JSON body. Optional bodies are allowed to
 // be empty (the endpoint then runs on defaults); required ones cannot.
 static const char *const API_BAD_JSON = "Los datos enviados no son validos";
+
+// The parser names the cause; the owner reads it in the panel. A single generic
+// "invalid URL" leaves them guessing between a missing scheme and a bad port.
+static const char *buddyUrlApiError(BuddyUrlError err) {
+  switch (err) {
+    case BUDDY_URL_NO_SCHEME: return "La URL del buddy necesita http:// o https://";
+    case BUDDY_URL_BAD_SCHEME: return "Solo se acepta http:// o https://";
+    case BUDDY_URL_NO_HOST: return "Falta el host en la URL del buddy";
+    case BUDDY_URL_BAD_HOST: return "El host de la URL del buddy no es valido";
+    case BUDDY_URL_BAD_PORT: return "El puerto de la URL del buddy no es valido";
+    case BUDDY_URL_TOO_LONG: return "La URL del buddy es demasiado larga";
+    case BUDDY_URL_EMPTY: break;
+    case BUDDY_URL_OK: break;
+  }
+  return "La URL del buddy no puede estar vacia";
+}
 
 static bool parseOptionalJson(const String &body, JsonDocument &doc) {
   return body.length() == 0 ||
@@ -230,6 +247,10 @@ static void buildStatusJson(String &out) {
     }
     obj["ageMs"] = buddy.ageMs;
     obj["stateAgeMs"] = buddy.stateAgeMs;
+    // Why the link is where it is. The panel turns the name into one sentence per
+    // cause; `linkDetail` is the raw transport reason, kept for diagnosis.
+    obj["link"] = buddyLinkWireName(buddy.link);
+    obj["linkDetail"] = buddy.linkDetail;
     obj["url"] = url;
     {
       char eyeHex[8];
@@ -364,7 +385,10 @@ static ApiResult apiSettings(const String &body) {
 
   if (!doc["buddyUrl"].isNull()) {
     const char *url = doc["buddyUrl"] | "";
-    if (!settingsSetBuddyUrl(url)) return apiFail(400, "URL del buddy invalida");
+    if (!settingsSetBuddyUrl(url)) {
+      BuddyUrl parsed;
+      return apiFail(400, buddyUrlApiError(buddyUrlParse(url, &parsed)));
+    }
   }
   if (!doc["buddyToken"].isNull()) {
     const char *token = doc["buddyToken"] | "";

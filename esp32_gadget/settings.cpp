@@ -4,6 +4,7 @@
 #include <esp_mac.h>
 
 #include "buddy_face.h"
+#include "buddy_url.h"
 #include "config_value.h"
 #include "display.h"
 #include "rotation_policy.h"
@@ -281,8 +282,13 @@ void settingsGetBuddyToken(char *out, size_t cap) {
 bool settingsSetBuddyUrl(const char *url) {
   if (!url) return false;
   if (!s_loaded && !s_prefs.begin("gadget", false)) return false;
-  if (strlen(url) > SETTINGS_BUDDY_URL_MAX) return false;
-  return s_prefs.putString("bdUrl", url) > 0;
+  // A value the transport cannot use is worse than no value: it would be stored,
+  // read back, and fail every poll with no explanation. Store the normalised
+  // form (lowercase scheme, no trailing slash) so what comes back out of NVS is
+  // what the parser will accept.
+  BuddyUrl parsed;
+  if (buddyUrlParse(url, &parsed) != BUDDY_URL_OK) return false;
+  return s_prefs.putString("bdUrl", parsed.base) > 0;
 }
 
 bool settingsSetBuddyToken(const char *token) {
