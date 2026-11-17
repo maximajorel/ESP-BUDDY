@@ -57,7 +57,9 @@ pass keeps it and pins it with a regression test only.
 
 S11. Lifted → awake — verbatim: "Cambio sostenido en Z (de apoyado a en mano) →
 apertura de ojos en 100 ms desde dormido." Already delivered by
-`buddy-smooth-expressions` S4; kept and regression-tested.
+`buddy-smooth-expressions` S4; kept and regression-tested. The opening itself is
+eased now (T12): the lid is seeded shut on the wake frame and travels to open
+through the pose filter, instead of the shut bar popping into a full eye.
 
 S12. Deep inactivity closes the eyes and freezes the face — verbatim: "Despues
 de tiempo de bastante inactividad cierre los ojos y que ahi no pase nada". The
@@ -110,6 +112,7 @@ lid, brow, growth, push).
 | T9 | S15 | inline: `buddy_imu.h` lying time and movement wake, ZzZ in `screen_buddy.cpp`; test | 9dda017 |
 | T10 | S9,S12-S17 | inline: dizzy spiral and the bead mood, then the host suite, compile, flash and probe on COM5 | ae7ad27 |
 | T11 | S4 | inline: the rear bead's envelope and its guard move to pure `buddy_bead.h` with `tools/buddy_bead_test.cpp` | bec54a4 |
+| T12 | S11 | inline: `buddyWakeEyes` as a complete pure target plus `buddyPoseFilterSeedLid`, so waking opens through the ease; tests | c207b14 |
 
 ## Log
 
@@ -283,3 +286,15 @@ draws and expires.
 
 The only thing left that no probe can prove is the colour the LED physically
 emits; everything that decides it is now measured.
+
+L12 (item 7, taken literally). Waking used to clear `closed` and force the lid to
+zero in one frame: the face popped from a shut bar to a 120 px eye. The wake is
+now a pure target (`buddyWakeEyes`: open lid, no blink, no happy, startle and its
+size) and the renderer seeds the pose filter's lid to shut on that first frame,
+so the ease travels it from 1 to 0 and the eye opens while it grows into the
+startle. A nodding face opens all the way and drops its blink.
+
+Pinned by four new assertions (open target, first frame still nearly shut, four
+frames later under 25%, nodding face opens too). Host suite 19/19, firmware
+1,417,670 B flashed on COM5 with the hash verified; the asleep face still shows
+its shut bars, the Z letters and the ordered halo ladder above them.
