@@ -1,0 +1,6 @@
+boot 4
+rot lock off
+orient 1
+rot auto
+rot
+api GET /api/status

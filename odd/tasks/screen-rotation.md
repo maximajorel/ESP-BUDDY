@@ -118,8 +118,32 @@ trae los tres modos y arranca en `auto`; cambiarlo a `inverted` hace POST
 interruptor manda `rotationLocked: true`; tras recargar, la pagina restaura los dos
 valores desde `/api/status`.
 
-L8 (pendiente de hardware): no se pudo verificar con la placa el giro fisico real,
-el umbral de 0.35 g, el layout de cuatro filas en el vidrio (hace falta `dump`), ni
-la migracion de NVS en un equipo que ya venia usando `orient`. Cuando haya placa,
-la secuencia es `rot`, `rot lock on`, `dump 4` en CONFIG, y girar 180 grados el
-equipo con `rot auto`.
+L8 (hardware, autorizado por el dueno: "Si, flashea y verifica por consola"): subido a
+**COM5** con `arduino-cli upload`, `Hash of data verified`, hard reset por RTS. La
+secuencia `tools/rotation_cmds.txt` (via `python tools\gadget_probe.py` con el
+Python de Windows) mostro, en orden:
+
+- `status` al arrancar: `orient 1 (auto)` — el modo automatico es el default y la
+  imagen guardada se respeta.
+- `rot`: `mode=auto (4) lock=off image=1 sign=1`.
+- `rot lock on`; `rot` de nuevo: `lock=on`, y el bloqueo **sobrevivio** al reset
+  del puerto (la segunda corrida lo encuentra en `on`).
+- `orient 2`: `rot mode=inverted (2) lock=on image=2` — fijar una imagen apaga la
+automatica.
+- `rot auto`: vuelve a `mode=auto` sin saltar de imagen.
+- `dump 4` en CONFIG: titulo, y las **cuatro filas** en sus bandas: la barra del
+  LCD, la del LED, `ROTACION` (8 glifos) y `BLOQUEO` (7 glifos), con el pie debajo.
+- `/api/status` en el equipo real: `display: {orientation, rotationMode,
+  rotationLocked}` presentes y coherentes con lo que dijeron los comandos.
+
+L9 (hardware, restaurado): la prueba dejo el equipo con la rotacion fijada, asi
+que se devolvio al estado de arranque con `tools/rotation_restore.txt`:
+`rot lock off`, `orient 1`, `rot auto` -> `rot mode=auto (4) lock=off image=1` y
+`/api/status` con `rotationMode: auto`, `rotationLocked: false`,
+`orientation: 1`. El unico valor que toco la prueba fue el brillo del LED trasero
+(un toque de mas en la fila `BRILLO LED`, ya estaba en 0%); el brillo del LCD no
+lo cambio la prueba, lo movio el dueno desde el panel mientras corria.
+
+L10 (pendiente): el giro fisico real de 180 grados y el umbral de 0.35 g no se
+pudieron observar: el equipo estaba quieto sobre la mesa y nadie lo giro durante
+la prueba. Esa es la parte que queda para una prueba manual del dueno.
