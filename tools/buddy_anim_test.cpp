@@ -377,6 +377,31 @@ int main() {
     check("and fade as they rise", fades && minAlpha < 10 && maxAlpha > 60);
   }
 
+  printf("-- waking up is an eased opening, not a pop\n");
+  {
+    // Item 7: from asleep the eyes open over ~100 ms. A shut eye is a different
+    // shape (a bar), so the pose hands over to a nearly shut lid and the filter
+    // does the rest; a hard pop is what this pins against.
+    BuddyPose asleep;
+    asleep.closed = true;
+    asleep.lid = 0.0f;
+    buddyWakeEyes(&asleep);
+    check("the shut face lets go of the bar", !asleep.closed);
+    check("and its target is a fully open eye", asleep.lid == 0.0f);
+    check("waking is a startle", asleep.surprise && asleep.ry >= 60);
+    check("and it is not a blink or a happy face",
+          !asleep.blink && !asleep.happy);
+
+    BuddyPose nodding;
+    nodding.lid = 0.35f;
+    nodding.lidR = 0.2f;
+    nodding.blink = true;
+    buddyWakeEyes(&nodding);
+    check("a nodding face opens all the way and drops its blink",
+          nodding.lid == 0.0f && nodding.lidR == 0.0f && nodding.surprise &&
+              !nodding.blink);
+  }
+
   printf("-- idle breathing\n");
   {
     // S3: a 4-5 s cycle moving the eye line about one pixel.

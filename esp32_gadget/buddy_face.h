@@ -281,6 +281,14 @@ static inline void buddyPoseFilterReset(BuddyPoseFilter *f) {
   *f = BuddyPoseFilter();
 }
 
+// Writes the lid channel without touching the rest of the pose. Waking up uses it
+// to start from a shut lid (the eye was a bar, which is a different shape, so the
+// lid has no history to inherit) and then let the ease open it.
+static inline void buddyPoseFilterSeedLid(BuddyPoseFilter *f, float lid) {
+  if (!f) return;
+  f->lid = lid;
+}
+
 // One step towards `target`. The first call after a reset adopts the target
 // without easing: the face must not slide in from zero on its first frame.
 static inline BuddyPose buddyPoseFilterStep(BuddyPoseFilter *f,

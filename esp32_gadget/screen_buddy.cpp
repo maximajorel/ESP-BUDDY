@@ -366,6 +366,9 @@ static BuddyBug s_bug;
 static uint32_t s_bugCancelled = 0xFFFFFFFFu;
 static uint32_t s_bugForcedUntil = 0;
 static bool s_zzz = false;
+// True while the face is coming out of sleep: the lid was seeded shut and the
+// ease is opening it.
+static bool s_waking = false;
 
 // A bug for the idle face to watch: an amber body, six legs and an antennae
 // pair, wiggling. It is the only warm colour on the glass, so the eye finds it
@@ -625,12 +628,7 @@ bool buddyTick(uint32_t nowMs) {
       BuddyImuPose ip = readImu(nowMs);
       BuddyPose pose =
           buddyPose(s_pinState, s_pinAge + (nowMs - s_pinStart), nowMs, s_seed);
-      if (ip.wake && pose.closed) {
-        pose.closed = false;
-        pose.surprise = true;
-        pose.rx = 50;
-        pose.ry = 60;
-      }
+      if (ip.wake && pose.closed) buddyWakeEyes(&pose);
       s_bug.active = false;
       s_zzz = pose.closed && ip.lying && ip.lyingMs > 6000;
       s_mood = buddyMoodFrom(pose.closed, ip.angry, pose.tremble);
@@ -702,12 +700,16 @@ bool buddyTick(uint32_t nowMs) {
   if (ip.faceDown) pose.lid = 0.6f;
   // Lifted off the table, or the board moved while the face was asleep: wake
   // with a start, then let the state take over again.
-  if (ip.wake && (pose.closed || shown == BUDDY_BORED)) {
-    pose.closed = false;
-    pose.lid = 0.0f;
-    pose.surprise = true;
-    pose.rx = 50;
-    pose.ry = 60;
+  // Waking: seed the lid shut once so the opening travels through the ease
+  // instead of popping, then let the state take over.
+  if (ip.wake) {
+    if (pose.closed && !s_waking) {
+      s_waking = true;
+      buddyPoseFilterSeedLid(&s_filter, 1.0f);
+    }
+    if (pose.closed || shown == BUDDY_BORED) buddyWakeEyes(&pose);
+  } else {
+    s_waking = false;
   }
   if (poke) pose.happy = true;
 

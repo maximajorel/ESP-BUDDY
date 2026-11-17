@@ -325,6 +325,24 @@ static inline void buddyZzz(uint32_t nowMs, int index, int *x, int *y,
   *alphaPercent = (int)(fade * 80.0f);
 }
 
+// Waking up. A shut eye is a different shape (a bar), not a lid, so the opening
+// has to be manufactured: the renderer seeds the pose filter's lid to shut on the
+// frame the face wakes (`buddyPoseFilterSeedLid`), the target here is an open eye
+// with a startle, and the ease travels the lid from 1 to 0. That is the ~100 ms
+// opening the owner asked for, instead of the shape popping open.
+static inline void buddyWakeEyes(BuddyPose *p) {
+  if (!p) return;
+  p->closed = false;
+  p->blink = false;
+  p->happy = false;
+  p->lid = 0.0f;
+  p->lidL = 0.0f;
+  p->lidR = 0.0f;
+  p->surprise = true;
+  p->rx = 50;
+  p->ry = 60;
+}
+
 // One gesture slot: the doc wants a new one every 3-6 s while the state does
 // not change. The duration comes from the seed and the slot, so the rhythm is
 // irregular instead of a mechanical 4 s beat.

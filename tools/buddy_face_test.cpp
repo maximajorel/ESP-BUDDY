@@ -205,6 +205,28 @@ int main() {
     check("the tremble keeps shaking", changed && lo < -0.5f && hi > 0.5f);
   }
 
+  printf("-- waking travels through the filter\n");
+  {
+    // Item 7: the 100 ms opening only exists because the filter eases the lid the
+    // wake hands over; a single frame must not already be open.
+    BuddyPoseFilter f;
+    buddyPoseFilterReset(&f);
+    BuddyPose asleep;
+    asleep.closed = true;
+    buddyPoseFilterStep(&f, asleep, 50);
+    // The face wakes: the eye becomes an open target and the lid is seeded shut,
+    // which is what makes the opening travel through the ease.
+    BuddyPose awake;
+    buddyWakeEyes(&awake);
+    buddyPoseFilterSeedLid(&f, 1.0f);
+    BuddyPose one = buddyPoseFilterStep(&f, awake, 50);
+    check("the first wake frame is still nearly shut", one.lid > 0.5f);
+    check("and the eye is already growing into the waking one",
+          one.ry > 50 && awake.ry >= 60 && one.surprise);
+    for (int i = 0; i < 4; i++) one = buddyPoseFilterStep(&f, awake, 50);
+    check("a few frames later the eyes are open", one.lid < 0.25f);
+  }
+
   printf("-- the eyelid angles with the eye\n");
   {
     // S14/S17: no brows; the black eyelid block is the expression. A positively
