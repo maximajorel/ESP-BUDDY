@@ -32,7 +32,8 @@ INSTALL.md §3; si te equivocás con la PSRAM, el equipo no arranca.
 
 ```
 esp32_gadget/
-├── esp32_gadget.ino     arranque, botón, consola serie
+├── esp32_gadget.ino     arranque, botón y lazo principal
+├── console.*            consola serie: comandos, volcados y diagnóstico
 ├── display.*            driver ST7789 + giro de la imagen a horizontal
 ├── gfx.*                framebuffer, formas, texto, dígitos de 7 segmentos
 ├── font5x7.h            fuente (generada, no editar a mano)
