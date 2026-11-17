@@ -9,12 +9,13 @@ shaking the board must not make her dizzy.
 
 ## Specs
 
-S1. Happy face keeps the squircle — verbatim: "mejor quiero que la cara de
-alegria sea de otra forma, conservando el squircle y con unas curvita abajo de
-los ojos para darle mas expresividad o cosas por el estilo." The happy/poke face
-draws the same rounded-square eyes as every other state (owner colour and glow)
-and adds a thin upward curve under each eye. The old `^ ^` caret and its halo are
-gone.
+S1. Happy face keeps the squircle, no brows — verbatim: "No quiero que tenga
+cejas los ojos... te dije que quede como parpados inferiores o posteriores para
+las expresiones" (supersedes the earlier "con unas curvita abajo de los ojos" of
+L1). The happy/poke face draws the same rounded-square eyes as every other state
+(owner colour and glow) and lifts the **lower** eyelid into a squint. No eyebrow
+ever: no stroke above the eye and no separate decorative curve below it. The old
+`^ ^` caret and its halo are gone.
 
 S2. Double-tap red ball — verbatim: "con dos toques, salga una pelotita roja que
 si sacudo la pantalla rebote por los bordes y los ojos la sigan, si toco dos
@@ -39,7 +40,7 @@ the eyes follow.
 |----|------|-------|--------|
 | T1 | S2 | inline: pure `buddy_ball.h` (spawn, shake step, edge bounce, gaze, toggle) + `buddy_ball_test` | 5ad8459 |
 | T2 | S3 | inline: `buddyImuCalm` in `buddy_imu.h` + test case | 5ad8459 |
-| T3 | S1 | inline: `screen_buddy.cpp` happy branch draws squircle + under-eye curve | 5ad8459 |
+| T3 | S1 | inline: `screen_buddy.cpp` happy branch = squircle + raised lower lid | f40c763 |
 | T4 | S2,S3 | inline: tap window in `screen_buddy`, ball physics/draw/gaze, idle gating, console `ball` | 5ad8459 |
 | T5 | S1-S3 | inline: host suite, firmware compile, hardware evidence | pending board |
 
@@ -77,7 +78,42 @@ Firmware compiled with the INSTALL FQBN: 1,429,838 B (45% flash) and 55,188 B
 (16% RAM), no new warnings (only the pre-existing `buddyLinkWireName` /
 `buddyAskError` switch warnings in those files).
 
+L4 (verbatim): "No quiero que tenga cejas los ojos... te dije que quede como
+parpados inferiores o posteriores para las expresiones, anotalo en memoria y crea
+una skill asi quede como regla para futuros usos"
+
+The under-eye curve is removed: it read as a brow, which is exactly what the
+owner rejected. The happy branch now draws the squircle and lifts the lower lid
+(`buddyLidBandBottom` + `ditherLidRow`, bottom 0.3). The rule is saved in Engram
+(`buddy/face-expression-rule`) and as the project skill
+`.agents/skills/sofia-buddy-face/SKILL.md`: no eyebrows, expressions only through
+upper/lower eyelids and the existing pose channels. First board probe (before
+this change) also found a real wiring bug: a double tap was swallowed because
+`buddyShortPress` discarded the `TAP_DOUBLE` that `tapWindowPress` returns;
+`tapWindowPoll` only reports singles. Fixed and re-flashed.
+
 Pending: on-board evidence. `tools/probes/buddy_ball.txt` is written for it
 (single tap → happy dump; `ball on` + `imufake 2.6 0 1` → moved ball in
 `buddydraw`; `imufake 0 0 1` → coasting; `doubletap` twice → toggle off/on; final
 `dump` with no red ball). Flashing is still the owner's explicit call.
+
+L5: Board evidence (2026-11-17, COM5, flashed with explicit owner
+authorization). Firmware 1,430,126 B (45% flash) / 55,188 B (16% RAM) and
+`Hash of data verified`. `tools/probes/buddy_ball.txt` passed end to end:
+
+- Happy face: `buddyhappy 10` + `dump 4` shows a full-width squircle whose bottom
+  is a flat raised lower lid, no caret, no under-eye curve, no brow.
+- Ball: `ball on` puts it at the centre; `imufake 2.6 0 1` moves it and
+  `buddydraw` reports `x=188.4 y=60.1 vx=2.3` then `x=263.7 y=59.5 vx=32.4`
+  (it travels and then bounces, ending near the edges); `doubletap` makes
+  `ball on=0 active=0` and a second `doubletap` returns `on=1 active=1`; the
+  `dump 3` during the bounce shows the ball's bright highlight (`#`) and body
+  (`.`) drawn over the eye area.
+- Two real defects were found and fixed by that run: the double tap was
+  swallowed because `buddyShortPress` dropped the `TAP_DOUBLE` returned by
+  `tapWindowPress` (the poll only reports singles), and a random idle blink
+  could turn the happy eye into a 4 px bar because `baseRy` was computed before
+  the happy branch. Both re-flashed and re-verified.
+- The expression rule from L4 is enforced in `.agents/skills/sofia-buddy-face/
+  SKILL.md` and Engram (`buddy/face-expression-rule`). The new `buddyhappy`
+  console pin is documented in the console help.
