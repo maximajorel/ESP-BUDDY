@@ -31,6 +31,9 @@ static uint32_t s_lastActivity = 0;
 // One pushed frame after waking so the owner sees the current screen instead of
 // the one that was frozen when the panel went dark.
 static bool s_wakePush = false;
+// One pushed frame for a rotation change or any other owner action that only
+// needs the existing framebuffer re-sent.
+static bool s_repaintPush = false;
 
 // Names shipped with the firmware. The owner can rename any screen from the web
 // panel; an absent NVS override falls back to these.
@@ -114,6 +117,8 @@ void screensBegin() {
 
 uint8_t screensCurrent() { return s_current; }
 
+void screensRepaint() { s_repaintPush = true; }
+
 void screensGoTo(uint8_t index) {
   if (index >= SCREEN_COUNT) index = 0;
   s_lastActivity = millis();
@@ -132,6 +137,7 @@ void screensGoTo(uint8_t index) {
   if (s_current == SCREEN_SETTINGS && index != SCREEN_SETTINGS) configLeave();
   s_current = index;
   s_holdPermille = 0;
+  s_repaintPush = false;
   switch (s_current) {
     case SCREEN_CLOCK: clockEnter(); break;
     case SCREEN_SLOT: slotEnter(); break;
@@ -252,6 +258,11 @@ bool screensTick(uint32_t nowMs, uint16_t holdPermille) {
   if (s_asleep) return false;
   if (s_wakePush) {
     s_wakePush = false;
+    s_lastActivity = nowMs;
+    return true;
+  }
+  if (s_repaintPush) {
+    s_repaintPush = false;
     s_lastActivity = nowMs;
     return true;
   }

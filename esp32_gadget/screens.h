@@ -39,6 +39,11 @@ void screensBegin();
 
 // Switches screen, calling the previous screen's exit and the next one's enter.
 void screensGoTo(uint8_t index);
+// Pushes the current framebuffer again without re-entering the screen. What a
+// rotation change needs: the image is the same, only the blit is transposed
+// differently, and re-running the enter hook would reset the CONFIG row and the
+// pending tap of a screen that is still on the glass.
+void screensRepaint();
 void screensNext();
 uint8_t screensCurrent();
 

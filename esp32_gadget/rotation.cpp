@@ -21,15 +21,17 @@ static bool s_held = false;
 static RotationPolicy s_policy;
 static uint32_t s_lastSample = 0;
 
-// Puts the image on the glass and, once the screens exist, repaints through the
-// normal path so each screen's own enter hook runs exactly as it did for the
-// console command that used to own this.
+// Puts the image on the glass. The framebuffer already holds the right picture
+// for every screen (they draw in landscape coordinates and the driver transposes
+// on the way out), so a rotation only has to re-send it. Re-entering the screen,
+// as this used to do, reset the CONFIG row and its pending tap and re-ran the
+// leave hooks of a screen that was staying.
 static void applyOrientation(uint8_t orientation) {
   if (orientation > 3) return;
   if (orientation == displayGetOrientation()) return;
   displaySetOrientation(orientation);
   settingsSetOrientation(orientation);
-  screensGoTo(screensCurrent());
+  screensRepaint();
 }
 
 // The orientation the mode asks for, ignoring the sensor. Raw pins (0..3, still
