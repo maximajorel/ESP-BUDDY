@@ -9,6 +9,7 @@
 #include <Arduino.h>
 
 #include "buddy_imu.h"
+#include "buddy_link.h"
 #include "buddy_phase.h"
 #include "buddy_state.h"
 
@@ -39,6 +40,10 @@ struct BuddyView {
   uint32_t ageMs;       // age of the snapshot
   uint32_t stateAgeMs;  // how long the bridge says this state has lasted
   uint32_t revision;
+  // Why the link is in the shape it is: the glass can only dim, the panel names
+  // the cause (no clock, rejected certificate, Cloudflare, wrong token...).
+  BuddyLink link;
+  char linkDetail[96];  // mbedtls error text when the handshake was rejected
 };
 void buddyGetView(BuddyView *out);
 

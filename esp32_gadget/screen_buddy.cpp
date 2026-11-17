@@ -1,15 +1,18 @@
 #include "screen_buddy.h"
 
 #include <ArduinoJson.h>
-#include <HTTPClient.h>
 #include <math.h>
 #include <time.h>
 
 #include "buddy_anim.h"
 #include "buddy_face.h"
+#include "buddy_http.h"
 #include "buddy_imu.h"
+#include "buddy_link.h"
+#include "buddy_url.h"
 #include "gfx.h"
 #include "imu.h"
+#include "net.h"
 #include "rgb.h"
 #include "rotation.h"
 #include "settings.h"
@@ -18,7 +21,10 @@
 // --- snapshot shared with the poller task -----------------------------------
 
 #define BUDDY_POLL_MS 1000
-#define BUDDY_HTTP_TIMEOUT_MS 2000
+// The same budget the Spotify poller gives its TLS work (spotify.cpp): a
+// handshake over https spends stack in mbedtls, and 8 KB was sized for plain
+// HTTP on the LAN.
+#define BUDDY_TASK_STACK 12288
 // 20 fps: the eased pose covers a channel in a few frames, so the motion reads
 // as continuous instead of a slideshow. The SPI push fits comfortably at this
 // rate; the poller and the button stay in their own contexts.
@@ -37,6 +43,10 @@ struct BuddySnapshot {
   uint32_t stateSinceMs = 0;  // millis of the first observation of this state
   uint32_t sinceAgeMs = 0;    // state age reported by the bridge at fetchedAt
   uint32_t revision = 0;
+  // Why the last attempt ended the way it did. The glass has one "no signal"
+  // face, but the panel can say which of the several causes it was.
+  BuddyLink link = BUDDY_LINK_UNCONFIGURED;
+  char linkDetail[96] = {0};
 };
 
 static BuddySnapshot s_snap;
@@ -71,15 +81,18 @@ static uint32_t s_filterAt = 0;
 static void publish(BuddyState state, const char *label, int active,
                     bool online, bool configured, uint32_t stateAgeMs = 0,
                     BuddyPhase phase = BUDDY_PHASE_IDLE,
-                    BuddyRgb led = {0, 180, 255}, bool ledValid = false) {
+                    BuddyRgb led = {0, 180, 255}, bool ledValid = false,
+                    BuddyLink link = BUDDY_LINK_OK, const char *detail = nullptr) {
   if (!s_lock) return;
   if (xSemaphoreTake(s_lock, pdMS_TO_TICKS(50)) != pdTRUE) return;
+  const char *safeDetail = detail ? detail : "";
   bool changed = s_snap.state != state || s_snap.active != active ||
                  s_snap.online != online ||
                  s_snap.configured != configured ||
                  s_snap.phase != phase || s_snap.ledValid != ledValid ||
                  s_snap.led.r != led.r || s_snap.led.g != led.g ||
-                 s_snap.led.b != led.b ||
+                 s_snap.led.b != led.b || s_snap.link != link ||
+                 strcmp(s_snap.linkDetail, safeDetail) != 0 ||
                  strcmp(s_snap.label, label ? label : "") != 0;
   if (s_snap.state != state) {
     s_snap.stateSinceMs = millis();
@@ -95,93 +108,129 @@ static void publish(BuddyState state, const char *label, int active,
   s_snap.ledValid = ledValid;
   s_snap.online = online;
   s_snap.configured = configured;
+  s_snap.link = link;
+  snprintf(s_snap.linkDetail, sizeof(s_snap.linkDetail), "%s", safeDetail);
   s_snap.fetchedAt = millis();
   if (changed) s_snap.revision++;
   xSemaphoreGive(s_lock);
 }
 
-// GET /state with the bridge token. Plain HTTP on the LAN on purpose: the
-// bridge is LAN-only in this phase and the device never holds the Hermes key.
+// GET /state with the bridge token. The transport picks the scheme: plain HTTP
+// for the LAN address, validated TLS for the public https URL. The device never
+// holds the Hermes key, only the bridge token.
+static void publishFailure(BuddyLink link, const char *detail, bool configured) {
+  publish(BUDDY_OFFLINE, "", 0, false, configured, 0, BUDDY_PHASE_IDLE,
+          BuddyRgb{0, 180, 255}, false, link, detail);
+}
+
+// The bridge's JSON, turned into the snapshot. Unchanged from the LAN-only days:
+// the transport moved, the contract did not.
+static void parseState(JsonDocument &doc) {
+  const char *name = doc["state"] | "";
+  const char *label = doc["label"] | "";
+  int active = doc["active"] | 0;
+  // `since` is an epoch float. The device clock may not be synced yet, so only
+  // trust the difference when both sides look like real time; the local
+  // observation time is the fallback.
+  float since = doc["since"] | 0.0f;
+  uint32_t age = 0;
+  time_t now = time(nullptr);
+  if (since > 1600000000.0f && now > 1600000000) {
+    double d = (double)now - (double)since;
+    if (d >= 0.0 && d < 86400.0) age = (uint32_t)(d * 1000.0);
+  }
+  // `elapsed` is the state age already computed by the bridge; prefer it,
+  // because the device clock may be off (seen: +37 s).
+  float elapsed = doc["elapsed"] | -1.0f;
+  if (elapsed >= 0.0f && elapsed < 86400.0f) {
+    age = (uint32_t)(elapsed * 1000.0f);
+  }
+
+  // The HUD/LED channel: phase is authoritative and never derived from state.
+  // The bridge resolves the LED colour; if the field is missing, use the
+  // published table so the bead still means something.
+  BuddyPhase phase = buddyPhaseFromName(doc["phase"] | "");
+  BuddyRgb led = buddyPhaseDefaultLed(phase);
+  bool ledValid = false;
+  JsonArray ledArr = doc["led"].as<JsonArray>();
+  if (!ledArr.isNull() && ledArr.size() == 3) {
+    int r = ledArr[0] | 0;
+    int g = ledArr[1] | 0;
+    int b = ledArr[2] | 0;
+    if (r < 0) r = 0;
+    if (r > 255) r = 255;
+    if (g < 0) g = 0;
+    if (g > 255) g = 255;
+    if (b < 0) b = 0;
+    if (b > 255) b = 255;
+    led.r = (uint8_t)r;
+    led.g = (uint8_t)g;
+    led.b = (uint8_t)b;
+    ledValid = true;
+  }
+  char clean[BUDDY_LABEL_MAX + 1];
+  buddyLabelClean(label, clean, sizeof(clean));
+  // The glass has a 5x7 ASCII font: fold accents here, the panel keeps the
+  // folded label too (it is the same text the owner reads on the device).
+  char folded[BUDDY_LABEL_MAX + 1];
+  textFoldAscii(clean, folded, sizeof(folded));
+  publish(buddyStateFromName(name), folded, active, true, true, age, phase, led,
+          ledValid, BUDDY_LINK_OK);
+}
+
 static void pollOnce() {
-  char url[SETTINGS_BUDDY_URL_MAX + 1];
+  char urlText[SETTINGS_BUDDY_URL_MAX + 1];
   char token[SETTINGS_BUDDY_TOKEN_MAX + 1];
-  settingsGetBuddyUrl(url, sizeof(url));
+  settingsGetBuddyUrl(urlText, sizeof(urlText));
   settingsGetBuddyToken(token, sizeof(token));
-  if (!url[0] || !token[0]) {
-    publish(BUDDY_UNCONFIGURED, "", 0, false, false);
+  if (!urlText[0] || !token[0]) {
+    publish(BUDDY_UNCONFIGURED, "", 0, false, false, 0, BUDDY_PHASE_IDLE,
+            BuddyRgb{0, 180, 255}, false, BUDDY_LINK_UNCONFIGURED);
     return;
   }
 
-  HTTPClient http;
-  http.setTimeout(BUDDY_HTTP_TIMEOUT_MS);
-  String endpoint = String(url) + "/state";
-  if (!http.begin(endpoint)) {
-    publish(BUDDY_OFFLINE, "", 0, false, true);
+  // A stored URL that cannot be used is its own cause: the request would fail
+  // anyway and "sin señal" would hide the typo the owner has to fix.
+  BuddyUrl url;
+  BuddyUrlError urlErr = buddyUrlParse(urlText, &url);
+  if (urlErr != BUDDY_URL_OK) {
+    publishFailure(BUDDY_LINK_BAD_URL, buddyUrlErrorName(urlErr), true);
     return;
   }
-  http.addHeader("X-Buddy-Token", token);
-  int code = http.GET();
-  if (code == 200) {
+
+  // HTTPS validates the certificate against the clock. Without SNTP the chain
+  // reads as not-yet-valid, so say "no clock" instead of blaming the network.
+  if (url.tls && !netStatus().timeSynced) {
+    publishFailure(BUDDY_LINK_NO_TIME, "sntp", true);
+    return;
+  }
+
+  BuddyHttpResult res;
+  buddyHttpGetState(url, token, &res);
+  BuddyLinkFacts facts;
+  facts.configured = true;
+  facts.urlValid = true;
+  facts.tls = url.tls;
+  facts.timeValid = netStatus().timeSynced;
+  facts.status = res.status;
+  facts.tlsFailed = res.tlsFailed;
+  facts.redirected = res.redirected;
+  BuddyLink link = buddyLinkFromFacts(facts);
+
+  if (res.status == 200) {
     JsonDocument doc;
-    DeserializationError err = deserializeJson(doc, http.getString());
-    if (!err) {
-      const char *name = doc["state"] | "";
-      const char *label = doc["label"] | "";
-      int active = doc["active"] | 0;
-      // `since` is an epoch float. The device clock may not be synced yet, so
-      // only trust the difference when both sides look like real time; the
-      // local observation time is the fallback.
-      float since = doc["since"] | 0.0f;
-      uint32_t age = 0;
-      time_t now = time(nullptr);
-      if (since > 1600000000.0f && now > 1600000000) {
-        double d = (double)now - (double)since;
-        if (d >= 0.0 && d < 86400.0) age = (uint32_t)(d * 1000.0);
-      }
-      // `elapsed` is the state age already computed by the bridge; prefer it,
-      // because the device clock may be off (seen: +37 s).
-      float elapsed = doc["elapsed"] | -1.0f;
-      if (elapsed >= 0.0f && elapsed < 86400.0f) {
-        age = (uint32_t)(elapsed * 1000.0f);
-      }
-
-      // The HUD/LED channel: phase is authoritative and never derived from
-      // state. The bridge resolves the LED colour; if the field is missing, use
-      // the published table so the bead still means something.
-      BuddyPhase phase = buddyPhaseFromName(doc["phase"] | "");
-      BuddyRgb led = buddyPhaseDefaultLed(phase);
-      bool ledValid = false;
-      JsonArray ledArr = doc["led"].as<JsonArray>();
-      if (!ledArr.isNull() && ledArr.size() == 3) {
-        int r = ledArr[0] | 0;
-        int g = ledArr[1] | 0;
-        int b = ledArr[2] | 0;
-        if (r < 0) r = 0;
-        if (r > 255) r = 255;
-        if (g < 0) g = 0;
-        if (g > 255) g = 255;
-        if (b < 0) b = 0;
-        if (b > 255) b = 255;
-        led.r = (uint8_t)r;
-        led.g = (uint8_t)g;
-        led.b = (uint8_t)b;
-        ledValid = true;
-      }
-      char clean[BUDDY_LABEL_MAX + 1];
-      buddyLabelClean(label, clean, sizeof(clean));
-      // The glass has a 5x7 ASCII font: fold accents here, the panel keeps the
-      // folded label too (it is the same text the owner reads on the device).
-      char folded[BUDDY_LABEL_MAX + 1];
-      textFoldAscii(clean, folded, sizeof(folded));
-      publish(buddyStateFromName(name), folded, active, true, true, age,
-              phase, led, ledValid);
-    } else {
-      publish(BUDDY_OFFLINE, "", 0, false, true);
+    DeserializationError err = deserializeJson(doc, res.body);
+    // A 200 with a body that is not the bridge's JSON is not a healthy link: the
+    // face would show a state nobody sent.
+    if (err) {
+      publishFailure(BUDDY_LINK_HTTP, "body", true);
+      return;
     }
-  } else {
-    publish(BUDDY_OFFLINE, "", 0, false, true);
+    parseState(doc);
+    return;
   }
-  http.end();
+
+  publishFailure(link, res.detail[0] ? res.detail : "", true);
 }
 
 static void pollTask(void *arg) {
@@ -194,12 +243,14 @@ static void pollTask(void *arg) {
 
 void buddyBegin() {
   if (!s_lock) s_lock = xSemaphoreCreateMutex();
+  buddyHttpBegin();
   s_seed = esp_random();
   publish(BUDDY_UNCONFIGURED, "", 0, false, false);
   if (!s_task) {
     // Same pattern as the Spotify poller: its own small task, so the eyes never
     // stall the button or the RGB while the HTTP request is in flight.
-    xTaskCreatePinnedToCore(pollTask, "buddy", 8192, nullptr, 1, &s_task, 1);
+    xTaskCreatePinnedToCore(pollTask, "buddy", BUDDY_TASK_STACK, nullptr, 1,
+                            &s_task, 1);
   }
 }
 
@@ -248,6 +299,8 @@ void buddyGetView(BuddyView *out) {
   out->led = s_snap.led;
   out->ledValid = s_snap.ledValid;
   out->revision = s_snap.revision;
+  out->link = s_snap.link;
+  snprintf(out->linkDetail, sizeof(out->linkDetail), "%s", s_snap.linkDetail);
   snprintf(out->label, sizeof(out->label), "%s", s_snap.label);
   if (s_snap.fetchedAt) out->ageMs = millis() - s_snap.fetchedAt;
   // The bridge's `since` is preferred, but the device clock can be off by
@@ -793,43 +846,77 @@ void buddyDumpDraw() {
   }
 }
 
+// One sentence per cause, because that is what the owner gets in the panel
+// toast: the transport knows the code, the owner needs the next step.
+static const char *buddyAskError(BuddyLink link, int status) {
+  switch (link) {
+    case BUDDY_LINK_UNCONFIGURED: return "Falta la URL o el token";
+    case BUDDY_LINK_BAD_URL: return "La URL del bridge no es valida";
+    case BUDDY_LINK_NO_TIME: return "El reloj todavia no se sincronizo";
+    case BUDDY_LINK_TLS: return "Rechazaron el certificado del bridge";
+    case BUDDY_LINK_BLOCKED: return "Cloudflare bloqueo el pedido";
+    case BUDDY_LINK_UNAUTHORIZED: return "El token del bridge no es valido";
+    case BUDDY_LINK_HTTP: break;
+    case BUDDY_LINK_OFFLINE: return "No pude conectar al bridge";
+    case BUDDY_LINK_OK: break;
+  }
+  (void)status;
+  return "El bridge respondio con un error";
+}
+
 bool buddyAsk(const char *prompt, char *err, size_t errCap) {
   if (err && errCap) err[0] = '\0';
   if (!prompt || !*prompt) {
     if (err && errCap) snprintf(err, errCap, "Escribi un pedido");
     return false;
   }
-  char url[SETTINGS_BUDDY_URL_MAX + 1];
+  char urlText[SETTINGS_BUDDY_URL_MAX + 1];
   char token[SETTINGS_BUDDY_TOKEN_MAX + 1];
-  settingsGetBuddyUrl(url, sizeof(url));
+  settingsGetBuddyUrl(urlText, sizeof(urlText));
   settingsGetBuddyToken(token, sizeof(token));
-  if (!url[0] || !token[0]) {
+  if (!urlText[0] || !token[0]) {
     if (err && errCap) snprintf(err, errCap, "Falta la URL o el token");
     return false;
   }
 
-  HTTPClient http;
-  http.setTimeout(4000);
-  String endpoint = String(url) + "/buddy/ask";
-  if (!http.begin(endpoint)) {
-    if (err && errCap) snprintf(err, errCap, "No pude conectar al bridge");
+  BuddyUrl url;
+  BuddyUrlError urlErr = buddyUrlParse(urlText, &url);
+  if (urlErr != BUDDY_URL_OK) {
+    if (err && errCap) snprintf(err, errCap, "La URL del bridge no es valida");
     return false;
   }
-  http.addHeader("Content-Type", "application/json");
-  http.addHeader("X-Buddy-Token", token);
+  // The same order the poll uses: a clock-less https attempt cannot validate the
+  // certificate, so the honest answer is about time, not about the network.
+  if (url.tls && !netStatus().timeSynced) {
+    if (err && errCap) snprintf(err, errCap, "El reloj todavia no se sincronizo");
+    return false;
+  }
+
   JsonDocument doc;
   doc["prompt"] = prompt;
   String body;
   serializeJson(doc, body);
-  int code = http.POST(body);
-  http.end();
-  if (code < 200 || code >= 300) {
-    if (err && errCap) snprintf(err, errCap, "El bridge respondio %d", code);
+
+  BuddyHttpResult res;
+  buddyHttpAsk(url, token, body, &res);
+  BuddyLinkFacts facts;
+  facts.configured = true;
+  facts.urlValid = true;
+  facts.tls = url.tls;
+  facts.timeValid = netStatus().timeSynced;
+  facts.status = res.status;
+  facts.tlsFailed = res.tlsFailed;
+  facts.redirected = res.redirected;
+  BuddyLink link = buddyLinkFromFacts(facts);
+  if (link != BUDDY_LINK_OK) {
+    if (err && errCap) {
+      snprintf(err, errCap, "%s", buddyAskError(link, res.status));
+    }
     return false;
   }
   // The bridge answers 202 and runs asynchronously. Paint thinking locally so
   // the eyes react at once; the next poll corrects with the real state.
   publish(BUDDY_THINKING, "", 0, true, true, 0, BUDDY_PHASE_BUSY,
-          buddyPhaseDefaultLed(BUDDY_PHASE_BUSY), true);
+          buddyPhaseDefaultLed(BUDDY_PHASE_BUSY), true, BUDDY_LINK_OK);
   return true;
 }
