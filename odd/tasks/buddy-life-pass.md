@@ -128,6 +128,10 @@ range (10-20 px, returns to centre), breath (4.5 s, one pixel), perspective
 (leads and foreshortens), tremble (bounded, keeps shaking), coverage and dither,
 lid-line sub-pixel rest, the angry vs dizzy anatomy, and the HUD guard (repeated
 idle polls never re-fire the check, ask cancels it, ok stays while reported).
-Firmware: arduino-cli compile with the INSTALL.md FQBN, exit 0, 1,415,074 bytes
-(44%) and no warning from any buddy/gfx file. Hardware: not flashed yet; the
-board is on COM5 and flashing needs the owner's go-ahead in this session.
+Firmware: arduino-cli compile with the INSTALL.md FQBN on the committed tree,
+exit 0, 1,415,086 bytes (44%), no warning from any buddy/gfx file. Hardware: not
+flashed yet; the board is on COM5 and flashing needs the owner's go-ahead in this
+session. The probe that would prove it on the glass is
+`tools/probes/buddy_life.txt`: neutral brows on the old expressions, the angry
+anatomy after two shakes, the dizzy face after one, and the synthesized check
+after a `busy -> idle` phase drop.
