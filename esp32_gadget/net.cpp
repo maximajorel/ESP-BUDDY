@@ -130,6 +130,7 @@ static const char *buddyUrlApiError(BuddyUrlError err) {
     case BUDDY_URL_NO_HOST: return "Falta el host en la URL del buddy";
     case BUDDY_URL_BAD_HOST: return "El host de la URL del buddy no es valido";
     case BUDDY_URL_BAD_PORT: return "El puerto de la URL del buddy no es valido";
+    case BUDDY_URL_BAD_PATH: return "La URL del buddy tiene caracteres invalidos en la ruta";
     case BUDDY_URL_TOO_LONG: return "La URL del buddy es demasiado larga";
     case BUDDY_URL_EMPTY: break;
     case BUDDY_URL_OK: break;
@@ -387,7 +388,11 @@ static ApiResult apiSettings(const String &body) {
     const char *url = doc["buddyUrl"] | "";
     if (!settingsSetBuddyUrl(url)) {
       BuddyUrl parsed;
-      return apiFail(400, buddyUrlApiError(buddyUrlParse(url, &parsed)));
+      BuddyUrlError err = buddyUrlParse(url, &parsed);
+      // A URL that parses but does not persist is a storage failure, not a bad
+      // URL: the owner would otherwise keep retrying a value that is fine.
+      if (err != BUDDY_URL_OK) return apiFail(400, buddyUrlApiError(err));
+      return apiFail(500, "No pude guardar la URL del buddy");
     }
   }
   if (!doc["buddyToken"].isNull()) {

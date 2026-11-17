@@ -28,6 +28,7 @@ enum BuddyUrlError {
   BUDDY_URL_NO_HOST,
   BUDDY_URL_BAD_HOST,
   BUDDY_URL_BAD_PORT,
+  BUDDY_URL_BAD_PATH,  // a base path with a space, a query or a fragment
   BUDDY_URL_TOO_LONG
 };
 
@@ -49,6 +50,7 @@ static inline const char *buddyUrlErrorName(BuddyUrlError err) {
     case BUDDY_URL_NO_HOST: return "no-host";
     case BUDDY_URL_BAD_HOST: return "bad-host";
     case BUDDY_URL_BAD_PORT: return "bad-port";
+    case BUDDY_URL_BAD_PATH: return "bad-path";
     case BUDDY_URL_TOO_LONG: return "too-long";
     case BUDDY_URL_EMPTY: break;
   }
@@ -138,6 +140,13 @@ static inline BuddyUrlError buddyUrlParse(const char *in, BuddyUrl *out) {
   const char *path = slash ? slash : afterScheme + authLen;
   size_t pathLen = (size_t)(end - path);
   while (pathLen > 0 && path[pathLen - 1] == '/') pathLen--;
+  // Every endpoint appends its own path, so a base that already carries a query,
+  // a fragment or a space can only produce a malformed request line. Reject it
+  // here instead of sending "/a b/c/state" and calling the bridge silent.
+  for (size_t i = 0; i < pathLen; i++) {
+    unsigned char c = (unsigned char)path[i];
+    if (c <= 0x20 || c == 0x7F || c == '?' || c == '#') return BUDDY_URL_BAD_PATH;
+  }
 
   char host[BUDDY_URL_HOST_MAX];
   bool bracketed = false;

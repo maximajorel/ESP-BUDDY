@@ -123,6 +123,30 @@ int main() {
            BUDDY_URL_TOO_LONG);
   checkErr("bad ipv6", buddyUrlParse("http://[fe80::1:8787", &u),
            BUDDY_URL_BAD_HOST);
+  checkErr("space in base path", buddyUrlParse("http://host.lan/a b/c", &u),
+           BUDDY_URL_BAD_PATH);
+  checkErr("query in base path", buddyUrlParse("https://host.lan/base?x=1", &u),
+           BUDDY_URL_BAD_PATH);
+  checkErr("fragment in base path", buddyUrlParse("https://host.lan/base#f", &u),
+           BUDDY_URL_BAD_PATH);
+
+  printf("-- boundaries\n");
+  checkErr("port 65535 ok", buddyUrlParse("http://host.lan:65535", &u), BUDDY_URL_OK);
+  check("port 65535 stored", u.port == 65535);
+  checkErr("port 65536 bad", buddyUrlParse("http://host.lan:65536", &u),
+           BUDDY_URL_BAD_PORT);
+  {
+    // A value that fills the budget exactly must still parse and keep a NUL.
+    char full[BUDDY_URL_MAX + 1];
+    memset(full, 'a', sizeof(full));
+    memcpy(full, "https://h.lan/", 14);
+    full[BUDDY_URL_MAX] = '\0';
+    checkErr("96 chars with a path", buddyUrlParse(full, &u), BUDDY_URL_OK);
+    check("base fits the budget", strlen(u.base) == BUDDY_URL_MAX);
+    full[BUDDY_URL_MAX] = 'a';
+    full[BUDDY_URL_MAX + 1] = '\0';
+    checkErr("97 chars", buddyUrlParse(full, &u), BUDDY_URL_TOO_LONG);
+  }
 
   printf("-- endpoint buffer\n");
   checkErr("small buffer setup", buddyUrlParse("https://host.lan", &u), BUDDY_URL_OK);
@@ -136,6 +160,7 @@ int main() {
   checkStr("bad host name", buddyUrlErrorName(BUDDY_URL_BAD_HOST), "bad-host");
   checkStr("bad port name", buddyUrlErrorName(BUDDY_URL_BAD_PORT), "bad-port");
   checkStr("too long name", buddyUrlErrorName(BUDDY_URL_TOO_LONG), "too-long");
+  checkStr("bad path name", buddyUrlErrorName(BUDDY_URL_BAD_PATH), "bad-path");
   checkStr("empty name", buddyUrlErrorName(BUDDY_URL_EMPTY), "empty");
 
   if (g_failures) {
