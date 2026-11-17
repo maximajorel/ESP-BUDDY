@@ -2,10 +2,12 @@
 //
 //   g++ -std=c++17 -O1 -I esp32_gadget tools/config_value_test.cpp -o /tmp/cvt && /tmp/cvt
 //
-// The CONFIG screen walks two values with one button, so the arithmetic is the
-// whole behaviour: a step that never reaches the maximum, a wrap that lands on 0
-// instead of the LCD's floor, or a percent/level mapping that does not round
-// trip would leave the owner unable to select a value the panel can already set.
+// The CONFIG screen hands each brightness to two buttons, so the arithmetic is
+// the whole behaviour: a `+` at the ceiling must stay there (the old wrap landed
+// on the LCD floor, which reads as a screen that went dark), a `−` at the floor
+// must stay there, a value that reached storage some other way must be repaired
+// by one tap instead of stepped, and the bead's 0..255 level has to survive a
+// trip through the percentage the glass and the panel both show.
 
 #include <cstdio>
 
@@ -23,37 +25,66 @@ static void checkInt(const char *what, int got, int want) {
 }
 
 int main() {
-  printf("-- LCD percent step (floor 5, ceiling 100, step 10)\n");
+  printf("-- LCD percent, one step up (floor 5, ceiling 100, step 10)\n");
   checkInt("5 -> 15", cfgStepUp(5, 5, 100, 10), 15);
   checkInt("90 -> 100", cfgStepUp(90, 5, 100, 10), 100);
   checkInt("95 -> 100, not past it", cfgStepUp(95, 5, 100, 10), 100);
-  checkInt("100 -> 5, the floor and not 0", cfgStepUp(100, 5, 100, 10), 5);
-  checkInt("below the floor reads as the floor", cfgStepUp(3, 5, 100, 10), 5);
-  checkInt("above the ceiling reads as the floor", cfgStepUp(200, 5, 100, 10), 5);
+  checkInt("100 -> 100, it saturates", cfgStepUp(100, 5, 100, 10), 100);
+  checkInt("below the floor is repaired to the floor", cfgStepUp(3, 5, 100, 10),
+           5);
+  checkInt("above the ceiling is repaired to the ceiling",
+           cfgStepUp(200, 5, 100, 10), 100);
   checkInt("a step that fits lands exactly on the ceiling",
            cfgStepUp(80, 5, 100, 20), 100);
+  checkInt("a zero step changes nothing", cfgStepUp(40, 5, 100, 0), 40);
+  checkInt("an inverted range answers the floor", cfgStepUp(40, 100, 5, 10), 100);
 
-  printf("-- every reachable LCD percent is one the owner can pick\n");
+  printf("-- LCD percent, one step down\n");
+  checkInt("100 -> 90", cfgStepDown(100, 5, 100, 10), 90);
+  checkInt("15 -> 5", cfgStepDown(15, 5, 100, 10), 5);
+  checkInt("10 -> 5, not below it", cfgStepDown(10, 5, 100, 10), 5);
+  checkInt("5 -> 5, it saturates", cfgStepDown(5, 5, 100, 10), 5);
+  checkInt("below the floor is repaired to the floor",
+           cfgStepDown(1, 5, 100, 10), 5);
+  checkInt("above the ceiling is repaired to the ceiling",
+           cfgStepDown(200, 5, 100, 10), 100);
+  checkInt("an inverted range answers the floor", cfgStepDown(40, 100, 5, 10),
+           100);
+
+  printf("-- the walk a held button produces stays inside the range\n");
   {
-    uint8_t v = 5;
-    int seen100 = 0;
-    for (int i = 0; i < 40; i++) {
-      if (v < 5 || v > 100) {
-        printf("FAIL LCD value %d left the range\n", (int)v);
-        g_failures++;
-        break;
-      }
-      if (v == 100) seen100 = 1;
+    uint8_t v = 90;
+    int escapes = 0;
+    for (int i = 0; i < 8; i++) {
       v = cfgStepUp(v, 5, 100, 10);
+      if (v < 5 || v > 100) escapes++;
     }
-    checkInt("the walk reaches 100", seen100, 1);
+    checkInt("8 taps up never leave 5..100", escapes, 0);
+    checkInt("...and rest at the ceiling", v, 100);
+
+    escapes = 0;
+    for (int i = 0; i < 12; i++) {
+      v = cfgStepDown(v, 5, 100, 10);
+      if (v < 5 || v > 100) escapes++;
+    }
+    checkInt("12 taps down never leave 5..100", escapes, 0);
+    checkInt("...and rest at the floor", v, 5);
   }
 
-  printf("-- LED percent step (floor 0, ceiling 100, step 10)\n");
+  printf("-- LED percent, one step up (floor 0, ceiling 100, step 10)\n");
   checkInt("0 -> 10", cfgStepUp(0, 0, 100, 10), 10);
   checkInt("90 -> 100", cfgStepUp(90, 0, 100, 10), 100);
-  checkInt("100 -> 0", cfgStepUp(100, 0, 100, 10), 0);
-  checkInt("below the floor reads as the floor", cfgStepUp(250, 0, 100, 10), 0);
+  checkInt("100 -> 100, it saturates", cfgStepUp(100, 0, 100, 10), 100);
+  checkInt("above the ceiling is repaired to the ceiling",
+           cfgStepUp(250, 0, 100, 10), 100);
+
+  printf("-- LED percent, one step down\n");
+  checkInt("100 -> 90", cfgStepDown(100, 0, 100, 10), 90);
+  checkInt("10 -> 0", cfgStepDown(10, 0, 100, 10), 0);
+  checkInt("0 -> 0, fully dark is a value, not a floor to cross",
+           cfgStepDown(0, 0, 100, 10), 0);
+  checkInt("above the ceiling is repaired to the ceiling",
+           cfgStepDown(250, 0, 100, 10), 100);
 
   printf("-- percent <-> level mapping\n");
   checkInt("0% is dark", cfgPercentToLevel(0), 0);

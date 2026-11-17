@@ -1,11 +1,13 @@
 // Value rules for the CONFIG screen, pure and header-only.
 //
-// One button has to walk two brightnesses, so the arithmetic is the behaviour:
-// the step must be able to land on the maximum, the wrap must fall back to each
-// value's own floor (the LCD cannot go to 0 or the owner could not see what they
-// are doing), and the bead's 0..255 level has to survive a trip through the
-// percentage the glass and the panel both show. Pinned by
-// `tools/config_value_test.cpp`.
+// Two buttons walk each brightness, so the arithmetic is the behaviour: a step
+// must land on the ceiling and stay there, because a wrap landed on the LCD's
+// 5% floor and the owner read that as a screen that had turned off; the step
+// back must stop at its own floor the same way; a value stored by some other
+// firmware is repaired to the nearest legal end in one press instead of being
+// stepped from a number nobody can see; and the bead's 0..255 level has to
+// survive a trip through the percentage the glass and the panel both show.
+// Pinned by `tools/config_value_test.cpp`.
 #pragma once
 
 #include <stdint.h>
@@ -27,21 +29,34 @@ static inline uint8_t cfgClamp(int value, uint8_t min, uint8_t max) {
   return (uint8_t)value;
 }
 
-// Next value in one step. A value outside the range (a corrupt store, a firmware
-// that shipped a different scale) is read as the floor rather than stepped, so a
-// single tap always brings it back into the selectable range. A step that would
-// cross the maximum lands on it exactly, and the step after that wraps to the
-// floor: with a floor of 5 and a step of 10 the walk would otherwise never reach
-// 100.
+// Next value in one step up. A value outside the range (a corrupt store, a
+// firmware that shipped a different scale) is repaired to the nearest legal end
+// rather than stepped, so a single press always brings it back into the range the
+// owner can see. A step that would cross the maximum lands on it exactly and the
+// next press keeps it there: a wrap would drop the LCD to 5% and look like the
+// screen had turned off.
 static inline uint8_t cfgStepUp(uint8_t current, uint8_t min, uint8_t max,
                                 uint8_t step) {
   if (min > max) return min;
-  if (current < min || current > max) return min;
-  if (current >= max) return min;
+  if (current < min) return min;
+  if (current >= max) return max;
   if (step == 0) return current;
   uint16_t next = (uint16_t)current + step;
   if (next > max) return max;
   return (uint8_t)next;
+}
+
+// The same rule downwards: never below the floor, and the press after landing on
+// it keeps it there. The LED's floor is 0 (fully dark is a value the owner
+// chose), the LCD's is 5 (a screen nobody can read cannot be turned back up).
+static inline uint8_t cfgStepDown(uint8_t current, uint8_t min, uint8_t max,
+                                  uint8_t step) {
+  if (min > max) return min;
+  if (current > max) return max;
+  if (current <= min) return min;
+  if (step == 0) return current;
+  if ((uint16_t)step >= (uint16_t)(current - min)) return min;
+  return (uint8_t)(current - step);
 }
 
 // 0..100 percent onto the bead's 0..255 level, rounded, so 100% is really 255.
