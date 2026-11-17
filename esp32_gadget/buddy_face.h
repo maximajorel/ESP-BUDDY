@@ -249,6 +249,21 @@ static inline BuddyLidBand buddyLidBandBottom(int cy, int extentY, int pad,
   return b;
 }
 
+// The exact lid line in screen pixels. The band fill can only work in whole
+// rows; the renderer dithers the row the line lands on, so a lid that creeps at
+// 20 fps slides instead of popping a whole pixel.
+static inline float buddyLidLineTop(int cy, int extentY, float lid) {
+  if (lid < 0.0f) lid = 0.0f;
+  if (lid > 1.0f) lid = 1.0f;
+  return (float)cy - (float)extentY + 2.0f * (float)extentY * lid;
+}
+
+static inline float buddyLidLineBottom(int cy, int extentY, float bottom) {
+  if (bottom < 0.0f) bottom = 0.0f;
+  if (bottom > 1.0f) bottom = 1.0f;
+  return (float)cy + (float)extentY - 2.0f * (float)extentY * bottom;
+}
+
 // Exponential approach towards the target. Never overshoots, so a value that
 // stops changing settles exactly on it instead of vibrating around it.
 static inline float buddyEase(float current, float target, uint32_t dtMs,

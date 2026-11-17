@@ -211,6 +211,62 @@ void gfxFillSquircleRot(int cx, int cy, int halfW, int halfH, float deg,
   }
 }
 
+// Same shape, but the outline is dithered against the colour behind it. The
+// panel has no alpha and no readable bus: a one-pixel hard edge is all a plain
+// scanline fill can produce. Here the solid core is filled as spans and only the
+// one-pixel ring around it pays for the distance maths, so the soft edge costs
+// almost nothing per frame. Each boundary pixel keeps the foreground when the
+// shape covers more than the 4x4 Bayer threshold, and the background colour
+// otherwise: an ordered dither that reads as a smooth edge and never flickers
+// between frames.
+void gfxFillSquircleRotAA(int cx, int cy, int halfW, int halfH, float deg,
+                          uint16_t color, uint16_t edgeColor) {
+  if (!s_fb || halfW <= 0 || halfH <= 0) return;
+  BuddySquircle outer = buddySquircle((float)halfW, (float)halfH);
+  BuddySquircle core = buddySquircle((float)halfW - 1.6f, (float)halfH - 1.6f);
+  float a = deg * 0.0174532925f;
+  float ca = cosf(a), sa = sinf(a);
+  int ex = (int)(fabsf((float)halfW * ca) + fabsf((float)halfH * sa)) + 2;
+  int ey = (int)(fabsf((float)halfW * sa) + fabsf((float)halfH * ca)) + 2;
+
+  // One boundary pixel: coverage picks between the shape and what is behind it.
+  auto edge = [&](int px, int y, int dx, int dy) {
+    if (px < 0 || px >= DISPLAY_W) return;
+    float lx = (float)dx * ca + (float)dy * sa;
+    float ly = -(float)dx * sa + (float)dy * ca;
+    float coverage = buddySquircleCoverage(lx, ly, outer);
+    if (coverage <= 0.0f) return;
+    gfxPixel(px, y, buddyDitherLit(coverage, px, y) ? color : edgeColor);
+  };
+
+  for (int dy = -ey; dy <= ey; dy++) {
+    int y = cy + dy;
+    if (y < 0 || y >= DISPLAY_H) continue;
+    int c0 = ex + 1;
+    for (int dx = -ex; dx <= ex; dx++) {
+      if (squircleInsideRot((float)dx, (float)dy, ca, sa, core)) {
+        c0 = dx;
+        break;
+      }
+    }
+    int c1 = -ex - 1;
+    for (int dx = ex; dx >= -ex; dx--) {
+      if (squircleInsideRot((float)dx, (float)dy, ca, sa, core)) {
+        c1 = dx;
+        break;
+      }
+    }
+    if (c0 <= c1) {
+      gfxHLine(cx + c0, y, c1 - c0 + 1, color);
+      for (int dx = -ex; dx < c0; dx++) edge(cx + dx, y, dx, dy);
+      for (int dx = c1 + 1; dx <= ex; dx++) edge(cx + dx, y, dx, dy);
+    } else {
+      // A row thinner than the core: every pixel of it is boundary.
+      for (int dx = -ex; dx <= ex; dx++) edge(cx + dx, y, dx, dy);
+    }
+  }
+}
+
 static const uint8_t *glyphFor(char ch) {
   uint8_t code = (uint8_t)ch;
   if (code < FONT_FIRST || code > FONT_LAST) return FONT_FALLBACK;

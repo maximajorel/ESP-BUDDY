@@ -48,6 +48,12 @@ void gfxFillEllipse(int cx, int cy, int rx, int ry, uint16_t color);
 // test share one definition.
 void gfxFillSquircleRot(int cx, int cy, int halfW, int halfH, float deg,
                         uint16_t color);
+// The same rounded square with a dithered one-pixel outline: boundary pixels
+// alternate between `color` and the `edgeColor` behind it according to their
+// coverage and a 4x4 Bayer threshold. This is how a panel without alpha gets a
+// soft edge and a glow that fades instead of stepping.
+void gfxFillSquircleRotAA(int cx, int cy, int halfW, int halfH, float deg,
+                          uint16_t color, uint16_t edgeColor);
 
 // Text: every glyph sits in a 6x8 cell scaled by `scale` (5x7 ink plus a
 // one-pixel gap). Both cases exist in the font, because the network screen has

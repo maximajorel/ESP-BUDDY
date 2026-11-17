@@ -301,11 +301,15 @@ static inline BuddyPose buddyPose(BuddyState state, uint32_t ageMs,
       }
       break;
     case BUDDY_ERROR:
-      // Confusion: eyes point at each other and blink fast.
+      // Confusion: eyes point at each other, blink fast, and the brows disagree
+      // with each other (one lifted, one dropped): the sceptical squint.
       genericBlink = false;
       p.eyeGazeL = 7;
       p.eyeGazeR = -7;
       p.lid = 0.05f;
+      p.browL = -0.5f;
+      p.browR = 0.6f;
+      // Nervous on purpose: the error face blinks on a fast, fixed beat.
       p.blink = (nowMs % 900) < 120;
       break;
     case BUDDY_WAITING:

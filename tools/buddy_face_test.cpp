@@ -118,6 +118,24 @@ int main() {
           buddyLidBandTop(88, extentY, BUDDY_GLOW_PAD, 0.0f).h == 0);
   }
 
+  printf("-- lid line sub-pixel\n");
+  {
+    // S6: the band fill lands on a row; the renderer dithers the fraction so the
+    // lid slides between rows instead of stepping.
+    checkNear("a half lid lands on the centre row", buddyLidLineTop(88, 48, 0.5f),
+              88.0f, 0.001f);
+    checkNear("a closed lid reaches the bottom of the eye",
+              buddyLidLineTop(88, 48, 1.0f), 136.0f, 0.001f);
+    checkNear("an open lid is the top of the eye", buddyLidLineTop(88, 48, 0.0f),
+              40.0f, 0.001f);
+    check("a clamped lid never leaves the eye",
+          buddyLidLineTop(88, 48, 9.0f) == buddyLidLineTop(88, 48, 1.0f));
+    checkNear("the bottom lid mirrors it", buddyLidLineBottom(88, 48, 0.5f),
+              88.0f, 0.001f);
+    check("a fractional lid keeps its sub-pixel rest",
+          fabsf(buddyLidLineTop(88, 48, 0.51f) - 88.96f) < 0.01f);
+  }
+
   printf("-- easing\n");
   checkNear("no time means no movement", buddyEase(2.0f, 9.0f, 0, 100.0f),
             2.0f, 0.0001f);

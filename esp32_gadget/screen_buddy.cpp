@@ -281,16 +281,26 @@ void buddyGetView(BuddyView *out) {
 // the RGB bead. Reference: RoboEyes-style animated eyes (FluxGarage), reduced to
 // what a 320x172 panel does well.
 
-// The eyes glow: two soft layers of the owner's colour around the shape, so the
-// cyan (or whatever the owner picked) bleeds into the black like a lit bead.
-// BUDDY_GLOW_PAD is also how far the lid bands reach past the eye: a rotated
-// eye is taller than its box, and without covering the glow the hot tint of an
-// angry face leaked above the lid.
+// The eyes glow: three dithered rings around the shape, each one blended
+// against the ring outside it, so the owner colour bleeds into the black like a
+// lit bead instead of stepping at one hard outline. The panel is RGB565 with no
+// alpha and no readable bus: ordered dithering is the honest way to fade here,
+// and it keeps the mixture stable between frames. BUDDY_GLOW_PAD is also how far
+// the lid bands reach past the eye.
+#define BUDDY_GLOW_SHADE_INNER 32
+#define BUDDY_GLOW_SHADE_MID 17
+#define BUDDY_GLOW_SHADE_OUTER 7
+
 static void drawEyeGlow(int x, int y, int halfW, int halfH, float deg,
-                        uint16_t inner, uint16_t outer) {
-  gfxFillSquircleRot(x, y, halfW + BUDDY_GLOW_PAD, halfH + BUDDY_GLOW_PAD, deg,
-                     outer);
-  gfxFillSquircleRot(x, y, halfW + 3, halfH + 3, deg, inner);
+                        uint32_t eyeRgb) {
+  uint16_t outer = gfxHex(buddyEyeScale(eyeRgb, BUDDY_GLOW_SHADE_OUTER));
+  uint16_t mid = gfxHex(buddyEyeScale(eyeRgb, BUDDY_GLOW_SHADE_MID));
+  uint16_t inner = gfxHex(buddyEyeScale(eyeRgb, BUDDY_GLOW_SHADE_INNER));
+  gfxFillSquircleRotAA(x, y, halfW + BUDDY_GLOW_PAD, halfH + BUDDY_GLOW_PAD,
+                       deg, outer, GFX_BLACK);
+  gfxFillSquircleRotAA(x, y, halfW + BUDDY_GLOW_PAD - 2,
+                       halfH + BUDDY_GLOW_PAD - 2, deg, mid, outer);
+  gfxFillSquircleRotAA(x, y, halfW + 2, halfH + 2, deg, inner, mid);
 }
 
 static void thickLine(int x0, int y0, int x1, int y1, uint16_t color) {
@@ -314,22 +324,51 @@ static void happyEyeGlow(int cx, int cy, uint16_t glow) {
   }
 }
 
+// One angled brow above an eye. Positive drops the inner corner (anger),
+// negative lifts it (worry); `left` mirrors the slant so both inner corners
+// move together. Drawn after the lid band, because the band is black.
+// One dithered row at a lid line. The band already painted the row black, so
+// this only puts the eye colour back where the dither leaves it visible; only
+// pixels inside the rotated eye are touched, so nothing leaks into the halo.
+static void ditherLidRow(int x, int y, int halfW, int halfH, float deg,
+                         int halfX, int row, uint16_t color, float black) {
+  if (!(black > 0.0f) || black >= 1.0f) return;
+  BuddySquircle sq = buddySquircle((float)halfW, (float)halfH);
+  float a = deg * 0.0174532925f;
+  float ca = cosf(a), sa = sinf(a);
+  int dy = row - y;
+  for (int dx = -halfX; dx <= halfX; dx++) {
+    float lx = (float)dx * ca + (float)dy * sa;
+    float ly = -(float)dx * sa + (float)dy * ca;
+    if (!buddySquircleInside(lx, ly, sq)) continue;
+    if (!buddyDitherLit(black, x + dx, row)) gfxPixel(x + dx, row, color);
+  }
+}
+
+static void drawBrow(int x, int topY, int halfW, float brow, bool left,
+                     uint16_t color) {
+  if (fabsf(brow) < 0.04f) return;
+  float slant = brow * 9.0f * (left ? 1.0f : -1.0f);
+  int innerY = topY + (int)lroundf(slant * 0.5f);
+  int outerY = topY - (int)lroundf(slant * 0.5f);
+  int outerX = left ? x - halfW : x + halfW;
+  int innerX = left ? x + halfW : x - halfW;
+  thickLine(outerX, outerY, innerX, innerY, color);
+}
+
 // --- HUD: the functional channel --------------------------------------------
 //
 // A 20 px badge in the top-right corner. The face may be ambiguous (focused vs
-// bored); the HUD never lies. `phase` is authoritative; `busy` is motion, `ok`
-// is a static check after a 250 ms pop, `ask` pulses, and idle leaves the glass
-// clean. The synthesized check (busy -> idle) covers Desktop/Telegram, where the
-// bridge never sends `ok`.
+// bored); the HUD never lies. `busy` is motion, `ok` is a check with a green
+// twinkle after a 250 ms pop, `ask` pulses, and idle leaves the glass clean.
+// The synthesis (busy -> idle on Desktop/Telegram, where the bridge never sends
+// `ok`) and the previous-phase guard live in buddy_phase.h so a host test can
+// pin them; this file only draws what the machine says.
 
 #define HUD_CX 302
 #define HUD_CY 18
-#define SYNTH_OK_MS 3000
 
-static BuddyPhase s_hudPhase = BUDDY_PHASE_IDLE;
-static bool s_hudHave = false;
-static uint32_t s_hudCheckAt = 0;
-static uint32_t s_synthOkUntil = 0;
+static BuddyHud s_hud;
 
 static uint16_t hudRgb(BuddyRgb c, float scale) {
   int r = (int)((float)c.r * scale);
@@ -342,24 +381,7 @@ static uint16_t hudRgb(BuddyRgb c, float scale) {
 }
 
 static void hudTrack(BuddyPhase phase, uint32_t nowMs) {
-  if (!s_hudHave) {
-    s_hudHave = true;
-    s_hudPhase = phase;
-    if (phase == BUDDY_PHASE_OK) s_hudCheckAt = nowMs;
-    return;
-  }
-  if (phase == s_hudPhase) return;
-  if (phase == BUDDY_PHASE_OK) {
-    s_hudCheckAt = nowMs;
-    s_synthOkUntil = 0;
-  } else if (buddyPhaseFinished(s_hudPhase, phase) && phase == BUDDY_PHASE_IDLE) {
-    // Desktop/Telegram never send `ok`: the drop from busy to idle is the cue.
-    s_hudCheckAt = nowMs;
-    s_synthOkUntil = nowMs + SYNTH_OK_MS;
-  } else if (phase != BUDDY_PHASE_IDLE) {
-    s_synthOkUntil = 0;
-  }
-  s_hudPhase = phase;
+  buddyHudStep(&s_hud, phase, nowMs);
 }
 
 static void hudBusy(BuddyRgb color, uint32_t nowMs) {
@@ -371,22 +393,31 @@ static void hudBusy(BuddyRgb color, uint32_t nowMs) {
   }
 }
 
-static void hudCheck(uint32_t nowMs) {
-  uint32_t t = nowMs - s_hudCheckAt;
+// The check: a 250 ms pop, then a green twinkle that dies away into the steady
+// mark. The twinkle is the part that reads as "done" from across the room; a
+// static check is just a glyph.
+static void hudCheck(uint32_t ageMs) {
   float scale = 1.0f;
-  if (t < 125) {
-    scale = 0.8f + 0.3f * ((float)t / 125.0f);
-  } else if (t < 250) {
-    scale = 1.1f - 0.1f * ((float)(t - 125) / 125.0f);
+  if (ageMs < 125) {
+    scale = 0.8f + 0.3f * ((float)ageMs / 125.0f);
+  } else if (ageMs < 250) {
+    scale = 1.1f - 0.1f * ((float)(ageMs - 125) / 125.0f);
   }
+  float twinkle = 0.0f;
+  if (ageMs < 900) {
+    float decay = 1.0f - (float)ageMs / 900.0f;
+    twinkle = (0.5f + 0.5f * cosf((float)ageMs * 0.021f)) * decay;
+  }
+  uint16_t green = gfxColor(0, (uint8_t)(150.0f + 105.0f * twinkle),
+                            (uint8_t)(30.0f + 60.0f * twinkle));
   int x1 = HUD_CX + (int)(-7.0f * scale);
   int y1 = HUD_CY + (int)(1.0f * scale);
   int x2 = HUD_CX + (int)(-2.0f * scale);
   int y2 = HUD_CY + (int)(6.0f * scale);
   int x3 = HUD_CX + (int)(8.0f * scale);
   int y3 = HUD_CY + (int)(-7.0f * scale);
-  thickLine(x1, y1, x2, y2, gfxHex(0x07E0));
-  thickLine(x2, y2, x3, y3, gfxHex(0x07E0));
+  thickLine(x1, y1, x2, y2, green);
+  thickLine(x2, y2, x3, y3, green);
 }
 
 static void hudAsk(uint32_t nowMs) {
@@ -400,19 +431,15 @@ static void hudAsk(uint32_t nowMs) {
 }
 
 static void drawHud(BuddyPhase phase, BuddyRgb led, uint32_t nowMs) {
-  if (phase == BUDDY_PHASE_BUSY) {
+  buddyHudStep(&s_hud, phase, nowMs);
+  BuddyPhase shown = buddyHudShown(&s_hud, nowMs);
+  if (shown == BUDDY_PHASE_BUSY) {
     hudBusy(led, nowMs);
-    return;
-  }
-  if (phase == BUDDY_PHASE_ASK) {
+  } else if (shown == BUDDY_PHASE_ASK) {
     hudAsk(nowMs);
-    return;
+  } else if (shown == BUDDY_PHASE_OK) {
+    hudCheck(buddyHudCheckAge(&s_hud, nowMs));
   }
-  if (phase == BUDDY_PHASE_OK) {
-    hudCheck(nowMs);
-    return;
-  }
-  if ((int32_t)(s_synthOkUntil - nowMs) > 0) hudCheck(nowMs);
 }
 
 static void drawFace(BuddyState state, const BuddyPose &pose, uint32_t nowMs,
@@ -429,8 +456,8 @@ static void drawFace(BuddyState state, const BuddyPose &pose, uint32_t nowMs,
   uint32_t owner = settingsGetBuddyEyeColor();
   uint32_t eyeRgb = pose.dim ? buddyEyeDim(owner) : buddyEyeHot(owner, pose.hot);
   uint16_t color = gfxHex(eyeRgb);
-  uint16_t glowInner = gfxHex(buddyEyeScale(eyeRgb, 30));
-  uint16_t glowOuter = gfxHex(buddyEyeScale(eyeRgb, 14));
+  uint16_t glowInner = gfxHex(buddyEyeScale(eyeRgb, BUDDY_GLOW_SHADE_INNER));
+  uint16_t glowMid = gfxHex(buddyEyeScale(eyeRgb, BUDDY_GLOW_SHADE_MID));
   int bob = (int)pose.bob;
 
   // Where each eye lands, and how much screen it covers once rotated. The pair
@@ -438,17 +465,25 @@ static void drawFace(BuddyState state, const BuddyPose &pose, uint32_t nowMs,
   // owner should never see the two eyes (or their glow) merge into one blob.
   bool shut = pose.blink || pose.closed;
   int eyeX[2];
+  int eyeRx[2];
   int eyeExtentX[2];
   int eyeExtentY[2];
   float eyeDeg[2];
-  float halfH = shut ? 4.0f : (float)pose.ry;
+  float grow = pose.grow > 0.2f ? pose.grow : 1.0f;
+  int baseRx = (int)lroundf((float)pose.rx * grow);
+  int baseRy = shut ? 4 : (int)lroundf((float)pose.ry * grow);
+  BuddyPerspective per = buddyPerspective(pose.gazeX);
   for (int i = 0; i < 2; i++) {
-    eyeX[i] = cx[i] + (int)(pose.gazeX + (i == 0 ? pose.eyeGazeL : pose.eyeGazeR));
+    float widen = i == 0 ? per.widenL : per.widenR;
+    float lead = i == 0 ? per.pushL : per.pushR;
+    eyeRx[i] = (int)lroundf((float)baseRx * widen);
+    eyeX[i] = cx[i] + (int)(pose.gazeX + lead +
+                            (i == 0 ? pose.eyeGazeL : pose.eyeGazeR));
     eyeDeg[i] = pose.rot + (i == 0 ? pose.rotL : pose.rotR);
     eyeExtentX[i] = (int)ceilf(
-        buddyEyeExtentX((float)pose.rx, halfH, eyeDeg[i]));
+        buddyEyeExtentX((float)eyeRx[i], (float)baseRy, eyeDeg[i]));
     eyeExtentY[i] = (int)ceilf(
-        buddyEyeExtentY((float)pose.rx, halfH, eyeDeg[i]));
+        buddyEyeExtentY((float)eyeRx[i], (float)baseRy, eyeDeg[i]));
   }
   int push = buddyEyeGapPush(
       (float)(eyeX[1] - eyeX[0]),
@@ -462,21 +497,21 @@ static void drawFace(BuddyState state, const BuddyPose &pose, uint32_t nowMs,
     // face adds a per-eye offset so the eyes point at each other.
     int x = eyeX[i];
     int y = cy + bob + (int)pose.gazeY;
+    float brow = i == 0 ? pose.browL : pose.browR;
     if (happy) {
-      happyEyeGlow(x, y, glowOuter);
+      happyEyeGlow(x, y, glowMid);
       happyEye(x, y, color);
       continue;
     }
-    float deg = eyeDeg[i];
-    drawEyeGlow(x, y, pose.rx, shut ? 4 : pose.ry, shut ? 0.0f : deg,
-                glowInner, glowOuter);
+    float deg = shut ? 0.0f : eyeDeg[i];
+    drawEyeGlow(x, y, eyeRx[i], baseRy, deg, eyeRgb);
     if (shut) {
       // A shut eye is a short rounded bar: it keeps the squircle language and
       // reads as a lid rather than a stray rectangle.
-      gfxFillSquircleRot(x, y, pose.rx, 4, 0, color);
+      gfxFillSquircleRotAA(x, y, eyeRx[i], 4, 0, color, glowInner);
       continue;
     }
-    gfxFillSquircleRot(x, y, pose.rx, pose.ry, deg, color);
+    gfxFillSquircleRotAA(x, y, eyeRx[i], baseRy, deg, color, glowInner);
     // A black band over the top of the eye: the eyelid. Black on black is free,
     // so the eye is simply clipped. It reaches past the rotated eye and its
     // glow, because a 16 deg angry tilt makes the eye taller than pose.ry and
@@ -489,18 +524,28 @@ static void drawFace(BuddyState state, const BuddyPose &pose, uint32_t nowMs,
     if (topBand.h > 0) {
       gfxFillRect(x - bandHalfX, topBand.y0, bandHalfX * 2, topBand.h,
                   GFX_BLACK);
+      float line = buddyLidLineTop(y, eyeExtentY[i], top);
+      ditherLidRow(x, y, eyeRx[i], baseRy, deg, bandHalfX,
+                   topBand.y0 + topBand.h - 1, color, line - floorf(line));
     }
     BuddyLidBand bottomBand =
         buddyLidBandBottom(y, eyeExtentY[i], BUDDY_GLOW_PAD, pose.bottom);
     if (bottomBand.h > 0) {
       gfxFillRect(x - bandHalfX, bottomBand.y0, bandHalfX * 2, bottomBand.h,
                   GFX_BLACK);
+      float line = buddyLidLineBottom(y, eyeExtentY[i], pose.bottom);
+      ditherLidRow(x, y, eyeRx[i], baseRy, deg, bandHalfX, bottomBand.y0, color,
+                   1.0f - (line - floorf(line)));
     }
     if (state == BUDDY_ERROR) {
       // Two crossed black strokes inside the eye: the classic x x.
       thickLine(x - 20, y - 22, x + 20, y + 22, GFX_BLACK);
       thickLine(x - 20, y + 22, x + 20, y - 22, GFX_BLACK);
     }
+    // The brow sits above the lid band, on black, so it is drawn last: anger
+    // drops the inner corners, worry lifts them.
+    drawBrow(x, y - eyeExtentY[i] - 7, eyeRx[i], brow, i == 0,
+             gfxHex(buddyEyeScale(eyeRgb, 85)));
   }
 }
 
@@ -581,6 +626,13 @@ bool buddyTick(uint32_t nowMs) {
   pose.rotL += ip.rotL;
   pose.rotR += ip.rotR;
   if (ip.hot > pose.hot) pose.hot = ip.hot;
+  // The expression anatomy the IMU adds: anger grows the eye, angles the brows
+  // down and shakes; dizziness lifts the brows into a worried arch.
+  if (ip.grow > 1.0f) pose.grow = ip.grow;
+  pose.browL += ip.browL;
+  pose.browR += ip.browR;
+  if (ip.bottom > pose.bottom) pose.bottom = ip.bottom;
+  if (ip.tremble > pose.tremble) pose.tremble = ip.tremble;
   if (ip.wide) {
     pose.surprise = true;
     pose.rx = 50;
@@ -604,6 +656,14 @@ bool buddyTick(uint32_t nowMs) {
   if (poseDt > 200) poseDt = 200;
   s_filterAt = nowMs;
   BuddyPose eased = buddyPoseFilterStep(&s_filter, pose, poseDt);
+
+  // The tremble is noise, not intent: it is applied after the ease, because a
+  // 100 ms filter would flatten a 25 Hz shake into a slow sway.
+  if (eased.tremble > 0.01f) {
+    eased.gazeX += buddyTremble(nowMs, s_seed, 11u, 1.6f);
+    eased.gazeY += buddyTremble(nowMs, s_seed, 23u, 1.0f);
+    eased.rot += buddyTremble(nowMs, s_seed, 37u, 2.2f);
+  }
 
   drawFace(shown, eased, nowMs, poke);
   hudTrack(view.phase, nowMs);

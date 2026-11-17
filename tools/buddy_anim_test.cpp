@@ -148,6 +148,8 @@ int main() {
         p.surprise && p.ry > 56 && p.rx <= 50);
   p = buddyPose(BUDDY_ERROR, 1000, 1000, seed);
   check("error crosses the eyes", p.eyeGazeL > 0 && p.eyeGazeR < 0);
+  check("error raises one brow and drops the other: sceptical",
+        p.browL < -0.2f && p.browR > 0.2f);
   p = buddyPose(BUDDY_DONE, 100, 100, seed);
   check("done is happy for the first second", p.happy);
   p = buddyPose(BUDDY_DONE, 2000, 2000, seed);
