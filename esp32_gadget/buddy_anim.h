@@ -35,6 +35,12 @@ struct BuddyPose {
   float rotR = 0;      // extra rotation for the right eye
   float hot = 0;       // 0 = owner colour .. 1 = hot red (anger, dizziness)
   float bob = 0;       // vertical offset in px: breathing and bouncing
+  // Expression channels added by the life pass. All default to the previous
+  // look, so every existing expression is unchanged at zero.
+  float browL = 0;     // -1 inner corner up (worry) .. +1 inner corner down (anger)
+  float browR = 0;
+  float grow = 1.0f;   // eye scale: anger makes the eye bigger
+  float tremble = 0;   // 0..1 shake the renderer adds after the easing
   bool blink = false;
   bool happy = false;
   bool closed = false;
@@ -64,6 +70,184 @@ static inline BuddyState buddyShownState(BuddyState shown, BuddyState raw,
   if (raw == shown) return shown;
   if (rawAgeMs < BUDDY_MIN_STATE_MS) return shown;
   return raw;
+}
+
+// --- idle life ---------------------------------------------------------------
+//
+// The idle face is not a still picture: it holds a fixation, jumps 1-3 px to a
+// new one, breathes, blinks on a rhythm that is not a timer, and every so often
+// looks to a side. Everything is a deterministic hash of the clock, so the face
+// is reproducible frame to frame and a test can pin the rhythm without a board.
+
+// A saccade lands on a 3.6 s slot whose offset is hashed, so consecutive jumps
+// are 2.0-5.0 s apart instead of a metronome beat.
+#define BUDDY_SACCADE_TICK_MS 200
+#define BUDDY_SACCADE_EPOCH_TICKS 18  // 3.6 s
+#define BUDDY_SACCADE_SPREAD_TICKS 8  // the jump lands in the first 1.4 s
+#define BUDDY_SACCADE_JUMP_MS 60      // how long the eye takes to arrive
+#define BUDDY_SACCADE_MAX_PX 3.0f
+
+struct BuddySaccade {
+  float fromX = 0, fromY = 0;  // the previous fixation
+  float toX = 0, toY = 0;      // where this jump landed
+  float x = 0, y = 0;          // what to draw right now
+  uint32_t startMs = 0;        // when this jump began
+};
+
+static inline uint32_t buddySaccadeTick(uint32_t epoch, uint32_t seed) {
+  return epoch * BUDDY_SACCADE_EPOCH_TICKS +
+         (buddyHash32(seed ^ (epoch * 0x9E3779B9u)) %
+          BUDDY_SACCADE_SPREAD_TICKS);
+}
+
+// Landing point: 1-3 px horizontally, up to 2 px vertically, both signs.
+static inline void buddySaccadeTarget(uint32_t epoch, uint32_t seed, float *x,
+                                      float *y) {
+  uint32_t h = buddyHash32(seed ^ (epoch * 0x85EBCA6Bu));
+  float mx = 1.0f + (float)(h % 3u);
+  float my = (float)((h >> 4) % 3u);
+  *x = ((h >> 8) & 1u) ? mx : -mx;
+  *y = ((h >> 9) & 1u) ? my : -my;
+}
+
+// The fixation in progress. The first 60 ms are the jump itself, eased so a
+// 1 px saccade does not alias into a pop; after that the eye just holds.
+static inline BuddySaccade buddySaccadeAt(uint32_t nowMs, uint32_t seed) {
+  BuddySaccade s;
+  uint32_t tick = nowMs / BUDDY_SACCADE_TICK_MS;
+  uint32_t epoch = tick / BUDDY_SACCADE_EPOCH_TICKS;
+  bool haveCur = false, havePrev = false;
+  uint32_t curEpoch = 0, prevEpoch = 0;
+  for (uint32_t i = 0; i < 6; i++) {
+    if (epoch < i) break;
+    uint32_t e = epoch - i;
+    uint32_t fired = buddySaccadeTick(e, seed);
+    if (fired > tick) continue;
+    if (!haveCur) {
+      haveCur = true;
+      curEpoch = e;
+    } else {
+      havePrev = true;
+      prevEpoch = e;
+      break;
+    }
+  }
+  if (!haveCur) return s;
+  buddySaccadeTarget(curEpoch, seed, &s.toX, &s.toY);
+  if (havePrev) buddySaccadeTarget(prevEpoch, seed, &s.fromX, &s.fromY);
+  s.startMs = buddySaccadeTick(curEpoch, seed) * BUDDY_SACCADE_TICK_MS;
+  float t = (float)(nowMs - s.startMs) / (float)BUDDY_SACCADE_JUMP_MS;
+  if (t < 0.0f) t = 0.0f;
+  if (t > 1.0f) t = 1.0f;
+  float e = t * t * (3.0f - 2.0f * t);
+  s.x = s.fromX + (s.toX - s.fromX) * e;
+  s.y = s.fromY + (s.toY - s.fromY) * e;
+  return s;
+}
+
+// A side glance: one per 12 s slot, 1.4-1.8 s long, 10-18 px out and back. The
+// reach is what lets the renderer turn the pair instead of sliding it.
+#define BUDDY_GLANCE_TICK_MS 250
+#define BUDDY_GLANCE_EPOCH_TICKS 48  // one look per 12 s
+#define BUDDY_GLANCE_SPREAD_TICKS 40
+#define BUDDY_GLANCE_MS 1400
+#define BUDDY_GLANCE_RISE_MS 140
+
+struct BuddyGlance {
+  float x = 0;
+  bool active = false;
+  uint32_t startMs = 0;
+};
+
+static inline uint32_t buddyGlanceTick(uint32_t epoch, uint32_t seed) {
+  return epoch * BUDDY_GLANCE_EPOCH_TICKS +
+         (buddyHash32(seed ^ (epoch * 0x27D4EB2Fu)) % BUDDY_GLANCE_SPREAD_TICKS);
+}
+
+static inline BuddyGlance buddyGlanceAt(uint32_t nowMs, uint32_t seed) {
+  BuddyGlance g;
+  uint32_t tick = nowMs / BUDDY_GLANCE_TICK_MS;
+  uint32_t epoch = tick / BUDDY_GLANCE_EPOCH_TICKS;
+  for (uint32_t i = 0; i < 3; i++) {
+    if (epoch < i) break;
+    uint32_t e = epoch - i;
+    uint32_t fired = buddyGlanceTick(e, seed);
+    if (fired > tick) continue;
+    g.startMs = fired * BUDDY_GLANCE_TICK_MS;
+    uint32_t h = buddyHash32(seed ^ (e * 0xC2B2AE35u));
+    uint32_t hold = BUDDY_GLANCE_MS + (h % 400u);
+    uint32_t in = nowMs - g.startMs;
+    if (in >= hold) return g;
+    float reach = 10.0f + (float)((h >> 4) % 9u);
+    float dir = ((h >> 8) & 1u) ? 1.0f : -1.0f;
+    float env = 1.0f;
+    if (in < BUDDY_GLANCE_RISE_MS) {
+      env = (float)in / (float)BUDDY_GLANCE_RISE_MS;
+    } else if (hold - in < BUDDY_GLANCE_RISE_MS) {
+      env = (float)(hold - in) / (float)BUDDY_GLANCE_RISE_MS;
+    }
+    if (env < 0.0f) env = 0.0f;
+    g.x = reach * dir * env;
+    g.active = true;
+    return g;
+  }
+  return g;
+}
+
+// Blinking: a 4 s slot with a hashed offset, so consecutive blinks are 2.1-5.9 s
+// apart; three blinks in ten also fire a companion 300 ms later (the burst),
+// and one in five stays shut longer. A fixed timer is what gives an animation
+// away; this is deliberately uneven.
+#define BUDDY_BLINK_TICK_MS 100
+#define BUDDY_BLINK_EPOCH_TICKS 40  // 4 s
+#define BUDDY_BLINK_SPREAD_TICKS 20
+#define BUDDY_BLINK_MS 130
+#define BUDDY_BLINK_LONG_MS 260
+#define BUDDY_BLINK_BURST_TICKS 3  // 300 ms after the first blink
+#define BUDDY_BLINK_BURST_PERCENT 30u
+#define BUDDY_BLINK_LONG_PERCENT 20u
+
+static inline uint32_t buddyBlinkTick(uint32_t epoch, uint32_t seed) {
+  return epoch * BUDDY_BLINK_EPOCH_TICKS +
+         (buddyHash32(seed ^ (epoch * 0x9E3779B9u)) % BUDDY_BLINK_SPREAD_TICKS);
+}
+
+static inline bool buddyBlinkAt(uint32_t nowMs, uint32_t seed) {
+  uint32_t tick = nowMs / BUDDY_BLINK_TICK_MS;
+  uint32_t epoch = tick / BUDDY_BLINK_EPOCH_TICKS;
+  uint32_t last = 0;
+  bool have = false;
+  for (uint32_t i = 0; i < 2; i++) {
+    if (epoch < i) break;
+    uint32_t e = epoch - i;
+    uint32_t h = buddyHash32(seed ^ (e * 0x9E3779B9u));
+    uint32_t base = buddyBlinkTick(e, seed);
+    bool burst = ((h >> 8) % 100u) < BUDDY_BLINK_BURST_PERCENT;
+    if (base <= tick && (!have || base > last)) {
+      last = base;
+      have = true;
+    }
+    uint32_t second = base + BUDDY_BLINK_BURST_TICKS;
+    if (burst && second <= tick && (!have || second > last)) {
+      last = second;
+      have = true;
+    }
+  }
+  if (!have) return false;
+  uint32_t epochOfLast = last / BUDDY_BLINK_EPOCH_TICKS;
+  uint32_t h = buddyHash32(seed ^ (epochOfLast * 0x51ED270Bu));
+  uint32_t dur = ((h >> 4) % 100u) < BUDDY_BLINK_LONG_PERCENT
+                     ? BUDDY_BLINK_LONG_MS
+                     : BUDDY_BLINK_MS;
+  return (nowMs - last * BUDDY_BLINK_TICK_MS) < dur;
+}
+
+// The breath: one slow sine, -1..1, 4.5 s per cycle. The eye line rides it, so
+// the face keeps rising and falling even when nothing else happens.
+#define BUDDY_BREATH_MS 4500.0f
+
+static inline float buddyBreath(uint32_t nowMs) {
+  return sinf((float)nowMs * (6.2831853f / BUDDY_BREATH_MS));
 }
 
 // One gesture slot: the doc wants a new one every 3-6 s while the state does
@@ -245,29 +429,26 @@ static inline BuddyPose buddyPose(BuddyState state, uint32_t ageMs,
   }
 
   if (state == BUDDY_IDLE) {
-    // Microsaccades: a small jump of the whole eye every ~3 s plus a slow
-    // sway and a breath. This is the detail that makes solid eyes feel alive.
-    uint32_t block = nowMs / 3000;
-    p.gazeX += buddyUnit(seed, block) * 12.0f - 6.0f;
-    p.gazeY += buddyUnit(seed, block + 99) * 8.0f - 4.0f;
-    p.gazeX += sinf((float)nowMs * 0.0011f) * 3.0f;
-    p.bob = sinf((float)nowMs * 0.0016f) * 1.4f;
+    // Idle life: a 1-3 px microsaccade every 2-5 s, the odd side glance, and a
+    // breath that lifts the whole eye line about one pixel.
+    BuddySaccade sc = buddySaccadeAt(nowMs, seed);
+    BuddyGlance gl = buddyGlanceAt(nowMs, seed);
+    float breath = buddyBreath(nowMs);
+    p.gazeX += sc.x + gl.x;
+    p.gazeY += sc.y + breath * 0.35f;
+    p.bob = breath * 1.0f;
   }
 
   if (state == BUDDY_BORED) {
     // The breath never stops, not even asleep: it is the only motion left.
-    p.bob = p.closed ? sinf((float)nowMs * 0.0015f) * 2.0f
-                     : sinf((float)nowMs * 0.0013f) * 1.2f;
+    float breath = buddyBreath(nowMs);
+    p.bob = p.closed ? breath * 2.0f : breath * 1.2f;
   }
 
   if (genericBlink && !p.blink && !p.happy && !p.closed && !p.dim) {
-    // Blink every 2.6-6 s, with an occasional double blink.
-    uint32_t period = 2600 + (buddyHash32(seed) % 3400);
-    uint32_t phase = buddyHash32(seed ^ 0x9e3779b9u) % period;
-    uint32_t t = (nowMs + phase) % period;
-    uint32_t slot = (nowMs + phase) / period;
-    bool burst = (buddyHash32(seed ^ slot) % 4u) == 0;
-    p.blink = (t < 130) || (burst && t > 260 && t < 380);
+    // Not a timer: the blinks come unevenly, sometimes two in a row, sometimes
+    // one that stays shut longer. See buddyBlinkAt.
+    p.blink = buddyBlinkAt(nowMs, seed);
   }
   return p;
 }

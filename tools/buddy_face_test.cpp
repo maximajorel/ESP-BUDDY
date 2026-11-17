@@ -156,6 +156,101 @@ int main() {
   check("a reset re-adopts instead of easing from stale values",
         out.gazeX == 5.0f);
 
+  printf("-- idle perspective and tremble\n");
+  {
+    // S7: looking sideways is a small turn of the pair, not a slide.
+    BuddyPerspective centre = buddyPerspective(0.0f);
+    check("straight ahead is no perspective", centre.pushL == 0.0f &&
+                                                   centre.pushR == 0.0f &&
+                                                   centre.widenL == 1.0f &&
+                                                   centre.widenR == 1.0f);
+    BuddyPerspective right = buddyPerspective(18.0f);
+    check("looking right leads with the right eye",
+          right.pushR > right.pushL && right.pushR > 0.0f);
+    check("the leading eye foreshortens", right.widenR < 1.0f);
+    check("the trailing eye widens", right.widenL > 1.0f);
+    BuddyPerspective left = buddyPerspective(-18.0f);
+    check("looking left mirrors it", left.pushL < 0.0f &&
+                                        left.pushL < left.pushR &&
+                                        left.widenL < 1.0f && left.widenR > 1.0f);
+    BuddyPerspective tooFar = buddyPerspective(200.0f);
+    check("a wild gaze clamps to the same perspective",
+          fabsf(tooFar.pushR - right.pushR) < 0.001f);
+
+    // S5: the tremble is jitter applied after the ease, so the filter cannot
+    // eat it.
+    check("no tremble is no movement", buddyTremble(1234, 7, 1, 0.0f) == 0.0f);
+    float lo = 0.0f, hi = 0.0f;
+    bool changed = false;
+    bool bounded = true;
+    float prevTremble = buddyTremble(0, 7, 1, 2.0f);
+    for (uint32_t t = 0; t < 1000; t += 40) {
+      float v = buddyTremble(t, 7, 1, 2.0f);
+      if (v < lo) lo = v;
+      if (v > hi) hi = v;
+      if (fabsf(v - prevTremble) > 0.001f) changed = true;
+      if (fabsf(v) > 2.001f) bounded = false;
+      prevTremble = v;
+    }
+    check("the tremble stays inside its amplitude", bounded);
+    check("the tremble keeps shaking", changed && lo < -0.5f && hi > 0.5f);
+  }
+
+  printf("-- soft edges: coverage and ordered dither\n");
+  {
+    // S6: the panel has no alpha, so an edge pixel is either the eye colour or
+    // the colour behind it, decided by a coverage value and a Bayer threshold.
+    BuddySquircle sq = buddySquircle(48.0f, 48.0f);
+    checkNear("the centre is fully covered",
+              buddySquircleCoverage(0.0f, 0.0f, sq), 1.0f, 0.001f);
+    checkNear("far outside is not covered",
+              buddySquircleCoverage(80.0f, 0.0f, sq), 0.0f, 0.001f);
+    float inside = buddySquircleCoverage(46.0f, 0.0f, sq);
+    float edge = buddySquircleCoverage(48.2f, 0.0f, sq);
+    check("a pixel on the edge is partly covered",
+          inside >= edge && edge > 0.05f && edge < 0.6f);
+    check("coverage falls off as you leave the shape",
+          buddySquircleCoverage(47.0f, 0.0f, sq) >
+              buddySquircleCoverage(48.5f, 0.0f, sq));
+    check("the corner is covered less than the middle of the edge",
+          buddySquircleCoverage(47.0f, 47.0f, sq) <
+              buddySquircleCoverage(0.0f, 47.0f, sq));
+
+    float b0 = buddyBayer4(0, 0);
+    check("the dither is deterministic", b0 == buddyBayer4(4, 4));
+    check("the dither stays in one step of 1/16", b0 >= 0.0f && b0 < 1.0f);
+    check("the dither pattern has all sixteen levels",
+          buddyBayer4(0, 0) != buddyBayer4(1, 0) &&
+              buddyBayer4(1, 0) != buddyBayer4(2, 0) &&
+              buddyBayer4(0, 1) != buddyBayer4(0, 0));
+    int lit = 0;
+    for (int y = 0; y < 4; y++) {
+      for (int x = 0; x < 4; x++) {
+        if (buddyDitherLit(0.5f, x, y)) lit++;
+      }
+    }
+    check("half coverage lights about half a 4x4 tile", lit >= 6 && lit <= 10);
+    check("full coverage is always lit", buddyDitherLit(1.0f, 1, 2));
+    check("no coverage is never lit", !buddyDitherLit(0.0f, 1, 2));
+  }
+
+  printf("-- new pose channels default to the previous look\n");
+  {
+    BuddyPose base;
+    check("no brows", base.browL == 0.0f && base.browR == 0.0f);
+    check("no growth", base.grow == 1.0f);
+    check("no tremble", base.tremble == 0.0f);
+    BuddyPoseFilter f;
+    buddyPoseFilterReset(&f);
+    BuddyPose target;
+    target.browL = 1.0f;
+    target.grow = 1.12f;
+    target.tremble = 1.0f;
+    BuddyPose out = buddyPoseFilterStep(&f, target, 50);
+    check("the filter carries the new channels",
+          out.browL == 1.0f && out.grow == 1.12f && out.tremble == 1.0f);
+  }
+
   if (g_failures) {
     printf("\n%d FAILED\n", g_failures);
     return 1;

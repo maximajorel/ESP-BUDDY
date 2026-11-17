@@ -22,6 +22,12 @@ static void check(const char *what, bool ok) {
   }
 }
 
+static void checkNear(const char *what, float got, float want, float eps) {
+  bool ok = fabsf(got - want) <= eps;
+  if (!ok) printf("  got %.4f want %.4f\n", got, want);
+  check(what, ok);
+}
+
 int main() {
   const uint32_t seed = 1234;
 
@@ -160,6 +166,140 @@ int main() {
   }
   check("the idle face blinks", blinks > 0);
   check("but not constantly", blinks * 100 < frames * 30);
+
+  printf("-- microsaccades\n");
+  {
+    // S1: 1-3 px jumps, one every 2-5 s while idle.
+    float maxMag = 0.0f;
+    uint32_t lastStart = 0;
+    uint32_t minGap = 0xFFFFFFFFu;
+    uint32_t maxGap = 0;
+    int jumps = 0;
+    bool moved = false;
+    float prevToX = 0.0f;
+    float prevToY = 0.0f;
+    bool out_of_range = false;
+    for (uint32_t t = 0; t < 120000; t += 50) {
+      BuddySaccade s = buddySaccadeAt(t, seed);
+      if (fabsf(s.x) > 3.001f || fabsf(s.y) > 3.001f) out_of_range = true;
+      float m = fabsf(s.toX) > fabsf(s.toY) ? fabsf(s.toX) : fabsf(s.toY);
+      if (m > maxMag) maxMag = m;
+      if (s.startMs != lastStart) {
+        if (lastStart) {
+          uint32_t gap = s.startMs - lastStart;
+          if (gap < minGap) minGap = gap;
+          if (gap > maxGap) maxGap = gap;
+        }
+        lastStart = s.startMs;
+        jumps++;
+        if (fabsf(s.toX - prevToX) > 0.5f || fabsf(s.toY - prevToY) > 0.5f) {
+          moved = true;
+        }
+        prevToX = s.toX;
+        prevToY = s.toY;
+      }
+    }
+    check("a microsaccade is 1-3 px, never more", maxMag >= 1.0f && maxMag <= 3.001f);
+    check("the drawn gaze stays inside 3 px", !out_of_range);
+    check("the eye looks somewhere every 2-5 s", minGap >= 2000 && maxGap <= 5000);
+    check("there is a new look every few seconds", jumps >= 20);
+    check("the fixation lands on a new point", moved);
+    uint32_t fire = 0;
+    for (uint32_t t = 200; t < 20000; t += 200) {
+      if (buddySaccadeAt(t, seed).startMs == t - 1) {
+        fire = t - 1;
+        break;
+      }
+    }
+    BuddySaccade at0 = buddySaccadeAt(fire, seed);
+    BuddySaccade atEnd = buddySaccadeAt(fire + BUDDY_SACCADE_JUMP_MS, seed);
+    check("the saccade starts from the previous fixation",
+          fabsf(at0.x - at0.fromX) < 0.01f && fabsf(at0.y - at0.fromY) < 0.01f);
+    check("and lands inside one jump window", fabsf(atEnd.x - atEnd.toX) < 0.01f &&
+                                                 fabsf(atEnd.y - atEnd.toY) < 0.01f);
+    check("a saccade is quick, under 100 ms", BUDDY_SACCADE_JUMP_MS <= 100);
+  }
+
+  printf("-- side glances\n");
+  {
+    // S7: every so often the idle eye looks to a side and comes back.
+    int glances = 0;
+    uint32_t lastStart = 0xFFFFFFFFu;
+    float maxAbs = 0.0f;
+    bool back_to_centre = false;
+    for (uint32_t t = 0; t < 120000; t += 50) {
+      BuddyGlance g = buddyGlanceAt(t, seed);
+      if (g.startMs != lastStart) {
+        lastStart = g.startMs;
+        glances++;
+      }
+      if (fabsf(g.x) > maxAbs) maxAbs = fabsf(g.x);
+      if (!g.active) back_to_centre = true;
+    }
+    check("the idle face looks to a side now and then", glances >= 6);
+    check("the glance is a wide look, not a saccade", maxAbs >= 8.0f);
+    check("and it stays on the glass", maxAbs <= 20.0f);
+    check("the face comes back to centre", back_to_centre);
+    BuddyGlance down = buddyGlanceAt(0, seed);
+    BuddyGlance after = buddyGlanceAt(BUDDY_GLANCE_MS + 4000, seed);
+    check("the glance expires", !down.active || !after.active);
+  }
+
+  printf("-- blink bursts\n");
+  {
+    // S2: random 2-6 s, with bursts and the occasional long blink.
+    bool blink = false;
+    bool prev = false;
+    int blinks = 0;
+    int longBlink = 0;
+    uint32_t opened = 0;
+    uint32_t minGap = 0xFFFFFFFFu;
+    uint32_t maxGap = 0;
+    uint32_t last = 0;
+    for (uint32_t t = 0; t < 120000; t += 10) {
+      blink = buddyBlinkAt(t, seed);
+      if (blink && !prev) {
+        blinks++;
+        if (last) {
+          uint32_t gap = t - last;
+          if (gap < minGap) minGap = gap;
+          if (gap > maxGap) maxGap = gap;
+        }
+        last = t;
+        opened = t;
+      }
+      if (!blink && prev && (t - opened) > 200) longBlink++;
+      prev = blink;
+    }
+    check("the idle face blinks", blinks >= 10);
+    check("but leaves the eyes open most of the time", blinks < 45);
+    check("some gaps are short: a burst", minGap < 1500u);
+    check("some gaps are long, so it is not a timer", maxGap > 4500u);
+    check("every gap is inside 300 ms - 12 s", minGap >= 250u && maxGap <= 12000u);
+    check("a burst comes right after a blink", minGap < 600u);
+    check("the regular rhythm stays inside 2-6 s",
+          maxGap <= 6200u && minGap < 1500u);
+    check("there is at least one long blink", longBlink > 0);
+  }
+
+  printf("-- idle breathing\n");
+  {
+    // S3: a 4-5 s cycle moving the eye line about one pixel.
+    checkNear("the breath has a 4.5 s cycle", buddyBreath(1000),
+              buddyBreath(1000 + 4500), 0.01f);
+    check("it moves", fabsf(buddyBreath(0) - buddyBreath(1125)) > 0.5f);
+    float peak = 0.0f;
+    float idlePeak = 0.0f;
+    for (uint32_t t = 0; t < 4500; t += 20) {
+      float b = buddyBreath(t);
+      if (fabsf(b) > peak) peak = fabsf(b);
+      float bob = buddyPose(BUDDY_IDLE, 1000, t, seed).bob;
+      if (fabsf(bob) > idlePeak) idlePeak = fabsf(bob);
+    }
+    check("the breath is a full sine", peak > 0.98f);
+    check("the idle eye line rises and falls about one pixel",
+          idlePeak > 0.9f && idlePeak < 1.2f);
+  }
 
   printf("\n%s (%d failures)\n", g_failures == 0 ? "PASSED" : "FAILED",
          g_failures);

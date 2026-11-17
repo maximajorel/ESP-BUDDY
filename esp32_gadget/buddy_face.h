@@ -98,6 +98,92 @@ static inline bool buddySquircleInside(float dx, float dy,
   return qx * qx + qy * qy <= s.radius * s.radius;
 }
 
+// Signed distance to the rounded-square edge in px: negative inside, zero on
+// the edge, positive outside. This is what turns a hard one-pixel edge into a
+// coverage value the renderer can dither.
+static inline float buddySquircleSdf(float dx, float dy,
+                                     const BuddySquircle &s) {
+  float qx = fabsf(dx) - (s.halfW - s.radius);
+  float qy = fabsf(dy) - (s.halfH - s.radius);
+  float ox = qx > 0.0f ? qx : 0.0f;
+  float oy = qy > 0.0f ? qy : 0.0f;
+  float inside = qx > qy ? qx : qy;
+  if (inside > 0.0f) inside = 0.0f;
+  return sqrtf(ox * ox + oy * oy) + inside - s.radius;
+}
+
+// How much of one pixel the shape covers: 1 well inside, 0 outside, fractional
+// within half a pixel of the edge.
+static inline float buddySquircleCoverage(float dx, float dy,
+                                         const BuddySquircle &s) {
+  float c = 0.5f - buddySquircleSdf(dx, dy, s);
+  if (c < 0.0f) return 0.0f;
+  if (c > 1.0f) return 1.0f;
+  return c;
+}
+
+// Ordered 4x4 Bayer threshold in [0, 1). The panel has no alpha, so a partial
+// coverage becomes a mixture of the two colours a screen pixel can hold; the
+// fixed pattern keeps that mixture stable instead of noisy frame to frame.
+static inline float buddyBayer4(int x, int y) {
+  static const uint8_t kBayer[16] = {0, 8, 2, 10, 12, 4, 14, 6,
+                                     3, 11, 1, 9, 15, 7, 13, 5};
+  return (float)kBayer[(y & 3) * 4 + (x & 3)] / 16.0f;
+}
+
+// True when this pixel shows the foreground colour at `coverage`.
+static inline bool buddyDitherLit(float coverage, int x, int y) {
+  return coverage > buddyBayer4(x, y);
+}
+
+// --- perspective --------------------------------------------------------------
+//
+// Looking sideways is a small turn of the head, not a slide of a decal: the eye
+// the gaze leads with travels a little further and foreshortens (it turns away
+// from the viewer), the trailing eye widens. Two pixels and a 6% squeeze; the
+// brain reads it as depth and the eye never looks pasted on.
+struct BuddyPerspective {
+  float pushL = 0;
+  float pushR = 0;
+  float widenL = 1.0f;
+  float widenR = 1.0f;
+};
+
+#define BUDDY_PERSPECTIVE_PX 2.0f
+#define BUDDY_PERSPECTIVE_GAZE 18.0f  // gaze px that counts as a full look
+
+static inline BuddyPerspective buddyPerspective(float gazeX) {
+  BuddyPerspective p;
+  float t = gazeX / BUDDY_PERSPECTIVE_GAZE;
+  if (t > 1.0f) t = 1.0f;
+  if (t < -1.0f) t = -1.0f;
+  float mag = t < 0.0f ? -t : t;
+  if (t > 0.0f) {
+    p.pushR = BUDDY_PERSPECTIVE_PX * t;
+    p.pushL = 0.4f * BUDDY_PERSPECTIVE_PX * t;
+    p.widenR = 1.0f - 0.06f * mag;
+    p.widenL = 1.0f + 0.03f * mag;
+  } else if (t < 0.0f) {
+    p.pushL = BUDDY_PERSPECTIVE_PX * t;
+    p.pushR = 0.4f * BUDDY_PERSPECTIVE_PX * t;
+    p.widenL = 1.0f - 0.06f * mag;
+    p.widenR = 1.0f + 0.03f * mag;
+  }
+  return p;
+}
+
+// --- tremble ------------------------------------------------------------------
+//
+// Anger shakes. The pose filter is there to smooth intent, so it would eat a
+// tremor; this is noise applied after the ease instead. 25 Hz keeps it reading
+// as shaking rather than as jitter between two frames.
+static inline float buddyTremble(uint32_t nowMs, uint32_t seed, uint32_t salt,
+                                 float amp) {
+  if (!(amp > 0.0f)) return 0.0f;
+  uint32_t frame = nowMs / 40u;
+  return (buddyUnit(seed, frame * 31u + salt) * 2.0f - 1.0f) * amp;
+}
+
 // Minimum gap in px between the drawn eye extents. Without it a wide or tilted
 // pair touches in the middle and reads as one blob.
 #define BUDDY_EYE_GAP_MIN 10
@@ -187,6 +273,7 @@ struct BuddyPoseFilter {
   float rx, ry;
   float lid, lidL, lidR, bottom;
   float rot, rotL, rotR, hot, bob;
+  float browL, browR, grow, tremble;
 };
 
 static inline void buddyPoseFilterReset(BuddyPoseFilter *f) {
@@ -215,6 +302,10 @@ static inline BuddyPose buddyPoseFilterStep(BuddyPoseFilter *f,
     f->rotR = target.rotR;
     f->hot = target.hot;
     f->bob = target.bob;
+    f->browL = target.browL;
+    f->browR = target.browR;
+    f->grow = target.grow;
+    f->tremble = target.tremble;
     return target;
   }
 
@@ -235,6 +326,10 @@ static inline BuddyPose buddyPoseFilterStep(BuddyPoseFilter *f,
   f->rotR = buddyEase(f->rotR, target.rotR, dtMs, tau);
   f->hot = buddyEase(f->hot, target.hot, dtMs, tau);
   f->bob = buddyEase(f->bob, target.bob, dtMs, tau);
+  f->browL = buddyEase(f->browL, target.browL, dtMs, tau);
+  f->browR = buddyEase(f->browR, target.browR, dtMs, tau);
+  f->grow = buddyEase(f->grow, target.grow, dtMs, tau);
+  f->tremble = buddyEase(f->tremble, target.tremble, dtMs, tau);
 
   p.gazeX = f->gazeX;
   p.gazeY = f->gazeY;
@@ -251,5 +346,9 @@ static inline BuddyPose buddyPoseFilterStep(BuddyPoseFilter *f,
   p.rotR = f->rotR;
   p.hot = f->hot;
   p.bob = f->bob;
+  p.browL = f->browL;
+  p.browR = f->browR;
+  p.grow = f->grow;
+  p.tremble = f->tremble;
   return p;
 }
