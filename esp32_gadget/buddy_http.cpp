@@ -4,6 +4,8 @@
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 
+#include "buddy_link.h"
+
 // A poll now crosses the internet, so the budget is the tunnel's, not the LAN's.
 // Keep-alive keeps the healthy case at one round trip; this number only bounds
 // the afternoon the tunnel is down.
@@ -96,12 +98,12 @@ static void absorb(HTTPClient &http, int code, bool tls, BuddyHttpResult *out) {
     if (tls) {
       char detail[sizeof(out->detail)];
       int err = s_tls.lastError(detail, sizeof(detail));
-      // mbedtls reports failures as negative codes and leaves a non-negative
-      // value behind after a successful handshake, so a plain "nonzero" test
-      // would blame the certificate for a host that simply did not answer.
+      // The raw reason always travels; only the X509 range is a rejected
+      // certificate. A connect that never got to a handshake reports -1, and that
+      // is "nobody answered", not a certificate problem.
       if (err < 0) {
-        out->tlsFailed = true;
         snprintf(out->detail, sizeof(out->detail), "%s", detail);
+        out->tlsFailed = buddyTlsErrorIsCertFailure(err);
       }
     }
     return;

@@ -51,6 +51,21 @@ static inline const char *buddyLinkWireName(BuddyLink link) {
   return "offline";
 }
 
+// True only when mbedtls rejected the certificate, i.e. inside the X509 module's
+// error band. Every failure in mbedtls is a negative code, including a TCP
+// connect that never reached a handshake (`-1`) and a read timeout: treating
+// those as a certificate problem would tell the owner to inspect a certificate
+// when the bridge was simply unreachable.
+//
+// The band is the module's own, -0x2080 (FEATURE_UNAVAILABLE) down to -0x3000
+// (FATAL_ERROR). The upper end is the one that matters in practice: the
+// certificate bundle's verify callback reports a rejected chain as
+// MBEDTLS_ERR_X509_FATAL_ERROR, not as CERT_VERIFY_FAILED, which a device run
+// against a self-signed host showed.
+static inline bool buddyTlsErrorIsCertFailure(int lastError) {
+  return lastError <= -0x2080 && lastError >= -0x3000;
+}
+
 static inline BuddyLink buddyLinkFromFacts(const BuddyLinkFacts &facts) {
   if (!facts.configured) return BUDDY_LINK_UNCONFIGURED;
   if (!facts.urlValid) return BUDDY_LINK_BAD_URL;

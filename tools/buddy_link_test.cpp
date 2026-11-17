@@ -90,6 +90,33 @@ int main() {
          BuddyLinkFacts{true, true, false, false, 0, false, false},
          BUDDY_LINK_OFFLINE);
 
+  printf("-- a cert failure is the X509 range, not \"any negative code\"\n");
+  // mbedtls uses negative codes for every failure, including a TCP connect that
+  // never reached a handshake (-1). Only the X509 range means the certificate was
+  // rejected; everything else is \"nobody answered\" (S5).
+  check("connection refused is not a cert failure", !buddyTlsErrorIsCertFailure(-1));
+  check("no handshake attempted", !buddyTlsErrorIsCertFailure(0));
+  check("read timeout is not a cert failure", !buddyTlsErrorIsCertFailure(-11));
+  check("handshake protocol error is not a cert failure",
+        !buddyTlsErrorIsCertFailure(-0x7280));
+  check("x509 verify failed is a cert failure",
+        buddyTlsErrorIsCertFailure(-0x2700));
+  check("x509 alloc failed is a cert failure",
+        buddyTlsErrorIsCertFailure(-0x2880));
+  // The one the bundle's verify callback actually returns, measured on the
+  // device against a self-signed host.
+  check("x509 fatal error is a cert failure",
+        buddyTlsErrorIsCertFailure(-0x3000));
+  check("x509 feature unavailable is a cert failure",
+        buddyTlsErrorIsCertFailure(-0x2080));
+  check("the pk module below x509 is not a cert failure",
+        !buddyTlsErrorIsCertFailure(-0x3F80));
+  check("a positive success value is not a cert failure",
+        !buddyTlsErrorIsCertFailure(1));
+  expect("https, no answer, no certificate error -> offline",
+         BuddyLinkFacts{true, true, true, true, 0, false, false},
+         BUDDY_LINK_OFFLINE);
+
   printf("-- names are stable\n");
   const char *names[] = {"ok",      "unconfigured", "bad-url", "no-time", "tls",
                          "blocked", "unauthorized", "http",    "offline"};
