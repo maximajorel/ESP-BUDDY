@@ -80,10 +80,30 @@ En `../tools/`:
 
 | Script | Para qué |
 |---|---|
+| `run_tests.py` | Compila y corre **todas** las pruebas de host y verifica el panel empaquetado. |
 | `gadget_probe.py` | Maneja la consola serie desde Windows y guarda todo en un log. |
 | `mock_gadget_api.py` | Mock de la API para probar el panel web en el navegador sin la placa. |
 | `gen_font.py` | Genera la fuente desde glifos en ASCII art. |
 | `pack_web.py` | Empaqueta el panel web dentro del firmware. |
+
+## Correr las pruebas
+
+```bash
+python tools/run_tests.py            # todas las pruebas de host + el panel
+python tools/run_tests.py --filter fold
+python tools/run_tests.py --verbose
+```
+
+Necesita un compilador C++17 (`g++` o `$CXX`). El test de Spotify además necesita
+los headers de ArduinoJson: el runner los busca donde los instala el IDE y, si no
+los encuentra, lo informa como *skipped* (nunca como aprobado). Un fallo de
+compilación también cuenta como fallo: un test que deja de compilar no puede
+seguir pareciendo verde.
+
+La lógica que se prueba vive en archivos puros (`*.h` sin Arduino) a propósito:
+`rotation_policy.h`, `game_difficulty.h`, `spotify_parse.cpp`, `buddy_face.h` y
+derivados. Si agregás una regla nueva, esa es la forma de fijarla sin la placa.
+
 
 El panel no tiene MISO, así que no se puede leer la pantalla por software. La
 verificación honesta es el comando `dump` del firmware, que escribe el

@@ -31,3 +31,6 @@ desktop.ini
 *~
 .idea/
 .vscode/
+
+# --- Local tooling ----------------------------------------------------------
+.codegraph/
