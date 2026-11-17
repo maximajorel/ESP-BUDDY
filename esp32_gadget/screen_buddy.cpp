@@ -83,12 +83,17 @@ static bool s_badge = false;
 static BuddyPoseFilter s_filter;
 static uint32_t s_filterAt = 0;
 // The idle ball: the owner's toggle (survives a bridge pause), the physics body
-// and the clock of its last step. `s_accel` keeps the last mirrored lateral
-// sample so the ball feels the same shake the IMU overlay does.
+// and the clock of its last step. `s_accelRaw` keeps the raw sample: the ball's
+// gravity goes through the steering calibration, which the wizard captured on
+// the raw axes. The two filtered channels below separate steady tilt (gravity)
+// from the shake on top of it.
 static BuddyBall s_ball;
 static bool s_ballOn = false;
 static uint32_t s_ballAt = 0;
-static float s_accel[3] = {0, 0, 0};
+static float s_accelRaw[3] = {0, 0, 0};
+static float s_ballTiltLat = 0.0f;
+static float s_ballTiltFwd = 0.0f;
+static bool s_ballPrimed = false;
 // The one-tap/boop vs two-tap/ball decision. A touch panel would know the
 // difference at once; one button does not, so two presses inside this window
 // are the ball. It is measured release to release (the press duration is part of
@@ -325,9 +330,11 @@ void buddySetBall(bool on) {
   if (on) {
     buddyBallSpawn(&s_ball, s_seed ^ millis());
     s_ballAt = 0;
+    s_ballPrimed = false;
   } else {
     buddyBallClear(&s_ball);
     s_ballAt = 0;
+    s_ballPrimed = false;
   }
   s_dirty = true;
 }
@@ -763,9 +770,9 @@ static BuddyImuPose readImu(uint32_t nowMs, bool calmReactions) {
   // The face reads the board, not the glass: when the image is the other one of
   // the pair she has to lean the other way to keep leaning downhill to the owner.
   rotMirrorInPlane(accel, gyro, rotationInPlaneSign());
-  // The ball feels the same mirrored sample the gaze uses.
-  s_accel[0] = accel[0];
-  s_accel[1] = accel[1];
+  // The ball keeps the raw axes: its gravity is mapped through the steering
+  // calibration, and the wizard captured its baselines on those same raw axes.
+  for (int i = 0; i < 3; i++) s_accelRaw[i] = accel[i];
   uint32_t dt = s_imuAt ? (nowMs - s_imuAt) : BUDDY_FRAME_MS;
   s_imuAt = nowMs;
   buddyImuFeed(&s_imu, accel, gyro, nowMs, dt);
@@ -773,6 +780,41 @@ static BuddyImuPose readImu(uint32_t nowMs, bool calmReactions) {
   // face, no anger, and no burst left over for the next real shake.
   if (calmReactions) buddyImuCalm(&s_imu);
   return buddyImuPose(&s_imu, nowMs);
+}
+
+// Turns the raw sample into the ball's world using the same steering
+// calibration the meteor game uses: screen x is the calibrated lateral reading
+// (positive = right) and screen y the calibrated fore/aft one (positive = down).
+// A slow filter of those channels is the steady tilt that acts as gravity; the
+// part above the filter is the shake that kicks the ball. Before the owner ever
+// calibrates, the raw axes are the fallback so the toy still works.
+static void ballInputs(float *gravityX, float *gravityY, float *shakeX,
+                       float *shakeY) {
+  SteerCalibration cal = settingsGetSteerCalibration();
+  float mirror = (float)rotationInPlaneSign();
+  float lat, fwd;
+  if (cal.valid && cal.latAxis < 3 && cal.upAxis < 3 &&
+      cal.latAxis != cal.upAxis) {
+    uint8_t fwdAxis = (uint8_t)(3 - cal.latAxis - cal.upAxis);
+    lat = (s_accelRaw[cal.latAxis] - cal.baseline) * (float)cal.sign * mirror;
+    fwd = (s_accelRaw[fwdAxis] - cal.baselineY) * (float)(-cal.signY) * mirror;
+  } else {
+    lat = -s_accelRaw[0];
+    fwd = s_accelRaw[1];
+  }
+  if (!s_ballPrimed) {
+    s_ballTiltLat = lat;
+    s_ballTiltFwd = fwd;
+    s_ballPrimed = true;
+  } else {
+    // ~0.5 s of lag: a tilt becomes gravity, a flick stays a shake.
+    s_ballTiltLat = 0.9f * s_ballTiltLat + 0.1f * lat;
+    s_ballTiltFwd = 0.9f * s_ballTiltFwd + 0.1f * fwd;
+  }
+  *gravityX = s_ballTiltLat;
+  *gravityY = s_ballTiltFwd;
+  *shakeX = lat - s_ballTiltLat;
+  *shakeY = fwd - s_ballTiltFwd;
 }
 
 bool buddyTick(uint32_t nowMs) {
@@ -943,8 +985,9 @@ bool buddyTick(uint32_t nowMs) {
     if (s_ballAt) {
       uint32_t dt = nowMs - s_ballAt;
       if (dt) {
-        buddyBallStep(&s_ball, s_accel[0] - s_imu.tiltX,
-                      s_accel[1] - s_imu.tiltY, dt);
+        float gx, gy, sx, sy;
+        ballInputs(&gx, &gy, &sx, &sy);
+        buddyBallStep(&s_ball, gx, gy, sx, sy, dt);
       }
     }
     s_ballAt = nowMs;
@@ -954,6 +997,7 @@ bool buddyTick(uint32_t nowMs) {
     pose.gazeY = bgy;
   } else {
     s_ballAt = 0;
+    s_ballPrimed = false;
   }
 
   // The sleeping letters need both halves: eyes shut (deep boredom) and the

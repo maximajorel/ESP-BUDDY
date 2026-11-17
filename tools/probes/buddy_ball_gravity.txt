@@ -1,0 +1,20 @@
+screen 5
+sleep 900
+ball off
+sleep 200
+ball on
+sleep 300
+imufake 0 0 1 0 0 0
+sleep 900
+buddydraw
+imufake 0.5 0 1 0 0 0
+sleep 900
+buddydraw
+imufake -0.5 0 1 0 0 0
+sleep 900
+buddydraw
+imufake 0 0 1 0 0 0
+sleep 800
+buddydraw
+ball off
+imureal

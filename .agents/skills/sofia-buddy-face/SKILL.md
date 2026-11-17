@@ -35,7 +35,10 @@ gyro reactions or the idle ball. Read this before choosing an expression shape.
 - **The idle ball belongs to idle.** It is drawn only when the shown state is
   idle/bored, the face is awake and the bridge phase is idle. While the ball is
   toggled on, the IMU shake channel is held calm (`buddyImuCalm`) so bouncing it
-  never reads as dizziness or anger. A double tap toggles it: `buddyShortPress`
+  never reads as dizziness or anger. Its gravity must go through the same
+  `SteerCalibration` the meteor game uses (`latAxis`, `sign`, the third axis,
+  `-signY`, mirror); never use the raw tilt for steady gravity, because the
+  dynamic path cancels it and the toy floats. A double tap toggles it: `buddyShortPress`
   boops on the first press and consumes the `TAP_DOUBLE` that `tapWindowPress`
   returns on the second. Never wait for `tapWindowPoll` before booping: the
   delay feels dead and a normal human double click then misses the window. The

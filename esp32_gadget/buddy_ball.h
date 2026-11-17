@@ -20,17 +20,23 @@
 #define BUDDY_BALL_SCREEN_W 320.0f
 #define BUDDY_BALL_SCREEN_H 172.0f
 #define BUDDY_BALL_RADIUS 13.0f
-// How much dynamic lateral acceleration (in g) becomes ball acceleration. 2 g
-// of shake is already a deliberate flick, so 260 px/s^2 per g reads as a firm
-// push without teleporting the ball.
-#define BUDDY_BALL_SHAKE_GAIN 260.0f
-#define BUDDY_BALL_MAX_SPEED 520.0f
+// How much a steady tilt (in g of screen-space gravity) accelerates the ball.
+// 1 g is the board held vertical; at 520 the ball crosses the glass in about a
+// second and clearly falls towards the low edge.
+#define BUDDY_BALL_GRAVITY_GAIN 520.0f
+// How much dynamic lateral acceleration (in g) becomes an extra kick. 2 g of
+// shake is a deliberate flick, so 520 px/s^2 per g reads as a firm push.
+#define BUDDY_BALL_SHAKE_GAIN 520.0f
+#define BUDDY_BALL_MAX_SPEED 800.0f
 // Each wall hit keeps this fraction of the incoming speed: this is a bouncy
 // ball, not a beanbag, so a lively hit stays lively through several walls.
 #define BUDDY_BALL_RESTITUTION 0.92f
-// Exponential speed decay, 1/s. Light ball: it coasts for a few seconds instead
-// of stopping almost at once.
-#define BUDDY_BALL_FRICTION 0.4f
+// Exponential speed decay, 1/s. Almost no drag: gravity, not friction, decides
+// where the ball ends up.
+#define BUDDY_BALL_FRICTION 0.25f
+// A ball pressed into a wall by gravity bounces every frame if every hit flips
+// the velocity. Below this speed the hit is absorbed and the ball rests.
+#define BUDDY_BALL_REST_SPEED 60.0f
 // A stalled frame must not integrate half a second of shake in one jump.
 #define BUDDY_BALL_MAX_DT_MS 100u
 
@@ -72,18 +78,22 @@ static inline void buddyBallSpawn(BuddyBall *b, uint32_t seed) {
   b->vy = ny * 45.0f;
 }
 
-// One physics step. `dynX`/`dynY` are the dynamic lateral accelerations in g
-// (already minus the tilt baseline); zero means the board is merely held.
-static inline void buddyBallStep(BuddyBall *b, float dynX, float dynY,
-                                 uint32_t dtMs) {
+// One physics step. `gravityX`/`gravityY` are the steady tilt in screen space
+// (g, positive = right/down, already passed through the steering calibration)
+// and `shakeX`/`shakeY` the dynamic part above that tilt. Zero gravity means the
+// board is level; zero shake means the owner is holding it still.
+static inline void buddyBallStep(BuddyBall *b, float gravityX, float gravityY,
+                                 float shakeX, float shakeY, uint32_t dtMs) {
   if (!b || !b->active || dtMs == 0) return;
   if (dtMs > BUDDY_BALL_MAX_DT_MS) dtMs = BUDDY_BALL_MAX_DT_MS;
   float dt = (float)dtMs / 1000.0f;
 
-  // Shake: the ball lags the hand, so screen x takes the mirrored IMU x and
-  // screen y takes the IMU y directly.
-  b->vx += -dynX * BUDDY_BALL_SHAKE_GAIN * dt;
-  b->vy += dynY * BUDDY_BALL_SHAKE_GAIN * dt;
+  // The world pulls the ball down the slope, and a shake adds a kick on top.
+  // Screen x mirrors the IMU x (the same convention the gaze uses).
+  b->vx += (gravityX * BUDDY_BALL_GRAVITY_GAIN +
+            shakeX * BUDDY_BALL_SHAKE_GAIN) * dt;
+  b->vy += (gravityY * BUDDY_BALL_GRAVITY_GAIN +
+            shakeY * BUDDY_BALL_SHAKE_GAIN) * dt;
 
   float damp = 1.0f / (1.0f + BUDDY_BALL_FRICTION * dt);
   b->vx *= damp;
@@ -104,17 +114,33 @@ static inline void buddyBallStep(BuddyBall *b, float dynX, float dynY,
   const float hiY = BUDDY_BALL_SCREEN_H - BUDDY_BALL_RADIUS;
   if (b->x < lo) {
     b->x = lo;
-    if (b->vx < 0.0f) b->vx = -b->vx * BUDDY_BALL_RESTITUTION;
+    if (b->vx < 0.0f) {
+      b->vx = -b->vx >= BUDDY_BALL_REST_SPEED
+                  ? -b->vx * BUDDY_BALL_RESTITUTION
+                  : 0.0f;
+    }
   } else if (b->x > hiX) {
     b->x = hiX;
-    if (b->vx > 0.0f) b->vx = -b->vx * BUDDY_BALL_RESTITUTION;
+    if (b->vx > 0.0f) {
+      b->vx = b->vx >= BUDDY_BALL_REST_SPEED
+                  ? -b->vx * BUDDY_BALL_RESTITUTION
+                  : 0.0f;
+    }
   }
   if (b->y < lo) {
     b->y = lo;
-    if (b->vy < 0.0f) b->vy = -b->vy * BUDDY_BALL_RESTITUTION;
+    if (b->vy < 0.0f) {
+      b->vy = -b->vy >= BUDDY_BALL_REST_SPEED
+                  ? -b->vy * BUDDY_BALL_RESTITUTION
+                  : 0.0f;
+    }
   } else if (b->y > hiY) {
     b->y = hiY;
-    if (b->vy > 0.0f) b->vy = -b->vy * BUDDY_BALL_RESTITUTION;
+    if (b->vy > 0.0f) {
+      b->vy = b->vy >= BUDDY_BALL_REST_SPEED
+                  ? -b->vy * BUDDY_BALL_RESTITUTION
+                  : 0.0f;
+    }
   }
 }
 

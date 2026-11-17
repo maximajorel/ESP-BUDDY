@@ -47,29 +47,29 @@ int main() {
     buddyBallClear(&b);
     check("clearing stops the ball", !b.active && b.vx == 0.0f && b.vy == 0.0f);
     float x = b.x;
-    buddyBallStep(&b, 4.0f, 4.0f, 50);
+    buddyBallStep(&b, 0.0f, 0.0f, 4.0f, 4.0f, 50);
     check("a cleared ball never moves", b.x == x);
   }
 
-  printf("-- a shake pushes it, screen x mirrors the IMU x\n");
+  printf("-- a shake pushes it\n");
   {
     BuddyBall b;
     b.active = true;
     b.x = 160;
     b.y = 86;
-    buddyBallStep(&b, 2.0f, 0.0f, 100);
-    check("a positive IMU x pushes the ball left on screen", b.vx < -10.0f);
+    buddyBallStep(&b, 0.0f, 0.0f, 2.0f, 0.0f, 100);
+    check("a shake towards screen right pushes the ball right", b.vx > 10.0f);
     BuddyBall c;
     c.active = true;
     c.x = 160;
     c.y = 86;
-    buddyBallStep(&c, 0.0f, 2.0f, 100);
-    check("a positive IMU y pushes the ball down on screen", c.vy > 10.0f);
+    buddyBallStep(&c, 0.0f, 0.0f, 0.0f, 2.0f, 100);
+    check("a shake towards the bottom pushes the ball down", c.vy > 10.0f);
     BuddyBall still;
     still.active = true;
     still.x = 160;
     still.y = 86;
-    buddyBallStep(&still, 0.0f, 0.0f, 100);
+    buddyBallStep(&still, 0.0f, 0.0f, 0.0f, 0.0f, 100);
     check("no dynamic accel means no push", still.vx == 0.0f && still.vy == 0.0f);
   }
 
@@ -80,7 +80,7 @@ int main() {
     b.x = BUDDY_BALL_SCREEN_W - BUDDY_BALL_RADIUS - 2.0f;
     b.y = 86;
     b.vx = 200.0f;
-    buddyBallStep(&b, 0.0f, 0.0f, 50);
+    buddyBallStep(&b, 0.0f, 0.0f, 0.0f, 0.0f, 50);
     check("hitting the right wall clamps the ball inside",
           b.x <= BUDDY_BALL_SCREEN_W - BUDDY_BALL_RADIUS);
     check("hitting the right wall flips the velocity", b.vx < 0.0f);
@@ -94,7 +94,7 @@ int main() {
     t.x = 160;
     t.y = BUDDY_BALL_RADIUS + 2.0f;
     t.vy = -300.0f;
-    buddyBallStep(&t, 0.0f, 0.0f, 50);
+    buddyBallStep(&t, 0.0f, 0.0f, 0.0f, 0.0f, 50);
     check("the top wall clamps and flips too",
           t.y >= BUDDY_BALL_RADIUS && t.vy > 0.0f);
   }
@@ -107,7 +107,7 @@ int main() {
     for (int i = 0; i < 400; i++) {
       float ax = (i % 7 < 4) ? 3.0f : -3.0f;
       float ay = (i % 5 < 2) ? 2.5f : -2.5f;
-      buddyBallStep(&b, ax, ay, 50);
+      buddyBallStep(&b, 0.0f, 0.0f, ax, ay, 50);
       if (b.x < BUDDY_BALL_RADIUS - 0.01f ||
           b.x > BUDDY_BALL_SCREEN_W - BUDDY_BALL_RADIUS + 0.01f ||
           b.y < BUDDY_BALL_RADIUS - 0.01f ||
@@ -129,7 +129,7 @@ int main() {
     int hits = 0;
     float lastSign = b.vx > 0.0f ? 1.0f : -1.0f;
     for (int i = 0; i < 120; i++) {  // 6 s at 50 ms
-      buddyBallStep(&b, 0.0f, 0.0f, 50);
+      buddyBallStep(&b, 0.0f, 0.0f, 0.0f, 0.0f, 50);
       float sign = b.vx > 0.0f ? 1.0f : -1.0f;
       if (b.vx != 0.0f && sign != lastSign) {
         hits++;
@@ -147,16 +147,42 @@ int main() {
     b.x = 160;
     b.y = 86;
     b.vx = 300.0f;
-    buddyBallStep(&b, 0.0f, 0.0f, 500);
+    buddyBallStep(&b, 0.0f, 0.0f, 0.0f, 0.0f, 500);
     check("friction slows a rolling ball", b.vx > 0.0f && b.vx < 300.0f);
 
     BuddyBall f;
     f.active = true;
     f.x = 160;
     f.y = 86;
-    for (int i = 0; i < 30; i++) buddyBallStep(&f, 5.0f, 5.0f, 100);
+    for (int i = 0; i < 30; i++) buddyBallStep(&f, 0.0f, 0.0f, 5.0f, 5.0f, 100);
     float speed = sqrtf(f.vx * f.vx + f.vy * f.vy);
     check("the speed stays capped", speed <= BUDDY_BALL_MAX_SPEED + 1.0f);
+  }
+
+  printf("-- tilt is gravity\n");
+  {
+    BuddyBall right;
+    right.active = true;
+    right.x = 160;
+    right.y = 86;
+    buddyBallStep(&right, 1.0f, 0.0f, 0.0f, 0.0f, 100);
+    check("tilting downhill to the right pulls the ball right",
+          right.vx > 20.0f && fabsf(right.vy) < 0.01f);
+    BuddyBall down;
+    down.active = true;
+    down.x = 160;
+    down.y = 86;
+    buddyBallStep(&down, 0.0f, 1.0f, 0.0f, 0.0f, 100);
+    check("tilting downhill to the bottom pulls the ball down",
+          down.vy > 20.0f && fabsf(down.vx) < 0.01f);
+    BuddyBall slow;
+    slow.active = true;
+    slow.x = BUDDY_BALL_SCREEN_W - BUDDY_BALL_RADIUS - 1.0f;
+    slow.y = 86;
+    slow.vx = 10.0f;
+    buddyBallStep(&slow, 0.4f, 0.0f, 0.0f, 0.0f, 50);
+    check("gravity into a wall rests instead of jittering",
+          slow.vx == 0.0f && slow.x <= BUDDY_BALL_SCREEN_W - BUDDY_BALL_RADIUS);
   }
 
   printf("-- the eyes follow it\n");

@@ -140,6 +140,35 @@ calibration move; the bounce constants are pinned by `buddy_ball_test` (three or
 more wall hits inside six seconds, still moving at the end) and the toy path was
 already verified on the glass in L5.
 
+L8 (verbatim): "Mmm la pelotita sigue lenta y no se si esta bien la calibracion
+eh? porque si lo pongo vertical para que la pelota vaya al lado izquierdo de la
+pantalla, no va para ahi, queda flotando en el ojo derecho, la gravedad esta mal
+digamos, la pelotita siempre cae a un borde segun la inclinacion, es como la
+gravedad de la tierra. pero OJO, en el juego de meteorito, usando la calibracion
+desde config funciona bien, es solo en SOFIA donde trollea"
+
+Root cause: the ball had no gravity at all. It used the dynamic lateral
+acceleration (raw minus its own tilt baseline), which by design cancelled a
+steady tilt; so holding the board vertical produced no force and the toy floated.
+It also ignored the steering calibration, which is why the game was right and
+SOFIA wrong.
+
+The ball now maps the raw accelerometer through the same `SteerCalibration` the
+game uses (`latAxis`, `sign`, the third `fwdAxis`, `-signY`, the wizard baselines
+and `rotationInPlaneSign()`), giving screen-space gravity: positive x = right,
+positive y = down, exactly the direction the ship moves under the same tilt. A
+~0.5 s filter of those channels is the steady tilt that pulls the ball; the
+difference above the filter is the shake that kicks it. Without a calibration it
+falls back to the raw axes so the toy still works. Speed: gravity 520 px/s^2 per
+g, shake 520, top speed 800, friction 0.25/s; a hit slower than 60 px/s is
+absorbed so gravity into a wall does not jitter.
+
+Board probe (`tools/probes/buddy_ball_gravity.txt`, `imufake`): at level the ball
+coasts; with `a[0]=+0.5` it ends against the left wall (`x=32`, `vx=4.3`) and with
+`a[0]=-0.5` it crosses the glass to the right (`x=93.7`, `vx=25.5`, `vy=158`) —
+the sign follows the calibration and the ball is fast now. `buddy_ball_test`
+gained gravity-on-each-axis and rest-against-a-wall cases; suite 24 passed.
+
 - The expression rule from L4 is enforced in `.agents/skills/sofia-buddy-face/
   SKILL.md` and Engram (`buddy/face-expression-rule`). The new `buddyhappy`
   console pin is documented in the console help.

@@ -28,6 +28,7 @@ cámara es el comando `dump`, que escribe el framebuffer en ASCII.
 | `imu.txt` | Lecturas crudas del sensor. |
 | `hardening_verify.txt` | Humo después de flashear: arranque, `help`, estado, CONFIG y API. |
 | `buddy_life.txt` | La cara de Sofía: microsaccadas, cejas neutrales, anatomía de enojo/mareo y el tilde sintetizado del HUD. |
+| `buddy_ball_gravity.txt` | La pelotita de Sofía con gravedad calibrada: `imufake` inclina a un lado y al otro y `buddydraw` muestra hacia dónde cae y a qué velocidad. |
 | `calibration_config.txt` | El wizard de calibración en CONFIG: lo abre el botón del panel, se completan centro + cuatro direcciones con `imufake`, y se verifica `steer.calibrated` y los ejes en `/api/status`. |
 | `buddy_ball.txt` | La cara feliz con squircle y curva bajo los ojos, la pelotita roja empujada por `imufake`, sus rebotes y el doble toque que la prende y apaga. Requiere el bridge en idle. |
 | `console_smoke.txt` | Ejercita todos los comandos de consola que movió el refactor (toques, menú, rotación, ejes, LED, buddy, IMU falso, assets, fuente, parser y framebuffer). Deja el reloj en 12 h si el doble toque entra: volvé a tocarlo en RELOJ para restaurar 24 h. |
