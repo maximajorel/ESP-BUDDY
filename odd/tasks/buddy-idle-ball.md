@@ -37,11 +37,11 @@ the eyes follow.
 
 | ID | Spec | Route | Commit |
 |----|------|-------|--------|
-| T1 | S2 | inline: pure `buddy_ball.h` (spawn, shake step, edge bounce, gaze, toggle) + `buddy_ball_test` | `feat(buddy): a red ball that bounces off the glass edges` |
-| T2 | S3 | inline: `buddyImuCalm` in `buddy_imu.h` + test case | same commit |
-| T3 | S1 | inline: `screen_buddy.cpp` happy branch draws squircle + under-eye curve | same commit |
-| T4 | S2,S3 | inline: tap window in `screen_buddy`, ball physics/draw/gaze, idle gating, console `ball` | same commit |
-| T5 | S1-S3 | inline: host suite, firmware compile, hardware evidence | — |
+| T1 | S2 | inline: pure `buddy_ball.h` (spawn, shake step, edge bounce, gaze, toggle) + `buddy_ball_test` | 5ad8459 |
+| T2 | S3 | inline: `buddyImuCalm` in `buddy_imu.h` + test case | 5ad8459 |
+| T3 | S1 | inline: `screen_buddy.cpp` happy branch draws squircle + under-eye curve | 5ad8459 |
+| T4 | S2,S3 | inline: tap window in `screen_buddy`, ball physics/draw/gaze, idle gating, console `ball` | 5ad8459 |
+| T5 | S1-S3 | inline: host suite, firmware compile, hardware evidence | pending board |
 
 ## Log
 
@@ -64,3 +64,20 @@ restitution (0.78) settle it. The ball is a separate pure header
 (`buddy_ball.h`) so the physics and the gaze mapping are host-tested without a
 board. The three-dot HUD keeps drawing above it on the top-right; the ball stays
 inside a 320x172 field inset by its radius.
+
+L3: Implementation and host evidence. One work-unit commit (`5ad8459`, 544
+authored lines) instead of two ~400-line slices: the happy branch and the ball
+share the `drawFace` signature and the same `screen_buddy.cpp`, so any split
+leaves a commit that does not compile or does not show the feature (same reason
+recorded in `buddy-smooth-expressions.md` L5). `buddy_ball_test` is RED before
+`buddy_ball.h` exists and GREEN after; `buddy_imu_test` gained the calm case
+(`buddyImuCalm` drops the dizzy face and the burst counter, so the next shake is
+dizzy again instead of angry). `python3 tools/run_tests.py`: 23 passed, 0 failed.
+Firmware compiled with the INSTALL FQBN: 1,429,838 B (45% flash) and 55,188 B
+(16% RAM), no new warnings (only the pre-existing `buddyLinkWireName` /
+`buddyAskError` switch warnings in those files).
+
+Pending: on-board evidence. `tools/probes/buddy_ball.txt` is written for it
+(single tap → happy dump; `ball on` + `imufake 2.6 0 1` → moved ball in
+`buddydraw`; `imufake 0 0 1` → coasting; `doubletap` twice → toggle off/on; final
+`dump` with no red ball). Flashing is still the owner's explicit call.
