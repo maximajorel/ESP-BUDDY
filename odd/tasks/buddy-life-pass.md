@@ -60,10 +60,10 @@ apertura de ojos en 100 ms desde dormido." Already delivered by
 
 | ID | Spec | Route | Commit |
 |----|------|-------|--------|
-| T1 | S1,S2,S3,S7 | inline: `buddy_anim.h` fixation saccades, Poisson blink bursts, breath, glances; `buddy_face.h` perspective, tremble and dither helpers; tests | — |
-| T2 | S5,S9 | inline: `buddy_imu.h` rage anatomy (grow, brows, tremble) and a worry-browed dizzy; test | — |
-| T3 | S4 | inline: `buddy_phase.h` HUD transition machine; test | — |
-| T4 | S5,S6,S7,S8 | inline: `gfx` dithered squircle, gradient halo, brows, tremble, perspective, HUD twinkle in `screen_buddy.cpp` | — |
+| T1 | S1,S2,S3,S7 | inline: `buddy_anim.h` fixation saccades, offset-slot blink bursts, breath, glances; `buddy_face.h` perspective, tremble, coverage/dither, lid line; tests | d1eabb5 |
+| T2 | S5,S9 | inline: `buddy_imu.h` rage anatomy (grow, brows, tremble) and a worry-browed dizzy; test | 285f566 |
+| T3 | S4 | inline: `buddy_phase.h` HUD transition machine; test | 5bc94f7 |
+| T4 | S5,S6,S7,S8 | inline: `gfx` dithered squircle, three-step halo, brows, tremble, perspective, dithered lid line, HUD twinkle, sceptical error brows | c487fe6 |
 | T5 | S1-S11 | inline: host suite, firmware compile, hardware probe (needs the owner), log and commits | — |
 
 ## Log
@@ -92,3 +92,42 @@ eye. Everything above is one new pose channel each, so every existing
 expression keeps its current look at the default zero. Chosen for this pass:
 brows (anger, worry, scepticism on the error face), eye growth for anger,
 tremble, foreshortening for the side glances.
+
+L3 (implementation). `buddy_anim.h`: `buddySaccadeAt` places one 1-3 px jump on a
+3.6 s slot whose offset is hashed (gaps 2.2-5.0 s) and eases the first 60 ms of
+it; `buddyBlinkAt` places a blink on a 4 s slot with a hashed offset (gaps
+2.1-5.9 s), adds a companion blink 300 ms later in 30% of the slots and a
+260 ms long blink in 20%; `buddyGlanceAt` looks 10-18 px to a side once per 12 s
+for 1.4-1.8 s; `buddyBreath` is one 4.5 s sine. The idle pose is the sum of the
+three, with `bob = breath * 1 px`. The error face gained the sceptical brows
+(one lifted, one dropped).
+
+`buddy_face.h`: `buddyPerspective` (2 px lead, 6% foreshortening, 3% widening),
+`buddyTremble` (25 Hz, applied after the ease), `buddySquircleSdf` /
+`buddySquircleCoverage`, `buddyBayer4` / `buddyDitherLit`, `buddyLidLineTop` and
+`buddyLidLineBottom` for the sub-pixel lid. The pose grew `browL`, `browR`,
+`grow` and `tremble`, all neutral by default and all eased by the filter.
+
+`buddy_imu.h`: anger is `grow 1.12`, `browL/R 0.9`, `tremble 1.0`, `lid 0.32`,
+`bottom 0.12`, `rotL/R ±8`, `hot 0.9` and the existing wall slam; dizzy keeps
+the orbit, `lid 0.38`, `hot 0.12` and now raises the inner corners
+(`browL/R -0.5`). `buddy_phase.h`: `BuddyHud` with `buddyHudStep`,
+`buddyHudShown` and `buddyHudCheckAge`.
+
+`gfx.cpp`: `gfxFillSquircleRotAA` fills the core as spans and dithers the
+one-pixel boundary against the layer behind it. `screen_buddy.cpp`: the halo is
+three dithered rings at 7/17/32%, the eye body is AA against the inner ring, the
+lid line is dithered at its sub-pixel remainder, brows are drawn above the lid
+bands, `grow` scales the box, `buddyPerspective` leads and foreshortens per eye,
+the tremble is added after `buddyPoseFilterStep`, and the HUD draws whatever
+`BuddyHud` says, with a green twinkle over the first 900 ms of the check.
+
+L4 (evidence). Host suite: 18/18 green, including the new checks on saccade gaps
+(2-5 s), blink gaps (bursts under 600 ms, regular gaps under 6.2 s), glance
+range (10-20 px, returns to centre), breath (4.5 s, one pixel), perspective
+(leads and foreshortens), tremble (bounded, keeps shaking), coverage and dither,
+lid-line sub-pixel rest, the angry vs dizzy anatomy, and the HUD guard (repeated
+idle polls never re-fire the check, ask cancels it, ok stays while reported).
+Firmware: arduino-cli compile with the INSTALL.md FQBN, exit 0, 1,415,074 bytes
+(44%) and no warning from any buddy/gfx file. Hardware: not flashed yet; the
+board is on COM5 and flashing needs the owner's go-ahead in this session.
