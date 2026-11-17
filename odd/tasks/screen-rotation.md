@@ -147,3 +147,9 @@ lo cambio la prueba, lo movio el dueno desde el panel mientras corria.
 L10 (pendiente): el giro fisico real de 180 grados y el umbral de 0.35 g no se
 pudieron observar: el equipo estaba quieto sobre la mesa y nadie lo giro durante
 la prueba. Esa es la parte que queda para una prueba manual del dueno.
+
+L11 (cierre): el dueno confirmo el giro fisico en el equipo ("Sip, parece que
+funciona") y pidio meter todo en master. `master` estaba en 29c64dc y `HEAD` lo
+tenia como ancestro, asi que la integracion fue **fast-forward** a 8a82677: los 13
+commits de la cadena (buddy squircle, screen-settings y esta feature), arbol
+limpio, sin merge commit. No hay remoto configurado, asi que no se publico nada.
