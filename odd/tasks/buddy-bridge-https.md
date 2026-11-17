@@ -50,14 +50,14 @@ both transports.
 
 | ID | Spec | Route | Commit |
 |----|------|-------|--------|
-| T1 | S6 | inline: pure `buddy_url.h` (parse, validate, endpoint build) + `tools/buddy_url_test.cpp`, test-first | — |
-| T2 | S5,S4 | inline: pure `buddy_link.h` (cause classifier + wire names) + `tools/buddy_link_test.cpp`, test-first | — |
-| T3 | S1,S2,S3 | inline: `buddy_http.cpp/.h` transport — explicit scheme, plain client for http, one reused `WiFiClientSecure` with the built-in bundle for https, keep-alive, internet-sized timeouts | — |
-| T4 | S1,S3,S5 | inline: `screen_buddy.cpp` polls and asks through the transport, 12 KB task stack, link cause in the snapshot and in `BuddyView` | — |
-| T5 | S6,S5 | inline: `settingsSetBuddyUrl` validates through `buddy_url.h`, `/api/status` exposes the cause, API returns the reason | — |
-| T6 | S7 | inline: panel placeholder/hint/validation in `web_ui/`, repack `web_assets.h` | — |
-| T7 | S7 | inline: README, INSTALL, ARCHITECTURE, and the Cloudflare configuration note | — |
-| T8 | all | inline: host tests, build, flash, live check over HTTPS and over the LAN IP | — |
+| T1 | S6 | inline: pure `buddy_url.h` (parse, validate, endpoint build) + `tools/buddy_url_test.cpp`, test-first | 4673473 |
+| T2 | S5,S4 | inline: pure `buddy_link.h` (cause classifier + wire names) + `tools/buddy_link_test.cpp`, test-first | 1d34370 |
+| T3 | S1,S2,S3 | inline: `buddy_http.cpp/.h` transport — explicit scheme, plain client for http, one reused `WiFiClientSecure` with the built-in bundle for https, keep-alive, internet-sized timeouts, one mutex for the shared clients | 1d34370 |
+| T4 | S1,S3,S5 | inline: `screen_buddy.cpp` polls and asks through the transport, 12 KB task stack, `ARDUINO_LOOP_STACK_SIZE` 16 KB for the ask, link cause in the snapshot and in `BuddyView` | 1d34370 |
+| T5 | S6,S5 | inline: `settingsSetBuddyUrl` validates through `buddy_url.h`, `/api/status` exposes the cause, API returns the reason | c8f57c5 |
+| T6 | S7 | inline: panel placeholder/hint/validation in `web_ui/`, repack `web_assets.h` | f6c0e76 |
+| T7 | S7 | inline: README, INSTALL, ARCHITECTURE, and the Cloudflare configuration note | f6c0e76 |
+| T8 | all | inline: host tests, build, flash, live check over HTTPS and over the LAN IP | 1d34370 |
 
 ## Log
 
@@ -82,3 +82,55 @@ the transport must choose its own client; the core's `libmbedtls.a` bundle
 carries GTS Root R1/R4 and ISRG Root X1, so Cloudflare's edge validates;
 `screen_buddy.cpp:202` created the poller with an 8 KB stack while
 `spotify.cpp:32` uses 12 KB for the same TLS work.
+
+L6 (evidence, host): `python3 tools/run_tests.py` → 21 passed. The two new tests
+pin the parser (both schemes, base paths, IPv6 literal, every rejection) and the
+cause classifier (precedence: unconfigured > bad URL > no clock > TLS > block >
+token > status > no answer).
+
+L7 (evidence, device 192.168.100.75, firmware 1424034 bytes / 45%, RAM 16%):
+driven through the serial console, which calls the same `netHandleApi` the panel
+does.
+
+- `{"buddyUrl":"192.168.100.64:8787"}` → `400 La URL del buddy necesita http:// o https://`
+- `{"buddyUrl":"http://192.168.100.64:8787"}` with port 99999 → `400 El puerto de la URL del buddy no es valido`
+- `https://example.com` → `link=http` (the request completed, the host answered 404):
+  TLS through a public CA works on this core, which is the whole point of S2.
+- `https://self-signed.badssl.com` → `link=tls`, detail `X509 - A fatal error ...`,
+  and the core log prints `Failed to verify certificate`. Validation is on, not
+  `setInsecure`.
+- back to `http://192.168.100.64:8787` → `link=ok`, `state=bored`, bridge reachable.
+  The LAN path is untouched.
+- `POST /api/buddy/ask` against a non-bridge host → `502 El bridge respondio con
+  un error`; against the self-signed host → `502 Rechazaron el certificado del
+  bridge`. No agent run was started.
+- `assets` on the device matches `tools/verify_assets.py`.
+
+L8 (defect found and fixed, verbatim from the device): `CORRUPT HEAP: Bad head at
+0x3fcc7b9c. Expected 0xabba1234 got 0x3fca5a7c`, raised by
+`POST /api/buddy/ask` over https. Cause: the loop task's stack is 8 KB
+(`cores/esp32/main.cpp` default) and the ask performs the TLS handshake on it. Fix:
+`esp32_gadget/build_opt.h` with `-DARDUINO_LOOP_STACK_SIZE=16384`. Re-measured: three
+consecutive https asks return the bridge's cause and the heap ends at 207216 free,
+same as before the asks.
+
+L9 (finding for the Cloudflare plan): the core's CA bundle (3.3.12,
+`libmbedtls.a`) carries ISRG Root X1/X2, GTS Root R1/R4 and DigiCert Global Root
+G2, but not Let's Encrypt's new `Root YE`. A host whose chain terminates there is
+refused by the device while `curl` on a PC accepts it — that is what
+`httpstat.us` showed. Consequence for the tunnel: after configuring the hostname,
+confirm `link` in `/api/status`; a `tls` there with a chain that validates on a PC
+means the bundle predates that root, and the answer is a chain the device trusts
+(Cloudflare's GTS-backed edge) rather than `setInsecure`.
+
+L10 (slice boundaries): 4673473 parser + tests; c8f57c5 settings/API validation;
+1d34370 the transport, the lock, the loop stack and the cause classifier (Risk:
+item 2, so it lands alone); f6c0e76 panel, packed assets and docs. The branch also
+carries earlier work from `feat/buddy-life-pass`, which is why a "since master"
+line count overstates this feature: the authored change here is ~1050 lines, and
+the dominant diff is the regenerated `web_assets.h`.
+
+L11 (not verified live): the `no-time` cause. Its classifier case is pinned by
+`tools/buddy_link_test.cpp`, but forcing the device's SNTP state off on the bench
+would have meant breaking the clock the other checks depend on. The wiring is the
+three lines in `pollOnce`/`buddyAsk` that consult `netStatus().timeSynced`.
