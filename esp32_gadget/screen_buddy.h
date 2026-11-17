@@ -1,13 +1,14 @@
 // Sofía's face screen (S21): a procedural buddy that reacts to Hermes.
 //
 // The bridge on the LAN exposes {state, label, active}; this screen polls it in
-// its own task, keeps a snapshot, and draws a face with big eyes, brows and a
-// mouth. No assets and no audio: the face language follows OpenCharm (MIT) and
+// its own task, keeps a snapshot, and draws a face that is only eyes: no brows,
+// no mouth. No assets and no audio: the face language follows OpenCharm (MIT) and
 // the states come straight from the bridge.
 #pragma once
 
 #include <Arduino.h>
 
+#include "buddy_imu.h"
 #include "buddy_phase.h"
 #include "buddy_state.h"
 
@@ -50,7 +51,7 @@ void buddyDumpDraw();
 
 // What the face is feeling right now, so the rear bead can match it: anger is
 // red, deep sleep is a faint ember, everything else follows the bridge phase.
-enum BuddyMood { BUDDY_MOOD_CALM, BUDDY_MOOD_ANGRY, BUDDY_MOOD_SLEEPING };
+// The vocabulary and the decision live in buddy_imu.h, where a test can pin it.
 BuddyMood buddyMood();
 
 // Console debug: put the idle distraction on the glass for `holdMs`.

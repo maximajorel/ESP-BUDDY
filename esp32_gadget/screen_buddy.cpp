@@ -633,9 +633,7 @@ bool buddyTick(uint32_t nowMs) {
       }
       s_bug.active = false;
       s_zzz = pose.closed && ip.lying && ip.lyingMs > 6000;
-      s_mood = pose.closed ? BUDDY_MOOD_SLEEPING
-                           : (ip.angry || pose.tremble > 0.5f) ? BUDDY_MOOD_ANGRY
-                                                               : BUDDY_MOOD_CALM;
+      s_mood = buddyMoodFrom(pose.closed, ip.angry, pose.tremble);
       drawFace(s_pinState, pose, nowMs, false);
       s_lastDraw = nowMs;
       s_dirty = false;
@@ -743,9 +741,7 @@ bool buddyTick(uint32_t nowMs) {
   // The sleeping letters need both halves: eyes shut (deep boredom) and the
   // board lying on the table for a while.
   s_zzz = pose.closed && ip.lying && ip.lyingMs > 6000;
-  s_mood = pose.closed ? BUDDY_MOOD_SLEEPING
-                       : (ip.angry || pose.tremble > 0.5f) ? BUDDY_MOOD_ANGRY
-                                                           : BUDDY_MOOD_CALM;
+  s_mood = buddyMoodFrom(pose.closed, ip.angry, pose.tremble);
 
   // Ease the whole pose. dt is clamped so a stalled frame (or returning from a
   // pinned face) never turns one step into a jump.
@@ -784,8 +780,10 @@ void buddyDumpDraw() {
     Serial.println("buddydraw: todavia no dibujo");
     return;
   }
-  Serial.printf("draw grow=%.2f lid=%.2f hot=%.2f push=%d\n", s_draw.grow,
-                s_draw.lid, s_draw.hot, s_draw.push);
+  static const char *kMoods[] = {"calm", "angry", "sleeping"};
+  Serial.printf("draw mood=%s grow=%.2f lid=%.2f hot=%.2f push=%d\n",
+                kMoods[s_mood & 3], s_draw.grow, s_draw.lid, s_draw.hot,
+                s_draw.push);
   for (int i = 0; i < 2; i++) {
     Serial.printf("eye%d x=%d rx=%d ry=%d extY=%d deg=%.1f\n", i, s_draw.x[i],
                   s_draw.rx[i], s_draw.ry[i], s_draw.extentY[i],

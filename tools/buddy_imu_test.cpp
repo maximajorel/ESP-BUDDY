@@ -114,6 +114,43 @@ int main() {
   p = buddyImuPose(&ra, 9000);
   check("and it expires", !p.angry);
 
+  printf("-- the dizzy spiral loses reach\n");
+  {
+    // Item 5: dizzy is a spiral, not a fixed orbit: the radius has to shrink.
+    BuddyImu dz;
+    feed(dz, 0, 0, 1, 0, 100);
+    for (uint32_t t = 100; t <= 400; t += 100) feed(dz, 0, 0, 3.0f, t, 100);
+    float early = 0.0f, late = 0.0f;
+    bool turned = false;
+    float lastSign = 0.0f;
+    for (uint32_t t = 400; t < 400 + BUDDY_DIZZY_MS; t += 60) {
+      BuddyImuPose q = buddyImuPose(&dz, t);
+      float r = fabsf(q.gazeX);
+      float phase = (float)(t - 400) / (float)BUDDY_DIZZY_MS;
+      if (phase < 0.25f && r > early) early = r;
+      if (phase > 0.8f && r > late) late = r;
+      if (fabsf(q.gazeX) > 1.0f) {
+        float sign = q.gazeX > 0 ? 1.0f : -1.0f;
+        if (lastSign != 0.0f && sign != lastSign) turned = true;
+        lastSign = sign;
+      }
+    }
+    check("the dizzy gaze turns", turned);
+    check("and spirals inwards instead of orbiting", early > late + 3.0f);
+    check("the dizzy eyes stay on the glass", early <= 12.1f);
+  }
+
+  printf("-- the mood the bead follows\n");
+  {
+    check("a shut face is sleeping, even mid-rage",
+          buddyMoodFrom(true, true, 1.0f) == BUDDY_MOOD_SLEEPING);
+    check("anger is angry", buddyMoodFrom(false, true, 0.0f) == BUDDY_MOOD_ANGRY);
+    check("the tremble alone is angry too",
+          buddyMoodFrom(false, false, 0.8f) == BUDDY_MOOD_ANGRY);
+    check("everything else is calm",
+          buddyMoodFrom(false, false, 0.0f) == BUDDY_MOOD_CALM);
+  }
+
   printf("-- a sharp hit startles\n");
   BuddyImu st;
   feed(st, 0, 0, 1, 0, 100);

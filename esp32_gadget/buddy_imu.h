@@ -69,6 +69,21 @@ struct BuddyImuPose {
   uint32_t lyingMs = 0;
 };
 
+// How long the dizzy spiral and its recovery last, matching the 2.5 s the
+// reaction books in buddyImuFeed.
+#define BUDDY_DIZZY_MS 2500u
+
+// What the face is feeling, in the small vocabulary the rear bead understands.
+// Pure, so the LED decision is host-tested even though a WS2812 cannot be read
+// back. Deep sleep wins over everything: a sleeping face is not angry.
+enum BuddyMood { BUDDY_MOOD_CALM, BUDDY_MOOD_ANGRY, BUDDY_MOOD_SLEEPING };
+
+static inline BuddyMood buddyMoodFrom(bool closed, bool angry, float tremble) {
+  if (closed) return BUDDY_MOOD_SLEEPING;
+  if (angry || tremble > 0.5f) return BUDDY_MOOD_ANGRY;
+  return BUDDY_MOOD_CALM;
+}
+
 static inline float buddyImuClamp(float v, float lo, float hi) {
   if (v < lo) return lo;
   if (v > hi) return hi;
@@ -202,10 +217,10 @@ static inline BuddyImuPose buddyImuPose(const BuddyImu *s, uint32_t nowMs) {
   }
 
   if ((int32_t)(s->angryUntil - nowMs) > 0) {
-    // Anger is its own face, not the dizzy one in red: the eyes grow, the lids
-    // cut to a slit, the brows angle down towards the nose and the pair
-    // trembles while it slams wall to wall. Dizzy (below) keeps the orbit, the
-    // droop and the worried brows, so the two reactions never read alike.
+    // Anger is its own face, not the dizzy one in red: the eyes grow, the
+    // eyelid blocks angle towards the nose and the pair trembles while it slams
+    // wall to wall. Dizzy (below) keeps the spiral, the droop and the wobble, so
+    // the two reactions never read alike.
     p.angry = true;
     p.grow = 1.12f;
     p.tremble = 1.0f;
@@ -227,11 +242,21 @@ static inline BuddyImuPose buddyImuPose(const BuddyImu *s, uint32_t nowMs) {
     p.gazeX = tri * amp;
     p.rot = tri * 4.0f;
   } else if ((int32_t)(s->dizzyUntil - nowMs) > 0) {
-    // Dizzy: the eyes orbit, the lids droop, the head wobbles and the inner
-    // corners lift. Worried, not cross; no growth, no tremble.
+    // Dizzy: the eyes spiral (a radius that shrinks while it turns), the lids
+    // droop and the head wobbles. A spiral, not an orbit: the gaze loses reach
+    // as the reaction runs, which is what reads as "mareado". No growth, no
+    // tremble, so it never looks like anger.
     p.dizzy = true;
-    p.gazeX = sinf((float)nowMs * 0.012f) * 10.0f;
-    p.gazeY = cosf((float)nowMs * 0.009f) * 6.0f + 2.0f;
+    // The spiral follows the reaction's own clock, not the boot clock, so it
+    // always starts wide and winds inwards.
+    uint32_t startedAt = s->dizzyUntil - BUDDY_DIZZY_MS;
+    float t = (float)(nowMs - startedAt) / (float)BUDDY_DIZZY_MS;
+    if (t < 0.0f) t = 0.0f;
+    if (t > 1.0f) t = 1.0f;
+    float angle = t * 6.2831853f * 2.5f;
+    float radius = 12.0f - 9.0f * t;
+    p.gazeX = cosf(angle) * radius;
+    p.gazeY = sinf(angle) * radius * 0.6f + 2.0f;
     p.rot = sinf((float)nowMs * 0.007f) * 9.0f;
     p.lid = 0.38f;
     p.hot = 0.12f;

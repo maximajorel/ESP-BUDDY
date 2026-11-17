@@ -229,3 +229,21 @@ Hardware, `tools/probes/buddy_life.txt`, COM5:
 - The rear bead's red anger and its faint ember while asleep are code-reviewed
   and host-tested through `buddyMood()`, but a single WS2812 cannot be read
   back: they are the one item this probe cannot prove.
+
+L9 (audit pass). The objective's item 5 says "ojos en espiral", and the dizzy
+reaction was a fixed ellipse: the gaze kept its reach instead of winding in.
+`buddyImuPose` now spirals on the reaction's own clock (radius 12 -> 3 px while
+it turns two and a half times), pinned by "the dizzy gaze turns" and "spirals
+inwards instead of orbiting".
+
+The bead's red anger was the one decision without a host test, because the mood
+was an inline ternary in two places in `screen_buddy.cpp`. It moved to
+`buddyMoodFrom()` in `buddy_imu.h` with four assertions (sleep wins over rage,
+anger from the flag or from the tremble, calm otherwise), and `buddydraw` now
+prints the mood, so the decision is provable on the glass even though the WS2812
+itself cannot be read back.
+
+Hardware on COM5 after this pass (1,417,606 B, hash verified):
+`draw mood=calm ... ` at rest; `draw mood=angry grow=1.12 lid=0.46 hot=1.00
+deg=+10.1/-11.9` and, 500 ms later, `deg=+7.2/-14.8` — the tremble moving the
+eyes; and with a deeply bored face `draw mood=sleeping ry=4`, the shut bars.
