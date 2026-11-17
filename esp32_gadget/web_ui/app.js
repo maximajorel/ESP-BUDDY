@@ -424,6 +424,21 @@
     setText('buddyActive', String(buddy.active || 0));
     setText('buddyOnline', buddy.online ? 'En línea'
       : (buddy.configured ? 'Sin respuesta' : 'Sin configurar'));
+    // One sentence per cause the firmware reports. "Sin respuesta" was the only
+    // thing the panel could say when the transport hid the reason; now a rejected
+    // certificate, a missing clock and a Cloudflare block read differently.
+    var buddyLinks = {
+      ok: 'Conectado', unconfigured: 'Falta configurar', 'bad-url': 'URL inválida',
+      'no-time': 'Sin hora sincronizada', tls: 'Certificado rechazado',
+      blocked: 'Bloqueado por Cloudflare', unauthorized: 'Token rechazado',
+      http: 'El bridge respondió un error', offline: 'Sin respuesta'
+    };
+    var buddyLink = $('buddyLink');
+    if (buddyLink) {
+      var link = buddy.link || '';
+      buddyLink.textContent = buddyLinks[link] || '—';
+      buddyLink.title = buddy.linkDetail || '';
+    }
     if (buddy.url) setValue('buddyUrl', buddy.url);
     if (buddy.eyeColor) setValue('buddyEyeColor', buddy.eyeColor);
 
@@ -1008,6 +1023,13 @@
         var url = $('buddyUrl').value.trim();
         var token = $('buddyToken').value.trim();
         if (!url) { toast('La URL del bridge no puede estar vacía', 'err'); return; }
+        // The device validates the whole URL and answers with the exact reason;
+        // catching the missing scheme here saves a round trip for the one typo
+        // that is easy to make by hand.
+        if (!/^https?:\/\//i.test(url)) {
+          toast('La URL tiene que empezar con http:// o https://', 'err');
+          return;
+        }
         var body = { buddyUrl: url };
         if (token) body.buddyToken = token;
         submit(event.target.querySelector('button[type="submit"]'),

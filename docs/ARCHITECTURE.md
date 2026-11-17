@@ -27,6 +27,7 @@ esp32_gadget.ino        boot, botón, loop
 ├── settings.*          NVS: credenciales, ajustes, récords, calibración
 ├── net.*               WiFi AP+STA, NTP, API HTTP y panel web
 ├── spotify_*.*         OAuth PKCE, consulta, parser y carátula
+├── buddy_http.*        transporte del bridge: HTTP en la LAN, HTTPS validado
 ├── rotation.*          política de rotación aplicada al panel
 ├── imu.*, rgb.*        sensores y LED
 └── buddy_*.*           estados, fases y expresiones de Sofía
@@ -39,8 +40,9 @@ De arriba hacia abajo, nunca al revés:
 1. **Política pura** — `.h`/`.cpp` sin `Arduino.h`: `rotation_policy.h`,
    `game_difficulty.h`, `game_hits.h`, `config_value.h`, `screen_name.h`,
    `screen_order.h`, `steer_solve.h`, `tap_window.h`, `text_fold.cpp`,
-   `buddy_face.h`, `buddy_anim.h`, `buddy_imu.h`, `ui_color.h` y los
-   `spotify_parse/pkce`. Son la parte que se puede probar en la compu.
+   `buddy_face.h`, `buddy_anim.h`, `buddy_imu.h`, `buddy_url.h`, `buddy_link.h`,
+   `ui_color.h` y los `spotify_parse/pkce`. Son la parte que se puede probar en la
+   compu.
 2. **Estado** — `settings.*` es el único dueño de NVS.
 3. **Servicios** — `net.*`, `spotify*.*`, `imu.*`, `rgb.*`, `rotation.*`.
 4. **Presentación** — `gfx.*`, `display.*`, `screens.*`, `screen_*`, `console.*`.
@@ -78,7 +80,7 @@ límite del backend; esta tabla es la referencia para no inventar una nueva:
 | `name0`..`name6` | Nombres elegidos por el dueño | `settings.cpp` |
 | `slpSec` / `slpMask` | Apagado automático | `settings.cpp` |
 | `stLat`..`stValid` | Calibración de ejes del juego | `settings.cpp` |
-| `bdUrl` / `bdTok` | Bridge de Sofía | `settings.cpp` |
+| `bdUrl` / `bdTok` | Bridge de Sofía: `http://ip:puerto` en la LAN o `https://host` público | `settings.cpp` |
 | `client_id` / `refresh` | Credenciales de Spotify | `spotify_store.cpp` |
 
 Regla: un valor nuevo va a su propia clave cuando el blob `cfg` ya está en uso,

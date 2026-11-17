@@ -10,7 +10,7 @@ equipo con siete pantallas y un panel de administración web.
 | **Meteoritos** | Juego ASCII de naves, meteoritos y cazas enemigos con barra de vida que disparan, con movimiento libre en dos ejes por sensor, dificultad creciente y récord. |
 | **Red** | Nombre y contraseña del WiFi del equipo + dirección del panel web. |
 | **Música** | Lo que estás escuchando en Spotify, con carátula, tema, artista y progreso. |
-| **Sofía** | Buddy companion: una cara procedural que reacciona a lo que hace Hermes (pensando, trabajando, esperando, error, listo) a través de su bridge local. |
+| **Sofía** | Buddy companion: una cara procedural que reacciona a lo que hace Hermes (pensando, trabajando, esperando, error, listo) a través de su bridge, en la LAN o por HTTPS con una URL pública. |
 | **Config** | Brillo del LCD y del LED trasero con el botón, guardados en el equipo. |
 
 Todo se maneja con **un solo botón**, el BOOT:

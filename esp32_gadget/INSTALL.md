@@ -248,6 +248,25 @@ otra vez, o pedile a tu router que le reserve siempre la misma dirección a la M
 - **Toque corto**: la saludás (cara contenta y destello).
 - La luz RGB acompaña el estado. Por defecto **no entra** en el apagado automático.
 - Se configura en el panel: **Sofía → URL del bridge + token**. El equipo nunca guarda la clave de Hermes.
+- La URL puede ser la de tu LAN (`http://192.168.100.64:8787`) o una pública con **HTTPS** (`https://bridge.tu-dominio.com`). Con HTTPS el equipo valida el certificado solo, contra las autoridades que ya trae el firmware: no hay que subir ningún archivo.
+
+#### Bridge por HTTPS
+
+Publicar el bridge con un túnel (por ejemplo `cloudflared`) es suficiente: el
+panel muestra **Enlace: Conectado** sin configurar nada más. Hacen falta dos
+cosas del lado del equipo:
+
+- **WiFi de casa conectado**, porque validar el certificado necesita DNS y la
+  hora en hora. Si el reloj todavía no se sincronizó, el panel dice **Enlace: Sin
+  hora sincronizada** y no intenta el pedido.
+- **Cloudflare sin desafíos sobre ese hostname.** Bot Fight Mode y Cloudflare
+  Access responden con un desafío de JavaScript o un login, cosas que este
+  firmware no puede resolver. Si eso pasa, el panel muestra **Enlace: Bloqueado
+  por Cloudflare**: excluí el hostname de esas funciones, o hacé que el bridge
+  valide un token en lugar de pasar por Access.
+
+El token del buddy ahora viaja por internet: usá uno largo y cambialo si se
+filtró. Es lo único que separa a cualquiera de pedirle cosas al agente.
 
 ### Red
 
@@ -273,7 +292,7 @@ queda fijo a la izquierda.
 | **Juegos** | Récords, borrarlos, **calibrar los controles** del juego de meteoritos y corregir los ejes si la nave va al revés. |
 | **Música** | Los pasos para conectar Spotify (crear la app, el Redirect URI, el Client ID) y el estado en vivo: si falta el Client ID, si falta autorizar, o qué está sonando. |
 | **Red** | **WiFi de casa**: busca redes, elegís la tuya, ponés la clave y guardás; con eso el reloj se pone en hora solo. Si te equivocaste de clave, **Olvidar red** borra las credenciales sin tocar los récords. **Punto de acceso**: cambia el nombre y la clave de la red que crea el equipo (lo que se ve en la pantalla RED); mínimo 8 caracteres. |
-| **Sofía** | URL y token del bridge local, estado en vivo del buddy, color de los ojos (elegilo o volvé al cyan original; queda guardado en el equipo) y un campo para pedirle algo al agente: el pedido se ve en la cara. |
+| **Sofía** | URL del bridge (tu LAN por `http://` o una URL pública por `https://`) y token, estado en vivo del buddy con el motivo del enlace cuando falla, color de los ojos (elegilo o volvé al cyan original; queda guardado en el equipo) y un campo para pedirle algo al agente: el pedido se ve en la cara. |
 | **Sistema** (última) | **Estado del dispositivo**: los mismos datos de conexión que muestra la pantalla RED, más hora, tiempo encendido, memoria libre y qué pantalla está activa. **Mantenimiento**: reiniciar (no borra nada) o restablecer de fábrica (borra WiFi y récords); **Probar el equipo** con los botones que simulan el BOOT y **Probar colores de la pantalla**, que la pone roja, verde, azul y blanca para verificar el panel. |
 
 ### Apagado automático

@@ -402,7 +402,7 @@
       <div class="region-head">
         <p class="eyebrow">Conectividad</p>
         <h2>Sofía (buddy)</h2>
-        <p class="lead">La cara de la pantalla SOFIA reacciona a lo que hace Hermes, consultando el bridge en tu LAN.</p>
+        <p class="lead">La cara de la pantalla SOFIA reacciona a lo que hace Hermes, consultando el bridge. Acepta la dirección de tu LAN o una URL pública con HTTPS.</p>
       </div>
 
       <section class="card">
@@ -413,7 +413,7 @@
           <label>Token del buddy <span class="tag">vacío = no cambiarlo</span>
             <input id="buddyToken" name="token" type="password" autocomplete="off" maxlength="64" placeholder="••••••••">
           </label>
-          <p class="hint inline">El panel guarda la URL y el token; la clave de Hermes no pasa por el equipo.</p>
+          <p class="hint inline">El panel guarda la URL y el token; la clave de Hermes no pasa por el equipo. Con <span class="mono">https://</span> el equipo valida el certificado solo: no hay que subir nada.</p>
           <div class="actions">
             <button class="btn" type="submit">Guardar</button>
             <button class="btn ghost" id="buddyForget" type="button">Olvidar token</button>
@@ -426,6 +426,7 @@
           <div class="stat"><span class="k">Etiqueta</span><span class="v" id="buddyLabel">—</span></div>
           <div class="stat"><span class="k">Runs activos</span><span class="v" id="buddyActive">—</span></div>
           <div class="stat"><span class="k">Bridge</span><span class="v" id="buddyOnline">—</span></div>
+          <div class="stat"><span class="k">Enlace</span><span class="v" id="buddyLink">—</span></div>
         </div>
 
         <h3>Color de los ojos</h3>
