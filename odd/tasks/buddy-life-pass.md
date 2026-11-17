@@ -25,8 +25,9 @@ S4. `busy → idle` synthesized on the board — verbatim: "La placa tiene que
 S5. Anger is its own face — verbatim: "Cuando se enoja cuando lo sacudo, no
 parece tanto una cara de enojo, si no que reusa la de mareo pero con ojos
 rojos, ahi tenemos que hacer que tiemble los ojos, que se agrande y que las
-cejas sean de expresividad de enojo". So anger stops reusing the dizzy orbit:
-the eyes tremble, they grow, and two angled brows carry the emotion.
+cejas sean de expresividad de enojo". later corrected by S17: the emotion is
+carried by the angled eyelids, not by brows. So anger stops reusing the dizzy
+orbit: the eyes tremble, they grow, and the black lid block angles.
 
 S6. Soft edges and a glow that fades — verbatim: "veamos que queden mas suaves
 los bordes, el glow no transiciona tan buen pero puede ser un tema de
@@ -56,6 +57,42 @@ S11. Lifted → awake — verbatim: "Cambio sostenido en Z (de apoyado a en mano
 apertura de ojos en 100 ms desde dormido." Already delivered by
 `buddy-smooth-expressions` S4; kept and regression-tested.
 
+S12. Deep inactivity closes the eyes and freezes the face — verbatim: "Despues
+de tiempo de bastante inactividad cierre los ojos y que ahi no pase nada". The
+asleep face keeps no breath, no saccade, no blink.
+
+S13. Random distractions on the glass — verbatim: "QUe cada tanto aparezcan
+eventos aleatorios, donde aparezca algo en pantalla con lo que se distraiga, por
+ejemplo algun bicho, o que se ponga a jugar con algo, esta animacion termina
+cuando yo me empiezo a comunicar con sofi". A bug crawls across the glass, the
+eyes follow it, and the event dies the moment the bridge says Sofía is busy,
+thinking or talking.
+
+S14. Anger is red, slanted and loud — verbatim: "Cuando se enoja aparece los
+ojos como cansados no enojados y tiembla, ahi se tiene que poner rojo y que y
+que sea asi la posicion de las barras negras: \"/\" ahora esta al reves.
+ademas tiene que ponerse rojo el led de fondo". So: fully red eyes, the black
+upper lid blocks angled like "\/" (inner corners down, which the eye's own rotation gives
+once the lid follows that rotation instead of staying horizontal), the tremble,
+no droopy bottom lid, and the rear bead red while the anger lasts.
+
+S15. Sleeping on the table shows ZzZ — verbatim: "Si esta mucho tiempo acostado
+aparte de estar con los ojos cerrados, que aparezca una animacion de \"ZzZz\"
+para que parezca que este durmiendo, se despierta si muevo el ESP". Lying flat
+for a while with the eyes shut floats Z letters up from the face; any real
+movement wakes it at once.
+
+S17. No brows, ever - verbatim: "Otra cosa que vi que es como que a veces se
+forma unas cejas que son unas rayas finas, no, no tengamos cejas, solo parpados
+que seria como el bloque negro superior". The face has no eyebrow lines: the
+only upper feature is the black eyelid block. Every brow channel, helper and
+test is removed, and the eyelid is what angles for anger.
+
+S16. The diagnostic the panel needs — the board has no readable bus, so when a
+pixel is wrong the only honest question is "which numbers drew it": the console
+gains `buddydraw`, which prints the geometry of the last face drawn (eye boxes,
+lid, brow, growth, push).
+
 ## Tasks
 
 | ID | Spec | Route | Commit |
@@ -64,7 +101,12 @@ apertura de ojos en 100 ms desde dormido." Already delivered by
 | T2 | S5,S9 | inline: `buddy_imu.h` rage anatomy (grow, brows, tremble) and a worry-browed dizzy; test | 285f566 |
 | T3 | S4 | inline: `buddy_phase.h` HUD transition machine; test | 5bc94f7 |
 | T4 | S5,S6,S7,S8 | inline: `gfx` dithered squircle, three-step halo, brows, tremble, perspective, dithered lid line, HUD twinkle, sceptical error brows | c487fe6 |
-| T5 | S1-S11 | inline: host suite, firmware compile, hardware probe (needs the owner), log and commits | — |
+| T5 | S1-S11 | inline: host suite, firmware compile, hardware probe on COM5, log and commits | 41aa6ed |
+| T6 | S12 | inline: asleface freezes in `buddy_anim.h`; test | — |
+| T7 | S14,S17 | inline: no brows anywhere; rotated eyelid cut in `gfx`, red anger in `buddy_imu.h`, red bead in `buddy_led.cpp`; tests | 09f0ac1 |
+| T8 | S13 | inline: `buddy_anim.h` distraction schedule and bug path, eyes track it, abort on any Sofía activity; test | 09f0ac1 |
+| T9 | S15 | inline: `buddy_imu.h` lying time and movement wake, ZzZ in `screen_buddy.cpp`; test | 09f0ac1 |
+| T10 | S12-S17 | inline: host suite, compile, flash, probe on COM5, log | — |
 
 ## Log
 
@@ -135,3 +177,55 @@ session. The probe that would prove it on the glass is
 `tools/probes/buddy_life.txt`: neutral brows on the old expressions, the angry
 anatomy after two shakes, the dizzy face after one, and the synthesized check
 after a `busy -> idle` phase drop.
+
+L5 (verbatim, the owner's next list): "1.- Despues de tiempo de bastante
+inactividad cierre los ojos y que ahi no pase nada 2.- QUe cada tanto aparezcan
+eventos aleatorios, donde aparezca algo en pantalla con lo que se distraiga, por
+ejemplo algun bicho, o que se ponga a jugar con algo, esta animacion termina
+cuando yo me empiezo a comunicar con sofi 3.- Cuando se enoja aparece los ojos
+como cansados no enojados y tiembla, ahi se tiene que poner rojo y que y que sea
+asi la posicion de las barras negras: \"/\" ahora esta al reves. ademas tiene
+que ponerse rojo el led de fondo 4.- Si esta mucho tiempo acostado aparte de
+estar con los ojos cerrados, que aparezca una animacion de \"ZzZz\" para que
+parezca que este durmiendo, se despierta si muevo el ESP" plus "vamos bien!".
+
+L6 (hardware finding, before L5). The first flash of this pass proved the
+synthesized check, the brows, the AA edges and the angry growth on the glass,
+and the `buddydraw` diagnostic caught a real bug the host tests could not: the
+right eye's brow was slanted with the mirrored sign, so anger read as worry on
+that side. `buddyBrowLine` moved the geometry into the pure header with a test
+that pins "both inner corners drop", and the firmware was reflashed with the fix.
+
+L7 (verbatim): "Otra cosa que vi que es como que a veces se forma unas cejas que
+son unas rayas finas, no, no tengamos cejas, solo parpados que seria como el
+bloque negro superior". The brows added in T4/T2 come out entirely: the pose
+loses browL/browR, buddyBrowLine and drawBrow are deleted, the error face loses
+its slanted lines, and the anger angle moves to the eyelid itself (the lid cut
+rotates with the eye, so the black block reads "\/" while angry).
+
+L8 (delivery and evidence for S12-S17). One work-unit commit (09f0ac1) carries
+the whole pass, because the pieces share their functions: removing the brow
+channels without touching `drawFace` would not compile, and the sleep and the
+bug both live in the same tick. 1,417,510 B (45%), uploaded with "Hash of data
+verified". Host suite 18/18 green, including the new checks: the asleep face
+freezes (closed, bob 0, no blink for 6 s of frames), the bug schedule (several
+events, on the glass, eyes travel, one-way crawl), the ZzZ loop (rises, stays by
+the face, fades), lying and the movement wake, and the lid angle ("both lids
+fall towards the nose").
+
+Hardware, `tools/probes/buddy_life.txt`, COM5:
+- `buddydraw` while angry: `grow=1.12 lid=0.46 hot=1.00 deg=+9.1/-12.9`, and
+  `fbpix` inside an eye returns 0xF9E3 = rgb(248,60,24): the eyes are the hot
+  red, not the owner colour. Opposite rotations are what makes the black lids
+  read "\/".
+- The same probe with `imufake 0 0 3 0 0 0` shows the dizzy and the angry faces
+  as different shapes.
+- `buddyphase busy` -> `idle` draws the check (2 HUD rows with ink at +0.5 s)
+  and nothing after the 3 s window: the guard holds on the glass.
+- `bug 8` while idle puts the amber bug (0xFD84 body, 0x7A42 legs) at
+  x 114..133, y 64..78; the next `buddyphase busy` frame has no bug at all.
+- `buddyface bored 130` with the board lying: the eyes are two shut bars and
+  the Z letters drift on the right side of the glass.
+- The rear bead's red anger and its faint ember while asleep are code-reviewed
+  and host-tested through `buddyMood()`, but a single WS2812 cannot be read
+  back: they are the one item this probe cannot prove.
