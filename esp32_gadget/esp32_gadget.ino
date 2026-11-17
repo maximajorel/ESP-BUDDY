@@ -19,6 +19,8 @@
 #include "imu.h"
 #include "net.h"
 #include "rgb.h"
+#include "buddy_led.h"
+#include "screen_buddy.h"
 #include "screens.h"
 #include "settings.h"
 #include "spotify.h"
@@ -204,9 +206,11 @@ static void printHelp() {
   Serial.println("  parsetest                  parser contra un JSON fijo");
   Serial.println("  arttest                    redecodifica la caratula e informa");
   Serial.println("  fbpix [x] [y] [w] [h]      pixeles del framebuffer en hex");
+  Serial.println("  buddyface <state> [ageS]   fija una cara para dump (thinking 25)");
+  Serial.println("  buddyphase <phase> [sec]   fija el HUD/LED (ask, ok, busy, idle)");
   Serial.println("  order [ids...]             orden del menu de pantallas");
   Serial.println("  bl <0-100>                 backlight");
-  Serial.println("  colors                     full-screen red/green/blue/white test");
+  Serial.println("  colors                     three bars: red, green, blue");
   Serial.println("  assets                     checksum of the web panel shipped in flash");
   Serial.println("  rgb <r> <g> <b> [level]    LED bead colour");
   Serial.println("  spotify [status]           credenciales y ultima pista");
@@ -330,6 +334,24 @@ static void handleCommand(char *line) {
       Serial.printf("%d:%s ", order[i], screenName(order[i]));
     }
     Serial.println();
+    return;
+  }
+  if (!strcmp(argv[0], "buddyphase") && argc >= 2) {
+    BuddyPhase ph = buddyPhaseFromName(argv[1]);
+    uint32_t hold = argc >= 3 ? (uint32_t)atoi(argv[2]) * 1000u : 15000u;
+    buddyPinPhase(ph, hold);
+    Serial.printf("buddy phase pinned: %s for %lus\n", buddyPhaseWireName(ph),
+                  (unsigned long)(hold / 1000));
+    return;
+  }
+  if (!strcmp(argv[0], "buddyface") && argc >= 2) {
+    // Debug pin for the face language: dump an expression without waiting for
+    // the bridge to reach that age (for example `buddyface thinking 25`).
+    BuddyState st = buddyStateFromName(argv[1]);
+    uint32_t age = argc >= 3 ? (uint32_t)atoi(argv[2]) * 1000u : 0;
+    buddyPinFace(st, age, 20000);
+    Serial.printf("buddy face pinned: %s age %lus\n", buddyStateWireName(st),
+                  (unsigned long)(age / 1000));
     return;
   }
   if (!strcmp(argv[0], "fbpix")) {
@@ -595,7 +617,7 @@ static void drawSplash() {
   gfxTextCentered(26, 3, "ESP32", GFX_WHITE);
   gfxTextCentered(56, 3, "GADGET", gfxHex(0xFFD700));
   gfxHLine(40, 86, DISPLAY_W - 80, gfxHex(0x333333));
-  gfxTextCentered(96, 1, "RELOJ  TRAGAMONEDAS  METEORITOS  RED  MUSICA",
+  gfxTextCentered(96, 1, "RELOJ TRAGAMONEDAS METEORITOS RED MUSICA SOFIA",
                   gfxHex(0x8A8A8A));
   gfxTextCentered(112, 1, "CONECTATE A ESTA RED:", gfxHex(0x7A8CA0));
   gfxTextCentered(124, 2, settingsGet().apSsid, GFX_WHITE);
@@ -673,6 +695,7 @@ void loop() {
   pollSerial();
   netLoop();
   spotifyLoop();
+  buddyLedTick(now);
   rgbTick();
 
   if (screensTick(now, s_button.holdPermille(now))) {

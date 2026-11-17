@@ -1,6 +1,6 @@
 // Album artwork for the music screen: download, decode and cache.
 //
-// The music screen already knows how to draw a 64x64 RGB565 square; this module
+// The music screen already knows how to draw a full-cover RGB565 square; this module
 // owns everything between "the poll parsed a track" and `musicSetArtwork()`.
 // It is deliberately separate from `spotify.cpp`: the network state machine must
 // stay readable, and the decoder is the part that can fail on a hostile JPEG.

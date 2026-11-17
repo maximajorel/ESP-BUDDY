@@ -1,7 +1,7 @@
 # ESP32 Gadget — cómo instalarlo
 
 Un solo firmware para la **Waveshare ESP32-S3-LCD-1.47B** que convierte la placa
-en un equipo con cuatro pantallas y un panel de administración web:
+en un equipo con seis pantallas y un panel de administración web:
 
 | Pantalla | Qué hace |
 |---|---|
@@ -224,7 +224,7 @@ otra vez, o pedile a tu router que le reserve siempre la misma dirección a la M
 ### Meteoritos
 
 - **Toque corto**: disparar; en la pantalla de inicio o de fin, empezar o volver a jugar.
-- **Dos toques rápidos** (inicio o fin de partida): abren el cartel **INICIAR CALIBRACION** con **SI / NO**. Un toque cambia la opción y **mantener 1 segundo** confirma. La calibración es guiada: quieto, hacia vos, alejando, izquierda y derecha.
+- **Dos toques rápidos** (inicio o fin de partida): abren el cartel **INICIAR CALIBRACION** con **SI / NO**. Un toque cambia la opción y **mantener 1 segundo** confirma. La calibración es guiada y se confirma con toques: centro, izquierda, derecha, hacia vos y alejando.
 - Incliná el equipo para mover la nave por todo el espacio: izquierda/derecha y arriba/abajo; los meteoritos caen de arriba.
 - Cada 10 segundos sube el nivel: los meteoritos caen más rápido y aparecen más seguido.
 - **Cazas enemigos**: aparece uno cada tanto (el primero a los 6 segundos), se mueven de costado por la franja de arriba y **disparan hacia abajo**. Sólo los destruye **tu disparo** (150 puntos); sus balas y su cuerpo terminan la partida.
@@ -232,6 +232,14 @@ otra vez, o pedile a tu router que le reserve siempre la misma dirección a la M
 - Cuanto más alto el nivel, los cazas **disparan más seguido** y sus balas **caen más rápido**.
 - Sumás puntos por sobrevivir y 20–50 por cada meteorito destruido.
 - Al chocar termina la partida y se guarda el **récord**.
+
+### Sofía
+
+- Una cara procedural: ojos, cejas y boca; parpadea y mira.
+- Reacciona al estado del bridge de Hermes: `EN CALMA`, `PENSANDO`, `TRABAJANDO`, `ESPERANDO`, `ERROR`, `LISTO`. Si el bridge no responde: `SIN SEÑAL`; si falta configurar: `CONFIGURAME`.
+- **Toque corto**: la saludás (cara contenta y destello).
+- La luz RGB acompaña el estado. Por defecto **no entra** en el apagado automático.
+- Se configura en el panel: **Sofía → URL del bridge + token**. El equipo nunca guarda la clave de Hermes.
 
 ### Red
 
@@ -255,6 +263,7 @@ español y pensado para usarse con el dedo, desde el celular.
 | **Pantalla** | Cambia de pantalla sin tocar el botón (incluida **Música**), configura el **apagado automático** de la pantalla y la luz, **renombra y reordena el menú**: escribís el nombre de cada pantalla (hasta 12 letras, se ve igual en la lista y en el equipo) y las movés con las flechas —ese orden es el que recorre el botón—; ambos cambios quedan guardados. También ajusta el brillo, elige 12/24 h, **corrige la orientación** si ves la imagen al revés, y tiene **Usar la hora de este teléfono** para poner el reloj en hora sin internet. |
 | **Luz RGB** | Color, intensidad y modo (fijo, arcoíris, apagada) de la luz de atrás. |
 | **Juegos** | Récords, borrarlos, y **calibrar los controles** del juego de meteoritos. |
+| **Sofía** | URL y token del bridge local, estado en vivo del buddy y un campo para pedirle algo al agente: el pedido se ve en la cara. |
 | **Spotify** | Los pasos para conectar tu cuenta (crear la app, el Redirect URI, el Client ID) y el estado en vivo: si falta el Client ID, si falta autorizar, o qué está sonando. |
 | **Mantenimiento** | Reiniciar (no borra nada) o restablecer de fábrica (borra WiFi y récords). Al final hay **Probar colores de la pantalla**: la pone roja, verde, azul y blanca para verificar el panel. |
 
@@ -265,7 +274,11 @@ tiempo elegido en **Pantalla → Apagado automático**. Cada pantalla tiene su
 casilla: por defecto se apagan **Reloj** y **Red**; **Tragamonedas**,
 **Meteoritos** y **Música** quedan siempre encendidas. En Meteoritos, mientras
 estás jugando, calibrando o confirmando la calibración no se apaga aunque la
-incluyas. El menú de pantallas tampoco se apaga.
+incluyas.
+
+La pantalla **Sofía** arranca excluida del apagado: si querés que también duerma,
+marcala en la lista. El menú de pantallas sigue la regla de la pantalla desde la
+que lo abriste: si esa pantalla está incluida, el menú también se apaga.
 
 Un **toque en BOOT** la vuelve a prender, y ese toque no dispara, no gira ni
 cambia de pantalla. Al prenderla, el brillo y el color de la luz quedan como los
@@ -290,19 +303,22 @@ En **Pantalla → Orientación de la pantalla** elegí *Horizontal* o
 
 El juego mide los ejes del sensor, porque según cómo sostengas la placa la
 gravedad puede caer en cualquiera de los tres ejes y los dos ejes del plano
-pueden quedar cruzados. La calibración es guiada, en cinco pasos:
+pueden quedar cruzados. La calibración es guiada y se confirma con toques, sin apuro ni relojes:
 
-1. **Sostenelo cómodo** y quieto un segundo: se toma el punto neutro.
-2. **Incliná el borde de arriba hacía vos** y sostené hasta que la barra pase la
-   marca.
-3. **Alejá el borde de arriba** de la misma forma.
-4. **Incliná hacia la izquierda**, y después
-5. **hacia la derecha**.
+1. **Dejalo en el centro**, como para jugar, y **tocá el botón** para confirmar.
+2. **Incliná hacia la izquierda**, volvé al centro y **tocá** para confirmar.
+3. Lo mismo hacia la **derecha**.
+4. Lo mismo con el borde de arriba **hacia vos**.
+5. Lo mismo **alejando** el borde de arriba.
 
-Entre paso y paso volvé cerca del centro: la pantalla te lo pide con
-`VOLVE AL CENTRO` y los cuatro puntos muestran lo que ya capturó. Al terminar, el
-equipo deduce solo qué eje es horizontal, cuál es vertical y para qué lado va
-cada uno. Si una captura sale mal, no inventa: deja la calibración anterior.
+El cartel te va guiando: `AHORA IZQUIERDA` → `VOLVE AL CENTRO` → `TOCA PARA
+CONFIRMAR`. El toque sólo cuenta si hubo una inclinación de verdad y el equipo ya
+volvió al centro; si te apurás, no pasa nada y el cartel te sigue pidiendo. Los
+cuatro puntos muestran lo que ya quedó confirmado. Al terminar, el equipo deduce
+solo qué eje es horizontal, cuál es vertical y para qué lado va cada uno.
+
+Para cancelar a mitad de camino y quedarte con la calibración anterior, **mantené
+el botón** un segundo.
 
 La primera vez que tocás la pantalla METEORITOS te pide el gesto directamente;
 después, para recalibrar, usá **dos toques rápidos** o el botón del panel.

@@ -66,11 +66,26 @@ struct SteerCalibration {
   float baselineY;   // neutral reading on the axis that reads up/down tilt
 };
 
+// The owner's UI accent (gold by default), its own key so the settings blob
+// layout never changes. Cached in RAM: the screens read it every frame.
+#define SETTINGS_UI_COLOR_DEFAULT 0xFFD700u
+uint32_t settingsGetUiColor();
+bool settingsSetUiColor(uint32_t rgb);
+
 // Order the screen picker walks through. Its own NVS key, and generic over the
 // count, so neither the settings blob layout nor this file needs to know how many
 // screens the UI has.
 void settingsGetScreenOrder(uint8_t *out, uint8_t count);
 bool settingsSetScreenOrder(const uint8_t *order, uint8_t count);
+
+// Buddy bridge (Sofía): URL and token, under their own keys. The Hermes API key
+// never reaches the device; this token only opens the local bridge.
+#define SETTINGS_BUDDY_URL_MAX 96
+#define SETTINGS_BUDDY_TOKEN_MAX 64
+void settingsGetBuddyUrl(char *out, size_t cap);
+void settingsGetBuddyToken(char *out, size_t cap);
+bool settingsSetBuddyUrl(const char *url);
+bool settingsSetBuddyToken(const char *token);
 
 // Owner-chosen name for one screen. Each name lives under its own NVS key so the
 // settings blob layout stays untouched; an absent key means "use the built-in

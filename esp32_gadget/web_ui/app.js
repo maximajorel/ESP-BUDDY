@@ -9,7 +9,7 @@
   var POLL_MS = 2000;
   // Shipped names, used only while the device has not answered yet and by the
   // "original names" button. The device is the source of truth after that.
-  var DEFAULT_NAMES = ['RELOJ', 'TRAGAMONEDAS', 'METEORITOS', 'RED', 'MUSICA'];
+  var DEFAULT_NAMES = ['RELOJ', 'TRAGAMONEDAS', 'METEORITOS', 'RED', 'MUSICA', 'SOFIA'];
   // Must match SCREEN_NAME_MAX in the firmware: longer names come back cut.
   var SCREEN_NAME_MAX = 12;
   // Tiles and toasts follow the names the device reports, so a rename shows up
@@ -284,6 +284,26 @@
     if (id) dirtyFields[id] = true;
   }
 
+  // --- theme -----------------------------------------------------------------
+  // The accent comes from the device (NVS) so the panel and the glass agree.
+  function mixHex(hex, base, weight) {
+    var a = parseInt(hex.slice(1), 16);
+    var b = parseInt(base.slice(1), 16);
+    function mix(shift) {
+      return Math.round(((a >> shift) & 255) * (1 - weight) +
+                        ((b >> shift) & 255) * weight);
+    }
+    return '#' + ((1 << 24) | (mix(16) << 16) | (mix(8) << 8) | mix(0))
+      .toString(16).slice(1);
+  }
+
+  function applyAccent(hex) {
+    if (!/^#[0-9a-f]{6}$/i.test(hex || '')) return;
+    var root = document.documentElement.style;
+    root.setProperty('--gold', hex);
+    root.setProperty('--gold-soft', mixHex(hex, '#0e1015', 0.82));
+  }
+
   function isEditing(el) {
     if (!el) return false;
     if (document.activeElement === el) return true;
@@ -362,6 +382,11 @@
       setText('brightnessOut', display.brightness + ' %');
     }
 
+    if (display.uiColor) {
+      if (!isEditing($('uiColor'))) applyAccent(display.uiColor);
+      setValue('uiColor', display.uiColor);
+    }
+
     var orientation = $('orientation');
     if (orientation && !isEditing(orientation)) {
       // Only the two unmirrored rotations are offered: a mirrored image is
@@ -378,6 +403,19 @@
     var time = status.time || {};
     var clock24 = $('clock24');
     if (clock24 && !isEditing(clock24)) clock24.checked = !!time.clock24h;
+
+    var buddy = status.buddy || {};
+    var buddyNames = {
+      idle: 'En calma', bored: 'Aburrida', thinking: 'Pensando', tool: 'Trabajando',
+      waiting: 'Esperando', error: 'Error', done: 'Listo',
+      offline: 'Sin señal', unconfigured: 'Sin configurar'
+    };
+    setText('buddyState', buddyNames[buddy.state] || buddy.state || '—');
+    setText('buddyLabel', buddy.label || '—');
+    setText('buddyActive', String(buddy.active || 0));
+    setText('buddyOnline', buddy.online ? 'En línea'
+      : (buddy.configured ? 'Sin respuesta' : 'Sin configurar'));
+    if (buddy.url) setValue('buddyUrl', buddy.url);
 
     var rgb = status.rgb || {};
     if (rgb.r !== undefined) {
@@ -829,12 +867,55 @@
         { brightness: Number(event.target.value) }, 'Brillo actualizado');
     });
 
+    if ($('uiColor')) {
+      $('uiColor').addEventListener('input', function (event) {
+        applyAccent(event.target.value);
+      });
+      $('uiColor').addEventListener('change', function (event) {
+        submit(event.target, '/api/settings', { uiColor: event.target.value },
+          'Color de interfaz guardado');
+      });
+    }
+
     if ($('panelColors')) {
       $('panelColors').addEventListener('click', function (event) {
         // The board paints four full-screen colours before answering, so the
         // button stays busy for a couple of seconds on purpose.
         submit(event.target, '/api/panel/colors', {},
           'Colores probados en la pantalla', 'Probando…');
+      });
+    }
+
+    if ($('buddyForm')) {
+      $('buddyForm').addEventListener('submit', function (event) {
+        event.preventDefault();
+        var url = $('buddyUrl').value.trim();
+        var token = $('buddyToken').value.trim();
+        if (!url) { toast('La URL del bridge no puede estar vacía', 'err'); return; }
+        var body = { buddyUrl: url };
+        if (token) body.buddyToken = token;
+        submit(event.target.querySelector('button[type="submit"]'),
+          '/api/settings', body, 'Buddy guardado').then(function (ok) {
+          if (ok) $('buddyToken').value = '';
+        });
+      });
+    }
+    if ($('buddyForget')) {
+      $('buddyForget').addEventListener('click', function (event) {
+        submit(event.target, '/api/settings', { buddyToken: '' },
+          'Token del buddy olvidado');
+      });
+    }
+    if ($('buddyAskForm')) {
+      $('buddyAskForm').addEventListener('submit', function (event) {
+        event.preventDefault();
+        var prompt = $('buddyPrompt').value.trim();
+        if (!prompt) { toast('Escribí qué querés pedirle', 'err'); return; }
+        submit(event.target.querySelector('button[type="submit"]'),
+          '/api/buddy/ask', { prompt: prompt }, 'Pedido enviado a Sofía',
+          'Enviando…').then(function (ok) {
+          if (ok) $('buddyPrompt').value = '';
+        });
       });
     }
 

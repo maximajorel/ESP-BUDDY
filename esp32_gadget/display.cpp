@@ -211,8 +211,11 @@ void displayPush(const uint16_t *fb) {
           py = x;
           break;
       }
+      // The panel takes the low byte first on this unit (proven with the three
+      // bars: a red 0xF800 arrived as 0x00F8, blue). Keep the host-order value
+      // so the little-endian bytes go out as low, high.
       uint16_t v = src[x];
-      s_panel[py * PANEL_W + px] = (uint16_t)((v << 8) | (v >> 8));
+      s_panel[py * PANEL_W + px] = v;
     }
   }
 
@@ -235,17 +238,20 @@ void displayPush(const uint16_t *fb) {
   writeDataBulk((const uint8_t *)s_panel, (uint32_t)PANEL_PIXELS * 2);
 }
 
-// Proof that the panel is actually being driven: four saturated full-screen
-// colours. This used to run at every boot, which flashed the room red before the
-// splash; now it only runs when someone asks for it.
+// Proof that the panel is actually being driven: three pure bars side by side,
+// red | green | blue. A sequential full-screen flash was easy to miss and said
+// nothing about channel order; with the three at once, a red/blue swap is
+// obvious and a missing blue channel is too. This used to run at every boot,
+// which flashed the room red before the splash; now it only runs on demand.
 void displayColorTest() {
-  static const uint16_t COLORS[4] = {0xF800, 0x07E0, 0x001F, 0xFFFF};
-  static const char *const NAMES[4] = {"red", "green", "blue", "white"};
-  for (int i = 0; i < 4; i++) {
-    gfxClear(COLORS[i]);
-    displayPush(gfxBuffer());
-    Serial.printf("panel test: %s\n", NAMES[i]);
-    delay(420);
+  static const uint16_t COLORS[3] = {0xF800, 0x07E0, 0x001F};
+  const int w = DISPLAY_W / 3;
+  for (int i = 0; i < 3; i++) {
+    int bar = (i == 2) ? DISPLAY_W - 2 * w : w;
+    gfxFillRect(i * w, 0, bar, DISPLAY_H, COLORS[i]);
   }
+  displayPush(gfxBuffer());
+  Serial.println("panel test: red | green | blue bars");
+  delay(5000);
   Serial.println("color test done");
 }

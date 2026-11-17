@@ -9,6 +9,7 @@
 // sides of the board.
 #include "rgb.h"
 #include "screens.h"
+#include "theme.h"
 #include "settings.h"
 
 // --- geometry ---------------------------------------------------------------
@@ -27,8 +28,8 @@
 
 // --- palette ----------------------------------------------------------------
 
-#define GOLD gfxHex(0xFFD700)
-#define AMBER gfxHex(0xFFA500)
+#define GOLD uiAccent()
+#define AMBER uiAccentDim()
 #define CRIMSON gfxHex(0xDC143C)
 #define SYM_RED gfxHex(0xE8112D)
 #define SYM_CYAN gfxHex(0x40E0D0)

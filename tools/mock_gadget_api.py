@@ -31,8 +31,8 @@ STATE = {
     "heapFree": 248512,
     "psramFree": 8151240,
     "screen": 0,
-    "order": [0, 1, 2, 3, 4],
-    "names": ["RELOJ", "TRAGAMONEDAS", "METEORITOS", "RED", "MUSICA"],
+    "order": [0, 1, 2, 3, 4, 5],
+    "names": ["RELOJ", "TRAGAMONEDAS", "METEORITOS", "RED", "MUSICA", "SOFIA"],
     "imuOk": True,
     "sta": {"configured": True, "connected": False, "ssid": "VICTORWIFI",
             "ip": "-", "rssi": 0, "state": "failed", "wifiStatusCode": 6,
@@ -46,6 +46,9 @@ STATE = {
             "asleep": False},
     "steer": {"sign": 1, "signY": 1, "latAxis": 0, "upAxis": 2,
               "calibrated": True},
+    "buddy": {"configured": True, "online": True, "state": "idle",
+              "label": "tranquila", "active": 0, "ageMs": 800,
+              "url": "http://192.168.100.64:8787"},
     "scores": {"game": 340, "slot": 120},
 }
 
@@ -196,6 +199,10 @@ class Handler(BaseHTTPRequestHandler):
                 STATE["steer"]["sign"] = body["steerSign"]
             if "steerSignY" in body:
                 STATE["steer"]["signY"] = body["steerSignY"]
+            if "buddyUrl" in body:
+                STATE["buddy"]["url"] = body["buddyUrl"]
+            if "buddyToken" in body:
+                STATE["buddy"]["configured"] = bool(body["buddyToken"])
             if "screenTimeoutSec" in body:
                 STATE["display"]["timeoutSec"] = body["screenTimeoutSec"]
             if "screenTimeoutMask" in body:
@@ -228,6 +235,16 @@ class Handler(BaseHTTPRequestHandler):
             self._json(200, {"ok": True})
             return
 
+        if path == "/api/buddy/ask":
+            prompt = (body.get("prompt") or "").strip()
+            if not prompt:
+                self._fail(400, "Escribi un pedido")
+                return
+            STATE["buddy"]["state"] = "thinking"
+            STATE["buddy"]["label"] = prompt[:40]
+            self._json(200, {"ok": True})
+            return
+
         if path == "/api/panel/colors":
             self._json(200, {"ok": True})
             return
@@ -251,7 +268,7 @@ class Handler(BaseHTTPRequestHandler):
                 # keys during a factory reset; the mock follows the same rule.
                 STATE["order"] = list(range(len(STATE["names"])))
                 STATE["names"] = ["RELOJ", "TRAGAMONEDAS", "METEORITOS", "RED",
-                                  "MUSICA"]
+                                  "MUSICA", "SOFIA"]
             self._json(200, {"ok": True})
             return
 

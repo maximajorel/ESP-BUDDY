@@ -1,6 +1,8 @@
 #include "screens.h"
+#include "theme.h"
 
 #include "rgb.h"
+#include "screen_buddy.h"
 #include "screen_name.h"
 #include "screen_sleep.h"
 #include "screen_order.h"
@@ -32,7 +34,7 @@ static bool s_wakePush = false;
 // Names shipped with the firmware. The owner can rename any screen from the web
 // panel; an absent NVS override falls back to these.
 static const char *const SCREEN_DEFAULT_NAMES[SCREEN_COUNT] = {
-    "RELOJ", "TRAGAMONEDAS", "METEORITOS", "RED", "MUSICA"};
+    "RELOJ", "TRAGAMONEDAS", "METEORITOS", "RED", "MUSICA", "SOFIA"};
 
 // Names currently in use, indexed by screen id (not by pick position).
 static char s_names[SCREEN_COUNT][SCREEN_NAME_MAX + 1];
@@ -97,13 +99,15 @@ bool screensSetOrder(const uint8_t *order) {
 
 void screensBegin() {
   gameInit();
+  buddyBegin();
   loadOrder();
   loadNames();
-  s_current = SCREEN_CLOCK;
   s_lastActivity = millis();
   s_asleep = false;
   s_wakePush = false;
-  clockEnter();
+  // The first screen in the owner's menu order is the one the device boots on,
+  // so reordering the picker also chooses the initial screen.
+  screensGoTo(s_order[0]);
 }
 
 uint8_t screensCurrent() { return s_current; }
@@ -130,6 +134,7 @@ void screensGoTo(uint8_t index) {
     case SCREEN_GAME: gameEnter(); break;
     case SCREEN_NETWORK: netEnter(); break;
     case SCREEN_MUSIC: musicEnter(); break;
+    case SCREEN_BUDDY: buddyEnter(); break;
   }
 }
 
@@ -220,10 +225,6 @@ static void sleepScreen(uint32_t nowMs) {
 static void maybeSleep(uint32_t nowMs) {
   ScreenTimeout timeout = settingsGetScreenTimeout();
   if (timeout.seconds == 0) return;
-  if (s_menuOpen) {
-    s_lastActivity = nowMs;
-    return;
-  }
   if (!screenSleepIncluded(timeout.mask, s_current)) return;
   if (s_current == SCREEN_GAME && gameWantsScreenOn()) {
     s_lastActivity = nowMs;
@@ -245,11 +246,13 @@ bool screensTick(uint32_t nowMs, uint16_t holdPermille) {
   }
 
   if (s_menuOpen) {
-    s_lastActivity = nowMs;
     if (holdPermille != s_holdPermille) changed = true;
     s_holdPermille = holdPermille;
     drawMenu();
     if (changed) chromeHoldBar(s_holdPermille);
+    // The picker is not a screen of its own: it sleeps with the screen it was
+    // opened from. Leaving it open used to keep the glass on forever.
+    maybeSleep(nowMs);
     return true;
   }
   switch (s_current) {
@@ -258,6 +261,7 @@ bool screensTick(uint32_t nowMs, uint16_t holdPermille) {
     case SCREEN_GAME: changed = gameTick(nowMs); break;
     case SCREEN_NETWORK: changed = netTick(nowMs); break;
     case SCREEN_MUSIC: changed = musicTick(nowMs); break;
+    case SCREEN_BUDDY: changed = buddyTick(nowMs); break;
   }
   if (holdPermille != s_holdPermille) changed = true;
   s_holdPermille = holdPermille;
@@ -286,6 +290,7 @@ void screensShortPress() {
     case SCREEN_GAME: gameShortPress(); break;
     case SCREEN_NETWORK: netShortPress(); break;
     case SCREEN_MUSIC: musicShortPress(); break;
+    case SCREEN_BUDDY: buddyShortPress(); break;
   }
 }
 
@@ -335,7 +340,7 @@ void chromeHoldBar(uint16_t permille) {
   // The bar turns gold as it fills, so the gesture has obvious feedback even
   // before the screen switches.
   gfxFillRect(0, CHROME_HOLD_BAR_Y, w, DISPLAY_H - CHROME_HOLD_BAR_Y,
-              gfxHex(0xFFD700));
+              uiAccent());
 }
 
 int gfxTextRight(int rightX, int y, int scale, const char *text, uint16_t color) {

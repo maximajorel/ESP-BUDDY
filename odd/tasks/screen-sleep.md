@@ -64,3 +64,17 @@ is enforced by `gameWantsScreenOn()`. Toggling "MUSICA" in the panel posted mask
 0x09) and the panel renders the selector plus five checkboxes with the device
 names and no console errors. The RGB bead is off while asleep and the configured
 colour/level/effect are kept for wake.
+
+L4 (verbatim): "en el menu no se esta apagando la pantalla me parece". S18b: the
+picker was deliberately excluded from the timeout, which meant leaving the menu
+open kept the glass on forever. Fixed by letting `maybeSleep` run inside the menu
+branch of `screensTick` and removing the menu reset in `maybeSleep`: the menu now
+follows the mask of the screen it was opened from, and navigating it resets the
+activity timer like any other interaction. Docs updated (the "menu never sleeps"
+sentence is gone).
+
+L5: Evidence for S18b. After flashing the tap-confirmed calibration build, with
+timeout 8 s and mask 0x01 the picker was opened over the clock (API long press)
+and left alone: after 10 s the device reported `display.awake=false` and
+`rgb.asleep=true` with the menu still open, and a tap woke it. Defaults restored
+(120 s, mask 0x09). Docs no longer claim the menu never sleeps.

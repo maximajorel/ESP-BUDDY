@@ -95,7 +95,7 @@ static int scaleOption(int shift) {
   return 0;
 }
 
-// Decodes `data` into a 64x64 RGB565 square. Returns false for anything that
+// Decodes `data` into a SCREEN_MUSIC_ART_W RGB565 square. Returns false for anything that
 // does not parse, leaving nothing allocated.
 static bool decodeArtwork(const uint8_t *data, size_t len, uint16_t **out) {
   *out = nullptr;

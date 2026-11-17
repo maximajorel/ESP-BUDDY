@@ -8,17 +8,16 @@
 
 #include <Arduino.h>
 
-// 0 = the screen shows text only. The artwork path works and is kept behind this
-// switch because the 1.47" panel made dark covers read as noise and the owner
-// chose a clean, centred layout instead. Flip to 1 to bring the cover back.
-#define SCREEN_MUSIC_SHOW_ART 0
+// The owner wants the cover centred, with the title, the smaller artist and the
+// progress stacked under it.
+#define SCREEN_MUSIC_SHOW_ART 1
 
-#define SCREEN_MUSIC_ART_W 64
-#define SCREEN_MUSIC_ART_X 10
-#define SCREEN_MUSIC_ART_Y 20
-#define SCREEN_MUSIC_TEXT_X 84
+#define SCREEN_MUSIC_ART_W 172  // decoded buffer, shared with the decoder
+#define SCREEN_MUSIC_COVER_SIZE 94
+#define SCREEN_MUSIC_COVER_X ((320 - SCREEN_MUSIC_COVER_SIZE) / 2)
+#define SCREEN_MUSIC_COVER_Y 6
 
-// Copies a decoded 64x64 RGB565 square. Ignores anything of another size, so a
+// Copies a decoded full-cover RGB565 square (SCREEN_MUSIC_ART_W). Ignores anything of another size, so a
 // half-decoded image can never be drawn.
 void musicSetArtwork(const uint16_t *pixels, int width);
 void musicClearArtwork();

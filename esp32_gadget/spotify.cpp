@@ -23,9 +23,11 @@ static volatile bool s_polling = false;
 static volatile uint32_t s_nextPollAt = 0;
 static volatile uint32_t s_backoffUntil = 0;
 
-// Ten seconds is well inside Spotify's rolling 30 s window for one client, and
-// fast enough that a track change shows up while the owner is still looking.
-#define SPOTIFY_POLL_MS 10000
+// Three seconds: the Web API allows 180 requests per rolling 30 s, so this is
+// 10/30 s, and the HTTP layer reuses the TLS session so each poll is a small
+// GET. Fast enough that a track change or a pause shows up while the owner is
+// still looking at the screen.
+#define SPOTIFY_POLL_MS 3000
 #define SPOTIFY_POLL_RETRY_MS 20000
 #define SPOTIFY_TASK_STACK 12288
 
@@ -207,6 +209,9 @@ void spotifyBegin() {
   } else {
     Serial.println("spotify: sin client id (panel o 'spotify id <id>')");
   }
+  // Poll in the background from boot: entering the music screen must not show a
+  // "consultando" state, the snapshot is already there.
+  spotifySetActive(true);
   xTaskCreatePinnedToCore(pollTask, "spotify", SPOTIFY_TASK_STACK, nullptr, 1,
                           nullptr, 0);
 }

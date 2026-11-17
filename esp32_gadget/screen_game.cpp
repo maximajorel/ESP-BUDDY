@@ -17,6 +17,7 @@
 //
 // La inclinación se filtra de forma complementaria: el acelerómetro da la
 // posición absoluta (no deriva) y el giroscopio aporta la respuesta rápida.
+#include "calibration_gate.h"
 #include "game_difficulty.h"
 #include "game_hits.h"
 #include "imu.h"
@@ -47,13 +48,12 @@
 #define FIRE_COOLDOWN_MS 190
 #define TILT_FULL_SCALE_G 0.35f // inclinación que da el 100% del control
 #define TILT_DEADZONE 0.10f
-// Calibración guiada: sostener quieto, y después inclinar en cuatro direcciones.
-// Cada captura exige superar el umbral y mantenerse, y volver cerca del neutro
-// antes de armar la siguiente, para no capturar dos veces la misma inclinación.
-#define CAL_NEUTRAL_MS 1200
-#define CAL_TILT_G 0.12f
-#define CAL_REARM_G 0.06f
-#define CAL_HOLD_MS 400
+// Calibración guiada y confirmada con toques, sin relojes: el dueño tiene todo el
+// tiempo que quiera. Primero confirma el centro; después, por cada dirección,
+// inclina, vuelve al centro y confirma con un toque. El toque sólo vale si hubo
+// una inclinación real y el equipo ya volvió al centro.
+#define CAL_TILT_G 0.12f    // desvío que cuenta como gesto
+#define CAL_CENTER_G 0.06f  // desvío que cuenta como "de vuelta en el centro"
 
 // --- paleta -----------------------------------------------------------------
 
@@ -168,18 +168,18 @@ static float s_rebaselineSum = 0.0f;
 static float s_rebaselineSumY = 0.0f;
 static uint32_t s_rebaselineCount = 0;
 
-// Calibración guiada. s_calStep 0 es el neutro; 1..4 piden inclinar hacia vos,
-// alejando, a la izquierda y a la derecha, en ese orden.
+// Calibración guiada. s_calStep 0 es el centro; 1..4 piden inclinar a la
+// izquierda, a la derecha, hacia vos y alejando, en ese orden. Cada paso se
+// cierra con un toque, no con un temporizador.
 static uint8_t s_calStep = 0;
 static uint8_t s_calCaptured = 0;
-static uint32_t s_calStepStart = 0;
-static uint32_t s_calNeutralCount = 0;
+static bool s_calNeutralSeeded = false;
 static float s_calNeutral[3] = {0, 0, 0};
+// Orden fijo: 0 izquierda, 1 derecha, 2 hacia vos, 3 alejando.
 static float s_calCaptures[4][3];
-static bool s_calArmed = false;
-static bool s_calHolding = false;
-static uint32_t s_calHoldStart = 0;
-// Desvío actual respecto del neutro, para la barra en pantalla.
+// La inclinación más fuerte vista en el paso actual, y el desvío de ahora.
+static float s_calBest[3] = {0, 0, 0};
+static float s_calBestDev = 0.0f;
 static float s_calDeviation = 0.0f;
 
 static uint32_t nextRandom() {
@@ -426,25 +426,29 @@ static void startGame(uint32_t nowMs) {
 }
 
 static void startCalibration(uint32_t nowMs) {
+  (void)nowMs;
   s_state = GAME_CALIBRATING;
   s_calStep = 0;
   s_calCaptured = 0;
-  s_calStepStart = nowMs;
-  s_calNeutralCount = 0;
-  s_calArmed = false;
-  s_calHolding = false;
+  s_calNeutralSeeded = false;
+  s_calBestDev = 0.0f;
   s_calDeviation = 0.0f;
-  for (int i = 0; i < 3; i++) s_calNeutral[i] = 0.0f;
+  for (int i = 0; i < 3; i++) {
+    s_calNeutral[i] = 0.0f;
+    s_calBest[i] = 0.0f;
+  }
   s_needRedraw = true;
-  Serial.println("calibracion: sostenelo comodo");
+  Serial.println("calibracion: dejalo en el centro y toca para confirmar");
 }
 
 static void finishCalibration(uint32_t nowMs) {
   bool solved = false;
-  if (s_calCaptured == 4 && s_calNeutralCount > 0) {
+  if (s_calCaptured == 4 && s_calNeutralSeeded) {
+    // steerSolve wants (toward, away, left, right); the flow captures
+    // (left, right, toward, away).
     SteerSolution sol =
-        steerSolve(s_calNeutral, s_calCaptures[0], s_calCaptures[1],
-                   s_calCaptures[2], s_calCaptures[3]);
+        steerSolve(s_calNeutral, s_calCaptures[2], s_calCaptures[3],
+                   s_calCaptures[0], s_calCaptures[1]);
     if (sol.ok) {
       s_cal.latAxis = sol.latAxis;
       s_cal.upAxis = sol.upAxis;
@@ -472,34 +476,33 @@ static void finishCalibration(uint32_t nowMs) {
   }
   s_calStep = 0;
   s_calCaptured = 0;
-  s_calArmed = false;
-  s_calHolding = false;
+  s_calNeutralSeeded = false;
+  s_calBestDev = 0.0f;
   startGame(nowMs);
 }
 
-// Un paso de la calibración guiada: junta el neutro, y después espera cada
-// inclinación sostenida. La captura se guarda como vector crudo; el solver
-// decide ejes y sentidos al final, cuando ya están las cuatro.
+// Un paso de la calibración guiada: promedia el centro, y en cada dirección
+// recuerda la inclinación más fuerte. Nada de temporizadores: el toque del dueño
+// es el que cierra cada paso; el solver decide ejes y sentidos al final.
 static void calibrationTick(uint32_t nowMs) {
+  (void)nowMs;
   if (!g_imuOk) {
-    finishCalibration(nowMs);
+    finishCalibration(millis());
     return;
   }
   float a[3], g[3];
   imuReadAll(a, g);
 
   if (s_calStep == 0) {
-    for (int i = 0; i < 3; i++) s_calNeutral[i] += a[i];
-    s_calNeutralCount++;
-    if ((uint32_t)(nowMs - s_calStepStart) >= CAL_NEUTRAL_MS) {
+    // Promedio suave: cuando el dueño toca, el neutro es la postura reciente,
+    // no la última muestra con ruido.
+    if (!s_calNeutralSeeded) {
+      for (int i = 0; i < 3; i++) s_calNeutral[i] = a[i];
+      s_calNeutralSeeded = true;
+    } else {
       for (int i = 0; i < 3; i++) {
-        s_calNeutral[i] /= (float)s_calNeutralCount;
+        s_calNeutral[i] = 0.8f * s_calNeutral[i] + 0.2f * a[i];
       }
-      s_calStep = 1;
-      s_calStepStart = nowMs;
-      s_calArmed = false;
-      s_calHolding = false;
-      Serial.println("calibracion: 1/4 hacia vos");
     }
     return;
   }
@@ -510,36 +513,42 @@ static void calibrationTick(uint32_t nowMs) {
     dev += d * d;
   }
   s_calDeviation = sqrtf(dev);
+  if (s_calDeviation > s_calBestDev) {
+    s_calBestDev = s_calDeviation;
+    for (int i = 0; i < 3; i++) s_calBest[i] = a[i];
+  }
+}
 
-  // Volver cerca del neutro arma la próxima captura; sin eso, quedarse inclinado
-  // después de una captura dispararía la siguiente con la misma inclinación.
-  if (s_calDeviation < CAL_REARM_G) {
-    s_calArmed = true;
-    s_calHolding = false;
+// Un toque cierra el paso actual: confirma el centro o la inclinación recién
+// hecha. Si falta el gesto o el equipo sigue inclinado, no pasa nada (y el
+// cartel ya dice qué hacer).
+static void calibrationTap() {
+  if (s_calStep == 0) {
+    if (!s_calNeutralSeeded) return;
+    s_calStep = 1;
+    s_calCaptured = 0;
+    s_calBestDev = 0.0f;
+    s_calDeviation = 0.0f;
+    s_needRedraw = true;
+    Serial.println("calibracion: 1/4 izquierda");
     return;
   }
-  if (!s_calArmed || s_calDeviation < CAL_TILT_G) {
-    s_calHolding = false;
+  if (!calCanConfirm(s_calBestDev, s_calDeviation, CAL_TILT_G, CAL_CENTER_G)) {
+    Serial.println("calibracion: falta inclinar y volver al centro");
     return;
   }
-  if (!s_calHolding) {
-    s_calHolding = true;
-    s_calHoldStart = nowMs;
-    return;
+  for (int i = 0; i < 3; i++) {
+    s_calCaptures[s_calCaptured][i] = s_calBest[i];
   }
-  if ((uint32_t)(nowMs - s_calHoldStart) < CAL_HOLD_MS) return;
-
-  for (int i = 0; i < 3; i++) s_calCaptures[s_calCaptured][i] = a[i];
   s_calCaptured++;
-  s_calArmed = false;
-  s_calHolding = false;
-  Serial.printf("calibracion: %u/4 ok\n", (unsigned)s_calCaptured);
+  s_calBestDev = 0.0f;
   if (s_calCaptured >= 4) {
-    finishCalibration(nowMs);
+    finishCalibration(millis());
     return;
   }
   s_calStep = (uint8_t)(s_calCaptured + 1);
-  s_calStepStart = nowMs;
+  s_needRedraw = true;
+  Serial.printf("calibracion: %u/4 siguiente\n", (unsigned)s_calCaptured);
 }
 
 static void gameOver(uint32_t nowMs) {
@@ -988,57 +997,51 @@ static void drawCalibrationDots(int y) {
 }
 
 static void drawCalibrating(uint32_t nowMs) {
+  (void)nowMs;
   gfxClear(GFX_BLACK);
   gfxTextCentered(8, 1, "CALIBRACION", CHROME_DIM);
 
-  static const char *const MAIN[5] = {"", "HACIA VOS", "ALEJANDO",
-                                      "IZQUIERDA", "DERECHA"};
+  static const char *const DIR[5] = {"", "IZQUIERDA", "DERECHA", "HACIA VOS",
+                                     "ALEJANDO"};
   static const char *const HINT[5] = {
-      "",
-      "Inclina el borde de arriba hacia vos",
-      "Ahora aleja el borde de arriba",
-      "Ahora inclina hacia la izquierda",
-      "Ahora inclina hacia la derecha"};
+      "", "Inclina hacia la izquierda", "Inclina hacia la derecha",
+      "Inclina el borde de arriba hacia vos", "Ahora aleja el borde de arriba"};
 
   if (s_calStep == 0) {
-    gfxTextCentered(38, 2, "SOSTENELO COMODO", STYLE_BULLET);
-    gfxTextCentered(62, 1, "Dejalo quieto: se toma el punto neutro", GFX_WHITE);
-    uint32_t elapsed = (uint32_t)(nowMs - s_calStepStart);
-    int permille =
-        elapsed >= CAL_NEUTRAL_MS
-            ? 1000
-            : (int)((uint64_t)elapsed * 1000 / CAL_NEUTRAL_MS);
-    int w = DISPLAY_W - 80;
-    gfxFillRect(40, 112, w, 8, STYLE_DIM);
-    gfxFillRect(40, 112, w * permille / 1000, 8, STYLE_BULLET);
-    chromeFooter("TOCA: CANCELAR");
+    gfxTextCentered(38, 2, "DEJALO EN", STYLE_TEXT);
+    gfxTextCentered(62, 2, "EL CENTRO", STYLE_TEXT);
+    gfxTextCentered(96, 1, "Apoyalo como para jugar, quieto", GFX_WHITE);
+    chromeFooter("TOCA: CONFIRMAR   MANTENE: CANCELAR");
     return;
   }
 
-  gfxTextCentered(38, 2, MAIN[s_calStep], STYLE_TEXT);
-  gfxTextCentered(62, 1, HINT[s_calStep], GFX_WHITE);
-  drawCalibrationDots(88);
+  bool recorded = calExtremeRecorded(s_calBestDev, CAL_TILT_G);
+  bool centered = calAtCenter(s_calDeviation, CAL_CENTER_G);
+  if (!recorded) {
+    gfxTextCentered(34, 2, "AHORA", CHROME_DIM);
+    gfxTextCentered(58, 2, DIR[s_calStep], STYLE_TEXT);
+    gfxTextCentered(84, 1, HINT[s_calStep], GFX_WHITE);
+  } else if (!centered) {
+    gfxTextCentered(38, 2, "VOLVE AL CENTRO", STYLE_BULLET);
+    gfxTextCentered(84, 1, "Soltalo quieto, sin inclinar", GFX_WHITE);
+  } else {
+    gfxTextCentered(34, 2, "TOCA PARA", CHROME_DIM);
+    gfxTextCentered(58, 2, "CONFIRMAR", STYLE_SHIP);
+    gfxTextCentered(84, 1, DIR[s_calStep], STYLE_BULLET);
+  }
 
-  // Barra viva: se llena con la inclinación actual. La marca vertical es el
-  // umbral de captura, así el dueño ve cuánto falta sin adivinar.
+  drawCalibrationDots(104);
+
+  // Barra viva con el desvío actual y la marca del umbral de gesto.
   int w = DISPLAY_W - 80;
   float full = CAL_TILT_G * 2.0f;
   int permille = (int)(s_calDeviation / full * 1000.0f);
   if (permille > 1000) permille = 1000;
-  gfxFillRect(40, 112, w, 8, STYLE_DIM);
-  gfxFillRect(40, 112, w * permille / 1000, 8,
-              s_calHolding ? STYLE_SHIP : STYLE_BULLET);
-  int markX = 40 + w / 2;
-  gfxFillRect(markX, 108, 2, 16, CHROME_LINE);
+  gfxFillRect(40, 118, w, 8, STYLE_DIM);
+  gfxFillRect(40, 118, w * permille / 1000, 8, STYLE_BULLET);
+  gfxFillRect(40 + w / 2, 114, 2, 16, CHROME_LINE);
 
-  if (!s_calArmed) {
-    gfxTextCentered(130, 1, "VOLVE AL CENTRO", GFX_WHITE);
-  } else if (s_calHolding) {
-    gfxTextCentered(130, 1, "MANTENELA UN SEGUNDO MAS", STYLE_SHIP);
-  } else {
-    gfxTextCentered(130, 1, "INCLINA Y SOSTENE", CHROME_DIM);
-  }
-  chromeFooter("TOCA: CANCELAR");
+  chromeFooter("MANTENE: CANCELAR");
 }
 
 static void drawOver() {
@@ -1106,8 +1109,8 @@ void gameShortPress() {
       Serial.printf("calibracion: %s\n", s_confirmYes ? "SI" : "NO");
       break;
     case GAME_CALIBRATING:
-      // Un toque durante el gesto termina la calibración con lo que haya.
-      finishCalibration(now);
+      // Cada paso se confirma con un toque; ver calibrationTap().
+      calibrationTap();
       break;
     case GAME_PLAYING:
       fireBullet(now);
@@ -1116,13 +1119,23 @@ void gameShortPress() {
 }
 
 bool gameLongPress() {
+  if (s_state == GAME_CALIBRATING) {
+    // Mantener cancela la calibración a mitad de camino y deja la anterior.
+    Serial.println("calibracion: cancelada, queda la anterior");
+    s_calStep = 0;
+    s_calCaptured = 0;
+    s_calBestDev = 0.0f;
+    s_state = GAME_READY;
+    s_needRedraw = true;
+    return true;
+  }
   if (s_state != GAME_CONFIRM) return false;
   s_needRedraw = true;
   if (s_confirmYes) {
     Serial.println("calibracion: confirmada");
     startCalibration(millis());
   } else {
-    Serial.println("calibracion: cancelada");
+    Serial.println("calibracion: descartada");
     s_state = GAME_READY;
   }
   return true;

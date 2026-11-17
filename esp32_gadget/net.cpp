@@ -8,12 +8,14 @@
 #include "console.h"
 #include "display.h"
 #include "rgb.h"
+#include "screen_buddy.h"
 #include "screen_sleep.h"
 #include "screens.h"
 #include "settings.h"
 #include "spotify.h"
 #include "spotify_auth.h"
 #include "spotify_store.h"
+#include "ui_color.h"
 #include "web_assets.h"
 
 #define FIRMWARE_NAME "esp32-gadget"
@@ -183,6 +185,35 @@ static void buildStatusJson(String &out) {
   disp["awake"] = displayIsAwake();
   disp["timeoutSec"] = (int)settingsGetScreenTimeout().seconds;
   disp["timeoutMask"] = (int)settingsGetScreenTimeout().mask;
+  {
+    char uiHex[8];
+    uiColorToHex(settingsGetUiColor(), uiHex);
+    disp["uiColor"] = uiHex;
+  }
+
+  {
+    BuddyView buddy;
+    buddyGetView(&buddy);
+    char url[SETTINGS_BUDDY_URL_MAX + 1];
+    settingsGetBuddyUrl(url, sizeof(url));
+    JsonObject obj = doc["buddy"].to<JsonObject>();
+    obj["configured"] = buddy.configured;
+    obj["online"] = buddy.online;
+    obj["state"] = buddyStateWireName(buddy.state);
+    obj["label"] = buddy.label;
+    obj["active"] = buddy.active;
+    obj["phase"] = buddyPhaseWireName(buddy.phase);
+    {
+      JsonArray led = obj["led"].to<JsonArray>();
+      led.add(buddy.led.r);
+      led.add(buddy.led.g);
+      led.add(buddy.led.b);
+    }
+    obj["ageMs"] = buddy.ageMs;
+    obj["stateAgeMs"] = buddy.stateAgeMs;
+    obj["url"] = url;
+    // The token is never echoed back: the panel only says whether it is set.
+  }
 
   JsonObject rgbObj = doc["rgb"].to<JsonObject>();
   uint8_t r, g, b;
@@ -286,6 +317,26 @@ static ApiResult apiSettings(const String &body) {
     }
   }
   if (doc["clock24h"].is<bool>()) cfg.clock24h = doc["clock24h"];
+
+  if (!doc["uiColor"].isNull()) {
+    uint32_t rgb = 0;
+    if (!doc["uiColor"].is<const char*>() ||
+        !uiColorParse(doc["uiColor"] | "", &rgb)) {
+      return apiFail(400, "Color de interfaz invalido");
+    }
+    if (!settingsSetUiColor(rgb)) {
+      return apiFail(500, "No pude guardar el color");
+    }
+  }
+
+  if (!doc["buddyUrl"].isNull()) {
+    const char *url = doc["buddyUrl"] | "";
+    if (!settingsSetBuddyUrl(url)) return apiFail(400, "URL del buddy invalida");
+  }
+  if (!doc["buddyToken"].isNull()) {
+    const char *token = doc["buddyToken"] | "";
+    if (!settingsSetBuddyToken(token)) return apiFail(400, "Token del buddy invalido");
+  }
 
   if (doc["screenTimeoutSec"].is<int>() || doc["screenTimeoutMask"].is<int>()) {
     ScreenTimeout timeout = settingsGetScreenTimeout();
@@ -523,6 +574,23 @@ static ApiResult apiScreenNames(const String &body) {
   return apiOk();
 }
 
+// The panel's prompt box asks the buddy bridge to start a run. The device is
+// only the relay: the bridge holds the Hermes key, the device holds the bridge
+// token.
+static ApiResult apiBuddyAsk(const String &body) {
+  JsonDocument doc;
+  if (body.length() &&
+      deserializeJson(doc, body) != DeserializationError::Ok) {
+    return apiFail(400, "Los datos enviados no son validos");
+  }
+  const char *prompt = doc["prompt"] | "";
+  char error[64];
+  if (!buddyAsk(prompt, error, sizeof(error))) {
+    return apiFail(502, error[0] ? error : "No pude pedirle nada a Sofia");
+  }
+  return apiOk();
+}
+
 // The panel needs to know what is missing, not just that something failed: the
 // three auth states map to three different things the owner has to do.
 static ApiResult apiSpotifyStatus() {
@@ -612,7 +680,7 @@ static const char *const POST_PATHS[] = {
     "/api/steer/swap",     "/api/restart",     "/api/factory",
     "/api/spotify/config", "/api/spotify/url", "/api/spotify/code",
     "/api/spotify/forget", "/api/screens/order", "/api/screens/names",
-    "/api/panel/colors",
+    "/api/panel/colors", "/api/buddy/ask",
 };
 static const uint32_t POST_PATH_COUNT = sizeof(POST_PATHS) / sizeof(POST_PATHS[0]);
 
@@ -645,9 +713,10 @@ ApiResult netHandleApi(const char *method, const char *path, const String &body)
   if (!isPost) return apiFail(405, "Metodo no permitido");
 
   if (!strcmp(path, "/api/wifi")) return apiWifi(body);
+  if (!strcmp(path, "/api/buddy/ask")) return apiBuddyAsk(body);
   if (!strcmp(path, "/api/panel/colors")) {
-    // Panel self-test on demand. It blocks for ~1.7 s while the four colours are
-    // shown, then the current screen is painted back.
+    // Panel self-test on demand. It blocks for ~5 s while the three colour bars
+    // are shown, then the current screen is painted back.
     displayColorTest();
     screensGoTo(screensCurrent());
     return apiOk();

@@ -7,6 +7,9 @@
 #include "screen_sleep.h"
 
 static Preferences s_prefs;
+// Cached UI accent: read once at boot, updated by the panel, never from NVS on
+// a draw (the screens ask for it every frame).
+static uint32_t s_uiColor = SETTINGS_UI_COLOR_DEFAULT;
 static Settings s_settings;
 static bool s_loaded = false;
 
@@ -46,6 +49,8 @@ void settingsBegin() {
   settingsResetDefaults();
 
   if (!s_prefs.begin("gadget", false)) return;
+
+  s_uiColor = s_prefs.getUInt("uiClr", SETTINGS_UI_COLOR_DEFAULT) & 0xFFFFFFu;
 
   size_t got = s_prefs.getBytesLength("cfg");
   if (got == sizeof(Settings)) {
@@ -100,6 +105,14 @@ uint8_t settingsGetOrientation() {
 void settingsSetOrientation(uint8_t value) {
   if (value > 3) value = ORIENT_DEFAULT;
   s_prefs.putUChar("orient", value);
+}
+
+uint32_t settingsGetUiColor() { return s_uiColor; }
+
+bool settingsSetUiColor(uint32_t rgb) {
+  s_uiColor = rgb & 0xFFFFFFu;
+  if (!s_loaded && !s_prefs.begin("gadget", false)) return false;
+  return s_prefs.putUInt("uiClr", s_uiColor);
 }
 
 // Clock (0) and network (3) are the screens that are just ambient information;
@@ -157,11 +170,21 @@ void settingsGetScreenOrder(uint8_t *out, uint8_t count) {
   if (!out || count == 0) return;
   for (uint8_t i = 0; i < count; i++) out[i] = i;  // default: natural order
   if (!s_loaded && !s_prefs.begin("gadget", true)) return;
-  size_t got = s_prefs.getBytesLength("order");
-  if (got != (size_t)count) return;
   uint8_t storage[8];
   if (count > sizeof(storage)) return;
-  if (s_prefs.getBytes("order", storage, count) != count) return;
+  size_t got = s_prefs.getBytesLength("order");
+  if (got == (size_t)count) {
+    if (s_prefs.getBytes("order", storage, count) != count) return;
+  } else if (count > 1 && got == (size_t)count - 1) {
+    // Upgrade from the firmware that had one screen fewer: the new screen goes
+    // last, the owner's order survives, and the migrated order is persisted so
+    // the next boot does not migrate again.
+    if (s_prefs.getBytes("order", storage, got) != got) return;
+    storage[count - 1] = (uint8_t)(count - 1);
+    s_prefs.putBytes("order", storage, count);
+  } else {
+    return;
+  }
   for (uint8_t i = 0; i < count; i++) out[i] = storage[i];
 }
 
@@ -169,6 +192,45 @@ bool settingsSetScreenOrder(const uint8_t *order, uint8_t count) {
   if (!order || count == 0 || count > 8) return false;
   if (!s_loaded && !s_prefs.begin("gadget", false)) return false;
   return s_prefs.putBytes("order", order, count) == count;
+}
+
+// --- buddy bridge -----------------------------------------------------------
+
+// Where the local bridge for Sofía listens when the owner has not changed it.
+#define BUDDY_URL_DEFAULT "http://192.168.100.64:8787"
+
+void settingsGetBuddyUrl(char *out, size_t cap) {
+  if (!out || cap == 0) return;
+  out[0] = '\0';
+  if (!s_loaded && !s_prefs.begin("gadget", true)) return;
+  String value = s_prefs.getString("bdUrl", BUDDY_URL_DEFAULT);
+  snprintf(out, cap, "%s", value.c_str());
+}
+
+void settingsGetBuddyToken(char *out, size_t cap) {
+  if (!out || cap == 0) return;
+  out[0] = '\0';
+  if (!s_loaded && !s_prefs.begin("gadget", true)) return;
+  String value = s_prefs.getString("bdTok", "");
+  snprintf(out, cap, "%s", value.c_str());
+}
+
+bool settingsSetBuddyUrl(const char *url) {
+  if (!url) return false;
+  if (!s_loaded && !s_prefs.begin("gadget", false)) return false;
+  if (strlen(url) > SETTINGS_BUDDY_URL_MAX) return false;
+  return s_prefs.putString("bdUrl", url) > 0;
+}
+
+bool settingsSetBuddyToken(const char *token) {
+  if (!s_loaded && !s_prefs.begin("gadget", false)) return false;
+  if (!token || !*token) {
+    // Clearing the token is how the owner unpairs the face.
+    s_prefs.remove("bdTok");
+    return true;
+  }
+  if (strlen(token) > SETTINGS_BUDDY_TOKEN_MAX) return false;
+  return s_prefs.putString("bdTok", token) > 0;
 }
 
 // --- screen names -----------------------------------------------------------

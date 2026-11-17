@@ -29,6 +29,7 @@
   <a href="#luz" class="chip">Luz RGB</a>
   <a href="#juegos" class="chip">Juegos</a>
   <a href="#spotify" class="chip">Spotify</a>
+  <a href="#sofia" class="chip">Sofía</a>
 </nav>
 
 <main>
@@ -98,6 +99,7 @@
       <button class="tile" data-screen="2"><span class="ico">🚀</span><span class="tile-name">METEORITOS</span></button>
       <button class="tile" data-screen="3"><span class="ico">📶</span><span class="tile-name">RED</span></button>
       <button class="tile" data-screen="4"><span class="ico">🎵</span><span class="tile-name">MUSICA</span></button>
+      <button class="tile" data-screen="5"><span class="ico">🙂</span><span class="tile-name">SOFIA</span></button>
     </div>
 
     <h3>Nombres y orden del menú</h3>
@@ -111,6 +113,10 @@
     <label class="slider">Brillo
       <input type="range" id="brightness" min="5" max="100" step="5">
       <output id="brightnessOut">—</output>
+    </label>
+
+    <label>Color de la interfaz <span class="tag">el acento del equipo y del panel</span>
+      <input type="color" id="uiColor" value="#ffd700">
     </label>
 
     <label>Orientación de la pantalla <span class="tag">según cómo apoyes el equipo</span>
@@ -268,6 +274,37 @@
       <p class="sp-time"><span id="spotifyPlay">—</span> · <span id="spotifyTime">—</span></p>
     </div>
     <p class="hint" id="spotifyFeedNote"></p>
+  </section>
+
+  <section id="sofia" class="card">
+    <h2>Sofía (buddy)</h2>
+    <p class="hint">La pantalla SOFIA muestra una cara que reacciona a lo que hace Hermes, consultando el bridge en tu LAN. Este panel guarda la URL y el token del bridge; la clave de Hermes no pasa por el equipo.</p>
+    <form id="buddyForm" class="form">
+      <label>URL del bridge
+        <input id="buddyUrl" name="url" autocomplete="off" spellcheck="false" maxlength="96" placeholder="http://192.168.100.64:8787">
+      </label>
+      <label>Token del buddy <span class="tag">vacío = no cambiarlo</span>
+        <input id="buddyToken" name="token" type="password" autocomplete="off" maxlength="64" placeholder="••••••••">
+      </label>
+      <div class="actions">
+        <button class="btn" type="submit">Guardar</button>
+        <button class="btn ghost" id="buddyForget" type="button">Olvidar token</button>
+      </div>
+    </form>
+    <div class="grid">
+      <div class="stat"><span class="k">Estado</span><span class="v" id="buddyState">—</span></div>
+      <div class="stat"><span class="k">Etiqueta</span><span class="v" id="buddyLabel">—</span></div>
+      <div class="stat"><span class="k">Runs activos</span><span class="v" id="buddyActive">—</span></div>
+      <div class="stat"><span class="k">Bridge</span><span class="v" id="buddyOnline">—</span></div>
+    </div>
+    <form id="buddyAskForm" class="form">
+      <label>Pedirle algo a Sofía <span class="tag">se ve en la cara</span>
+        <input id="buddyPrompt" autocomplete="off" maxlength="200" placeholder="Resumí las novedades del repo">
+      </label>
+      <div class="actions">
+        <button class="btn" type="submit">Pedir</button>
+      </div>
+    </form>
   </section>
 
   <section class="card danger">

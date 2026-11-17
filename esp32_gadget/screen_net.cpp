@@ -7,11 +7,12 @@
 // point name and password in large type rather than burying them in a list.
 #include "net.h"
 #include "screens.h"
+#include "theme.h"
 #include "settings.h"
 
 #define LABEL_COLOR gfxHex(0x7A8CA0)
 #define VALUE_COLOR GFX_WHITE
-#define PASS_COLOR gfxHex(0xFFD700)
+#define PASS_COLOR uiAccent()
 #define URL_COLOR gfxHex(0x66D9EF)
 #define OK_COLOR gfxHex(0x69DB7C)
 #define BAD_COLOR gfxHex(0xFF6B6B)
@@ -65,7 +66,7 @@ bool netTick(uint32_t nowMs) {
   if (st.staConnected) {
     gfxText(12, 4, 1, "PANEL DESDE TU WIFI", LABEL_COLOR);
     snprintf(line, sizeof(line), "http://%s", st.staIp);
-    gfxText(12, 14, 2, line, gfxHex(0xFFD700));
+    gfxText(12, 14, 2, line, uiAccent());
 
     gfxText(12, 38, 1, "SI PREFERIS EL AP DEL EQUIPO", LABEL_COLOR);
     gfxText(12, 48, 1, "http://" NET_AP_IP, URL_COLOR);

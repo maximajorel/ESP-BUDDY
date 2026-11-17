@@ -18,7 +18,8 @@
 #define SCREEN_GAME 2
 #define SCREEN_NETWORK 3
 #define SCREEN_MUSIC 4
-#define SCREEN_COUNT 5
+#define SCREEN_BUDDY 5
+#define SCREEN_COUNT 6
 
 // Shared layout bands, in landscape pixels. There is no header band: the screens
 // own the whole canvas from y=0, and only the footer and hold bar are shared.

@@ -171,3 +171,27 @@ and drift 7.00, with all three fighters alive and firing (`enemyShots 3`). The
 `dump` frame shows the 2 px health bars above the fighters (`++++++` segments
 above the glyph row). Test hooks: `gameage <s>` and `spawnenemy`, console-only.
 Device left on the clock with the fake IMU released.
+
+L12 (verbatim): "Sabes que la calibracion esta bien por pasos, pero pero pero,
+siento que me da poco tiempo, me gustaria que sea tipo Dejalo en el centro /
+Confirmar que esta en el centro / Ahora a la izquierda / volver al centro /
+confirmar de nuevo con un toque en el boton que esta en el centro / Inclinar a
+derecha / Y asi...". S20: the guided calibration loses every timer. The owner
+confirms the center with a tap, then for each direction (left, right, toward you,
+away) tilts, returns to center and confirms with another tap. A tap only counts
+with a recorded extreme AND the device back at center (`calibration_gate.h`,
+host-tested), so an early tap does nothing and the prompt keeps asking. A 1 s hold
+during calibration cancels and keeps the previous axes instead of opening the
+picker. The neutral is a running average of the center step, captured on the tap.
+No more auto-capture windows: the owner sets the pace.
+
+L13: Evidence for S20 (2026-11-16). `calibration_gate_test` PASSED (extreme and
+center boundaries, both-or-nothing). Firmware compiled (1326706 bytes, 42%) and
+flashed (`Hash of data verified`). Serial run with the fake IMU: CONFIRM -> SI ->
+CALIBRATING; a tap printed "1/4 izquierda"; each direction (left -y, right +y,
+toward -x, away +x) followed by a return to center and a tap advanced the flow
+(1/4, 2/4, 3/4 siguiente) and the last tap produced `calibrado: lat=1 fwd=0 up=2
+sign=1 signY=1` then PLAYING. A second run confirmed the cancel path: CONFIRM ->
+SI -> CALIBRATING, then a hold printed "cancelada, queda la anterior" and the game
+returned to READY. The owner's axes were restored afterwards with `steer 1 2 -1 1
+100` (lat=1, up=2, sign=-1, signY=1).

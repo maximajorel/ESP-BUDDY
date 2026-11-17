@@ -1,7 +1,7 @@
 # ESP32 Gadget
 
 Firmware para la **Waveshare ESP32-S3-LCD-1.47B** que convierte la placa en un
-equipo con cuatro pantallas y un panel de administración web.
+equipo con seis pantallas y un panel de administración web.
 
 | Pantalla | Qué es |
 |---|---|
@@ -10,6 +10,7 @@ equipo con cuatro pantallas y un panel de administración web.
 | **Meteoritos** | Juego ASCII de naves, meteoritos y cazas enemigos con barra de vida que disparan, con movimiento libre en dos ejes por sensor, dificultad creciente y récord. |
 | **Red** | Nombre y contraseña del WiFi del equipo + dirección del panel web. |
 | **Música** | Lo que estás escuchando en Spotify, con carátula, tema, artista y progreso. |
+| **Sofía** | Buddy companion: una cara procedural que reacciona a lo que hace Hermes (pensando, trabajando, esperando, error, listo) a través de su bridge local. |
 
 Todo se maneja con **un solo botón**, el BOOT:
 
@@ -45,6 +46,7 @@ esp32_gadget/
 ├── screen_game.cpp      pantalla meteoritos (ASCII)
 ├── screen_net.cpp       pantalla de red
 ├── screen_music.cpp     pantalla de música (Spotify)
+├── screen_buddy.cpp     pantalla Sofía (cara del buddy)
 ├── spotify.*            estado, tarea de consulta y consola
 ├── spotify_parse.*      parser del JSON de Spotify (puro, con test en host)
 ├── spotify_pkce.*       PKCE, SHA-256 y urlencode (puro, con test en host)
