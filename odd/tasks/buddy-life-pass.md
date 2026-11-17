@@ -102,11 +102,11 @@ lid, brow, growth, push).
 | T3 | S4 | inline: `buddy_phase.h` HUD transition machine; test | 5bc94f7 |
 | T4 | S5,S6,S7,S8 | inline: `gfx` dithered squircle, three-step halo, brows, tremble, perspective, dithered lid line, HUD twinkle, sceptical error brows | c487fe6 |
 | T5 | S1-S11 | inline: host suite, firmware compile, hardware probe on COM5, log and commits | 41aa6ed |
-| T6 | S12 | inline: asleface freezes in `buddy_anim.h`; test | — |
+| T6 | S12 | inline: the asleep face freezes in `buddy_anim.h`; test | 9dda017 |
 | T7 | S14,S17 | inline: no brows anywhere; rotated eyelid cut in `gfx`, red anger in `buddy_imu.h`, red bead in `buddy_led.cpp`; tests | 9dda017 |
 | T8 | S13 | inline: `buddy_anim.h` distraction schedule and bug path, eyes track it, abort on any Sofía activity; test | 9dda017 |
 | T9 | S15 | inline: `buddy_imu.h` lying time and movement wake, ZzZ in `screen_buddy.cpp`; test | 9dda017 |
-| T10 | S12-S17 | inline: host suite, compile, flash, probe on COM5, log | — |
+| T10 | S9,S12-S17 | inline: dizzy spiral and the bead mood, then the host suite, compile, flash and probe on COM5 | ae7ad27 |
 
 ## Log
 
