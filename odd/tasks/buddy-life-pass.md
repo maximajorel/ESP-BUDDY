@@ -298,3 +298,23 @@ Pinned by four new assertions (open target, first frame still nearly shut, four
 frames later under 25%, nodding face opens too). Host suite 19/19, firmware
 1,417,670 B flashed on COM5 with the hash verified; the asleep face still shows
 its shut bars, the Z letters and the ordered halo ladder above them.
+
+L13 (final gate, re-measured). Running `tools/probes/buddy_life.txt` end to end
+exposed two measurement traps, both mine and not the firmware's, worth writing
+down:
+
+- A sample taken 1.5 s after the transition plus a `buddydraw` and an 0.8 s drain
+  lands *after* the three-second check window: it reads as "the check never
+  draws". Sampling at +250 ms shows it (31 green 0x04A3 pixels), and the same
+  probe at +4.6 s shows zero. The probe now samples tight and early.
+- A dump line whose trailing spaces were trimmed by the capture shifts every row;
+  filtering rows by length re-indexes the frame. The analysis pads each row to the
+  step width instead, and the guard re-reads agree with the fbpix samples.
+
+With those fixed, the whole sequence is green on COM5 in one run: the check draws
+and expires; dizzy and angry dumps differ; `buddydraw` reports the angry anatomy;
+the bug's amber (0xFD84) and legs (0x7A42) are there while idle and gone after
+`buddyphase busy`; the pinned idle/thinking/error faces draw; the asleep face is
+two shut bars with a Z glyph measured strictly above them (a 10 px top bar at
+y 59, the diagonal, and a 10 px bottom bar at y 71, colour 0x0105); and a faked
+movement (`imufake 0 0 1.6`) opens the eyes from those bars to a 130 px startle.
