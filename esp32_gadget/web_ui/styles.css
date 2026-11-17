@@ -337,6 +337,9 @@ main {
 .region > .card > h3:first-child { margin-top: 0; }
 
 .hint { margin: 0 0 14px; color: var(--dim); font-size: 13px; }
+/* The panel toggles `hidden` on rows laid out with flex, and a class selector
+   beats the user-agent rule: without this, hiding one of them did nothing. */
+[hidden] { display: none !important; }
 .hint.inline { margin: 0; }
 
 .grid { display: grid; gap: 10px; grid-template-columns: 1fr; }

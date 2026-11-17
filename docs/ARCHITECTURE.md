@@ -62,7 +62,23 @@ no incluye `Arduino.h`; si lo necesita, la lógica no es pura y hay que separarl
 | `settings.*` | Leer/escribir NVS y exponer valores tipados | Validar reglas de UI |
 | `net.*` | Red, servidor HTTP y handlers de la API | Formatear texto de pantalla |
 | `rotation.*` | Aplicar modo/bloqueo y compensar ejes | Decidir gestos de pantalla |
+| `rgb.*` | Color, intensidad, efectos y dormir/prender del LED | Decidir qué color mostrar |
+| `buddy_led.*` | La luz trasera como semáforo de Sofía mientras su bridge esté configurado | Dibujar en el panel |
 | `gfx.*` / `display.*` | Primitivas de dibujo y envío al panel | Conocer pantallas |
+
+### Quién manda en el LED trasero
+
+Un solo píxel, dos dueños posibles: el **panel** (color, modo e intensidad que
+elige el dueño) y **Sofía**, que usa el LED como luz de estado cuando su bridge
+está configurado. `buddy_led.cpp` repinta su color de fase en cada vuelta del
+loop, así que mientras Sofía esté configurada cualquier color elegido en el panel
+se perdería en la vuelta siguiente: el panel lo dice y deja solo la intensidad,
+que se multiplica sobre el color de ella. Sin bridge configurado, el LED es del
+panel.
+
+Un comando explícito del dueño (`rgb` en la consola, o el panel) pinta el LED en
+el acto con `rgbApplyNow()` y lo despierta si el apagado automático lo había
+dormido: el brillo que responde la API tiene que ser el que se ve.
 
 ## Estado y persistencia
 

@@ -236,12 +236,39 @@
     return '#' + part(rgb.r) + part(rgb.g) + part(rgb.b);
   }
 
+  // The bead stores 0..255 and the panel speaks percent, the same scale the
+  // CONFIG screen's second row shows. One place does the conversion so the slider,
+  // its label and the value sent to the device cannot disagree.
+  function levelToPercent(level) {
+    var clamped = Math.max(0, Math.min(255, Math.round(level || 0)));
+    return Math.round(clamped * 100 / 255);
+  }
+
+  function percentToLevel(percent) {
+    var clamped = Math.max(0, Math.min(100, Math.round(percent || 0)));
+    return Math.round(clamped * 255 / 100);
+  }
+
   // A poll must not stomp on a field the user is typing into.
   // Controls the owner has touched but not applied yet. The status poll runs every
   // second and used to write straight into them, so a picked colour or dragged
   // slider snapped back to the device value before the owner could press Aplicar.
   // Screens the auto-off applies to: a checkbox per screen, rendered from the
   // names the device reports so a rename shows up here too.
+  // Which controls the bead's real owner allows. Redrawn only when the answer
+  // changes, so toggling it does not fight the panel's own focus.
+  var beadOwnedByBuddy = null;
+  function renderBeadOwnership(configured) {
+    if (beadOwnedByBuddy === configured) return;
+    beadOwnedByBuddy = configured;
+    var note = $('rgbBuddyNote');
+    if (note) note.hidden = !configured;
+    ['rgbColorRow', 'rgbEffectRow'].forEach(function (id) {
+      var el = $(id);
+      if (el) el.hidden = configured;
+    });
+  }
+
   function renderTimeoutScreens(status) {
     var box = $('timeoutScreens');
     if (!box) return;
@@ -380,8 +407,10 @@
 
     var display = status.display || {};
     if (display.brightness !== undefined) {
-      setValue('brightness', display.brightness);
-      setText('brightnessOut', display.brightness + ' %');
+      if (!isEditing($('brightness'))) {
+        setValue('brightness', display.brightness);
+        setText('brightnessOut', display.brightness + ' %');
+      }
     }
 
     if (display.uiColor) {
@@ -442,12 +471,21 @@
     if (buddy.url) setValue('buddyUrl', buddy.url);
     if (buddy.eyeColor) setValue('buddyEyeColor', buddy.eyeColor);
 
+    // Sofía owns the bead while her bridge is configured: buddyLedTick repaints her
+    // phase colour every loop, so a colour or mode picked here would be overwritten
+    // one loop later. The card says so instead of offering a control that lies; the
+    // intensity still multiplies over her colour.
+    renderBeadOwnership(!!buddy.configured);
+
     var rgb = status.rgb || {};
     if (rgb.r !== undefined) {
-      setValue('rgbColor', rgbToHex(rgb));
-      setValue('rgbLevel', rgb.level);
-      setText('rgbLevelOut', String(rgb.level));
-      setValue('rgbEffect', String(rgb.effect));
+      if (!isEditing($('rgbColor'))) setValue('rgbColor', rgbToHex(rgb));
+      var levelPercent = levelToPercent(rgb.level);
+      if (!isEditing($('rgbLevel'))) {
+        setValue('rgbLevel', levelPercent);
+        setText('rgbLevelOut', levelPercent + ' %');
+      }
+      if (!isEditing($('rgbEffect'))) setValue('rgbEffect', String(rgb.effect));
     }
 
     var tiles = $('screenPicker').querySelectorAll('.tile');
@@ -1136,7 +1174,7 @@
     });
 
     $('rgbLevel').addEventListener('input', function (event) {
-      setText('rgbLevelOut', event.target.value);
+      setText('rgbLevelOut', event.target.value + ' %');
     });
 
     $('swatches').addEventListener('click', function (event) {
@@ -1147,16 +1185,18 @@
     });
 
     $('rgbApply').addEventListener('click', function (event) {
-      var color = hexToRgb($('rgbColor').value) || { r: 255, g: 215, b: 0 };
-      submit(event.target, '/api/settings', {
-        rgb: {
-          r: color.r,
-          g: color.g,
-          b: color.b,
-          level: Number($('rgbLevel').value),
-          effect: Number($('rgbEffect').value)
-        }
-      }, 'Luz actualizada');
+      // Only the intensity when Sofía owns the bead: sending a colour would be a
+      // request the firmware immediately undoes, and the card would report a value
+      // the light never shows.
+      var body = { level: percentToLevel(Number($('rgbLevel').value)) };
+      if (!beadOwnedByBuddy) {
+        var color = hexToRgb($('rgbColor').value) || { r: 255, g: 215, b: 0 };
+        body.r = color.r;
+        body.g = color.g;
+        body.b = color.b;
+        body.effect = Number($('rgbEffect').value);
+      }
+      submit(event.target, '/api/settings', { rgb: body }, 'Luz actualizada');
     });
 
     $('setTime').addEventListener('click', function (event) {

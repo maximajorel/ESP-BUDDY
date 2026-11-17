@@ -208,7 +208,10 @@
       </div>
 
       <section class="card">
-        <div class="row">
+        <p class="hint" id="rgbBuddyNote" hidden>Sofía está configurada y usa esta
+          luz para mostrar su estado: el color y el modo los decide ella. El brillo
+          sí se ajusta desde acá.</p>
+        <div class="row" id="rgbColorRow">
           <input type="color" id="rgbColor" value="#ffd700">
           <div class="swatches" id="swatches">
             <button type="button" data-color="#ffd700" style="--c:#ffd700" title="Oro"></button>
@@ -219,10 +222,10 @@
           </div>
         </div>
         <label class="slider">Intensidad
-          <input type="range" id="rgbLevel" min="0" max="255" step="5">
+          <input type="range" id="rgbLevel" min="0" max="100" step="5">
           <output id="rgbLevelOut">—</output>
         </label>
-        <label>Modo
+        <label id="rgbEffectRow">Modo
           <select id="rgbEffect">
             <option value="0">Color fijo</option>
             <option value="1">Arcoíris</option>
