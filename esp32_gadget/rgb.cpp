@@ -157,6 +157,20 @@ void rgbTick() {
   show(r, g, b);
 }
 
+void rgbApplyNow() {
+  // An owner command is also a wake: `rgbSleep()` darkens the bead on the screen
+  // timer, and a panel write used to change the state while the bead stayed dark,
+  // which read as a light that ignored the slider.
+  s_sleeping = false;
+  if (s_effect == RGB_EFFECT_OFF) {
+    show(0, 0, 0);
+    return;
+  }
+  uint8_t r = s_r, g = s_g, b = s_b;
+  if (s_effect == RGB_EFFECT_RAINBOW) wheel(s_hue, r, g, b);
+  show(r, g, b);
+}
+
 void rgbSleep() {
   s_sleeping = true;
   show(0, 0, 0);

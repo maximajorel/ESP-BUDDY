@@ -602,7 +602,11 @@ static void handleCommand(char *line) {
       // contradict the CONFIG screen that shows it.
       settingsSetRgbLevel(rgbLevel());
     }
-    Serial.printf("rgb %u %u %u\n", (unsigned)r, (unsigned)g, (unsigned)b);
+    // Applied now, and the bead wakes: a console command that only took effect on
+    // the next tick looked like a light that ignored the number.
+    rgbApplyNow();
+    Serial.printf("rgb %u %u %u level %u\n", (unsigned)r, (unsigned)g,
+                  (unsigned)b, (unsigned)rgbLevel());
     return;
   }
   if (!strcmp(argv[0], "tz") && argc > 1) {

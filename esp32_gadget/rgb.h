@@ -36,6 +36,12 @@ void rgbPulse(uint8_t r, uint8_t g, uint8_t b, uint32_t durationMs);
 // Drives animated layers. Call once per loop.
 void rgbTick();
 
+// Paints the configured colour right now and brings the bead back from the sleep
+// the screen timer put it in. For an owner command (panel, console): the answer to
+// "the bead is at 60%" has to be a bead at 60%, even with the glass off. Not for
+// the buddy's per-loop colour, which the next tick paints anyway.
+void rgbApplyNow();
+
 // True while a celebration or pulse is running.
 bool rgbBusy();
 

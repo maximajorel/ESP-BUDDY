@@ -484,6 +484,10 @@ static ApiResult apiSettings(const String &body) {
       int value = rgbIn["effect"];
       if (value >= 0 && value <= 2) rgbSetEffect((uint8_t)value);
     }
+    // The bead answers the request before the response goes out, and it wakes: the
+    // panel used to store the level while the bead stayed dark from the sleep
+    // timer, which read as a slider that did nothing.
+    rgbApplyNow();
   }
 
   settingsSave();
