@@ -39,6 +39,8 @@ esp32_gadget/
 ├── button.h             máquina de estados del botón (toque / 1 s)
 ├── settings.*           credenciales, calibración y ajustes en NVS
 ├── rgb.*                LED WS2812 y celebración de casino
+├── rotation.*           rotación automática, bloqueo y compensación del sensor
+├── rotation_policy.h    cuándo girar la imagen y cuándo quedarse quieto (puro, test en host)
 ├── imu.*                QMI8658 (acelerómetro + giroscopio)
 ├── screens.*            registro de pantallas y marco común
 ├── screen_name.h        reglas de los nombres elegidos por el dueño (test en host)
@@ -46,7 +48,7 @@ esp32_gadget/
 ├── screen_slot.cpp      pantalla tragamonedas
 ├── screen_game.cpp      pantalla meteoritos (ASCII)
 ├── screen_net.cpp       pantalla de red
-├── screen_config.cpp    pantalla Config (brillo del LCD y del LED)
+├── screen_config.cpp    pantalla Config (brillo del LCD y del LED, rotación y bloqueo)
 ├── config_value.h       pasos, topes y mapeo de brillo (puro, test en host)
 ├── screen_music.cpp     pantalla de música (Spotify)
 ├── screen_buddy.cpp     pantalla Sofía (cara del buddy)

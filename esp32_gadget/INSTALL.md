@@ -267,7 +267,7 @@ queda fijo a la izquierda.
 | Sección | Para qué sirve |
 |---|---|
 | **Aplicaciones** (primera) | Elegís qué se ve en la pantalla del equipo tocando una tarjeta; la activa queda marcada como **Ahora**. Debajo, plegado, está **Nombres y orden del menú**: escribís el nombre de cada pantalla (hasta 12 letras, se ve igual en la lista y en el equipo) y las movés con las flechas — ese orden es el que recorre el botón—; ambos cambios quedan guardados. |
-| **Pantalla** | Brillo, color de la interfaz, orientación si ves la imagen al revés, reloj en 12/24 h, **Usar la hora de este teléfono** para ponerlo en hora sin internet y el **apagado automático** de la pantalla y la luz. |
+| **Pantalla** | Brillo, color de la interfaz, rotación automática (o fija), bloqueo de la rotación, reloj en 12/24 h, **Usar la hora de este teléfono** para ponerlo en hora sin internet y el **apagado automático** de la pantalla y la luz. |
 | **Luz RGB** | Color, intensidad (queda guardada en el equipo) y modo (fijo, arcoíris, apagada) de la luz de atrás. |
 | **Juegos** | Récords, borrarlos, **calibrar los controles** del juego de meteoritos y corregir los ejes si la nave va al revés. |
 | **Música** | Los pasos para conectar Spotify (crear la app, el Redirect URI, el Client ID) y el estado en vivo: si falta el Client ID, si falta autorizar, o qué está sonando. |
@@ -305,8 +305,23 @@ sin recompilar ni usar la consola.
 
 ### Si la imagen se ve girada
 
-En **Pantalla → Orientación de la pantalla** elegí *Horizontal* o
-*Horizontal invertida*. Queda guardado.
+El equipo **gira solo** según cómo lo apoyes: el acelerómetro elige entre las dos
+orientaciones horizontales y la imagen las sigue sin que toques nada. Tres cosas
+lo pueden detener:
+
+- **Automática / Horizontal / Horizontal invertida** en el panel, o la fila
+  `ROTACION` de la pantalla Config: si elegís una de las dos horizontales, la
+  imagen queda fija ahí y el sensor no opina más.
+- **Bloquear la rotación actual** en el panel, o la fila `BLOQUEO` de Config: se
+  congela lo que hay en pantalla y se libera cuando lo apagás.
+- Un juego en curso: mientras jugás, la imagen nunca cambia sola, porque estás
+  inclinando el equipo a propósito.
+
+Un límite honesto: **acostado de espaldas sobre la mesa, el sensor no puede notar
+un giro de 180 grados** (la gravedad queda perpendicular al plano y no hay nada en
+el plano que mirar). En ese caso el equipo se queda con la última orientación en
+vez de adivinar; si lo querés siempre igual, elegí Horizontal o bloqueá la
+rotación. Todo queda guardado y sobrevive a un corte de luz.
 
 ### Si la nave no se mueve como esperás
 
@@ -420,7 +435,11 @@ panel web. Abrí el monitor serie a **115200** baudios y escribí `help`.
 | `longpress` | Mantener 1 segundo sin la temporización del botón. |
 | `hold` | Simula mantener 1 segundo: abre el menú, o entra a la pantalla seleccionada. |
 | `order [a b c d e]` | Muestra o fija el orden del menú (ids de pantalla). |
-| `orient 0..3` | Rotación de la imagen al panel. |
+| `orient 0..3` | Rotación de la imagen al panel. Queda **fija**: apaga la rotación automática. |
+| `rot` | Muestra el modo de rotación (automática o fija), el bloqueo y la imagen actual. |
+| `rot auto` | Vuelve a la rotación automática por acelerómetro. |
+| `rot 0..3` | Fija la imagen, igual que `orient`. |
+| `rot lock on\|off` | Bloquea o libera la rotación actual. |
 | `steer <lat> <up> <sign> <signY> <gain>` | Fija a mano los ejes del juego (0=x, 1=y, 2=z) y el sentido de cada dirección. |
 | `steercal` | Borra la calibración: el próximo toque en METEORITOS calibra de nuevo. |
 | `imu` | Una lectura del acelerómetro y del giroscopio. |
@@ -458,7 +477,8 @@ Casi siempre es **PSRAM**: tiene que ser **OPI PSRAM**, no QSPI. Revisá tambié
 el Flash Size sea 16MB.
 
 **La pantalla se ve girada.**
-`orient 2` por consola.
+Elegí *Horizontal invertida* en **Pantalla → Rotación de la pantalla**, o dejala en
+*Automática* para que el acelerómetro decida. Por consola: `orient 2`.
 
 **El WiFi dice conectado pero el reloj sigue en `SIN HORA TODAVIA`.**
 Algunos routers bloquean el puerto 123 (NTP) o no resuelven nombres, y entonces
@@ -503,7 +523,9 @@ En el panel, **Juegos → Cambiar eje del control**. Si igual no responde, tocá
 izquierdo y derecho, no el borde de adelante.
 
 **La imagen de la pantalla se ve girada.**
-En el panel, **Pantalla → Orientación de la pantalla**. O por consola: `orient 2`.
+En el panel, **Pantalla → Rotación de la pantalla**: *Automática*, *Horizontal* o
+*Horizontal invertida*. Bloquearla deja fija la que esté en pantalla. Por consola:
+`orient 2`, o `rot auto` para volver al sensor.
 
 **Cambié el panel web y no se ve.**
 Faltó volver a correr `tools\pack_web.py` antes de compilar (ver paso 4).
@@ -531,6 +553,8 @@ esp32_gadget/
 ├── button.h                máquina de estados del botón (toque / 3 s)
 ├── settings.h/.cpp         credenciales y ajustes en NVS
 ├── rgb.h/.cpp              LED WS2812 y celebración de casino
+├── rotation.h/.cpp         rotación automática, bloqueo y compensación del sensor
+├── rotation_policy.h       cuándo girar la imagen y cuándo quedarse quieto (puro, test en host)
 ├── imu.h/.cpp              QMI8658 (acelerómetro + giroscopio)
 ├── screens.h/.cpp          registro de pantallas y marco común
 ├── config_value.h          pasos, topes y mapeo de brillo (puro, test en host)

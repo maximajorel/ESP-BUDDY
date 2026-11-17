@@ -8,6 +8,7 @@
 #include "console.h"
 #include "display.h"
 #include "rgb.h"
+#include "rotation.h"
 #include "buddy_face.h"
 #include "screen_buddy.h"
 #include "screen_sleep.h"
@@ -183,6 +184,10 @@ static void buildStatusJson(String &out) {
   JsonObject disp = doc["display"].to<JsonObject>();
   disp["brightness"] = displayGetBacklight();
   disp["orientation"] = displayGetOrientation();
+  // The mode and the lock are what the panel edits; `orientation` is the image
+  // actually on the glass, which in automatic mode the panel did not choose.
+  disp["rotationMode"] = rotationModeName();
+  disp["rotationLocked"] = rotationLocked();
   disp["awake"] = displayIsAwake();
   disp["timeoutSec"] = (int)settingsGetScreenTimeout().seconds;
   disp["timeoutMask"] = (int)settingsGetScreenTimeout().mask;
@@ -389,21 +394,41 @@ static ApiResult apiSettings(const String &body) {
     gameSetSteer(lat, up, sign, signY, gain);
   }
 
-  // Orientation is reported separately because it changes how the finished
-  // image is rotated onto the panel, not what the screens draw.
-  bool orientationChanged = false;
+  // Rotation. The panel edits the mode (automatic, or one pinned image) and the
+  // lock; `orientation` still pins a raw rotation, which is what the console
+  // command and older panels speak.
+  if (!doc["rotationMode"].isNull()) {
+    uint8_t mode = ROT_MODE_AUTO;
+    if (doc["rotationMode"].is<int>()) {
+      int value = doc["rotationMode"];
+      if (value < 0 || value > 255 || !rotModeValid((uint8_t)value)) {
+        return apiFail(400, "Modo de rotacion invalido");
+      }
+      mode = (uint8_t)value;
+    } else {
+      const char *text = doc["rotationMode"] | "";
+      if (!strcmp(text, "auto")) {
+        mode = ROT_MODE_AUTO;
+      } else if (!strcmp(text, "horizontal")) {
+        mode = ROT_MODE_CW;
+      } else if (!strcmp(text, "inverted")) {
+        mode = ROT_MODE_CCW;
+      } else {
+        return apiFail(400, "Modo de rotacion invalido");
+      }
+    }
+    rotationSetMode(mode);
+  }
+  if (doc["rotationLocked"].is<bool>()) {
+    rotationSetLocked(doc["rotationLocked"]);
+  }
   if (doc["orientation"].is<int>()) {
     int value = doc["orientation"];
     if (value < 0 || value > 3) {
       return apiFail(400, "Orientacion de pantalla invalida");
     }
-    if (value != displayGetOrientation()) {
-      displaySetOrientation((uint8_t)value);
-      settingsSetOrientation((uint8_t)value);
-      orientationChanged = true;
-    }
+    rotationSetMode((uint8_t)value);
   }
-  (void)orientationChanged;
 
   if (doc["rgb"].is<JsonObject>()) {
     JsonObject rgbIn = doc["rgb"];

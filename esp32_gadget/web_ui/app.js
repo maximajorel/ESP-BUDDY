@@ -389,11 +389,18 @@
       setValue('uiColor', display.uiColor);
     }
 
-    var orientation = $('orientation');
-    if (orientation && !isEditing(orientation)) {
-      // Only the two unmirrored rotations are offered: a mirrored image is
-      // never what a user wants, it only appears when firmware is wrong.
-      orientation.value = display.orientation === 2 ? '2' : '1';
+    var rotationMode = $('rotationMode');
+    if (rotationMode && !isEditing(rotationMode)) {
+      // Only the three modes the firmware offers: automatic and the two
+      // unmirrored images. A mirrored image is never what a user wants, it only
+      // appears when firmware is wrong.
+      var mode = display.rotationMode || 'auto';
+      rotationMode.value = (mode === 'horizontal' || mode === 'inverted') ? mode : 'auto';
+    }
+
+    var rotationLock = $('rotationLock');
+    if (rotationLock && !isEditing(rotationLock)) {
+      rotationLock.checked = !!display.rotationLocked;
     }
 
     var steer = status.steer || {};
@@ -1089,9 +1096,15 @@
         event.target.checked ? 'Arriba/abajo invertidos' : 'Arriba/abajo normales');
     });
 
-    $('orientation').addEventListener('change', function (event) {
+    $('rotationMode').addEventListener('change', function (event) {
       submit(event.target, '/api/settings',
-        { orientation: Number(event.target.value) }, 'Orientación actualizada');
+        { rotationMode: event.target.value }, 'Rotación actualizada');
+    });
+
+    $('rotationLock').addEventListener('change', function (event) {
+      submit(event.target, '/api/settings',
+        { rotationLocked: event.target.checked },
+        event.target.checked ? 'Rotación bloqueada' : 'Rotación libre');
     });
 
     $('clock24').addEventListener('change', function (event) {

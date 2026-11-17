@@ -42,6 +42,7 @@ STATE = {
            "ip": "192.168.4.1", "clients": 1},
     "time": {"synced": False, "tz": -3, "clock24h": True, "local": "--"},
     "display": {"brightness": 90, "orientation": 1, "awake": True,
+                "rotationMode": "auto", "rotationLocked": False,
                 "timeoutSec": 120, "timeoutMask": 9},
     "rgb": {"r": 255, "g": 215, "b": 0, "level": 64, "effect": 0,
             "asleep": False},
@@ -195,6 +196,18 @@ class Handler(BaseHTTPRequestHandler):
                 STATE["display"]["brightness"] = body["brightness"]
             if "orientation" in body:
                 STATE["display"]["orientation"] = body["orientation"]
+                STATE["display"]["rotationMode"] = "raw"
+            if "rotationMode" in body:
+                mode = body["rotationMode"]
+                STATE["display"]["rotationMode"] = mode
+                # The image is what the mode asks for; "auto" keeps whatever the
+                # mock was already showing.
+                if mode == "horizontal":
+                    STATE["display"]["orientation"] = 1
+                elif mode == "inverted":
+                    STATE["display"]["orientation"] = 2
+            if "rotationLocked" in body:
+                STATE["display"]["rotationLocked"] = bool(body["rotationLocked"])
             if "clock24h" in body:
                 STATE["time"]["clock24h"] = body["clock24h"]
             if "steerSign" in body:

@@ -158,12 +158,20 @@
           <input type="color" id="uiColor" value="#ffd700">
         </label>
 
-        <label>Orientación de la pantalla <span class="tag">según cómo apoyes el equipo</span>
-          <select id="orientation">
-            <option value="1">Horizontal</option>
-            <option value="2">Horizontal invertida</option>
+        <label>Rotación de la pantalla <span class="tag">según cómo apoyes el equipo</span>
+          <select id="rotationMode">
+            <option value="auto">Automática</option>
+            <option value="horizontal">Horizontal</option>
+            <option value="inverted">Horizontal invertida</option>
           </select>
         </label>
+
+        <label class="switch">
+          <input type="checkbox" id="rotationLock">
+          <span>Bloquear la rotación actual</span>
+        </label>
+        <p class="hint">Acostado de espaldas, el sensor no puede notar el giro: el equipo
+          se queda con la última orientación. Bloqueá para fijarla vos.</p>
 
         <h3>Reloj</h3>
         <label class="switch">
