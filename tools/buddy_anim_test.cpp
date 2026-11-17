@@ -43,6 +43,43 @@ int main() {
   p = buddyPose(BUDDY_BORED, 130000, 130000, seed);
   check("120 s+ is asleep", p.closed);
 
+  printf("-- new pose channels default to off\n");
+  {
+    BuddyPose base;
+    check("hot starts at the owner colour", base.hot == 0.0f);
+    check("per-eye rotation starts neutral",
+          base.rotL == 0.0f && base.rotR == 0.0f);
+    check("bob starts still", base.bob == 0.0f);
+    check("the eye box is square", base.rx == base.ry);
+  }
+
+  printf("-- waiting looks around and bobs\n");
+  {
+    BuddyPose a = buddyPose(BUDDY_WAITING, 0, 0, seed);
+    BuddyPose b = buddyPose(BUDDY_WAITING, 1300, 1300, seed);
+    check("the gaze swings around while waiting", fabsf(a.gazeX - b.gazeX) > 3.0f);
+    check("the impatience bobs", fabsf(buddyPose(BUDDY_WAITING, 0, 300, seed).bob) > 0.5f);
+    check("waiting stays open eyed", a.lid < 0.05f);
+  }
+
+  printf("-- done bounces then relaxes\n");
+  {
+    BuddyPose happy = buddyPose(BUDDY_DONE, 500, 500, seed);
+    BuddyPose late = buddyPose(BUDDY_DONE, 4000, 4000, seed);
+    check("the happy second bounces", fabsf(happy.bob) > 0.5f);
+    check("it relaxes after the happy second", !late.happy && late.lid > 0.05f);
+  }
+
+  printf("-- breathing while idle and bored\n");
+  {
+    float bobA = buddyPose(BUDDY_IDLE, 0, 0, seed).bob;
+    float bobB = buddyPose(BUDDY_IDLE, 0, 900, seed).bob;
+    check("idle breathes", fabsf(bobA - bobB) > 0.2f);
+    float asleep = buddyPose(BUDDY_BORED, 130000, 130000, seed).bob;
+    float asleepLater = buddyPose(BUDDY_BORED, 130000, 131500, seed).bob;
+    check("even the asleep face breathes", fabsf(asleep - asleepLater) > 0.5f);
+  }
+
   printf("-- gesture rotation\n");
   BuddyGesture g0 = buddyGestureAt(0, seed);
   check("starts on the first gesture", g0.slot == 0 && g0.startMs == 0);
@@ -75,7 +112,8 @@ int main() {
 
   printf("-- tool cycle\n");
   p = buddyPose(BUDDY_TOOL, 50, 50, seed);
-  check("tool entry surprises (wide eyes)", p.surprise && p.rx > 50);
+  check("tool entry surprises (tall eyes, not touching)",
+        p.surprise && p.ry > 56 && p.rx <= 50);
   int seenTool[4] = {0};
   bool doubleBlink = false;
   for (uint32_t age = 200; age < 30000; age += 50) {
@@ -100,7 +138,8 @@ int main() {
 
   printf("-- tool, error, done, offline\n");
   p = buddyPose(BUDDY_TOOL, 50, 50, seed);
-  check("tool entry surprises (wide eyes)", p.surprise && p.rx > 50);
+  check("tool entry surprises (tall eyes, not touching)",
+        p.surprise && p.ry > 56 && p.rx <= 50);
   p = buddyPose(BUDDY_ERROR, 1000, 1000, seed);
   check("error crosses the eyes", p.eyeGazeL > 0 && p.eyeGazeR < 0);
   p = buddyPose(BUDDY_DONE, 100, 100, seed);

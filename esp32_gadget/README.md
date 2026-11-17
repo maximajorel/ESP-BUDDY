@@ -47,6 +47,7 @@ esp32_gadget/
 ├── screen_net.cpp       pantalla de red
 ├── screen_music.cpp     pantalla de música (Spotify)
 ├── screen_buddy.cpp     pantalla Sofía (cara del buddy)
+├── buddy_face.h         ojo cuadrado redondeado, color del dueño y suavizado (puro, test en host)
 ├── spotify.*            estado, tarea de consulta y consola
 ├── spotify_parse.*      parser del JSON de Spotify (puro, con test en host)
 ├── spotify_pkce.*       PKCE, SHA-256 y urlencode (puro, con test en host)

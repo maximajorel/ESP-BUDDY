@@ -2,6 +2,7 @@
 
 #include <esp_heap_caps.h>
 
+#include "buddy_face.h"
 #include "font5x7.h"
 
 static uint16_t *s_fb = nullptr;
@@ -167,6 +168,46 @@ void gfxFillEllipse(int cx, int cy, int rx, int ry, uint16_t color) {
     if (k < 0.0f) continue;
     int span = (int)(rx * sqrtf(k));
     gfxFillRect(cx - span, cy + dy, span * 2 + 1, 1, color);
+  }
+}
+
+// Rotates the screen offset into shape space and asks the shared predicate. The
+// row cross-section of a rounded square is convex under rotation, so each row is
+// one span: sweep in from both sides instead of testing every pixel.
+static bool squircleInsideRot(float dx, float dy, float ca, float sa,
+                             const BuddySquircle &sq) {
+  float lx = dx * ca + dy * sa;
+  float ly = -dx * sa + dy * ca;
+  return buddySquircleInside(lx, ly, sq);
+}
+
+void gfxFillSquircleRot(int cx, int cy, int halfW, int halfH, float deg,
+                        uint16_t color) {
+  if (!s_fb || halfW <= 0 || halfH <= 0) return;
+  BuddySquircle sq = buddySquircle((float)halfW, (float)halfH);
+  float a = deg * 0.0174532925f;
+  float ca = cosf(a), sa = sinf(a);
+  int ex = (int)(fabsf((float)halfW * ca) + fabsf((float)halfH * sa)) + 1;
+  int ey = (int)(fabsf((float)halfW * sa) + fabsf((float)halfH * ca)) + 1;
+  for (int dy = -ey; dy <= ey; dy++) {
+    int y = cy + dy;
+    if (y < 0 || y >= DISPLAY_H) continue;
+    int first = ex + 1;
+    for (int dx = -ex; dx <= ex; dx++) {
+      if (squircleInsideRot((float)dx, (float)dy, ca, sa, sq)) {
+        first = dx;
+        break;
+      }
+    }
+    if (first > ex) continue;
+    int last = first;
+    for (int dx = ex; dx > first; dx--) {
+      if (squircleInsideRot((float)dx, (float)dy, ca, sa, sq)) {
+        last = dx;
+        break;
+      }
+    }
+    gfxHLine(cx + first, y, last - first + 1, color);
   }
 }
 

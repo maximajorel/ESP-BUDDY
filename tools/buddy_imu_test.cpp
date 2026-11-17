@@ -54,15 +54,37 @@ int main() {
   p = buddyImuPose(&sh, 400);
   check("a 300 ms shake makes it dizzy", p.dizzy);
   check("the dizzy face drops its lids", p.lid >= 0.25f);
+  check("dizziness is not anger", !p.angry);
+  {
+    BuddyImuPose a = buddyImuPose(&sh, 1200);
+    BuddyImuPose b = buddyImuPose(&sh, 1500);
+    check("the dizzy eyes orbit", fabsf(a.gazeX - b.gazeX) > 0.5f ||
+                                      fabsf(a.gazeY - b.gazeY) > 0.5f);
+  }
   p = buddyImuPose(&sh, 3000);
   check("dizzy expires on its own", !p.dizzy);
 
-  printf("-- shake while dizzy is annoyance\n");
-  for (uint32_t t = 500; t <= 800; t += 100) feed(sh, 0, 0, 3.0f, t, 100);
-  p = buddyImuPose(&sh, 800);
-  check("shaking a dizzy face annoys it", p.squint);
-  p = buddyImuPose(&sh, 2500);
-  check("annoyance expires", !p.squint);
+  printf("-- shake while dizzy makes it angry\n");
+  for (uint32_t t = 3100; t <= 3400; t += 100) feed(sh, 0, 0, 3.0f, t, 100);
+  p = buddyImuPose(&sh, 3400);
+  check("shaking a dizzy face makes it angry", p.angry);
+  check("the angry face drops the top lids", p.lid >= 0.3f);
+  check("the angry face glows hot", p.hot >= 0.5f);
+  check("the inner corners drop", p.rotL > 0.0f && p.rotR < 0.0f);
+  check("anger replaces the dizzy wobble", !p.dizzy);
+  p = buddyImuPose(&sh, 7000);
+  check("anger expires", !p.angry);
+
+  printf("-- repeated shakes anger it\n");
+  BuddyImu ra;
+  feed(ra, 0, 0, 1, 0, 100);
+  for (uint32_t t = 100; t <= 400; t += 100) feed(ra, 0, 0, 3.0f, t, 100);
+  check("the first burst is dizzy", buddyImuPose(&ra, 500).dizzy);
+  for (uint32_t t = 3800; t <= 4100; t += 100) feed(ra, 0, 0, 3.0f, t, 100);
+  p = buddyImuPose(&ra, 4100);
+  check("a second burst inside the window is anger", p.angry && !p.dizzy);
+  p = buddyImuPose(&ra, 9000);
+  check("and it expires", !p.angry);
 
   printf("-- a sharp hit startles\n");
   BuddyImu st;

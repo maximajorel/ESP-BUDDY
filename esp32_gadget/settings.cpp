@@ -3,6 +3,7 @@
 #include <Preferences.h>
 #include <esp_mac.h>
 
+#include "buddy_face.h"
 #include "display.h"
 #include "screen_sleep.h"
 
@@ -10,6 +11,8 @@ static Preferences s_prefs;
 // Cached UI accent: read once at boot, updated by the panel, never from NVS on
 // a draw (the screens ask for it every frame).
 static uint32_t s_uiColor = SETTINGS_UI_COLOR_DEFAULT;
+// Cached the same way: the face reads it on every draw.
+static uint32_t s_buddyEyeColor = BUDDY_EYE_COLOR_DEFAULT;
 static Settings s_settings;
 static bool s_loaded = false;
 
@@ -51,6 +54,8 @@ void settingsBegin() {
   if (!s_prefs.begin("gadget", false)) return;
 
   s_uiColor = s_prefs.getUInt("uiClr", SETTINGS_UI_COLOR_DEFAULT) & 0xFFFFFFu;
+  s_buddyEyeColor =
+      s_prefs.getUInt("bdEye", BUDDY_EYE_COLOR_DEFAULT) & 0xFFFFFFu;
 
   size_t got = s_prefs.getBytesLength("cfg");
   if (got == sizeof(Settings)) {
@@ -113,6 +118,14 @@ bool settingsSetUiColor(uint32_t rgb) {
   s_uiColor = rgb & 0xFFFFFFu;
   if (!s_loaded && !s_prefs.begin("gadget", false)) return false;
   return s_prefs.putUInt("uiClr", s_uiColor);
+}
+
+uint32_t settingsGetBuddyEyeColor() { return s_buddyEyeColor; }
+
+bool settingsSetBuddyEyeColor(uint32_t rgb) {
+  s_buddyEyeColor = rgb & 0xFFFFFFu;
+  if (!s_loaded && !s_prefs.begin("gadget", false)) return false;
+  return s_prefs.putUInt("bdEye", s_buddyEyeColor);
 }
 
 // Clock (0) and network (3) are the screens that are just ambient information;

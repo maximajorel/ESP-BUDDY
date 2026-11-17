@@ -6,6 +6,7 @@
 #include <time.h>
 
 #include "buddy_anim.h"
+#include "buddy_face.h"
 #include "buddy_imu.h"
 #include "gfx.h"
 #include "imu.h"
@@ -17,6 +18,10 @@
 
 #define BUDDY_POLL_MS 1000
 #define BUDDY_HTTP_TIMEOUT_MS 2000
+// 20 fps: the eased pose covers a channel in a few frames, so the motion reads
+// as continuous instead of a slideshow. The SPI push fits comfortably at this
+// rate; the poller and the button stay in their own contexts.
+#define BUDDY_FRAME_MS 50
 
 struct BuddySnapshot {
   BuddyState state = BUDDY_UNCONFIGURED;
@@ -57,6 +62,10 @@ static bool s_phasePinned = false;
 static BuddyPhase s_phasePinValue = BUDDY_PHASE_IDLE;
 static uint32_t s_phasePinUntil = 0;
 static bool s_dirty = true;
+// The eased face. The ladders produce a target every frame; this filter is what
+// actually moves the eyes, so no field ever jumps between two frames.
+static BuddyPoseFilter s_filter;
+static uint32_t s_filterAt = 0;
 
 static void publish(BuddyState state, const char *label, int active,
                     bool online, bool configured, uint32_t stateAgeMs = 0,
@@ -196,6 +205,10 @@ void buddyBegin() {
 void buddyEnter() {
   s_dirty = true;
   s_lastDraw = 0;
+  // Adopt the pose the next tick computes instead of easing in from the face
+  // left behind by another screen.
+  buddyPoseFilterReset(&s_filter);
+  s_filterAt = 0;
 }
 
 void buddyPinPhase(BuddyPhase phase, uint32_t holdMs) {
@@ -419,30 +432,55 @@ static void drawHud(BuddyPhase phase, BuddyRgb led, uint32_t nowMs) {
 
 static void drawFace(BuddyState state, const BuddyPose &pose, uint32_t nowMs,
                      bool poke) {
+  (void)nowMs;
   gfxClear(GFX_BLACK);
 
   const int cx[2] = {105, 215};
   const int cy = 88;
-  int bounce =
-      (state == BUDDY_WAITING) ? (int)(sinf(nowMs * 0.004f) * 3.0f) : 0;
-  int bob = pose.closed ? (int)(sinf(nowMs * 0.0015f) * 2.0f) : 0;
-  uint16_t color = pose.dim ? FACE_DIM : FACE;
   bool happy = pose.happy || poke;
+  // The owner's colour is read once per frame (the getter is cached in RAM).
+  // Offline dims it; anger and dizziness blend it towards hot red on top, and
+  // the owner's choice comes back as soon as the reaction expires.
+  uint32_t owner = settingsGetBuddyEyeColor();
+  uint16_t color =
+      gfxHex(pose.dim ? buddyEyeDim(owner) : buddyEyeHot(owner, pose.hot));
+  int bob = (int)pose.bob;
+
+  // Where each eye lands, and how much screen it covers once rotated. The pair
+  // is pushed apart when the surprise widens them or a tilt eats the gap; the
+  // owner should never see the two eyes merge into one blob.
+  int eyeX[2];
+  int eyeExtent[2];
+  float eyeDeg[2];
+  float halfH = (pose.blink || pose.closed) ? 4.0f : (float)pose.ry;
+  for (int i = 0; i < 2; i++) {
+    eyeX[i] = cx[i] + (int)(pose.gazeX + (i == 0 ? pose.eyeGazeL : pose.eyeGazeR));
+    eyeDeg[i] = pose.rot + (i == 0 ? pose.rotL : pose.rotR);
+    eyeExtent[i] = (int)ceilf(
+        buddyEyeExtentX((float)pose.rx, halfH, eyeDeg[i]));
+  }
+  int push = buddyEyeGapPush((float)(eyeX[1] - eyeX[0]), (float)eyeExtent[0],
+                             (float)eyeExtent[1], (float)BUDDY_EYE_GAP_MIN);
+  eyeX[0] -= push;
+  eyeX[1] += push;
 
   for (int i = 0; i < 2; i++) {
     // Solid eyes, no pupils: life comes from the gaze and the lids. The error
     // face adds a per-eye offset so the eyes point at each other.
-    int x = cx[i] + (int)(pose.gazeX + (i == 0 ? pose.eyeGazeL : pose.eyeGazeR));
-    int y = cy + bounce + bob + (int)pose.gazeY;
+    int x = eyeX[i];
+    int y = cy + bob + (int)pose.gazeY;
     if (happy) {
       happyEye(x, y, color);
       continue;
     }
     if (pose.blink || pose.closed) {
-      gfxFillRect(x - pose.rx, y - 3, pose.rx * 2, 6, color);
+      // A shut eye is a short rounded bar: it keeps the squircle language and
+      // reads as a lid rather than a stray rectangle.
+      gfxFillSquircleRot(x, y, pose.rx, 4, 0, color);
       continue;
     }
-    fillEllipseRot(x, y, pose.rx, pose.ry, pose.rot, color);
+    float deg = eyeDeg[i];
+    gfxFillSquircleRot(x, y, pose.rx, pose.ry, deg, color);
     // A black band over the top of the eye: the eyelid. Black on black is free,
     // so the eye is simply clipped. The two eyes can have different lids (the
     // EMO thinking wink) and a bottom lid can cut the tired look.
@@ -453,7 +491,7 @@ static void drawFace(BuddyState state, const BuddyPose &pose, uint32_t nowMs,
                   GFX_BLACK);
     }
     if (pose.bottom > 0.02f) {
-      // Cover the rotated ellipse's bottom edge too, or a 2 px sliver survives.
+      // Cover the rotated eye's bottom edge too, or a 2 px sliver survives.
       int h = (int)(pose.ry * 2 * pose.bottom) + 4;
       int y0 = y + pose.ry - (int)(pose.ry * 2 * pose.bottom);
       gfxFillRect(x - pose.rx - 4, y0, pose.rx * 2 + 8, h, GFX_BLACK);
@@ -470,8 +508,13 @@ bool buddyTick(uint32_t nowMs) {
   if (s_pin) {
     if ((int32_t)(s_pinStart + s_pinHold - nowMs) <= 0) {
       s_pin = false;
+      // The pinned expression is not part of the live pose: re-adopt the real
+      // one instead of easing across two unrelated faces.
+      buddyPoseFilterReset(&s_filter);
+      s_filterAt = 0;
+      s_dirty = true;
     } else {
-      if ((uint32_t)(nowMs - s_lastDraw) < 100) return false;
+      if ((uint32_t)(nowMs - s_lastDraw) < BUDDY_FRAME_MS) return false;
       s_drawnState = s_pinState;
       BuddyPose pose =
           buddyPose(s_pinState, s_pinAge + (nowMs - s_pinStart), nowMs, s_seed);
@@ -506,15 +549,15 @@ bool buddyTick(uint32_t nowMs) {
     news = true;
   }
 
-  bool animate = (uint32_t)(nowMs - s_lastDraw) >= 100;
+  bool animate = (uint32_t)(nowMs - s_lastDraw) >= BUDDY_FRAME_MS;
   if (!news && !animate) return false;
 
   uint32_t shownAge = s_shownBaseAge + (uint32_t)(nowMs - s_shownAt);
   BuddyPose pose = buddyPose(shown, shownAge, nowMs, s_seed);
   if (shown == BUDDY_TOOL && (int32_t)(s_surpriseUntil - nowMs) > 0) {
     pose.surprise = true;
-    pose.rx = 54;
-    pose.ry = 58;
+    pose.rx = 50;
+    pose.ry = 60;
     pose.lid = 0.0f;
   }
 
@@ -531,10 +574,14 @@ bool buddyTick(uint32_t nowMs) {
   pose.gazeY += ip.gazeY;
   if (ip.lid > pose.lid) pose.lid = ip.lid;
   if (ip.squint && pose.lid < 0.45f) pose.lid = 0.45f;
+  pose.rot += ip.rot;
+  pose.rotL += ip.rotL;
+  pose.rotR += ip.rotR;
+  if (ip.hot > pose.hot) pose.hot = ip.hot;
   if (ip.wide) {
     pose.surprise = true;
-    pose.rx = 54;
-    pose.ry = 58;
+    pose.rx = 50;
+    pose.ry = 60;
   }
   if (ip.faceDown) pose.lid = 0.6f;
   // Lifted off the table while bored asleep: wake with a start, then let the
@@ -543,11 +590,19 @@ bool buddyTick(uint32_t nowMs) {
     pose.closed = false;
     pose.lid = 0.0f;
     pose.surprise = true;
-    pose.rx = 54;
-    pose.ry = 58;
+    pose.rx = 50;
+    pose.ry = 60;
   }
+  if (poke) pose.happy = true;
 
-  drawFace(shown, pose, nowMs, poke);
+  // Ease the whole pose. dt is clamped so a stalled frame (or returning from a
+  // pinned face) never turns one step into a jump.
+  uint32_t poseDt = s_filterAt ? (nowMs - s_filterAt) : BUDDY_FRAME_MS;
+  if (poseDt > 200) poseDt = 200;
+  s_filterAt = nowMs;
+  BuddyPose eased = buddyPoseFilterStep(&s_filter, pose, poseDt);
+
+  drawFace(shown, eased, nowMs, poke);
   hudTrack(view.phase, nowMs);
   drawHud(view.phase,
           view.ledValid ? view.led : buddyPhaseDefaultLed(view.phase), nowMs);

@@ -72,6 +72,12 @@ struct SteerCalibration {
 uint32_t settingsGetUiColor();
 bool settingsSetUiColor(uint32_t rgb);
 
+// Sofía's eye colour (S2): its own NVS key so the settings blob layout never
+// changes, cached in RAM because the face asks for it every frame. Only the eyes
+// use it; the LED bead stays the bridge's phase light.
+uint32_t settingsGetBuddyEyeColor();
+bool settingsSetBuddyEyeColor(uint32_t rgb);
+
 // Order the screen picker walks through. Its own NVS key, and generic over the
 // count, so neither the settings blob layout nor this file needs to know how many
 // screens the UI has.

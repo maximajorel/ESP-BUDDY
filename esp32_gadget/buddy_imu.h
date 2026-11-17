@@ -15,8 +15,12 @@ struct BuddyImu {
   float lastMag = 0;
   float shakeMs = 0;       // time above 2.5 g
   uint32_t dizzyUntil = 0;
-  uint32_t annoyedUntil = 0;
+  uint32_t angryUntil = 0;
   uint32_t startleUntil = 0;
+  // Repeated shakes inside one window escalate from dizzy to angry: the first
+  // burst is funny, the fifth is not.
+  uint32_t shakeBursts = 0;
+  uint32_t shakeWindow = 0;
   float tiltX = 0;         // filtered gravity direction, -1..1
   float tiltY = 0;
   bool faceDown = false;
@@ -40,10 +44,15 @@ struct BuddyImuPose {
   float lid = 0;       // extra eyelid on top of the state pose
   bool wide = false;   // startle
   bool dizzy = false;
+  bool angry = false;
   bool squint = false;
   bool faceDown = false;
   bool like = false;   // rhythmic shake
   bool wake = false;   // lifted while asleep
+  float rot = 0;       // whole eye-line rotation (the dizzy wobble)
+  float rotL = 0;      // extra per-eye rotation (the angry inner corners)
+  float rotR = 0;
+  float hot = 0;       // 0..1 tint towards red
 };
 
 static inline float buddyImuClamp(float v, float lo, float hi) {
@@ -71,20 +80,28 @@ static inline void buddyImuFeed(BuddyImu *s, const float a[3], const float g[3],
   // Upside down: the glass is against the table.
   s->faceDown = a[2] < -0.55f;
 
-  // A sustained shake of 2.5 g for 300 ms makes it dizzy; continuing to shake
-  // an already dizzy face makes it annoyed instead.
+  // A sustained shake of 2.5 g for 300 ms makes it dizzy. Shaking again while
+  // it is still dizzy, or a second burst inside six seconds, is too much: the
+  // dizzy wobble is replaced by anger.
   if (mag > 2.5f) {
     s->shakeMs += (float)dtMs;
   } else {
     s->shakeMs = 0;
   }
   if (s->shakeMs >= 300.0f) {
-    if ((int32_t)(s->dizzyUntil - nowMs) > 0) {
-      s->annoyedUntil = nowMs + 1500;
+    s->shakeMs = 0;
+    if (s->shakeBursts == 0 || nowMs - s->shakeWindow > 6000u) {
+      s->shakeBursts = 0;
+      s->shakeWindow = nowMs;
+    }
+    s->shakeBursts++;
+    bool stillDizzy = (int32_t)(s->dizzyUntil - nowMs) > 0;
+    if (stillDizzy || s->shakeBursts >= 2) {
+      s->angryUntil = nowMs + 3500;
+      s->dizzyUntil = 0;
     } else {
       s->dizzyUntil = nowMs + 2500;
     }
-    s->shakeMs = 0;
   }
 
   // A sharp single hit is a startle, not a shake: high peak, short duration.
@@ -148,11 +165,24 @@ static inline BuddyImuPose buddyImuPose(const BuddyImu *s, uint32_t nowMs) {
     p.lid = 0.3f;
   }
 
-  if ((int32_t)(s->dizzyUntil - nowMs) > 0) {
+  if ((int32_t)(s->angryUntil - nowMs) > 0) {
+    // Anger wins over everything: the eyes tilt inwards (both inner corners
+    // down), the lids cut sharp and the owner's colour glows hot. A little
+    // tremble is the last piece: it is shaking with contained rage.
+    p.angry = true;
+    p.rotL = 16.0f;
+    p.rotR = -16.0f;
+    p.lid = 0.34f;
+    p.gazeY = 2.0f;
+    p.gazeX = sinf((float)nowMs * 0.045f) * 1.5f;
+    p.hot = 0.85f;
+  } else if ((int32_t)(s->dizzyUntil - nowMs) > 0) {
     p.dizzy = true;
     p.gazeX = sinf((float)nowMs * 0.012f) * 10.0f;
     p.gazeY = cosf((float)nowMs * 0.009f) * 6.0f;
+    p.rot = sinf((float)nowMs * 0.007f) * 9.0f;
     p.lid = 0.3f;
+    p.hot = 0.15f;
   } else {
     // Gravity compensation: tilt the board and the eyes lean downhill. It adds
     // to the follow offset instead of replacing it.
@@ -164,10 +194,6 @@ static inline BuddyImuPose buddyImuPose(const BuddyImu *s, uint32_t nowMs) {
     p.squint = true;
     p.faceDown = true;
     p.lid = 0.6f;
-  }
-  if ((int32_t)(s->annoyedUntil - nowMs) > 0) {
-    p.squint = true;
-    p.lid = 0.45f;
   }
   return p;
 }

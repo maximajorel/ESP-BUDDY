@@ -8,6 +8,7 @@
 #include "console.h"
 #include "display.h"
 #include "rgb.h"
+#include "buddy_face.h"
 #include "screen_buddy.h"
 #include "screen_sleep.h"
 #include "screens.h"
@@ -212,6 +213,11 @@ static void buildStatusJson(String &out) {
     obj["ageMs"] = buddy.ageMs;
     obj["stateAgeMs"] = buddy.stateAgeMs;
     obj["url"] = url;
+    {
+      char eyeHex[8];
+      uiColorToHex(settingsGetBuddyEyeColor(), eyeHex);
+      obj["eyeColor"] = eyeHex;
+    }
     // The token is never echoed back: the panel only says whether it is set.
   }
 
@@ -326,6 +332,19 @@ static ApiResult apiSettings(const String &body) {
     }
     if (!settingsSetUiColor(rgb)) {
       return apiFail(500, "No pude guardar el color");
+    }
+  }
+
+  if (!doc["buddyEyeColor"].isNull()) {
+    // An empty string means "back to the shipped cyan"; anything else must be a
+    // valid #RRGGBB, so a typo can never reach NVS.
+    const char *text = doc["buddyEyeColor"] | "";
+    uint32_t rgb = BUDDY_EYE_COLOR_DEFAULT;
+    if (text[0] && !uiColorParse(text, &rgb)) {
+      return apiFail(400, "Color de ojos invalido");
+    }
+    if (!settingsSetBuddyEyeColor(rgb)) {
+      return apiFail(500, "No pude guardar el color de ojos");
     }
   }
 

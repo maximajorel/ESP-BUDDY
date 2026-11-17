@@ -43,6 +43,11 @@ void gfxCircle(int cx, int cy, int r, uint16_t color);
 void gfxFillPolygon(const int *xs, const int *ys, int n, uint16_t color);
 // Ellipse outline/fill, for the lemon symbol and round UI accents.
 void gfxFillEllipse(int cx, int cy, int rx, int ry, uint16_t color);
+// Filled rounded square (squircle) with half extents, rotated by `deg`, used by
+// Sofía's eyes. The corner ratio lives in buddy_face.h so the shape and its
+// test share one definition.
+void gfxFillSquircleRot(int cx, int cy, int halfW, int halfH, float deg,
+                        uint16_t color);
 
 // Text: every glyph sits in a 6x8 cell scaled by `scale` (5x7 ink plus a
 // one-pixel gap). Both cases exist in the font, because the network screen has

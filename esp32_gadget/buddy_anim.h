@@ -24,13 +24,17 @@ struct BuddyPose {
   float gazeY = 0;
   float eyeGazeL = 0;  // extra per-eye offset, used for the cross-eyed error
   float eyeGazeR = 0;
-  int rx = 46;
-  int ry = 50;
+  int rx = 48;
+  int ry = 48;
   float lid = 0;       // 0 open .. 1 covered from the top by a black band
   float lidL = 0;      // extra top lid for the left eye (asymmetric squint)
   float lidR = 0;      // extra top lid for the right eye
   float bottom = 0;    // 0 open .. 1 cut from the bottom (tired, EMO-style)
   float rot = 0;       // degrees for both eyes, positive = clockwise
+  float rotL = 0;      // extra rotation for the left eye (anger, dizziness)
+  float rotR = 0;      // extra rotation for the right eye
+  float hot = 0;       // 0 = owner colour .. 1 = hot red (anger, dizziness)
+  float bob = 0;       // vertical offset in px: breathing and bouncing
   bool blink = false;
   bool happy = false;
   bool closed = false;
@@ -102,12 +106,14 @@ static inline BuddyPose buddyPose(BuddyState state, uint32_t ageMs,
       break;
     case BUDDY_DONE:
       // One second of satisfaction, then a relaxed open face for the rest of
-      // the bridge's ~8 s done window.
+      // the bridge's ~8 s done window. The little bounce is the "yes!".
       genericBlink = false;
       if (ageMs < 1200) {
         p.happy = true;
+        p.bob = sinf((float)nowMs * 0.010f) * 2.5f;
       } else {
         p.lid = 0.15f;
+        p.bob = sinf((float)nowMs * 0.0016f) * 1.0f;
       }
       break;
     case BUDDY_ERROR:
@@ -119,15 +125,20 @@ static inline BuddyPose buddyPose(BuddyState state, uint32_t ageMs,
       p.blink = (nowMs % 900) < 120;
       break;
     case BUDDY_WAITING:
+      // Waiting for an approval is nervous, not static: the look swings between
+      // the owner and the sides, with a small impatient bob.
       p.rx = 50;
-      p.ry = 54;
+      p.ry = 50;
+      p.gazeX = sinf((float)ageMs * 0.0012f) * 14.0f;
+      p.gazeY = -2.0f;
+      p.bob = sinf((float)nowMs * 0.004f) * 3.0f;
       break;
     case BUDDY_TOOL: {
       // A tool starting is a small surprise: wide for 200 ms, then the cycle.
       if (ageMs < 200) {
         p.surprise = true;
-        p.rx = 54;
-        p.ry = 58;
+        p.rx = 50;
+        p.ry = 60;
         genericBlink = false;
         break;
       }
@@ -228,13 +239,25 @@ static inline BuddyPose buddyPose(BuddyState state, uint32_t ageMs,
       break;
   }
 
+  if ((state == BUDDY_THINKING || state == BUDDY_TOOL) && p.bob == 0.0f) {
+    // A slow breath under the gesture cycle, so a static pose still moves.
+    p.bob = sinf((float)nowMs * 0.0018f) * 0.8f;
+  }
+
   if (state == BUDDY_IDLE) {
     // Microsaccades: a small jump of the whole eye every ~3 s plus a slow
-    // sway. This is the detail that makes solid eyes feel alive.
+    // sway and a breath. This is the detail that makes solid eyes feel alive.
     uint32_t block = nowMs / 3000;
     p.gazeX += buddyUnit(seed, block) * 12.0f - 6.0f;
     p.gazeY += buddyUnit(seed, block + 99) * 8.0f - 4.0f;
     p.gazeX += sinf((float)nowMs * 0.0011f) * 3.0f;
+    p.bob = sinf((float)nowMs * 0.0016f) * 1.4f;
+  }
+
+  if (state == BUDDY_BORED) {
+    // The breath never stops, not even asleep: it is the only motion left.
+    p.bob = p.closed ? sinf((float)nowMs * 0.0015f) * 2.0f
+                     : sinf((float)nowMs * 0.0013f) * 1.2f;
   }
 
   if (genericBlink && !p.blink && !p.happy && !p.closed && !p.dim) {
