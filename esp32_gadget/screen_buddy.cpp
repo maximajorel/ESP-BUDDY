@@ -6,6 +6,7 @@
 
 #include "buddy_anim.h"
 #include "buddy_badge.h"
+#include "buddy_ball.h"
 #include "buddy_face.h"
 #include "buddy_http.h"
 #include "buddy_imu.h"
@@ -17,6 +18,7 @@
 #include "rgb.h"
 #include "rotation.h"
 #include "settings.h"
+#include "tap_window.h"
 #include "text_fold.h"
 
 // --- snapshot shared with the poller task -----------------------------------
@@ -80,6 +82,16 @@ static bool s_badge = false;
 // actually moves the eyes, so no field ever jumps between two frames.
 static BuddyPoseFilter s_filter;
 static uint32_t s_filterAt = 0;
+// The idle ball: the owner's toggle (survives a bridge pause), the physics body
+// and the clock of its last step. `s_accel` keeps the last mirrored lateral
+// sample so the ball feels the same shake the IMU overlay does.
+static BuddyBall s_ball;
+static bool s_ballOn = false;
+static uint32_t s_ballAt = 0;
+static float s_accel[3] = {0, 0, 0};
+// The one-tap/boop vs two-tap/ball decision. A single tap cannot act until the
+// window expires: it may be the first half of a double.
+static TapWindow s_tap = {false, 0};
 
 static void publish(BuddyState state, const char *label, int active,
                     bool online, bool configured, uint32_t stateAgeMs = 0,
@@ -264,6 +276,7 @@ void buddyEnter() {
   // left behind by another screen.
   buddyPoseFilterReset(&s_filter);
   s_filterAt = 0;
+  tapWindowReset(s_tap);
 }
 
 void buddyPinPhase(BuddyPhase phase, uint32_t holdMs) {
@@ -282,10 +295,23 @@ void buddyPinFace(BuddyState state, uint32_t ageMs, uint32_t holdMs) {
 }
 
 void buddyShortPress() {
-  // A tap is a boop: happy eyes for a moment even if Sofía is busy.
-  s_pokeUntil = millis() + 1100;
+  // One tap is a boop, two taps are the ball. buddyTick polls the window and
+  // fires whichever it was; acting here would eat the first half of a double.
+  tapWindowPress(s_tap, millis(), TAP_DOUBLE_MS);
   s_dirty = true;
-  rgbPulse(255, 180, 220, 500);
+}
+
+void buddySetBall(bool on) {
+  if (on == s_ballOn) return;
+  s_ballOn = on;
+  if (on) {
+    buddyBallSpawn(&s_ball, s_seed ^ millis());
+    s_ballAt = 0;
+  } else {
+    buddyBallClear(&s_ball);
+    s_ballAt = 0;
+  }
+  s_dirty = true;
 }
 
 void buddyGetView(BuddyView *out) {
@@ -364,20 +390,41 @@ static void thickLine(int x0, int y0, int x1, int y1, uint16_t color) {
   gfxLine(x0, y0 + 1, x1, y1 + 1, color);
 }
 
-// A happy closed eye: a wide caret. No fill, so it reads as a smile line.
-static void happyEye(int cx, int cy, uint16_t color) {
-  thickLine(cx - 30, cy + 10, cx, cy - 16, color);
-  thickLine(cx, cy - 16, cx + 30, cy + 10, color);
+// The happy face keeps the squircle the owner approved: the eye is still the
+// rounded square with its colour and glow, and a thin upward curve under it is
+// what carries the joy. The old "^ ^" caret dropped the shape and read as a
+// different face; this is one geometry with a second accent.
+static void happyUnderEye(int cx, int cy, uint16_t color) {
+  const int halfW = 30;
+  const int depth = 12;
+  int px = cx - halfW;
+  int py = cy;
+  for (int i = 1; i <= 12; i++) {
+    float t = (float)i / 12.0f;
+    float u = 2.0f * t - 1.0f;
+    int x = cx - halfW + (int)lroundf(2.0f * (float)halfW * t);
+    int y = cy + (int)lroundf((float)depth * (1.0f - u * u));
+    gfxLine(px, py, x, y, color);
+    gfxLine(px, py + 1, x, y + 1, color);
+    px = x;
+    py = y;
+  }
 }
 
-// A caret drawn as a halo: the glow has no filled shape to sit behind here, so
-// the line itself gets the soft edge.
-static void happyEyeGlow(int cx, int cy, uint16_t glow) {
-  for (int d = -2; d <= 2; d++) {
-    if (d == 0) continue;
-    thickLine(cx - 30, cy + 10 + d, cx, cy - 16 + d, glow);
-    thickLine(cx, cy - 16 + d, cx + 30, cy + 10 + d, glow);
-  }
+// The red toy the owner bounces around. A rim and an off-centre highlight make a
+// sphere out of a flat RGB565 disc without any alpha.
+#define BUDDY_BALL_COLOR 0xE81C10u
+#define BUDDY_BALL_RIM 0x7A0A06u
+#define BUDDY_BALL_HIGHLIGHT 0xFFCFC8u
+
+static void drawBall(const BuddyBall &b) {
+  if (!b.active) return;
+  int x = (int)lroundf(b.x);
+  int y = (int)lroundf(b.y);
+  int r = (int)BUDDY_BALL_RADIUS;
+  gfxFillCircle(x, y, r, gfxHex(BUDDY_BALL_COLOR));
+  gfxCircle(x, y, r, gfxHex(BUDDY_BALL_RIM));
+  gfxFillCircle(x - r / 3, y - r / 3, r / 4, gfxHex(BUDDY_BALL_HIGHLIGHT));
 }
 
 // One dithered row at a lid line. The band already painted the row black, so
@@ -581,7 +628,7 @@ static void drawHud(BuddyPhase phase, BuddyRgb led, uint32_t nowMs) {  buddyHudS
 }
 
 static void drawFace(BuddyState state, const BuddyPose &pose, uint32_t nowMs,
-                     bool poke) {
+                     bool poke, bool ballVisible) {
   (void)nowMs;
   gfxClear(GFX_BLACK);
 
@@ -595,7 +642,6 @@ static void drawFace(BuddyState state, const BuddyPose &pose, uint32_t nowMs,
   uint32_t eyeRgb = pose.dim ? buddyEyeDim(owner) : buddyEyeHot(owner, pose.hot);
   uint16_t color = gfxHex(eyeRgb);
   uint16_t glowInner = gfxHex(buddyEyeScale(eyeRgb, BUDDY_GLOW_SHADE_INNER));
-  uint16_t glowMid = gfxHex(buddyEyeScale(eyeRgb, BUDDY_GLOW_SHADE_MID));
   int bob = (int)pose.bob;
 
   // Where each eye lands, and how much screen it covers once rotated. The pair
@@ -648,8 +694,13 @@ static void drawFace(BuddyState state, const BuddyPose &pose, uint32_t nowMs,
     int x = eyeX[i];
     int y = cy + bob + (int)pose.gazeY;
     if (happy) {
-      happyEyeGlow(x, y, glowMid);
-      happyEye(x, y, color);
+      // Squircle eye plus the under-eye curve: the shape the owner approved,
+      // with the extra accent that makes the joy readable at a glance.
+      float deg = eyeDeg[i];
+      drawEyeGlow(x, y, eyeRx[i], baseRy, deg, eyeRgb);
+      gfxFillSquircleRotAA(x, y, eyeRx[i], baseRy, deg, color, glowInner);
+      happyUnderEye(x, y + baseRy + 5,
+                    gfxHex(buddyEyeScale(eyeRgb, 75)));
       continue;
     }
     float deg = shut ? 0.0f : eyeDeg[i];
@@ -692,23 +743,42 @@ static void drawFace(BuddyState state, const BuddyPose &pose, uint32_t nowMs,
   // and the bug the face is watching. Both are drawn last, on top.
   if (s_zzz) drawZzz(nowMs, eyeRgb);
   if (s_bug.active) drawBug(s_bug, nowMs);
+  if (ballVisible) drawBall(s_ball);
 }
 
 // One sensor sample into the reaction machine. The live path and the debug pin
 // share it, so a pinned face still knows whether the board is lying down.
-static BuddyImuPose readImu(uint32_t nowMs) {
+static BuddyImuPose readImu(uint32_t nowMs, bool calmReactions) {
   float accel[3], gyro[3];
   imuReadAll(accel, gyro);
   // The face reads the board, not the glass: when the image is the other one of
   // the pair she has to lean the other way to keep leaning downhill to the owner.
   rotMirrorInPlane(accel, gyro, rotationInPlaneSign());
+  // The ball feels the same mirrored sample the gaze uses.
+  s_accel[0] = accel[0];
+  s_accel[1] = accel[1];
   uint32_t dt = s_imuAt ? (nowMs - s_imuAt) : BUDDY_FRAME_MS;
   s_imuAt = nowMs;
   buddyImuFeed(&s_imu, accel, gyro, nowMs, dt);
+  // While the owner is bouncing the ball, shaking the glass is play: no dizzy
+  // face, no anger, and no burst left over for the next real shake.
+  if (calmReactions) buddyImuCalm(&s_imu);
   return buddyImuPose(&s_imu, nowMs);
 }
 
 bool buddyTick(uint32_t nowMs) {
+  // A pending tap is either the single-tap boop or the second half of a double
+  // tap on the ball. Nothing happens until the window says which one it was.
+  TapResult tap = tapWindowPoll(s_tap, nowMs, TAP_DOUBLE_MS);
+  if (tap == TAP_SINGLE) {
+    // A tap is a boop: happy eyes for a moment even if Sofía is busy.
+    s_pokeUntil = nowMs + 1100;
+    rgbPulse(255, 180, 220, 500);
+    s_dirty = true;
+  } else if (tap == TAP_DOUBLE) {
+    buddySetBall(!s_ballOn);
+  }
+
   if (s_pin) {
     if ((int32_t)(s_pinStart + s_pinHold - nowMs) <= 0) {
       s_pin = false;
@@ -720,14 +790,14 @@ bool buddyTick(uint32_t nowMs) {
     } else {
       if ((uint32_t)(nowMs - s_lastDraw) < BUDDY_FRAME_MS) return false;
       s_drawnState = s_pinState;
-      BuddyImuPose ip = readImu(nowMs);
+      BuddyImuPose ip = readImu(nowMs, false);
       BuddyPose pose =
           buddyPose(s_pinState, s_pinAge + (nowMs - s_pinStart), nowMs, s_seed);
       if (ip.wake && pose.closed) buddyWakeEyes(&pose);
       s_bug.active = false;
       s_zzz = pose.closed && ip.lying && ip.lyingMs > 6000;
       s_mood = buddyMoodFrom(pose.closed, ip.angry, pose.tremble);
-      drawFace(s_pinState, pose, nowMs, false);
+      drawFace(s_pinState, pose, nowMs, false, false);
       s_lastDraw = nowMs;
       s_dirty = false;
       return true;
@@ -780,8 +850,19 @@ bool buddyTick(uint32_t nowMs) {
   bool animate = (uint32_t)(nowMs - s_lastDraw) >= BUDDY_FRAME_MS;
   if (!news && !animate) return false;
 
+  // The ball is an idle toy: it exists only while the glass shows the idle or
+  // bored ladder and the bridge says nobody is working. It stays toggled on
+  // across a busy spell, but is not simulated or drawn until she is free.
+  bool ballGame = s_ballOn && view.phase == BUDDY_PHASE_IDLE &&
+                  (shown == BUDDY_IDLE || shown == BUDDY_BORED);
+
   uint32_t shownAge = s_shownBaseAge + (uint32_t)(nowMs - s_shownAt);
   BuddyPose pose = buddyPose(shown, shownAge, nowMs, s_seed);
+  if (ballGame && pose.closed) {
+    // Deep boredom would shut the eyes exactly while the owner is bouncing the
+    // toy at them. With the ball on the glass she is playing, not asleep.
+    pose = buddyPose(BUDDY_IDLE, shownAge, nowMs, s_seed);
+  }
   if (shown == BUDDY_TOOL && (int32_t)(s_surpriseUntil - nowMs) > 0) {
     pose.surprise = true;
     pose.rx = 50;
@@ -792,7 +873,9 @@ bool buddyTick(uint32_t nowMs) {
   // Physical layer: the IMU is local and the bridge never sees it. A missing
   // sensor reads zero, which the feed ignores, and every reaction expires, so
   // the face can always come back to the state pose.
-  BuddyImuPose ip = readImu(nowMs);
+  // The toy owns the shake channel whenever it is toggled on: bouncing it is
+  // play, never a dizzy spell, even while the ball waits out a busy state.
+  BuddyImuPose ip = readImu(nowMs, s_ballOn);
   pose.gazeX += ip.gazeX;
   pose.gazeY += ip.gazeY;
   if (ip.lid > pose.lid) pose.lid = ip.lid;
@@ -843,7 +926,9 @@ bool buddyTick(uint32_t nowMs) {
   // ladder (which is exactly when the owner expects her to find something to
   // play with). A face whose eyes are shut is asleep, and sleeps through it.
   bool awakeIdle = (shown == BUDDY_IDLE || shown == BUDDY_BORED) && !pose.closed;
-  bool quiet = awakeIdle && view.phase == BUDDY_PHASE_IDLE && !poke;
+  bool ballVisible = ballGame && !pose.closed;
+  bool quiet =
+      awakeIdle && view.phase == BUDDY_PHASE_IDLE && !poke && !ballVisible;
   if (!quiet && bug.active) s_bugCancelled = bug.eventId;
   if (bug.active && bug.eventId == s_bugCancelled) bug.active = false;
   if (bug.active) {
@@ -853,6 +938,26 @@ bool buddyTick(uint32_t nowMs) {
     pose.gazeY = gy;
   }
   s_bug = bug;
+
+  // The toy: integrated while it is on the glass, and the eyes follow it. The
+  // dynamic lateral acceleration (raw minus the slow tilt baseline) is the
+  // shake; a board merely held at an angle does not drag it anywhere.
+  if (ballVisible) {
+    if (s_ballAt) {
+      uint32_t dt = nowMs - s_ballAt;
+      if (dt) {
+        buddyBallStep(&s_ball, s_accel[0] - s_imu.tiltX,
+                      s_accel[1] - s_imu.tiltY, dt);
+      }
+    }
+    s_ballAt = nowMs;
+    float bgx = 0, bgy = 0;
+    buddyBallGaze(s_ball, &bgx, &bgy);
+    pose.gazeX = bgx;
+    pose.gazeY = bgy;
+  } else {
+    s_ballAt = 0;
+  }
 
   // The sleeping letters need both halves: eyes shut (deep boredom) and the
   // board lying on the table for a while.
@@ -874,7 +979,7 @@ bool buddyTick(uint32_t nowMs) {
     eased.rot += buddyTremble(nowMs, s_seed, 37u, 2.2f);
   }
 
-  drawFace(shown, eased, nowMs, poke);
+  drawFace(shown, eased, nowMs, poke, ballVisible);
   hudTrack(view.phase, nowMs);
   drawHud(view.phase,
           view.ledValid ? view.led : buddyPhaseDefaultLed(view.phase), nowMs);
@@ -900,6 +1005,9 @@ void buddyDumpDraw() {
   Serial.printf("draw mood=%s grow=%.2f lid=%.2f hot=%.2f push=%d\n",
                 kMoods[s_mood & 3], s_draw.grow, s_draw.lid, s_draw.hot,
                 s_draw.push);
+  Serial.printf("ball on=%d active=%d x=%.1f y=%.1f vx=%.1f vy=%.1f\n",
+                s_ballOn, s_ball.active, s_ball.x, s_ball.y, s_ball.vx,
+                s_ball.vy);
   for (int i = 0; i < 2; i++) {
     Serial.printf("eye%d x=%d rx=%d ry=%d extY=%d deg=%.1f\n", i, s_draw.x[i],
                   s_draw.rx[i], s_draw.ry[i], s_draw.extentY[i],

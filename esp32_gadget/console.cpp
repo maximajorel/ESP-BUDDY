@@ -222,6 +222,7 @@ static void printHelp() {
   Serial.println("  dump [step]                ASCII render of the framebuffer");
   Serial.println("  buddydraw                  geometria de la ultima cara dibujada");
   Serial.println("  bug [seg]                  fuerza la distraccion del bicho");
+  Serial.println("  ball [on|off]              la pelotita roja del estado idle");
   Serial.println("  reboot                     restart");
 }
 
@@ -350,6 +351,13 @@ static void handleCommand(char *line) {
     buddyPinFace(st, age, 20000);
     Serial.printf("buddy face pinned: %s age %lus\n", buddyStateWireName(st),
                   (unsigned long)(age / 1000));
+    return;
+  }
+  if (!strcmp(argv[0], "ball")) {
+    // Same toggle the double tap drives: on by default so `ball` alone shows it.
+    bool on = !(argc >= 2 && !strcmp(argv[1], "off"));
+    buddySetBall(on);
+    Serial.printf("ball: %s\n", on ? "on" : "off");
     return;
   }
   if (!strcmp(argv[0], "bug")) {

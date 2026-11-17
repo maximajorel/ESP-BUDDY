@@ -475,6 +475,7 @@ panel web. Abrí el monitor serie a **115200** baudios y escribí `help`.
 | `imu` | Una lectura del acelerómetro y del giroscopio. |
 | `imufake <ax> <ay> <az> <gx> <gy> <gz>` | Reemplaza el sensor por valores fijos (para probar el juego sin mover la placa). |
 | `imureal` | Vuelve al sensor real. |
+| `ball [on\|off]` | La pelotita roja del estado idle de Sofía: el mismo interruptor que el doble toque. |
 | `shippos` | Estado y posición de la nave en la grilla (columna y fila). |
 | `settime <epoch>` | Fija el reloj (sirve para probar la esfera sin WiFi). |
 | `tz <horas>` | Zona horaria, por ejemplo `tz -3`. |

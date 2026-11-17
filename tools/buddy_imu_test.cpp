@@ -114,6 +114,21 @@ int main() {
   p = buddyImuPose(&ra, 9000);
   check("and it expires", !p.angry);
 
+  printf("-- the idle game keeps the reactions calm\n");
+  {
+    BuddyImu calm;
+    feed(calm, 0, 0, 1, 0, 100);
+    for (uint32_t t = 100; t <= 400; t += 100) feed(calm, 0, 0, 3.0f, t, 100);
+    check("the shake was a dizzy burst", buddyImuPose(&calm, 500).dizzy);
+    buddyImuCalm(&calm);
+    p = buddyImuPose(&calm, 500);
+    check("calming drops dizziness at once", !p.dizzy && p.hot < 0.01f);
+    check("and the burst counter", calm.shakeBursts == 0);
+    for (uint32_t t = 600; t <= 900; t += 100) feed(calm, 0, 0, 3.0f, t, 100);
+    p = buddyImuPose(&calm, 1000);
+    check("a shake after the calm is dizzy, not angry", p.dizzy && !p.angry);
+  }
+
   printf("-- the dizzy spiral loses reach\n");
   {
     // Item 5: dizzy is a spiral, not a fixed orbit: the radius has to shrink.

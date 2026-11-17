@@ -1,0 +1,26 @@
+screen 5
+sleep 900
+ball off
+sleep 300
+press 90
+sleep 800
+dump 4
+ball on
+sleep 400
+buddydraw
+imufake 2.6 0 1 0 0 0
+sleep 700
+buddydraw
+imufake 0 0 1 0 0 0
+sleep 1400
+buddydraw
+dump 3
+doubletap
+sleep 700
+buddydraw
+doubletap
+sleep 700
+buddydraw
+ball off
+sleep 300
+dump 4

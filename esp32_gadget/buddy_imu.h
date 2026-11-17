@@ -199,6 +199,23 @@ static inline void buddyImuFeed(BuddyImu *s, const float a[3], const float g[3],
   }
 }
 
+// Drops every live reaction and the burst bookkeeping. The idle ball calls this
+// on each frame it is on the glass: shaking the board to bounce the ball is play,
+// not a dizzy spell, and a later real shake must still read as the first one.
+static inline void buddyImuCalm(BuddyImu *s) {
+  if (!s) return;
+  s->shakeMs = 0;
+  s->dizzyUntil = 0;
+  s->angryUntil = 0;
+  s->startleUntil = 0;
+  s->likeUntil = 0;
+  s->shakeBursts = 0;
+  s->shakeWindow = 0;
+  s->crossings = 0;
+  s->crossingWindow = 0;
+  s->gyroSign = 0;
+}
+
 static inline BuddyImuPose buddyImuPose(const BuddyImu *s, uint32_t nowMs) {
   BuddyImuPose p;
   if (!s->haveSample) return p;

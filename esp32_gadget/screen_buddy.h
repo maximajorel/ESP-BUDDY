@@ -25,6 +25,10 @@ void buddyPinFace(BuddyState state, uint32_t ageMs, uint32_t holdMs);
 void buddyPinPhase(BuddyPhase phase, uint32_t holdMs);
 bool buddyTick(uint32_t nowMs);
 void buddyShortPress();
+// The idle toy: turn the red ball on or off. The double tap on the live screen
+// drives this; the console exposes it so a probe can prove the bounce without
+// tapping twice.
+void buddySetBall(bool on);
 
 // Snapshot for the API and the screen. `revision` bumps when something visible
 // changed, so the tick only repaints on news (plus the idle animation).
