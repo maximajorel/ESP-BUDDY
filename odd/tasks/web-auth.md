@@ -192,3 +192,29 @@ Not yet exercised on hardware: the *successful* credential change (S3) and the
 `mustChange` banner clearing, because that leaves the board on a password this
 session chose. Evidence for that path is the mock plus the host tests; S6 asked
 for the owner's own password, so the change is the owner's to make or approve.
+
+L12 (the owner's `.env` reached the board, S2/S3 on hardware): the owner wrote a
+`.env` after the first flash, and it did **not** apply by itself — NVS already
+held the fallback pair seeded on the boot after that flash, and the seed only runs
+when no pair is stored. Two steps fixed it without wiping the device:
+
+1. `python tools/gen_admin_defaults.py` regenerated `admin_seed.h` from `.env`
+   (username printed, password never printed) and the firmware was rebuilt and
+   reflashed, so a *fresh* device or a factory reset now seeds the owner's pair
+   instead of admin/admin.
+2. The live device was moved to the same pair through the panel's own endpoint,
+   which is also the S3 verification that was missing.
+
+| Check | Result |
+| --- | --- |
+| `POST /api/session` admin/admin before the change | 200, `mustChange:true` |
+| `POST /api/admin/credentials` current=admin, new=.env pair | 200 `{"ok":true}` |
+| `GET /api/session` after | `authenticated:true, user:maximajorel, mustChange:false` |
+| `POST /api/restart` then login with the `.env` pair | 200, `mustChange:false` (the pair lives in NVS across a reboot) |
+| `GET /admin` with that session | 200 |
+| `POST /api/session` with the old admin/admin | 401 (the replaced pair is dead) |
+| `POST /api/session/logout` then `GET /admin` | 200 → 302 → `/login` |
+
+`gen_admin_defaults.py --check` reporting "al dia" is what ties the compiled header
+to the `.env`, and `tools/admin_seed_test.py` ties that derivation to the C++ one,
+so a fresh flash of this build seeds exactly the pair the owner wrote.
