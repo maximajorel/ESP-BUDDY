@@ -100,3 +100,11 @@ admin/admin fallback and no generated file.
 L4 (decision, hashing): reuse the pure `spotifySha256` already pinned by
 `tools/spotify_core_test.cpp`, wrapped in an iterated derivation, rather than
 pulling mbedtls into a module that must also compile on the host.
+
+L5 (slice boundary, C1): 1506 authored changed lines in one commit, over the
+~400-line review slice. Kept together on purpose: the pure core, its two host
+tests (about 700 of those lines) and the build step that must derive the same
+digest are one reviewable unit — splitting the tests from the code they pin, or
+the generator from the derivation it mirrors, would ship a slice whose whole
+point (the two implementations agree) is unproven at that commit. C2 and C3 stay
+inside the slice size.
