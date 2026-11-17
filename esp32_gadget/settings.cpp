@@ -4,6 +4,7 @@
 #include <esp_mac.h>
 
 #include "buddy_face.h"
+#include "config_value.h"
 #include "display.h"
 #include "screen_sleep.h"
 
@@ -126,6 +127,28 @@ bool settingsSetBuddyEyeColor(uint32_t rgb) {
   s_buddyEyeColor = rgb & 0xFFFFFFu;
   if (!s_loaded && !s_prefs.begin("gadget", false)) return false;
   return s_prefs.putUInt("bdEye", s_buddyEyeColor);
+}
+
+// The bead's intensity used to live only in RAM, so every reboot dropped it back
+// to the firmware default. It now has its own key, read once at boot and written
+// by both the CONFIG screen and the panel.
+uint8_t settingsGetRgbLevel() {
+  if (!s_loaded && !s_prefs.begin("gadget", true)) {
+    return SETTINGS_RGB_LEVEL_DEFAULT;
+  }
+  return s_prefs.getUChar("rgbLvl", SETTINGS_RGB_LEVEL_DEFAULT);
+}
+
+bool settingsSetRgbLevel(uint8_t level) {
+  if (!s_loaded && !s_prefs.begin("gadget", false)) return false;
+  return s_prefs.putUChar("rgbLvl", level) == 1;
+}
+
+bool settingsSetLcdBrightness(uint8_t percent) {
+  uint8_t value = cfgClamp((int)percent, CFG_LCD_MIN, CFG_LCD_MAX);
+  if (s_settings.brightness == value) return true;
+  s_settings.brightness = value;
+  return settingsSave();
 }
 
 // Clock (0) and network (3) are the screens that are just ambient information;

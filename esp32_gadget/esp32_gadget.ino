@@ -545,9 +545,12 @@ static void handleCommand(char *line) {
     int value = atoi(argv[1]);
     if (value < 0) value = 0;
     if (value > 100) value = 100;
-    displaySetBacklight((uint8_t)value);
+    // Persisted like the panel's slider, so `bl` and CONFIG cannot disagree
+    // about what the device boots with.
+    settingsSetLcdBrightness((uint8_t)value);
+    displaySetBacklight(settingsGet().brightness);
     screensGoTo(screensCurrent());
-    Serial.printf("backlight %d\n", value);
+    Serial.printf("backlight %u\n", (unsigned)settingsGet().brightness);
     return;
   }
   if (!strcmp(argv[0], "rgb") && argc > 3) {
@@ -556,7 +559,12 @@ static void handleCommand(char *line) {
     uint8_t b = (uint8_t)atoi(argv[3]);
     rgbSetColor(r, g, b);
     rgbSetEffect(RGB_EFFECT_SOLID);
-    if (argc > 4) rgbSetLevel((uint8_t)atoi(argv[4]));
+    if (argc > 4) {
+      rgbSetLevel((uint8_t)atoi(argv[4]));
+      // The level is stored now: a console tweak that vanished on reboot would
+      // contradict the CONFIG screen that shows it.
+      settingsSetRgbLevel(rgbLevel());
+    }
     Serial.printf("rgb %u %u %u\n", (unsigned)r, (unsigned)g, (unsigned)b);
     return;
   }
@@ -649,6 +657,9 @@ void setup() {
   displaySetBacklight(settingsGet().brightness);
 
   rgbBegin();
+  // The bead level is persisted now, so it is restored before the first frame
+  // instead of flashing the firmware default on every boot.
+  rgbSetLevel(settingsGetRgbLevel());
   g_imuOk = imuBegin();
   pinMode(BTN_PIN, INPUT_PULLUP);
 

@@ -111,3 +111,16 @@ void settingsSetScreenTimeout(const ScreenTimeout &t);
 
 SteerCalibration settingsGetSteerCalibration();
 void settingsSetSteerCalibration(const SteerCalibration &cal);
+
+// Rear LED bead intensity, 0..255. Its own key for the same reason as the
+// orientation: the settings blob layout never changes. The default is the level
+// the firmware already booted with before the key existed, so an upgraded board
+// looks the same until the owner touches it.
+#define SETTINGS_RGB_LEVEL_DEFAULT 64
+uint8_t settingsGetRgbLevel();
+bool settingsSetRgbLevel(uint8_t level);
+
+// LCD backlight, on the same 5..100 scale the web panel edits. Out-of-range
+// input is clamped here so neither the panel nor the CONFIG screen duplicates
+// the limits, and an in-range value costs no NVS write.
+bool settingsSetLcdBrightness(uint8_t percent);

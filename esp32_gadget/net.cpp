@@ -308,10 +308,14 @@ static ApiResult apiSettings(const String &body) {
   bool tzChanged = false;
 
   if (doc["brightness"].is<int>()) {
+    // The floor and the ceiling live in settings, so the panel and the CONFIG
+    // screen cannot disagree about the range. A value that is not a byte yet
+    // (a negative or an obviously out-of-scale number) is clamped before the
+    // cast, because casting first would wrap it into range.
     int value = doc["brightness"];
-    if (value < 5) value = 5;
-    if (value > 100) value = 100;
-    cfg.brightness = (uint8_t)value;
+    if (value < 0) value = 0;
+    if (value > 255) value = 255;
+    settingsSetLcdBrightness((uint8_t)value);
     displaySetBacklight(cfg.brightness);
   }
   if (doc["tz"].is<int>()) {
@@ -412,6 +416,10 @@ static ApiResult apiSettings(const String &body) {
       if (value < 0) value = 0;
       if (value > 255) value = 255;
       rgbSetLevel((uint8_t)value);
+      // The bead level survives a power cycle now: it is the second row of the
+      // CONFIG screen, and a value that only lived in RAM would make the two
+      // controls disagree after a reboot.
+      settingsSetRgbLevel((uint8_t)value);
     }
     if (rgbIn["effect"].is<int>()) {
       int value = rgbIn["effect"];
@@ -791,6 +799,9 @@ ApiResult netHandleApi(const char *method, const char *path, const String &body)
     // Names live under their own NVS keys, so a factory reset has to clear them
     // explicitly or the next owner inherits the previous one's labels.
     screensResetNames();
+    // Same for the bead level: back to the firmware default, in RAM and in NVS.
+    rgbSetLevel(SETTINGS_RGB_LEVEL_DEFAULT);
+    settingsSetRgbLevel(SETTINGS_RGB_LEVEL_DEFAULT);
     ApiResult r = apiOk();
     r.restart = true;
     return r;
