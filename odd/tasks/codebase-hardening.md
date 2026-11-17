@@ -122,3 +122,32 @@ los scripts serie no se ejercieron; quedan cubiertos por la compilacion y por la
 documentacion, no por una corrida de hardware. No se agrego `LICENSE` porque
 elegir licencia es decision del dueno, y no se agrego CI porque no hay remoto
 configurado todavia.
+
+L10 (hardware, autorizado por el dueno: "Creo que esta conectada la placa podes si queres flashearla"): subido a **COM5** con `arduino-cli upload --build-path .build-console`, `Hash of data verified`, hard reset por RTS. Verificacion sobre la placa real, en orden:
+
+- `hardening_verify.txt`: arranque OK; `help` ahora dice `screen <0-6>` con las siete
+  pantallas; `status` completo (WiFi conectado, hora, ejes, records, heap/psram);
+  `screen 6` + `dump 4` dibuja CONFIG con titulo y las cuatro filas; `rot` en
+  `auto`, imagen 1; `api GET /api/status` responde 200 con el JSON completo.
+- `console_smoke.txt`: se ejercieron los comandos que movio el refactor
+  (el bug real era la consola): `press` (dos toques, `tap en RELOJ`), `hold`
+  (`hold -> menu en RELOJ`), `closemenu`, `orient`, `rot`, `rot lock off`,
+  `rot auto`, `steer`, `order`, `bl`, `rgb`, `tz`, `time`, `buddyphase`,
+  `buddyface`, `imufake`/`imureal` (accel fijo y luego real), `assets` (tres
+  assets con su FNV), `fonttest`, `parsetest` (`California Sober` /
+  `Post Malone`), `fbpix` y `api GET /api/status`. Ningun `unknown`, ningun
+  reinicio inesperado.
+- `all_screens.txt`: `dump 5` de las siete pantallas, siete `end step=5`, sin
+  `FATAL` ni `no framebuffer`.
+- Estado restaurado: el toque de prueba habia dejado el reloj en 12 h y se volvio
+  a 24 h; `rotationMode` volvio a `auto`; brillo 100; el orden del menu, la
+  calibracion, el color del panel, la zona horaria y los records intactos. El LED
+  queda en el color de fase idle porque lo gobierna el buddy cuando el bridge
+  esta configurado, no el nivel del panel. La pantalla visible queda en la de
+  arranque (la primera del orden del dueno, hoy SOFIA): abrir el puerto serie
+  resetea la placa, asi que el estado final es el de boot, no el que dejo la
+  prueba.
+
+Rollback preparado y no usado: `.build-baseline` conserva la compilacion de
+`master` (1412240 bytes) lista para `arduino-cli upload` al mismo puerto. No
+hizo falta: no hubo regresion observable.

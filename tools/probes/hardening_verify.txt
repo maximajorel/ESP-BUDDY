@@ -1,0 +1,8 @@
+boot
+help
+status
+screen 6
+sleep 400
+dump 4
+rot
+api GET /api/status

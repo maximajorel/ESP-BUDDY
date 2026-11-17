@@ -25,3 +25,6 @@ cámara es el comando `dump`, que escribe el framebuffer en ASCII.
 | `game_difficulty.txt` | Curva de dificultad con el paso del tiempo. |
 | `wifi_recovery.txt` | Credenciales incorrectas y `wifi/forget`. |
 | `imu.txt` | Lecturas crudas del sensor. |
+| `hardening_verify.txt` | Humo después de flashear: arranque, `help`, estado, CONFIG y API. |
+| `console_smoke.txt` | Ejercita todos los comandos de consola que movió el refactor (toques, menú, rotación, ejes, LED, buddy, IMU falso, assets, fuente, parser y framebuffer). Deja el reloj en 12 h si el doble toque entra: volvé a tocarlo en RELOJ para restaurar 24 h. |
+| `all_screens.txt` | `dump` de las siete pantallas, una por una. |
