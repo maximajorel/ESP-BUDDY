@@ -23,11 +23,19 @@ La interfaz del equipo y del panel está **en español**.
   seleccionada. Una barra dorada abajo muestra cuánto falta para que se abra (o para entrar).
   Los nombres y el orden de ese menú se cambian desde **Aplicaciones → Nombres y orden** en el panel web.
 
-La pantalla **Config** es la única con dos gestos de toque: **un toque** sube el brillo de
-la fila marcada (pasa de 100 % al mínimo de esa fila) y **dos toques rápidos** cambian de
-fila. Como el toque tiene que esperar a ver si viene el segundo, el brillo se aplica
-cuando termina esa espera (menos de medio segundo). Mantener 1 segundo sigue abriendo el
-menú de pantallas, así que esa pantalla nunca te deja encerrado.
+La pantalla **Config** es la única con dos gestos de toque. Cada fila de brillo tiene un
+**−** y un **+** al lado de la barra: **dos toques rápidos** mueven la marca al control
+siguiente (`−` del LCD, `+` del LCD, `−` del LED, `+` del LED, **ROTACION**, **BLOQUEO**, y
+vuelve al principio) y **un toque** aprieta el control marcado. La rotación se recorre con
+un toque (automática, horizontal, invertida) y el bloqueo se prende y apaga igual. Un `+`
+en el tope se queda ahí y un `−` en el piso también: el valor nunca salta al otro extremo,
+así que no hay forma de dejar la pantalla casi apagada sin querer. Como el toque tiene que
+esperar a ver si viene el segundo, el cambio se aplica cuando termina esa espera (menos de
+medio segundo). Mantener 1 segundo sigue abriendo el menú de pantallas, así que esa
+pantalla nunca te deja encerrado.
+
+La rotación se puede cambiar desde la pantalla sin salir de ella: la imagen se vuelve a
+mandar al panel y la fila marcada no se pierde.
 
 > El botón **RESET** no se usa: reinicia el chip. El único botón de control es BOOT.
 
@@ -290,7 +298,7 @@ queda fijo a la izquierda.
 |---|---|
 | **Aplicaciones** (primera) | Elegís qué se ve en la pantalla del equipo tocando una tarjeta; la activa queda marcada como **Ahora**. Debajo, plegado, está **Nombres y orden del menú**: escribís el nombre de cada pantalla (hasta 12 letras, se ve igual en la lista y en el equipo) y las movés con las flechas — ese orden es el que recorre el botón—; ambos cambios quedan guardados. |
 | **Pantalla** | Brillo, color de la interfaz, rotación automática (o fija), bloqueo de la rotación, reloj en 12/24 h, **Usar la hora de este teléfono** para ponerlo en hora sin internet y el **apagado automático** de la pantalla y la luz. |
-| **Luz RGB** | Color, intensidad (queda guardada en el equipo) y modo (fijo, arcoíris, apagada) de la luz de atrás. |
+| **Luz RGB** | Intensidad en porcentaje (0 a 100, queda guardada en el equipo), color y modo (fijo, arcoíris, apagada) de la luz de atrás. Si **Sofía** está configurada, ella usa esa luz como luz de estado: la tarjeta lo dice y deja solo la intensidad, porque el color y el modo los decide el bridge. |
 | **Juegos** | Récords, borrarlos, **calibrar los controles** del juego de meteoritos y corregir los ejes si la nave va al revés. |
 | **Música** | Los pasos para conectar Spotify (crear la app, el Redirect URI, el Client ID) y el estado en vivo: si falta el Client ID, si falta autorizar, o qué está sonando. |
 | **Red** | **WiFi de casa**: busca redes, elegís la tuya, ponés la clave y guardás; con eso el reloj se pone en hora solo. Si te equivocaste de clave, **Olvidar red** borra las credenciales sin tocar los récords. **Punto de acceso**: cambia el nombre y la clave de la red que crea el equipo (lo que se ve en la pantalla RED); mínimo 8 caracteres. |
