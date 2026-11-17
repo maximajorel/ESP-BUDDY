@@ -10,7 +10,8 @@ en un equipo con siete pantallas y un panel de administración web:
 | **Meteoritos** | Juego ASCII de naves y meteoritos, con movimiento libre en dos ejes por sensor. Guarda el récord. |
 | **Red** | Muestra el nombre y la contraseña del WiFi del equipo, y la dirección del panel web. |
 | **Música** | Qué estás escuchando en Spotify: carátula, tema, artista y progreso. Necesita que conectes el equipo a tu WiFi y autorices tu cuenta una vez. |
-| **Config** | Brillo del LCD y brillo del LED trasero, sin tocar el panel web. Ambos valores quedan guardados en el equipo. |
+| **Sofía** | Buddy companion: una cara procedural que reacciona a lo que hace Hermes (pensando, trabajando, esperando, error, listo) a través de su bridge local, y al giroscopio si la sacudís. |
+| **Config** | Brillo del LCD, brillo del LED trasero, rotación de la imagen y bloqueo, sin tocar el panel web. Los valores quedan guardados en el equipo. |
 
 Todo se maneja con **un solo botón**: el **BOOT**.
 
@@ -428,13 +429,13 @@ panel web. Abrí el monitor serie a **115200** baudios y escribí `help`.
 | Comando | Qué hace |
 |---|---|
 | `status` | Estado completo: pantalla, orientación, WiFi, hora, ejes del juego, récords, memoria. |
-| `screen 0..4` | Salta a una pantalla (0 reloj, 1 tragamonedas, 2 meteoritos, 3 red, 4 música). |
+| `screen 0..6` | Salta a una pantalla (0 reloj, 1 tragamonedas, 2 meteoritos, 3 red, 4 música, 5 Sofía, 6 Config). |
 | `press [ms]` | Simula un toque corto. |
 | `doubletap` | Dos toques rápidos seguidos: abre el cartel de calibración del juego. |
 | `tap` | Toque corto sin la temporización del botón (para probar la lógica de la pantalla). |
 | `longpress` | Mantener 1 segundo sin la temporización del botón. |
 | `hold` | Simula mantener 1 segundo: abre el menú, o entra a la pantalla seleccionada. |
-| `order [a b c d e]` | Muestra o fija el orden del menú (ids de pantalla). |
+| `order [a b c d e f g]` | Muestra o fija el orden del menú (los siete ids de pantalla). |
 | `orient 0..3` | Rotación de la imagen al panel. Queda **fija**: apaga la rotación automática. |
 | `rot` | Muestra el modo de rotación (automática o fija), el bloqueo y la imagen actual. |
 | `rot auto` | Vuelve a la rotación automática por acelerómetro. |
@@ -462,7 +463,7 @@ panel web. Abrí el monitor serie a **115200** baudios y escribí `help`.
 | `spotify forget [all]` | Borra el permiso (o también el Client ID con `all`). |
 | `reboot` | Reinicia. |
 
-## 11. Problemas comunes
+## 12. Problemas comunes
 
 **El monitor serie no muestra nada.**
 `USB CDC On Boot` tiene que estar en **Enabled**. Además, el firmware descarta las
@@ -532,7 +533,7 @@ Faltó volver a correr `tools\pack_web.py` antes de compilar (ver paso 4).
 
 ---
 
-## 12. Volver al firmware original
+## 13. Volver al firmware original
 
 El equipo no se puede "brickear": el bootloader de ROM y el botón BOOT siempre
 permiten volver a flashear. Para dejar la placa como vino, descargá el firmware de
@@ -546,11 +547,12 @@ prueba de Waveshare y flashealo como imagen completa en `0x0`.
 esp32_gadget/
 ├── README.md               resumen del proyecto
 ├── INSTALL.md              este documento
-├── esp32_gadget.ino        arranque, botón, consola serie
+├── esp32_gadget.ino        arranque, botón y lazo principal
+├── console.h/.cpp          consola serie: comandos, volcados y diagnóstico
 ├── display.h/.cpp          driver ST7789 + giro a horizontal
 ├── gfx.h/.cpp              framebuffer, formas, texto, dígitos de 7 segmentos
 ├── font5x7.h               fuente (generada por tools/gen_font.py)
-├── button.h                máquina de estados del botón (toque / 3 s)
+├── button.h                máquina de estados del botón (toque / 1 s)
 ├── settings.h/.cpp         credenciales y ajustes en NVS
 ├── rgb.h/.cpp              LED WS2812 y celebración de casino
 ├── rotation.h/.cpp         rotación automática, bloqueo y compensación del sensor
@@ -559,12 +561,22 @@ esp32_gadget/
 ├── screens.h/.cpp          registro de pantallas y marco común
 ├── config_value.h          pasos, topes y mapeo de brillo (puro, test en host)
 ├── screen_name.h           reglas de los nombres elegidos por el dueño
+├── screen_order.h          validación del orden del menú (puro, test en host)
 ├── screen_clock.cpp        pantalla reloj
 ├── screen_slot.cpp         pantalla tragamonedas
-├── screen_game.cpp         pantalla meteoritos (ASCII)
+├── screen_game.cpp         pantalla meteoritos (ASCII) y calibración de ejes
 ├── screen_net.cpp          pantalla de red
-├── screen_config.cpp       pantalla Config (brillo del LCD y del LED)
+├── screen_music.cpp        pantalla de música (Spotify)
+├── screen_buddy.cpp        pantalla Sofía (cara del buddy)
+├── screen_config.cpp       pantalla Config (brillo, rotación y bloqueo)
+├── buddy_*.h               estados, fases, expresiones y reacciones de Sofía
+├── spotify_*.h/.cpp        OAuth PKCE, consulta, parser y carátula
+├── ui_color.h, theme.h     paleta compartida
 ├── net.h/.cpp              WiFi, NTP, API y servidor web
 ├── web_assets.h            panel web empaquetado (generado)
 └── web_ui/                 panel web: index.html, styles.css, app.js
 ```
+
+La arquitectura, las convenciones y el paso a paso para agregar una pantalla, un
+comando o un endpoint están en [`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md).
+Para correr todas las pruebas de host: `python tools/run_tests.py`.

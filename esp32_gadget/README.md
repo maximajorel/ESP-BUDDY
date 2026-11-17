@@ -30,40 +30,22 @@ INSTALL.md §3; si te equivocás con la PSRAM, el equipo no arranca.
 
 ## Cómo está organizado
 
-```
-esp32_gadget/
-├── esp32_gadget.ino     arranque, botón y lazo principal
-├── console.*            consola serie: comandos, volcados y diagnóstico
-├── display.*            driver ST7789 + giro de la imagen a horizontal
-├── gfx.*                framebuffer, formas, texto, dígitos de 7 segmentos
-├── font5x7.h            fuente (generada, no editar a mano)
-├── button.h             máquina de estados del botón (toque / 1 s)
-├── settings.*           credenciales, calibración y ajustes en NVS
-├── rgb.*                LED WS2812 y celebración de casino
-├── rotation.*           rotación automática, bloqueo y compensación del sensor
-├── rotation_policy.h    cuándo girar la imagen y cuándo quedarse quieto (puro, test en host)
-├── imu.*                QMI8658 (acelerómetro + giroscopio)
-├── screens.*            registro de pantallas y marco común
-├── screen_name.h        reglas de los nombres elegidos por el dueño (test en host)
-├── screen_clock.cpp     pantalla reloj
-├── screen_slot.cpp      pantalla tragamonedas
-├── screen_game.cpp      pantalla meteoritos (ASCII)
-├── screen_net.cpp       pantalla de red
-├── screen_config.cpp    pantalla Config (brillo del LCD y del LED, rotación y bloqueo)
-├── config_value.h       pasos, topes y mapeo de brillo (puro, test en host)
-├── screen_music.cpp     pantalla de música (Spotify)
-├── screen_buddy.cpp     pantalla Sofía (cara del buddy)
-├── buddy_face.h         ojo cuadrado redondeado, color del dueño y suavizado (puro, test en host)
-├── spotify.*            estado, tarea de consulta y consola
-├── spotify_parse.*      parser del JSON de Spotify (puro, con test en host)
-├── spotify_pkce.*       PKCE, SHA-256 y urlencode (puro, con test en host)
-├── spotify_store.*      client id y token en NVS
-├── spotify_auth.*       flujo OAuth con PKCE, sin client secret
-├── spotify_http.*       HTTPS contra Spotify con las CAs del core
-├── net.*                WiFi, NTP, API y servidor web
-├── web_assets.h         panel web empaquetado (generado)
-└── web_ui/              panel web: index.html, styles.css, app.js
-```
+El firmware se separa en cuatro capas: política pura (testeable en host),
+estado en NVS (`settings.*`), servicios (`net.*`, `spotify_*`, `imu.*`,
+`rgb.*`, `rotation.*`) y presentación (`gfx.*`, `display.*`, `screens.*`,
+`screen_*`, `console.*`).
+
+- `esp32_gadget.ino` — arranque, botón y lazo principal.
+- `console.*` — consola serie: comandos, volcados y diagnóstico.
+- `screens.*` — registro, menú, apagado automático y chrome común.
+- `screen_*.cpp` — una pantalla cada uno; no hablan HTTP ni escriben NVS.
+- `*.h` puros — `rotation_policy`, `game_difficulty`, `game_hits`,
+  `config_value`, `screen_name`, `screen_order`, `steer_solve`,
+  `tap_window`, `text_fold`, `buddy_face`, `buddy_anim`, `ui_color`.
+
+El mapa completo de módulos, la regla de dependencias, las claves de NVS y el
+paso a paso para agregar una pantalla, un comando o un endpoint están en
+[`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md).
 
 Dos archivos son **generados**; si los editás a mano, se pierden:
 
