@@ -35,8 +35,16 @@ TOOLS = ROOT / "tools"
 # Tests that need more than `-I esp32_gadget <test>.cpp`. Keep this table next to
 # the code it describes; a new test either needs nothing or appears here.
 COMPANION_SOURCES = {
+    "admin_auth_test": ["admin_auth.cpp", "spotify_pkce.cpp"],
     "text_fold_test": ["text_fold.cpp"],
     "spotify_core_test": ["spotify_parse.cpp", "spotify_pkce.cpp"],
+}
+
+# Checks written as scripts rather than firmware tests. The `.env` build step is
+# the one case: its output has to agree with the C++ derivation, so it is pinned
+# by a script that runs the real generator. Names here show up in --filter too.
+PYTHON_CHECKS = {
+    "admin_seed_test": TOOLS / "admin_seed_test.py",
 }
 
 # Tests that include ArduinoJson headers.
@@ -98,7 +106,6 @@ def run_binary(binary):
 
 
 def check_assets():
-    """Run the generated-header round trip and return (ok, output)."""
     result = subprocess.run(
         [
             sys.executable,
@@ -108,6 +115,14 @@ def check_assets():
         ],
         capture_output=True,
         text=True,
+    )
+    return result.returncode == 0, result.stdout + result.stderr
+
+
+def run_python_check(script):
+    """Run one scripted check and return (ok, output)."""
+    result = subprocess.run(
+        [sys.executable, str(script)], capture_output=True, text=True
     )
     return result.returncode == 0, result.stdout + result.stderr
 
@@ -130,7 +145,8 @@ def main(argv=None):
     arduinojson = find_arduinojson()
 
     tests = [t for t in discover_tests() if args.filter in t.stem]
-    if not tests:
+    scripts = {name: path for name, path in PYTHON_CHECKS.items() if args.filter in name}
+    if not tests and not scripts:
         print("FAIL no tests matched filter %r" % args.filter)
         return 1
 
@@ -165,7 +181,17 @@ def main(argv=None):
             passed.append(name)
 
     asset_ok = True
-    if not args.no_assets:
+    for name, script in scripts.items():
+        ok, output = run_python_check(script)
+        if ok:
+            print("ok   %-26s %s" % (name, output.strip().splitlines()[-1]))
+            passed.append(name)
+        else:
+            print("FAIL %-26s script" % name)
+            print("     " + tail(output).replace("\n", "\n     "))
+            failed.append(name)
+
+    if not args.no_assets and args.filter in "web_assets":
         asset_ok, asset_output = check_assets()
         if asset_ok:
             print("ok   %-26s %s" % ("web_assets.h", tail(asset_output, 1)))

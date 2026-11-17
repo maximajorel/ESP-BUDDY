@@ -7,6 +7,7 @@
 
 #include <Arduino.h>
 
+#include "admin_auth.h"
 #include "screen_name.h"
 
 #define SETTINGS_SSID_MAX 32
@@ -134,3 +135,33 @@ bool settingsSetRgbLevel(uint8_t level);
 // input is clamped here so neither the panel nor the CONFIG screen duplicates
 // the limits, and an in-range value costs no NVS write.
 bool settingsSetLcdBrightness(uint8_t percent);
+
+// --- web panel credentials ---------------------------------------------------
+//
+// Seeded at build time from the repository `.env` and changeable afterwards from
+// the panel (web-auth S2/S3). What is stored is a salt and an iterated SHA-256
+// digest: the plaintext password never reaches NVS, the flash image or the
+// panel's HTML. Its own NVS keys, so the settings blob layout never changes.
+struct AdminCredentials {
+  char user[ADMIN_USER_MAX + 1];
+  uint8_t salt[ADMIN_SALT_LEN];
+  uint8_t hash[ADMIN_HASH_LEN];
+  // True while the no-.env fallback is still in place. The panel shows a warning
+  // and refuses to leave the account card alone until this is cleared.
+  bool isDefault;
+};
+
+// Cached in RAM: the HTTP server asks on every request.
+const AdminCredentials &settingsGetAdmin();
+
+// Stores a new pair and returns false when the write did not stick or the
+// username is not storable.
+bool settingsSetAdminCredentials(const char *user, const uint8_t *salt,
+                                 const uint8_t *hash, bool isDefault);
+
+// True when this exact user/password pair is the one stored.
+bool settingsAdminMatches(const char *user, const char *pass);
+
+// Drops the stored pair and reseeds it from the build (the `.env` value when
+// there is one, admin/admin otherwise). Used by the panel's factory reset.
+bool settingsResetAdminCredentials();

@@ -337,3 +337,112 @@ bool settingsSetScreenName(uint8_t index, const char *name) {
   if (n > SCREEN_NAME_MAX) return false;
   return s_prefs.putBytes(key, name, n) == n;
 }
+
+// --- web panel credentials ---------------------------------------------------
+//
+// `tools/gen_admin_defaults.py` writes the `.env` pair into this header as a salt
+// and a digest. It is git-ignored, so a clean checkout has no header at all and
+// that is a supported state: the firmware compiles and seeds the documented
+// fallback, which the panel then forces the owner to change.
+#if defined(__has_include)
+#if __has_include("admin_seed.h")
+#include "admin_seed.h"
+#endif
+#endif
+
+#ifndef ADMIN_SEED_PRESENT
+#define ADMIN_SEED_PRESENT 0
+#endif
+
+static AdminCredentials s_admin;
+static bool s_adminLoaded = false;
+
+// Salt of the no-.env fallback. Fixed on purpose: that password is public
+// knowledge anyway, and what protects the board is the forced change, not the
+// salt.
+static const uint8_t ADMIN_FALLBACK_SALT[ADMIN_SALT_LEN] = {
+    0x67, 0x61, 0x64, 0x67, 0x65, 0x74, 0x2d, 0x66,
+    0x61, 0x6c, 0x6c, 0x62, 0x61, 0x63, 0x6b, 0x21};
+
+// Reads the stored pair. False when any key is missing or has the wrong shape,
+// which is exactly when the seed has to run: a value written by an older build
+// must never be half-trusted.
+static bool adminReadStored() {
+  if (!s_loaded && !s_prefs.begin("gadget", true)) return false;
+  if (s_prefs.getBytesLength("adSalt") != ADMIN_SALT_LEN) return false;
+  if (s_prefs.getBytesLength("adHash") != ADMIN_HASH_LEN) return false;
+  String user = s_prefs.getString("adUser", "");
+  if (user.length() == 0 || user.length() > ADMIN_USER_MAX) return false;
+  copyInto(s_admin.user, sizeof(s_admin.user), user.c_str());
+  if (s_prefs.getBytes("adSalt", s_admin.salt, ADMIN_SALT_LEN) != ADMIN_SALT_LEN) {
+    return false;
+  }
+  if (s_prefs.getBytes("adHash", s_admin.hash, ADMIN_HASH_LEN) != ADMIN_HASH_LEN) {
+    return false;
+  }
+  s_admin.isDefault = s_prefs.getBool("adDef", false);
+  return true;
+}
+
+static bool adminStore() {
+  if (!s_loaded && !s_prefs.begin("gadget", false)) return false;
+  bool ok = s_prefs.putString("adUser", s_admin.user) > 0;
+  ok = ok && s_prefs.putBytes("adSalt", s_admin.salt, ADMIN_SALT_LEN) == ADMIN_SALT_LEN;
+  ok = ok && s_prefs.putBytes("adHash", s_admin.hash, ADMIN_HASH_LEN) == ADMIN_HASH_LEN;
+  ok = ok && s_prefs.putBool("adDef", s_admin.isDefault);
+  return ok;
+}
+
+static void adminSeed() {
+  memset(&s_admin, 0, sizeof(s_admin));
+#if ADMIN_SEED_PRESENT
+  memcpy(s_admin.salt, ADMIN_SEED_SALT, ADMIN_SALT_LEN);
+  memcpy(s_admin.hash, ADMIN_SEED_HASH, ADMIN_HASH_LEN);
+  copyInto(s_admin.user, sizeof(s_admin.user), ADMIN_SEED_USER);
+  s_admin.isDefault = false;
+#else
+  memcpy(s_admin.salt, ADMIN_FALLBACK_SALT, ADMIN_SALT_LEN);
+  copyInto(s_admin.user, sizeof(s_admin.user), "admin");
+  adminHashDerive(s_admin.salt, s_admin.user, "admin", s_admin.hash);
+  s_admin.isDefault = true;
+#endif
+  adminStore();
+}
+
+const AdminCredentials &settingsGetAdmin() {
+  if (!s_adminLoaded) {
+    s_adminLoaded = true;
+    memset(&s_admin, 0, sizeof(s_admin));
+    if (!adminReadStored()) adminSeed();
+  }
+  return s_admin;
+}
+
+bool settingsSetAdminCredentials(const char *user, const uint8_t *salt,
+                                 const uint8_t *hash, bool isDefault) {
+  if (!user || !salt || !hash) return false;
+  if (!adminUserValid(user)) return false;
+  settingsGetAdmin();  // make sure the cache holds the previous pair first
+  copyInto(s_admin.user, sizeof(s_admin.user), user);
+  memcpy(s_admin.salt, salt, ADMIN_SALT_LEN);
+  memcpy(s_admin.hash, hash, ADMIN_HASH_LEN);
+  s_admin.isDefault = isDefault;
+  return adminStore();
+}
+
+bool settingsAdminMatches(const char *user, const char *pass) {
+  const AdminCredentials &creds = settingsGetAdmin();
+  return adminCredentialsMatch(user, pass, creds.user, creds.salt, creds.hash);
+}
+
+bool settingsResetAdminCredentials() {
+  s_adminLoaded = true;
+  memset(&s_admin, 0, sizeof(s_admin));
+  if (!s_loaded && !s_prefs.begin("gadget", false)) return false;
+  s_prefs.remove("adUser");
+  s_prefs.remove("adSalt");
+  s_prefs.remove("adHash");
+  s_prefs.remove("adDef");
+  adminSeed();
+  return true;
+}

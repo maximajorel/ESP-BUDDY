@@ -1,0 +1,221 @@
+"""Turn the repository `.env` into the credentials header the firmware compiles in.
+
+The panel needs a user and a password before the owner has ever opened it, but
+the firmware must not carry the password in plaintext: anyone who reads the
+flash image would then know it, and so would anyone reading this repository. So
+the password is hashed here, at build time, and only the salt and the digest
+travel to the board.
+
+    python tools/gen_admin_defaults.py            # uses ./.env
+    python tools/gen_admin_defaults.py --check    # report without writing
+
+It writes `esp32_gadget/admin_seed.h`, which is git-ignored and picked up by
+`settings.cpp` behind `__has_include`. Without a `.env` the file is removed and
+the firmware builds with the documented `admin`/`admin` fallback, which the panel
+forces the owner to change.
+
+The derivation must stay byte-identical to `adminHashDerive()` in
+`esp32_gadget/admin_auth.cpp`: salt || user || pass, then SHA-256 repeatedly until
+the round count is reached. `tools/admin_seed_test.py` pins that agreement.
+"""
+
+import argparse
+import hashlib
+import os
+import re
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_ENV = ROOT / ".env"
+DEFAULT_OUT = ROOT / "esp32_gadget" / "admin_seed.h"
+
+HASH_ROUNDS = 2048
+SALT_LEN = 16
+HASH_LEN = 32
+USER_MAX = 32
+PASS_MIN = 8
+PASS_MAX = 64
+
+
+class SeedError(Exception):
+    """A `.env` the firmware cannot use, with the reason the owner needs."""
+
+
+def derive(salt, user, password):
+    """salt || user || pass hashed, then re-hashed HASH_ROUNDS-1 times."""
+    digest = hashlib.sha256(salt + user.encode("utf-8") + password.encode("utf-8")).digest()
+    for _ in range(HASH_ROUNDS - 1):
+        digest = hashlib.sha256(digest).digest()
+    return digest
+
+
+def parse_env(text):
+    """Read KEY=VALUE lines, tolerating comments, blank lines and `export`."""
+    values = {}
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[len("export "):].strip()
+        if "=" not in line:
+            raise SeedError("linea sin '=' en .env: %r" % raw)
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        values[key] = value
+    return values
+
+
+def validate_user(user):
+    if not user:
+        raise SeedError("ADMIN_USER no puede estar vacio")
+    if len(user) > USER_MAX:
+        raise SeedError("ADMIN_USER tiene mas de %d caracteres" % USER_MAX)
+    for ch in user:
+        if not (0x21 <= ord(ch) <= 0x7E):
+            raise SeedError("ADMIN_USER solo admite ASCII visible, sin espacios")
+        if ch in ':/\\"%':
+            raise SeedError("ADMIN_USER no admite %r" % ch)
+
+
+def validate_pass(password):
+    if len(password) < PASS_MIN:
+        raise SeedError(
+            "ADMIN_PASS necesita al menos %d caracteres (un secreto mas corto en un "
+            "dispositivo que emite su propio punto de acceso es una formalidad)" % PASS_MIN
+        )
+    if len(password) > PASS_MAX:
+        raise SeedError("ADMIN_PASS tiene mas de %d caracteres" % PASS_MAX)
+    for ch in password:
+        if not (0x20 <= ord(ch) <= 0x7E):
+            raise SeedError("ADMIN_PASS solo admite ASCII visible")
+
+
+def parse_salt(arg, existing):
+    """--salt keeps a regenerated header stable; otherwise reuse the stored one."""
+    if arg:
+        try:
+            salt = bytes.fromhex(arg)
+        except ValueError:
+            raise SeedError("--salt tiene que ser hexadecimal")
+        if len(salt) != SALT_LEN:
+            raise SeedError("--salt tiene que tener %d bytes" % SALT_LEN)
+        return salt
+    if existing is not None:
+        return existing[0]
+    return os.urandom(SALT_LEN)
+
+
+def read_existing(path):
+    """(salt, user, hash) of a header this tool wrote earlier, or None."""
+    if not path.exists():
+        return None
+    text = path.read_text(encoding="utf-8")
+    if "tools/gen_admin_defaults.py" not in text:
+        return None
+    salt = c_array(text, "SALT", SALT_LEN)
+    digest = c_array(text, "HASH", HASH_LEN)
+    match = re.search(r'#define ADMIN_SEED_USER "([^"]*)"', text)
+    if salt is None or digest is None or not match:
+        return None
+    return salt, match.group(1), digest
+
+
+def c_array(text, name, length):
+    match = re.search(r"ADMIN_SEED_%s\[%d\] = \{(.*?)\}" % (name, length), text, re.S)
+    if not match:
+        return None
+    values = [int(v, 16) for v in re.findall(r"0x([0-9a-fA-F]{2})", match.group(1))]
+    if len(values) != length:
+        return None
+    return bytes(values)
+
+
+def c_bytes(data):
+    return ", ".join("0x%02x" % b for b in data)
+
+
+def render(user, salt, digest):
+    return """\
+// Generated by tools/gen_admin_defaults.py from .env.
+//
+// Do not edit and do not commit: this file is git-ignored because it is the only
+// place the panel's factory credentials exist, and regenerating it is how the
+// owner changes them before a flash.
+//
+// It carries a salt and a digest, never the password itself.
+#pragma once
+
+#define ADMIN_SEED_PRESENT 1
+#define ADMIN_SEED_USER "%s"
+
+static const uint8_t ADMIN_SEED_SALT[%d] = {%s};
+static const uint8_t ADMIN_SEED_HASH[%d] = {%s};
+""" % (user, SALT_LEN, c_bytes(salt), HASH_LEN, c_bytes(digest))
+
+
+def build(args):
+    env_path = Path(args.env)
+    out_path = Path(args.out)
+
+    if not env_path.exists():
+        # A header left behind by a deleted .env would keep seeding a password the
+        # owner believes they removed.
+        removed = False
+        if out_path.exists() and read_existing(out_path) is not None:
+            if not args.check:
+                out_path.unlink()
+            removed = True
+        return (
+            "sin %s: el firmware compila con admin/admin y el panel obliga a "
+            "cambiarla%s" % (env_path, " (borre admin_seed.h)" if removed else "")
+        ), 0
+
+    values = parse_env(env_path.read_text(encoding="utf-8"))
+    missing = [k for k in ("ADMIN_USER", "ADMIN_PASS") if not values.get(k)]
+    if missing:
+        raise SeedError("%s no define %s" % (env_path, " ni ".join(missing)))
+    user = values["ADMIN_USER"]
+    password = values["ADMIN_PASS"]
+    validate_user(user)
+    validate_pass(password)
+
+    existing = read_existing(out_path)
+    salt = parse_salt(args.salt, existing)
+    digest = derive(salt, user, password)
+
+    if existing is not None and existing[0] == salt and existing[1] == user and existing[2] == digest:
+        return "%s ya estaba al dia" % out_path, 0
+
+    text = render(user, salt, digest)
+    if args.check:
+        return "%s esta desactualizado (--check no escribe)" % out_path, 1
+    out_path.write_text(text, encoding="utf-8", newline="\n")
+    return "sembrado %s para el usuario %r" % (out_path, user), 0
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument("--env", default=str(DEFAULT_ENV), help="ruta del .env")
+    parser.add_argument("--out", default=str(DEFAULT_OUT), help="ruta del header generado")
+    parser.add_argument("--salt", default=None, help="sal fija en hex, para pruebas")
+    parser.add_argument("--check", action="store_true", help="no escribe, solo informa")
+    args = parser.parse_args(argv)
+
+    try:
+        message, code = build(args)
+    except SeedError as error:
+        print("ERROR: %s" % error, file=sys.stderr)
+        return 2
+    print(message)
+    return code
+
+
+if __name__ == "__main__":
+    sys.exit(main())
