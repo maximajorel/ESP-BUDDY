@@ -155,3 +155,40 @@ L10 (close-out): host tests 26 passed, firmware compiles at 46% flash / 16% RAM,
 working tree clean. Nothing was flashed: the board is on Windows COM5 and
 unreachable from this WSL session, so the first real login, the cookie round trip
 and the two pages on a phone still need one manual pass after flashing.
+
+L11 (on-board verification, COM5): flashed `470853c`+docs at 21:0x and the panel
+looked right on the serial console (`api POST /api/session` with admin/admin → 200
+`mustChange:true`, wrong password → 401) while every session was dead over HTTP:
+after a successful login, `GET /admin` still redirected and `GET /api/session`
+answered `authenticated:false`. The cause was in the ESP32 `WebServer`, not in the
+code under test: `header()` only returns the headers registered with
+`collectHeaders()`, and the default set is Authorization and ETag. `header
+("Cookie")` was therefore always empty, so `adminSessionValid` never saw a token.
+
+Fix (defect, not scope): register the one header the panel uses before `begin()`,
+with the reason written next to it. Reflashed and repeated every check over the
+LAN address of the board (192.168.100.75), which is the real transport:
+
+| Check | Result |
+| --- | --- |
+| `GET /admin` sin sesión | 302 → `/login` |
+| `GET /` | 200, placeholder with the selector notice |
+| `GET /login` | 200, form |
+| `GET /api/status` sin sesión | 200 (public read) |
+| `POST /api/wifi` sin sesión | 401 `Sesion requerida` |
+| `POST /api/factory` sin sesión | 401 `Sesion requerida` (**no** wiped the device) |
+| `POST /api/session` admin/admin | 200, `Set-Cookie: sid=…; HttpOnly; SameSite=Strict; Max-Age=43200` |
+| `GET /admin` con cookie | 200, panel with the Cuenta card |
+| `GET /api/session` con cookie | `authenticated:true, user:admin, mustChange:true` |
+| `POST /api/settings` con cookie | 200 |
+| `POST /api/session/logout` → `GET /admin` | 200 → 302 |
+| `POST /api/admin/credentials` con clave actual mala | 403 |
+| … con clave nueva de 5 caracteres | 400 |
+| … con usuario con espacio | 400 |
+| 5 fallos de login seguidos | 401 los cinco, y la **clave correcta también 401** durante el lock |
+| La misma clave 31 s después | 200 |
+
+Not yet exercised on hardware: the *successful* credential change (S3) and the
+`mustChange` banner clearing, because that leaves the board on a password this
+session chose. Evidence for that path is the mock plus the host tests; S6 asked
+for the owner's own password, so the change is the owner's to make or approve.

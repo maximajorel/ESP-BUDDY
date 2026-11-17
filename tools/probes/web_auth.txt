@@ -1,0 +1,7 @@
+boot 4
+api GET /api/status
+api GET /api/session
+api POST /api/session {"user":"admin","pass":"malo"}
+api POST /api/session {"user":"admin","pass":"admin"}
+api GET /api/session
+assets

@@ -1222,6 +1222,15 @@ void netBegin() {
     s_server.on(POST_PATHS[i], HTTP_POST, handleApi);
   }
   s_server.onNotFound(handleNotFound);
+
+  // This WebServer keeps only the request headers it was told to keep: by
+  // default that is Authorization and ETag, so `header("Cookie")` answered an
+  // empty string and every session looked expired the moment it was issued. A
+  // device-only defect: nothing above the transport can see it, and the host
+  // tests pass either way. One entry is enough, because the panel has one cookie.
+  static const char *REQUEST_HEADERS[] = {"Cookie"};
+  s_server.collectHeaders(REQUEST_HEADERS, 1);
+
   s_server.begin();
 }
 
