@@ -247,3 +247,20 @@ Hardware on COM5 after this pass (1,417,606 B, hash verified):
 `draw mood=calm ... ` at rest; `draw mood=angry grow=1.12 lid=0.46 hot=1.00
 deg=+10.1/-11.9` and, 500 ms later, `deg=+7.2/-14.8` — the tremble moving the
 eyes; and with a deeply bored face `draw mood=sleeping ry=4`, the shut bars.
+
+L10 (final audit, measured pixels). Two items were only tallied by colour
+before; both are now measured as ordered sequences with `fbpix` on the flashed
+firmware:
+
+- The halo fades instead of stepping. A horizontal scan at y=88 across the
+  right eye's edge walks the four shades in order and nothing jumps: eye 100%
+  (0x05BF) -> halo 32% (0x01CA) -> 17% (0x00E5) -> 7% (0x0062) -> black, each
+  step two pixels wide, with the 1 px dither at every boundary. That is the whole
+  answer to "el glow no transiciona tan bien": the panel has no alpha, so this
+  ordered ladder is the smoothest transition it can physically show.
+- The angry eyelid really slants. On one eye the lid cut ends at y=83 on the
+  outer side and is still black past y=119 on the inner side: the black block
+  falls towards the nose, so the pair reads "\/". The lid block also covers the
+  halo above it: the only colour anywhere above the cut line is black.
+- The angry eye's pixels are 0xF9E3 = rgb(248,60,24) with `hot=1.00`, and
+  `buddydraw` reports mood=angry, grow=1.12, lid=0.46, deg +11.2/-10.8.
