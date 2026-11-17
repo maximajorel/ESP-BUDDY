@@ -16,7 +16,7 @@ Todo se maneja con **un solo botón**, el BOOT:
 
 - **toque corto** → interactúa con la pantalla actual;
 - **mantener 1 s** → abre el menú de pantallas con el nombre grande y centrado; un toque pasa a la
-  siguiente y mantener 1 s entra. Los nombres y el orden se cambian desde el panel web y quedan
+  siguiente y mantener 1 s entra. Los nombres y el orden se cambian desde **Aplicaciones** en el panel web y quedan
   guardados en el equipo.
 
 ## Empezá acá

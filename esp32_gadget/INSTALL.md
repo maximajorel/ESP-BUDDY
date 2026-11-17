@@ -19,7 +19,7 @@ La interfaz del equipo y del panel está **en español**.
 - **Mantener 1 segundo** → abre el **menú de pantallas**, con el nombre grande y centrado.
   Dentro del menú: **un toque** pasa a la siguiente, **mantener 1 segundo** entra a la que está
   seleccionada. Una barra dorada abajo muestra cuánto falta para que se abra (o para entrar).
-  Los nombres y el orden de ese menú se cambian desde la sección **Pantalla** del panel web.
+  Los nombres y el orden de ese menú se cambian desde **Aplicaciones → Nombres y orden** en el panel web.
 
 > El botón **RESET** no se usa: reinicia el chip. El único botón de control es BOOT.
 
@@ -253,19 +253,20 @@ otra vez, o pedile a tu router que le reserve siempre la misma dirección a la M
 ## 8. Panel de administración web
 
 Conectate a la red del equipo y abrí **`http://192.168.4.1`**. El panel está en
-español y pensado para usarse con el dedo, desde el celular.
+español y pensado para usarse con el dedo, desde el celular. En el celular las
+secciones se abren desde el botón **☰** de arriba; en la computadora el menú
+queda fijo a la izquierda.
 
 | Sección | Para qué sirve |
 |---|---|
-| **Estado** | Los mismos datos de conexión que muestra la pantalla RED, más hora, tiempo encendido, memoria libre y qué pantalla está activa. Con el WiFi de casa conectado, la dirección del panel aparece con la IP que te asignó el router. |
-| **WiFi de casa** | Busca redes, elegís la tuya, ponés la clave y guardás. Con eso el reloj se pone en hora solo. Si te equivocaste de clave, **Olvidar red** borra las credenciales sin tocar los récords. |
-| **Punto de acceso** | Cambia el nombre y la clave de la red que crea el equipo (lo que se ve en la pantalla RED). Mínimo 8 caracteres. |
-| **Pantalla** | Cambia de pantalla sin tocar el botón (incluida **Música**), configura el **apagado automático** de la pantalla y la luz, **renombra y reordena el menú**: escribís el nombre de cada pantalla (hasta 12 letras, se ve igual en la lista y en el equipo) y las movés con las flechas —ese orden es el que recorre el botón—; ambos cambios quedan guardados. También ajusta el brillo, elige 12/24 h, **corrige la orientación** si ves la imagen al revés, y tiene **Usar la hora de este teléfono** para poner el reloj en hora sin internet. |
+| **Aplicaciones** (primera) | Elegís qué se ve en la pantalla del equipo tocando una tarjeta; la activa queda marcada como **Ahora**. Debajo, plegado, está **Nombres y orden del menú**: escribís el nombre de cada pantalla (hasta 12 letras, se ve igual en la lista y en el equipo) y las movés con las flechas — ese orden es el que recorre el botón—; ambos cambios quedan guardados. |
+| **Pantalla** | Brillo, color de la interfaz, orientación si ves la imagen al revés, reloj en 12/24 h, **Usar la hora de este teléfono** para ponerlo en hora sin internet y el **apagado automático** de la pantalla y la luz. |
 | **Luz RGB** | Color, intensidad y modo (fijo, arcoíris, apagada) de la luz de atrás. |
-| **Juegos** | Récords, borrarlos, y **calibrar los controles** del juego de meteoritos. |
+| **Juegos** | Récords, borrarlos, **calibrar los controles** del juego de meteoritos y corregir los ejes si la nave va al revés. |
+| **Música** | Los pasos para conectar Spotify (crear la app, el Redirect URI, el Client ID) y el estado en vivo: si falta el Client ID, si falta autorizar, o qué está sonando. |
+| **Red** | **WiFi de casa**: busca redes, elegís la tuya, ponés la clave y guardás; con eso el reloj se pone en hora solo. Si te equivocaste de clave, **Olvidar red** borra las credenciales sin tocar los récords. **Punto de acceso**: cambia el nombre y la clave de la red que crea el equipo (lo que se ve en la pantalla RED); mínimo 8 caracteres. |
 | **Sofía** | URL y token del bridge local, estado en vivo del buddy y un campo para pedirle algo al agente: el pedido se ve en la cara. |
-| **Spotify** | Los pasos para conectar tu cuenta (crear la app, el Redirect URI, el Client ID) y el estado en vivo: si falta el Client ID, si falta autorizar, o qué está sonando. |
-| **Mantenimiento** | Reiniciar (no borra nada) o restablecer de fábrica (borra WiFi y récords). Al final hay **Probar colores de la pantalla**: la pone roja, verde, azul y blanca para verificar el panel. |
+| **Sistema** (última) | **Estado del dispositivo**: los mismos datos de conexión que muestra la pantalla RED, más hora, tiempo encendido, memoria libre y qué pantalla está activa. **Mantenimiento**: reiniciar (no borra nada) o restablecer de fábrica (borra WiFi y récords); **Probar el equipo** con los botones que simulan el BOOT y **Probar colores de la pantalla**, que la pone roja, verde, azul y blanca para verificar el panel. |
 
 ### Apagado automático
 
@@ -359,7 +360,7 @@ este firmware (PKCE) no lo necesita.
 
 ### 10.2 Autorizar el equipo
 
-1. En el panel web, sección **Spotify**, pegá el **Client ID** y tocá
+1. En el panel web, sección **Música**, pegá el **Client ID** y tocá
    **Guardar Client ID**.
 2. Tocá **Autorizar** y abrí el enlace que aparece, en la computadora.
 3. Entrá con tu cuenta y tocá **Aceptar**.

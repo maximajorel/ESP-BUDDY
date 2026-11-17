@@ -76,19 +76,20 @@
 
   function busy(button, label, work) {
     var original = button.textContent;
+    // Buttons with markup (the app tiles) keep their icon and badge: writing
+    // textContent would flatten them and the tile could not be restored.
+    var rich = button.children.length > 0;
     button.disabled = true;
-    if (label) button.textContent = label;
+    button.setAttribute('aria-busy', 'true');
+    if (label && !rich) button.textContent = label;
+    function done() {
+      button.disabled = false;
+      button.removeAttribute('aria-busy');
+      if (label && !rich) button.textContent = original;
+    }
     return work().then(
-      function (value) {
-        button.disabled = false;
-        button.textContent = original;
-        return value;
-      },
-      function (error) {
-        button.disabled = false;
-        button.textContent = original;
-        throw error;
-      }
+      function (value) { done(); return value; },
+      function (error) { done(); throw error; }
     );
   }
 
@@ -353,6 +354,7 @@
       screenNames = status.names.slice();
     }
     setText('stScreen', screenNames[status.screen] || status.screenName || '—');
+    setText('nowScreen', 'Ahora: ' + (screenNames[status.screen] || status.screenName || '—'));
     renderOrder(status);
     renderTimeoutScreens(status);
     var timeoutSec = status.display && status.display.timeoutSec;
@@ -428,7 +430,10 @@
     var tiles = $('screenPicker').querySelectorAll('.tile');
     for (var i = 0; i < tiles.length; i++) {
       var index = Number(tiles[i].getAttribute('data-screen'));
-      tiles[i].classList.toggle('active', index === status.screen);
+      var active = index === status.screen;
+      tiles[i].classList.toggle('active', active);
+      if (active) tiles[i].setAttribute('aria-current', 'true');
+      else tiles[i].removeAttribute('aria-current');
       var label = tiles[i].querySelector('.tile-name');
       if (label) label.textContent = screenNames[index] || '—';
     }
@@ -738,6 +743,109 @@
       if (entries[0].isIntersecting) startSpotify();
       else stopSpotify();
     }, { threshold: 0.05 }).observe(card);
+  }
+
+  // --- navigation -----------------------------------------------------------
+
+  // One menu, two layouts. The active item follows the region crossing the
+  // middle of the viewport, so the sidebar always answers "where am I?".
+  function wireNav() {
+    var nav = $('nav');
+    var links = Array.prototype.slice.call(document.querySelectorAll('.nav-item'));
+    if (!nav || !links.length) return;
+
+    var targets = links.map(function (link) {
+      return document.querySelector(link.getAttribute('href'));
+    });
+
+    function keepLinkVisible(link) {
+      // Only the phone rail scrolls sideways; on a laptop every item is shown.
+      if (nav.scrollWidth <= nav.clientWidth + 4) return;
+      var left = link.offsetLeft;
+      var right = left + link.offsetWidth;
+      if (left < nav.scrollLeft + 8) nav.scrollLeft = Math.max(0, left - 12);
+      else if (right > nav.scrollLeft + nav.clientWidth - 8) {
+        nav.scrollLeft = right - nav.clientWidth + 12;
+      }
+    }
+
+    function activate(link) {
+      links.forEach(function (item) {
+        var on = item === link;
+        item.classList.toggle('active', on);
+        if (on) item.setAttribute('aria-current', 'true');
+        else item.removeAttribute('aria-current');
+      });
+      keepLinkVisible(link);
+    }
+
+    // --- mobile hamburger drawer ------------------------------------------
+    var toggle = $('navToggle');
+    var close = $('navClose');
+    var backdrop = $('navBackdrop');
+
+    function setOpen(open) {
+      document.body.classList.toggle('nav-open', open);
+      if (toggle) toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      if (open && links[0]) {
+        // The drawer is still hidden when the class flips, so focus on the next
+        // tick, once the element is focusable again.
+        setTimeout(function () { links[0].focus(); }, 60);
+      }
+    }
+
+    if (toggle) {
+      toggle.addEventListener('click', function () {
+        setOpen(!document.body.classList.contains('nav-open'));
+      });
+    }
+    if (close) {
+      close.addEventListener('click', function () {
+        setOpen(false);
+        if (toggle) toggle.focus();
+      });
+    }
+    if (backdrop) {
+      backdrop.addEventListener('click', function () { setOpen(false); });
+    }
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape' && document.body.classList.contains('nav-open')) {
+        setOpen(false);
+        if (toggle) toggle.focus();
+      }
+    });
+    // A rotation or resize to the sidebar layout must not leave the page locked.
+    if (window.matchMedia) {
+      var desktop = window.matchMedia('(min-width: 980px)');
+      var onChange = function () { if (desktop.matches) setOpen(false); };
+      if (desktop.addEventListener) desktop.addEventListener('change', onChange);
+      else if (desktop.addListener) desktop.addListener(onChange);
+    }
+
+    if (typeof IntersectionObserver !== 'undefined') {
+      var observer = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (!entry.isIntersecting) return;
+          var index = targets.indexOf(entry.target);
+          if (index >= 0) activate(links[index]);
+        });
+      }, { rootMargin: '-45% 0px -50% 0px', threshold: 0 });
+      targets.forEach(function (target) { if (target) observer.observe(target); });
+    }
+
+    links.forEach(function (link) {
+      link.addEventListener('click', function () {
+        activate(link);
+        setOpen(false);
+      });
+    });
+
+    // A #hash link on load should start on that menu item, not on the first one.
+    var initial = null;
+    for (var i = 0; i < links.length; i++) {
+      if (links[i].getAttribute('href') === window.location.hash) initial = links[i];
+    }
+    activate(initial || links[0]);
   }
 
   // --- wiring ---------------------------------------------------------------
@@ -1098,6 +1206,7 @@
 
   function init() {
     if (!$('toast')) return;
+    wireNav();
     wire();
     refresh();
     setInterval(refresh, POLL_MS);

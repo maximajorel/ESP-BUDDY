@@ -5,6 +5,7 @@ always reachable from a development machine. This stand-in implements the exact
 contract instead, so the panel's HTML/CSS/JS can be exercised for real.
 
     python3 tools/mock_gadget_api.py 8791
+    python3 tools/mock_gadget_api.py 8791 0.0.0.0   # visible from Windows/LAN
 
 Every mutating request is appended to tools/mock_requests.log so a browser test
 can prove what the panel actually sent, not just that it looked right.
@@ -324,9 +325,12 @@ class Handler(BaseHTTPRequestHandler):
 
 def main(argv):
     port = int(argv[1]) if len(argv) > 1 else 8791
+    # 127.0.0.1 keeps the mock private by default; pass 0.0.0.0 to open the
+    # panel from a Windows browser when WSL localhost forwarding is not enough.
+    host = argv[2] if len(argv) > 2 else os.environ.get("MOCK_HOST", "127.0.0.1")
     open(LOG, "w", encoding="utf-8").close()
-    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
-    print("mock gadget API on http://127.0.0.1:%d  (serving %s)" % (port, ROOT))
+    server = ThreadingHTTPServer((host, port), Handler)
+    print("mock gadget API on http://%s:%d  (serving %s)" % (host, port, ROOT))
     sys.stdout.flush()
     server.serve_forever()
 
