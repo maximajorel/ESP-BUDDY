@@ -81,3 +81,10 @@ L4: Persistence/API. `settingsGet/SetBuddyEyeColor` on its own NVS key `bdEye`
 restores the default; an invalid value is rejected with 400 and leaves NVS
 untouched. The Sofía card gained the colour input, five presets and a reset
 button; the panel posts the same field.
+
+L5: Delivery. The firmware landed as one work-unit commit (744 authored lines)
+instead of two ~400-line slices: the new pose channels (`rotL`, `rotR`, `hot`,
+`bob`) are consumed by the renderer, the smooth filter and the IMU overlay at
+once, so any split leaves a commit that does not compile or does not show the
+feature. The panel (HTML/JS, generated `web_assets.h`, mock and INSTALL row) is
+the second work unit.

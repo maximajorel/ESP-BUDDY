@@ -49,7 +49,8 @@ STATE = {
               "calibrated": True},
     "buddy": {"configured": True, "online": True, "state": "idle",
               "label": "tranquila", "active": 0, "ageMs": 800,
-              "url": "http://192.168.100.64:8787"},
+              "url": "http://192.168.100.64:8787",
+              "eyeColor": "#00B4FF"},
     "scores": {"game": 340, "slot": 120},
 }
 
@@ -204,6 +205,9 @@ class Handler(BaseHTTPRequestHandler):
                 STATE["buddy"]["url"] = body["buddyUrl"]
             if "buddyToken" in body:
                 STATE["buddy"]["configured"] = bool(body["buddyToken"])
+            if "buddyEyeColor" in body:
+                # Empty string is the firmware's "back to the shipped cyan".
+                STATE["buddy"]["eyeColor"] = body["buddyEyeColor"] or "#00B4FF"
             if "screenTimeoutSec" in body:
                 STATE["display"]["timeoutSec"] = body["screenTimeoutSec"]
             if "screenTimeoutMask" in body:

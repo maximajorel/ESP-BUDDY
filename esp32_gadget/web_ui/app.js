@@ -418,6 +418,7 @@
     setText('buddyOnline', buddy.online ? 'En línea'
       : (buddy.configured ? 'Sin respuesta' : 'Sin configurar'));
     if (buddy.url) setValue('buddyUrl', buddy.url);
+    if (buddy.eyeColor) setValue('buddyEyeColor', buddy.eyeColor);
 
     var rgb = status.rgb || {};
     if (rgb.r !== undefined) {
@@ -1008,6 +1009,36 @@
         });
       });
     }
+    if ($('buddyEyeColor')) {
+      // No live preview: the panel is not the glass. The colour takes effect on
+      // the next face frame and is stored in NVS by the device.
+      $('buddyEyeColor').addEventListener('change', function (event) {
+        submit(event.target, '/api/settings',
+          { buddyEyeColor: event.target.value }, 'Color de ojos guardado');
+      });
+    }
+    if ($('buddyEyeSwatches')) {
+      $('buddyEyeSwatches').addEventListener('click', function (event) {
+        var swatch = event.target.closest('button[data-color]');
+        if (!swatch) return;
+        var color = swatch.getAttribute('data-color');
+        $('buddyEyeColor').value = color;
+        markDirty('buddyEyeColor');
+        // The busy state goes on the input, not the swatch: replacing a colour
+        // chip's text with "Guardando…" would blank its label.
+        submit($('buddyEyeColor'), '/api/settings', { buddyEyeColor: color },
+          'Color de ojos guardado');
+      });
+    }
+    if ($('buddyEyeReset')) {
+      $('buddyEyeReset').addEventListener('click', function (event) {
+        $('buddyEyeColor').value = '#00b4ff';
+        markDirty('buddyEyeColor');
+        submit(event.target, '/api/settings', { buddyEyeColor: '' },
+          'Color de ojos restaurado');
+      });
+    }
+
     if ($('buddyForget')) {
       $('buddyForget').addEventListener('click', function (event) {
         submit(event.target, '/api/settings', { buddyToken: '' },

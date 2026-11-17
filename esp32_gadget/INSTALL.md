@@ -265,7 +265,7 @@ queda fijo a la izquierda.
 | **Juegos** | Récords, borrarlos, **calibrar los controles** del juego de meteoritos y corregir los ejes si la nave va al revés. |
 | **Música** | Los pasos para conectar Spotify (crear la app, el Redirect URI, el Client ID) y el estado en vivo: si falta el Client ID, si falta autorizar, o qué está sonando. |
 | **Red** | **WiFi de casa**: busca redes, elegís la tuya, ponés la clave y guardás; con eso el reloj se pone en hora solo. Si te equivocaste de clave, **Olvidar red** borra las credenciales sin tocar los récords. **Punto de acceso**: cambia el nombre y la clave de la red que crea el equipo (lo que se ve en la pantalla RED); mínimo 8 caracteres. |
-| **Sofía** | URL y token del bridge local, estado en vivo del buddy y un campo para pedirle algo al agente: el pedido se ve en la cara. |
+| **Sofía** | URL y token del bridge local, estado en vivo del buddy, color de los ojos (elegilo o volvé al cyan original; queda guardado en el equipo) y un campo para pedirle algo al agente: el pedido se ve en la cara. |
 | **Sistema** (última) | **Estado del dispositivo**: los mismos datos de conexión que muestra la pantalla RED, más hora, tiempo encendido, memoria libre y qué pantalla está activa. **Mantenimiento**: reiniciar (no borra nada) o restablecer de fábrica (borra WiFi y récords); **Probar el equipo** con los botones que simulan el BOOT y **Probar colores de la pantalla**, que la pone roja, verde, azul y blanca para verificar el panel. |
 
 ### Apagado automático
