@@ -204,6 +204,7 @@ static void printHelp() {
   Serial.println("  fbpix [x] [y] [w] [h]      pixeles del framebuffer en hex");
   Serial.println("  buddyface <state> [ageS]   fija una cara para dump (thinking 25)");
   Serial.println("  buddyphase <phase> [sec]   fija el HUD/LED (ask, ok, busy, idle)");
+  Serial.println("  buddyhappy [sec]           fija la cara feliz (dump de la sonrisa)");
   Serial.println("  order [ids...]             orden del menu de pantallas");
   Serial.println("  bl <0-100>                 backlight");
   Serial.println("  colors                     three bars: red, green, blue");
@@ -341,6 +342,13 @@ static void handleCommand(char *line) {
     buddyPinPhase(ph, hold);
     Serial.printf("buddy phase pinned: %s for %lus\n", buddyPhaseWireName(ph),
                   (unsigned long)(hold / 1000));
+    return;
+  }
+  if (!strcmp(argv[0], "buddyhappy")) {
+    uint32_t hold = argc >= 2 ? (uint32_t)atoi(argv[1]) * 1000u : 10000u;
+    if (hold < 500) hold = 500;
+    buddyPinHappy(hold);
+    Serial.printf("buddy happy pinned: %lus\n", (unsigned long)(hold / 1000));
     return;
   }
   if (!strcmp(argv[0], "buddyface") && argc >= 2) {

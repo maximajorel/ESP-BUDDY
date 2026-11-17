@@ -3,8 +3,8 @@ screen 5
 sleep 900
 ball off
 sleep 300
-press 90
-sleep 800
+buddyhappy 10
+sleep 300
 dump 4
 ball on
 sleep 400

@@ -279,6 +279,11 @@ void buddyEnter() {
   tapWindowReset(s_tap);
 }
 
+void buddyPinHappy(uint32_t holdMs) {
+  s_pokeUntil = millis() + holdMs;
+  s_dirty = true;
+}
+
 void buddyPinPhase(BuddyPhase phase, uint32_t holdMs) {
   s_phasePinned = true;
   s_phasePinValue = phase;
@@ -295,9 +300,11 @@ void buddyPinFace(BuddyState state, uint32_t ageMs, uint32_t holdMs) {
 }
 
 void buddyShortPress() {
-  // One tap is a boop, two taps are the ball. buddyTick polls the window and
-  // fires whichever it was; acting here would eat the first half of a double.
-  tapWindowPress(s_tap, millis(), TAP_DOUBLE_MS);
+  // One tap is a boop, two taps are the ball. The double is reported here, on
+  // the second press; only the single has to wait for the window to expire
+  // (buddyTick polls it), so the first half of a double is never eaten.
+  TapResult tap = tapWindowPress(s_tap, millis(), TAP_DOUBLE_MS);
+  if (tap == TAP_DOUBLE) buddySetBall(!s_ballOn);
   s_dirty = true;
 }
 
@@ -388,27 +395,6 @@ static void drawEyeGlow(int x, int y, int halfW, int halfH, float deg,
 static void thickLine(int x0, int y0, int x1, int y1, uint16_t color) {
   gfxLine(x0, y0, x1, y1, color);
   gfxLine(x0, y0 + 1, x1, y1 + 1, color);
-}
-
-// The happy face keeps the squircle the owner approved: the eye is still the
-// rounded square with its colour and glow, and a thin upward curve under it is
-// what carries the joy. The old "^ ^" caret dropped the shape and read as a
-// different face; this is one geometry with a second accent.
-static void happyUnderEye(int cx, int cy, uint16_t color) {
-  const int halfW = 30;
-  const int depth = 12;
-  int px = cx - halfW;
-  int py = cy;
-  for (int i = 1; i <= 12; i++) {
-    float t = (float)i / 12.0f;
-    float u = 2.0f * t - 1.0f;
-    int x = cx - halfW + (int)lroundf(2.0f * (float)halfW * t);
-    int y = cy + (int)lroundf((float)depth * (1.0f - u * u));
-    gfxLine(px, py, x, y, color);
-    gfxLine(px, py + 1, x, y + 1, color);
-    px = x;
-    py = y;
-  }
 }
 
 // The red toy the owner bounces around. A rim and an off-centre highlight make a
@@ -655,7 +641,10 @@ static void drawFace(BuddyState state, const BuddyPose &pose, uint32_t nowMs,
   float eyeDeg[2];
   float grow = pose.grow > 0.2f ? pose.grow : 1.0f;
   int baseRx = (int)lroundf((float)pose.rx * grow);
-  int baseRy = shut ? 4 : (int)lroundf((float)pose.ry * grow);
+  // A happy eye is never a blink bar: the joy is the squircle plus its lower
+  // lid, and a random idle blink landing inside the poke must not erase it.
+  int baseRy =
+      (shut && !happy) ? 4 : (int)lroundf((float)pose.ry * grow);
   BuddyPerspective per = buddyPerspective(pose.gazeX);
   for (int i = 0; i < 2; i++) {
     float widen = i == 0 ? per.widenL : per.widenR;
@@ -694,13 +683,22 @@ static void drawFace(BuddyState state, const BuddyPose &pose, uint32_t nowMs,
     int x = eyeX[i];
     int y = cy + bob + (int)pose.gazeY;
     if (happy) {
-      // Squircle eye plus the under-eye curve: the shape the owner approved,
-      // with the extra accent that makes the joy readable at a glance.
+      // Joy comes from the lower eyelid, never from a brow or an extra line
+      // above/below the eye: the squircle keeps its top shape and the bottom
+      // lid rises into a squint. Same band machinery as every other expression.
+      const float happyBottom = 0.3f;
       float deg = eyeDeg[i];
       drawEyeGlow(x, y, eyeRx[i], baseRy, deg, eyeRgb);
       gfxFillSquircleRotAA(x, y, eyeRx[i], baseRy, deg, color, glowInner);
-      happyUnderEye(x, y + baseRy + 5,
-                    gfxHex(buddyEyeScale(eyeRgb, 75)));
+      int bandHalfX = eyeExtentX[i] + BUDDY_GLOW_PAD + 2;
+      BuddyLidBand band =
+          buddyLidBandBottom(y, eyeExtentY[i], BUDDY_GLOW_PAD, happyBottom);
+      if (band.h > 0) {
+        gfxFillRect(x - bandHalfX, band.y0, bandHalfX * 2, band.h, GFX_BLACK);
+        float line = buddyLidLineBottom(y, eyeExtentY[i], happyBottom);
+        ditherLidRow(x, y, eyeRx[i], baseRy, deg, bandHalfX, band.y0, color,
+                     1.0f - (line - floorf(line)));
+      }
       continue;
     }
     float deg = shut ? 0.0f : eyeDeg[i];
@@ -769,14 +767,12 @@ static BuddyImuPose readImu(uint32_t nowMs, bool calmReactions) {
 bool buddyTick(uint32_t nowMs) {
   // A pending tap is either the single-tap boop or the second half of a double
   // tap on the ball. Nothing happens until the window says which one it was.
-  TapResult tap = tapWindowPoll(s_tap, nowMs, TAP_DOUBLE_MS);
-  if (tap == TAP_SINGLE) {
-    // A tap is a boop: happy eyes for a moment even if Sofía is busy.
+  if (tapWindowPoll(s_tap, nowMs, TAP_DOUBLE_MS) == TAP_SINGLE) {
+    // A tap is a boop: happy eyes for a moment even if Sofía is busy. The
+    // double was already consumed by buddyShortPress; only singles wait here.
     s_pokeUntil = nowMs + 1100;
     rgbPulse(255, 180, 220, 500);
     s_dirty = true;
-  } else if (tap == TAP_DOUBLE) {
-    buddySetBall(!s_ballOn);
   }
 
   if (s_pin) {
