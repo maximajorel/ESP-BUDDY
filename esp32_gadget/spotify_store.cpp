@@ -8,18 +8,6 @@ static bool s_ready = false;
 static char s_clientId[SPOTIFY_CLIENT_ID_MAX + 1];
 static char s_refresh[SPOTIFY_TOKEN_MAX + 1];
 
-static bool hex32(const char *s) {
-  size_t len = strlen(s);
-  if (len != 32) return false;
-  for (size_t i = 0; i < len; i++) {
-    char c = s[i];
-    bool ok = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') ||
-              (c >= 'A' && c <= 'F');
-    if (!ok) return false;
-  }
-  return true;
-}
-
 void spotifyStoreBegin() {
   s_clientId[0] = '\0';
   s_refresh[0] = '\0';

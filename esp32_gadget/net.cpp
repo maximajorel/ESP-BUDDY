@@ -116,6 +116,19 @@ static ApiResult apiOk() {
   return r;
 }
 
+// One guard and one message for every JSON body. Optional bodies are allowed to
+// be empty (the endpoint then runs on defaults); required ones cannot.
+static const char *const API_BAD_JSON = "Los datos enviados no son validos";
+
+static bool parseOptionalJson(const String &body, JsonDocument &doc) {
+  return body.length() == 0 ||
+         deserializeJson(doc, body) == DeserializationError::Ok;
+}
+
+static bool parseRequiredJson(const String &body, JsonDocument &doc) {
+  return deserializeJson(doc, body) == DeserializationError::Ok;
+}
+
 static void buildStatusJson(String &out) {
   refreshStatus();
   const Settings &cfg = settingsGet();
@@ -255,9 +268,7 @@ static void buildStatusJson(String &out) {
 
 static ApiResult apiWifi(const String &body) {
   JsonDocument doc;
-  if (body.length() && deserializeJson(doc, body) != DeserializationError::Ok) {
-    return apiFail(400, "Los datos enviados no son validos");
-  }
+  if (!parseOptionalJson(body, doc)) return apiFail(400, API_BAD_JSON);
   const char *ssid = doc["ssid"] | "";
   const char *pass = doc["pass"] | "";
 
@@ -268,9 +279,7 @@ static ApiResult apiWifi(const String &body) {
 
 static ApiResult apiAp(const String &body) {
   JsonDocument doc;
-  if (body.length() && deserializeJson(doc, body) != DeserializationError::Ok) {
-    return apiFail(400, "Los datos enviados no son validos");
-  }
+  if (!parseOptionalJson(body, doc)) return apiFail(400, API_BAD_JSON);
   const char *ssid = doc["ssid"] | "";
   const char *pass = doc["pass"] | "";
   if (!netSetAp(ssid, pass)) return apiFail(400, netLastError());
@@ -283,9 +292,7 @@ static ApiResult apiAp(const String &body) {
 // back to 1970.
 static ApiResult apiSetTime(const String &body) {
   JsonDocument doc;
-  if (body.length() && deserializeJson(doc, body) != DeserializationError::Ok) {
-    return apiFail(400, "Los datos enviados no son validos");
-  }
+  if (!parseOptionalJson(body, doc)) return apiFail(400, API_BAD_JSON);
   if (!doc["epoch"].is<long long>()) {
     return apiFail(400, "Falta la hora en formato epoch");
   }
@@ -305,9 +312,7 @@ static ApiResult apiSetTime(const String &body) {
 
 static ApiResult apiSettings(const String &body) {
   JsonDocument doc;
-  if (body.length() && deserializeJson(doc, body) != DeserializationError::Ok) {
-    return apiFail(400, "Los datos enviados no son validos");
-  }
+  if (!parseOptionalJson(body, doc)) return apiFail(400, API_BAD_JSON);
 
   Settings &cfg = settingsMutable();
   bool tzChanged = false;
@@ -460,9 +465,7 @@ static ApiResult apiSettings(const String &body) {
 
 static ApiResult apiScreen(const String &body) {
   JsonDocument doc;
-  if (body.length() && deserializeJson(doc, body) != DeserializationError::Ok) {
-    return apiFail(400, "Los datos enviados no son validos");
-  }
+  if (!parseOptionalJson(body, doc)) return apiFail(400, API_BAD_JSON);
   if (!doc["index"].is<int>()) return apiFail(400, "Falta el indice de pantalla");
   int index = doc["index"];
   if (index < 0 || index >= SCREEN_COUNT) {
@@ -474,9 +477,7 @@ static ApiResult apiScreen(const String &body) {
 
 static ApiResult apiPress(const String &body) {
   JsonDocument doc;
-  if (body.length() && deserializeJson(doc, body) != DeserializationError::Ok) {
-    return apiFail(400, "Los datos enviados no son validos");
-  }
+  if (!parseOptionalJson(body, doc)) return apiFail(400, API_BAD_JSON);
   bool longPress = doc["long"] | false;
   if (longPress) {
     screensLongPress();
@@ -576,9 +577,7 @@ static ApiResult apiScanStart() {
 
 static ApiResult apiScreenOrder(const String &body) {
   JsonDocument doc;
-  if (deserializeJson(doc, body) != DeserializationError::Ok) {
-    return apiFail(400, "Los datos enviados no son validos");
-  }
+  if (!parseRequiredJson(body, doc)) return apiFail(400, API_BAD_JSON);
   JsonArray in = doc["order"];
   if (in.size() != SCREEN_COUNT) {
     return apiFail(400, "El orden tiene que listar todas las pantallas");
@@ -602,9 +601,7 @@ static ApiResult apiScreenOrder(const String &body) {
 // disagree with each other on the glass.
 static ApiResult apiScreenNames(const String &body) {
   JsonDocument doc;
-  if (deserializeJson(doc, body) != DeserializationError::Ok) {
-    return apiFail(400, "Los datos enviados no son validos");
-  }
+  if (!parseRequiredJson(body, doc)) return apiFail(400, API_BAD_JSON);
   JsonArray in = doc["names"];
   if (in.size() != SCREEN_COUNT) {
     return apiFail(400, "Los nombres tienen que listar todas las pantallas");
@@ -631,10 +628,7 @@ static ApiResult apiScreenNames(const String &body) {
 // token.
 static ApiResult apiBuddyAsk(const String &body) {
   JsonDocument doc;
-  if (body.length() &&
-      deserializeJson(doc, body) != DeserializationError::Ok) {
-    return apiFail(400, "Los datos enviados no son validos");
-  }
+  if (!parseOptionalJson(body, doc)) return apiFail(400, API_BAD_JSON);
   const char *prompt = doc["prompt"] | "";
   char error[64];
   if (!buddyAsk(prompt, error, sizeof(error))) {
@@ -672,9 +666,7 @@ static ApiResult apiSpotifyStatus() {
 
 static ApiResult apiSpotifyConfig(const String &body) {
   JsonDocument doc;
-  if (deserializeJson(doc, body) != DeserializationError::Ok) {
-    return apiFail(400, "Los datos enviados no son validos");
-  }
+  if (!parseRequiredJson(body, doc)) return apiFail(400, API_BAD_JSON);
   const char *clientId = doc["clientId"] | "";
   if (!*clientId) return apiFail(400, "Falta el client id");
   if (!spotifyStoreSetClientId(clientId)) {
@@ -699,9 +691,7 @@ static ApiResult apiSpotifyUrl() {
 
 static ApiResult apiSpotifyCode(const String &body) {
   JsonDocument doc;
-  if (deserializeJson(doc, body) != DeserializationError::Ok) {
-    return apiFail(400, "Los datos enviados no son validos");
-  }
+  if (!parseRequiredJson(body, doc)) return apiFail(400, API_BAD_JSON);
   const char *code = doc["code"] | "";
   char err[72] = "";
   if (!spotifyAuthExchangeCode(code, err, sizeof(err))) {

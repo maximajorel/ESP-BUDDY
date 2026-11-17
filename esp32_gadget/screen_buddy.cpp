@@ -314,39 +314,6 @@ static void happyEyeGlow(int cx, int cy, uint16_t glow) {
   }
 }
 
-// Filled ellipse rotated by `deg` (screen pixels). For each row the implicit
-// ellipse equation is a quadratic in dx, so the row is one span. At 46x50 the
-// whole eye is a few thousand pixels; this is cheap enough for 10 fps.
-static void fillEllipseRot(int cx, int cy, int rx, int ry, float deg,
-                           uint16_t color) {
-  if (fabsf(deg) < 0.5f) {
-    gfxFillEllipse(cx, cy, rx, ry, color);
-    return;
-  }
-  float a = deg * 0.0174532925f;
-  float ca = cosf(a), sa = sinf(a);
-  float irx = 1.0f / (float)rx, iry = 1.0f / (float)ry;
-  float A = ca * ca * irx * irx + sa * sa * iry * iry;
-  float Bc = 2.0f * ca * sa * (irx * irx - iry * iry);
-  float Cc = sa * sa * irx * irx + ca * ca * iry * iry;
-  int ey = (int)(fabsf((float)rx * sa) + fabsf((float)ry * ca)) + 1;
-  for (int dy = -ey; dy <= ey; dy++) {
-    int y = cy + dy;
-    if (y < 0 || y >= 172) continue;
-    float B = Bc * (float)dy;
-    float C = Cc * (float)dy * (float)dy - 1.0f;
-    float disc = B * B - 4.0f * A * C;
-    if (disc < 0) continue;
-    float root = sqrtf(disc);
-    int x0 = (int)ceilf((float)cx + (-B - root) / (2.0f * A));
-    int x1 = (int)floorf((float)cx + (-B + root) / (2.0f * A));
-    if (x1 < 0 || x0 >= 320 || x1 < x0) continue;
-    if (x0 < 0) x0 = 0;
-    if (x1 > 319) x1 = 319;
-    gfxHLine(x0, y, x1 - x0 + 1, color);
-  }
-}
-
 // --- HUD: the functional channel --------------------------------------------
 //
 // A 20 px badge in the top-right corner. The face may be ambiguous (focused vs

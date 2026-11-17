@@ -180,7 +180,7 @@ static void printHelp() {
   Serial.println("commands:");
   Serial.println("  help                       this list");
   Serial.println("  status                     device state");
-  Serial.println("  screen <0-4>               clock, slot, meteoritos, network, music");
+  Serial.println("  screen <0-6>               reloj, tragamonedas, meteoritos, red, musica, sofia, config");
   Serial.println("  press [ms]                 synthetic short press (default 120)");
   Serial.println("  doubletap                  two quick short presses (calibration prompt)");
   Serial.println("  tap                        short press without button timing");
