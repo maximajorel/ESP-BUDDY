@@ -34,10 +34,10 @@ wizard ends.
 
 | ID | Spec | Route | Commit |
 |----|------|-------|--------|
-| T1 | S1 | inline: pure `steer_wizard.h` (centre average, gate, four captures, solver) + `steer_wizard_test` | pending |
-| T2 | S1,S3 | inline: CONFIG CALIBRAR row, wizard drawing/input, NVS write, awake+rotation hold | pending |
-| T3 | S2 | inline: strip the wizard/prompt/gesture from `screen_game.cpp`, routing, console | pending |
-| T4 | S1 | inline: panel button jumps to CONFIG and opens the wizard; copy and docs | pending |
+| T1 | S1 | inline: pure `steer_wizard.h` (centre average, gate, four captures, solver) + `steer_wizard_test` | 97356c0 |
+| T2 | S1,S3 | inline: CONFIG CALIBRAR row, wizard drawing/input, NVS write, awake+rotation hold | 97356c0 |
+| T3 | S2 | inline: strip the wizard/prompt/gesture from `screen_game.cpp`, routing, console | 97356c0 |
+| T4 | S1 | inline: panel button jumps to CONFIG and opens the wizard; copy and docs | 97356c0 |
 | T5 | S1-S3 | inline: host suite, compile, serial probe with `imufake`, board evidence | done |
 
 ## Log
