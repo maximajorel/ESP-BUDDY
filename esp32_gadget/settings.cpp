@@ -6,6 +6,7 @@
 #include "buddy_face.h"
 #include "config_value.h"
 #include "display.h"
+#include "rotation_policy.h"
 #include "screen_sleep.h"
 
 static Preferences s_prefs;
@@ -111,6 +112,32 @@ uint8_t settingsGetOrientation() {
 void settingsSetOrientation(uint8_t value) {
   if (value > 3) value = ORIENT_DEFAULT;
   s_prefs.putUChar("orient", value);
+}
+
+// Automatic rotation. The mode byte is the same numbering `orient` always used
+// plus ROT_MODE_AUTO, so a board upgraded from the build that only had the
+// orientation keeps working: with no `rotMode` key the image follows the sensor
+// and the first usable sample anchors it to the rotation already stored.
+uint8_t settingsGetRotationMode() {
+  if (!s_loaded && !s_prefs.begin("gadget", true)) return ROT_MODE_AUTO;
+  uint8_t value = s_prefs.getUChar("rotMode", ROT_MODE_AUTO);
+  return value <= ROT_MODE_AUTO ? value : ROT_MODE_AUTO;
+}
+
+void settingsSetRotationMode(uint8_t mode) {
+  if (!s_loaded && !s_prefs.begin("gadget", false)) return;
+  if (mode > ROT_MODE_AUTO) mode = ROT_MODE_AUTO;
+  s_prefs.putUChar("rotMode", mode);
+}
+
+bool settingsGetRotationLocked() {
+  if (!s_loaded && !s_prefs.begin("gadget", true)) return false;
+  return s_prefs.getBool("rotLock", false);
+}
+
+void settingsSetRotationLocked(bool locked) {
+  if (!s_loaded && !s_prefs.begin("gadget", false)) return;
+  s_prefs.putBool("rotLock", locked);
 }
 
 uint32_t settingsGetUiColor() { return s_uiColor; }

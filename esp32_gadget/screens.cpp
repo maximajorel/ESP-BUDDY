@@ -2,6 +2,7 @@
 #include "theme.h"
 
 #include "rgb.h"
+#include "rotation.h"
 #include "screen_buddy.h"
 #include "screen_name.h"
 #include "screen_sleep.h"
@@ -241,6 +242,12 @@ static void maybeSleep(uint32_t nowMs) {
 
 bool screensTick(uint32_t nowMs, uint16_t holdPermille) {
   bool changed = false;
+
+  // A game in progress owns the board's tilt: the player is steering with it, so
+  // the image must not follow the sensor while that is true. Same predicate the
+  // sleep timer uses, raised and cleared here because this is where the current
+  // screen is known.
+  rotationSetHeld(s_current == SCREEN_GAME && gameWantsScreenOn());
 
   if (s_asleep) return false;
   if (s_wakePush) {

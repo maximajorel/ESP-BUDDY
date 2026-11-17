@@ -20,6 +20,7 @@
 #include "imu.h"
 #include "net.h"
 #include "rgb.h"
+#include "rotation.h"
 #include "buddy_led.h"
 #include "screen_buddy.h"
 #include "screens.h"
@@ -137,7 +138,8 @@ static void printStatus() {
   Serial.println("--- status ---");
   Serial.printf("screen      %u (%s)\n", (unsigned)screensCurrent(),
                 screenName(screensCurrent()));
-  Serial.printf("orient      %u\n", (unsigned)displayGetOrientation());
+  Serial.printf("orient      %u (%s%s)\n", (unsigned)displayGetOrientation(),
+                rotationModeName(), rotationLocked() ? ", locked" : "");
   Serial.printf("backlight   %u\n", (unsigned)displayGetBacklight());
   Serial.printf("imu         %s\n", g_imuOk ? "ok" : "MISSING");
   Serial.printf("steer       lat=%u up=%u sign=%d signY=%d gain=%u\n",
@@ -196,7 +198,8 @@ static void printHelp() {
   Serial.println("  spawnenemy                 crea un caza ahora (pruebas)");
   Serial.println("  longpress                  1s hold without button timing");
   Serial.println("  hold                       synthetic 1s hold: abre/entra el menu");
-  Serial.println("  orient <0-3>               landscape rotation onto the panel");
+  Serial.println("  orient <0-3>               landscape rotation onto the panel (pins it)");
+  Serial.println("  rot [auto|0-3|lock on|off] automatic rotation, a pinned image, or the lock");
   Serial.println("  steer <lat> <up> <sign> <signY> <gain>  ejes del juego (0..2, x/y/z)");
   Serial.println("  steercal                   borra la calibracion de ejes");
   Serial.println("  imufake <ax> <ay> <az> <gx> <gy> <gz>   sensor simulado");
@@ -482,10 +485,39 @@ static void handleCommand(char *line) {
       Serial.println("orient: 0..3");
       return;
     }
-    displaySetOrientation((uint8_t)value);
-    settingsSetOrientation((uint8_t)value);  // survive a power cycle
+    // Pinning an image is now a mode: the automatic policy must not undo it on
+    // the next sample. Everything else about this command is unchanged.
+    rotationSetMode((uint8_t)value);
     screensGoTo(screensCurrent());  // force a fresh frame in the new rotation
-    Serial.printf("orient -> %d\n", value);
+    Serial.printf("orient -> %d (pinned)\n", value);
+    return;
+  }
+  if (!strcmp(argv[0], "rot")) {
+    if (argc > 1 && !strcmp(argv[1], "lock")) {
+      bool on = !(argc > 2 && !strcmp(argv[2], "off"));
+      rotationSetLocked(on);
+      Serial.printf("rot lock %s\n", on ? "on" : "off");
+      return;
+    }
+    if (argc > 1) {
+      if (!strcmp(argv[1], "auto")) {
+        rotationSetMode(ROT_MODE_AUTO);
+        Serial.println("rot auto");
+        return;
+      }
+      int value = atoi(argv[1]);
+      if (value < 0 || value > 3) {
+        Serial.println("rot: auto | 0..3 | lock on|off");
+        return;
+      }
+      rotationSetMode((uint8_t)value);
+      Serial.printf("rot -> %d (pinned)\n", value);
+      return;
+    }
+    Serial.printf("rot mode=%s (%u) lock=%s image=%u sign=%d\n",
+                  rotationModeName(), (unsigned)rotationMode(),
+                  rotationLocked() ? "on" : "off",
+                  (unsigned)rotationApplied(), (int)rotationInPlaneSign());
     return;
   }
   if (!strcmp(argv[0], "steer")) {
@@ -654,7 +686,9 @@ void setup() {
   if (!displayBegin()) {
     Serial.println("FATAL: no panel buffer");
   }
-  displaySetOrientation(settingsGetOrientation());
+  // The mode, the lock and the stored image decide the first frame; the sensor
+  // takes over from the first tick on if the owner left it in automatic.
+  rotationBegin();
   displaySetBacklight(settingsGet().brightness);
 
   rgbBegin();
@@ -709,6 +743,9 @@ void loop() {
   spotifyLoop();
   buddyLedTick(now);
   rgbTick();
+  // After the network so a repaint requested by the panel and one requested by
+  // the sensor land in the same frame.
+  rotationTick(now);
 
   if (screensTick(now, s_button.holdPermille(now))) {
     displayPush(gfxBuffer());

@@ -52,6 +52,16 @@ bool settingsHasSta();
 uint8_t settingsGetOrientation();
 void settingsSetOrientation(uint8_t value);
 
+// Automatic rotation (follow the accelerometer) or one pinned image, and the
+// owner's lock. Each has its own key for the same reason as the orientation, and
+// both are read once at boot because the rotation module asks for them every
+// tick.
+//   mode: ROT_MODE_AUTO, or an ORIENT_* value pinning exactly that image.
+uint8_t settingsGetRotationMode();
+void settingsSetRotationMode(uint8_t mode);
+bool settingsGetRotationLocked();
+void settingsSetRotationLocked(bool locked);
+
 // Which sensor axes steer the dodge game, learned from a one-off gesture so it
 // works no matter how the board is held. Stored under its own keys for the same
 // reason as the orientation.
