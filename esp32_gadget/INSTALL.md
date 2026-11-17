@@ -1,7 +1,7 @@
 # ESP32 Gadget — cómo instalarlo
 
 Un solo firmware para la **Waveshare ESP32-S3-LCD-1.47B** que convierte la placa
-en un equipo con seis pantallas y un panel de administración web:
+en un equipo con siete pantallas y un panel de administración web:
 
 | Pantalla | Qué hace |
 |---|---|
@@ -10,6 +10,7 @@ en un equipo con seis pantallas y un panel de administración web:
 | **Meteoritos** | Juego ASCII de naves y meteoritos, con movimiento libre en dos ejes por sensor. Guarda el récord. |
 | **Red** | Muestra el nombre y la contraseña del WiFi del equipo, y la dirección del panel web. |
 | **Música** | Qué estás escuchando en Spotify: carátula, tema, artista y progreso. Necesita que conectes el equipo a tu WiFi y autorices tu cuenta una vez. |
+| **Config** | Brillo del LCD y brillo del LED trasero, sin tocar el panel web. Ambos valores quedan guardados en el equipo. |
 
 Todo se maneja con **un solo botón**: el **BOOT**.
 
@@ -20,6 +21,12 @@ La interfaz del equipo y del panel está **en español**.
   Dentro del menú: **un toque** pasa a la siguiente, **mantener 1 segundo** entra a la que está
   seleccionada. Una barra dorada abajo muestra cuánto falta para que se abra (o para entrar).
   Los nombres y el orden de ese menú se cambian desde **Aplicaciones → Nombres y orden** en el panel web.
+
+La pantalla **Config** es la única con dos gestos de toque: **un toque** sube el brillo de
+la fila marcada (pasa de 100 % al mínimo de esa fila) y **dos toques rápidos** cambian de
+fila. Como el toque tiene que esperar a ver si viene el segundo, el brillo se aplica
+cuando termina esa espera (menos de medio segundo). Mantener 1 segundo sigue abriendo el
+menú de pantallas, así que esa pantalla nunca te deja encerrado.
 
 > El botón **RESET** no se usa: reinicia el chip. El único botón de control es BOOT.
 
@@ -261,7 +268,7 @@ queda fijo a la izquierda.
 |---|---|
 | **Aplicaciones** (primera) | Elegís qué se ve en la pantalla del equipo tocando una tarjeta; la activa queda marcada como **Ahora**. Debajo, plegado, está **Nombres y orden del menú**: escribís el nombre de cada pantalla (hasta 12 letras, se ve igual en la lista y en el equipo) y las movés con las flechas — ese orden es el que recorre el botón—; ambos cambios quedan guardados. |
 | **Pantalla** | Brillo, color de la interfaz, orientación si ves la imagen al revés, reloj en 12/24 h, **Usar la hora de este teléfono** para ponerlo en hora sin internet y el **apagado automático** de la pantalla y la luz. |
-| **Luz RGB** | Color, intensidad y modo (fijo, arcoíris, apagada) de la luz de atrás. |
+| **Luz RGB** | Color, intensidad (queda guardada en el equipo) y modo (fijo, arcoíris, apagada) de la luz de atrás. |
 | **Juegos** | Récords, borrarlos, **calibrar los controles** del juego de meteoritos y corregir los ejes si la nave va al revés. |
 | **Música** | Los pasos para conectar Spotify (crear la app, el Redirect URI, el Client ID) y el estado en vivo: si falta el Client ID, si falta autorizar, o qué está sonando. |
 | **Red** | **WiFi de casa**: busca redes, elegís la tuya, ponés la clave y guardás; con eso el reloj se pone en hora solo. Si te equivocaste de clave, **Olvidar red** borra las credenciales sin tocar los récords. **Punto de acceso**: cambia el nombre y la clave de la red que crea el equipo (lo que se ve en la pantalla RED); mínimo 8 caracteres. |
@@ -278,7 +285,8 @@ estás jugando, calibrando o confirmando la calibración no se apaga aunque la
 incluyas.
 
 La pantalla **Sofía** arranca excluida del apagado: si querés que también duerma,
-marcala en la lista. El menú de pantallas sigue la regla de la pantalla desde la
+marcala en la lista. **Config** también arranca excluida, porque es la pantalla en la
+que estás mirando el brillo. El menú de pantallas sigue la regla de la pantalla desde la
 que lo abriste: si esa pantalla está incluida, el menú también se apaga.
 
 Un **toque en BOOT** la vuelve a prender, y ese toque no dispara, no gira ni
@@ -421,9 +429,9 @@ panel web. Abrí el monitor serie a **115200** baudios y escribí `help`.
 | `shippos` | Estado y posición de la nave en la grilla (columna y fila). |
 | `settime <epoch>` | Fija el reloj (sirve para probar la esfera sin WiFi). |
 | `tz <horas>` | Zona horaria, por ejemplo `tz -3`. |
-| `bl <0-100>` | Brillo de la pantalla. |
+| `bl <0-100>` | Brillo de la pantalla. Queda guardado, igual que desde el panel o desde la pantalla Config. |
 | `colors` | Prueba de panel a pedido: pantalla entera roja, verde, azul y blanca (ya no corre al encender). |
-| `rgb <r> <g> <b> [nivel]` | Color del LED. |
+| `rgb <r> <g> <b> [nivel]` | Color del LED. El `nivel` (0-255) queda guardado en el equipo. |
 | `dump [paso]` | **Dibuja el framebuffer en ASCII por la consola.** Es la forma de ver qué hay en pantalla sin cámara. |
 | `api GET /api/status` | Llama al panel web sin necesidad de red. |
 | `api POST /api/scan` | Inicia un barrido de redes; `api GET /api/scan` lee el resultado. |
@@ -525,11 +533,13 @@ esp32_gadget/
 ├── rgb.h/.cpp              LED WS2812 y celebración de casino
 ├── imu.h/.cpp              QMI8658 (acelerómetro + giroscopio)
 ├── screens.h/.cpp          registro de pantallas y marco común
+├── config_value.h          pasos, topes y mapeo de brillo (puro, test en host)
 ├── screen_name.h           reglas de los nombres elegidos por el dueño
 ├── screen_clock.cpp        pantalla reloj
 ├── screen_slot.cpp         pantalla tragamonedas
 ├── screen_game.cpp         pantalla meteoritos (ASCII)
 ├── screen_net.cpp          pantalla de red
+├── screen_config.cpp       pantalla Config (brillo del LCD y del LED)
 ├── net.h/.cpp              WiFi, NTP, API y servidor web
 ├── web_assets.h            panel web empaquetado (generado)
 └── web_ui/                 panel web: index.html, styles.css, app.js

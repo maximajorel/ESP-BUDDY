@@ -9,7 +9,7 @@
   var POLL_MS = 2000;
   // Shipped names, used only while the device has not answered yet and by the
   // "original names" button. The device is the source of truth after that.
-  var DEFAULT_NAMES = ['RELOJ', 'TRAGAMONEDAS', 'METEORITOS', 'RED', 'MUSICA', 'SOFIA'];
+  var DEFAULT_NAMES = ['RELOJ', 'TRAGAMONEDAS', 'METEORITOS', 'RED', 'MUSICA', 'SOFIA', 'CONFIG'];
   // Must match SCREEN_NAME_MAX in the firmware: longer names come back cut.
   var SCREEN_NAME_MAX = 12;
   // Tiles and toasts follow the names the device reports, so a rename shows up

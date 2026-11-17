@@ -1,7 +1,7 @@
 # ESP32 Gadget
 
 Firmware para la **Waveshare ESP32-S3-LCD-1.47B** que convierte la placa en un
-equipo con seis pantallas y un panel de administración web.
+equipo con siete pantallas y un panel de administración web.
 
 | Pantalla | Qué es |
 |---|---|
@@ -11,6 +11,7 @@ equipo con seis pantallas y un panel de administración web.
 | **Red** | Nombre y contraseña del WiFi del equipo + dirección del panel web. |
 | **Música** | Lo que estás escuchando en Spotify, con carátula, tema, artista y progreso. |
 | **Sofía** | Buddy companion: una cara procedural que reacciona a lo que hace Hermes (pensando, trabajando, esperando, error, listo) a través de su bridge local. |
+| **Config** | Brillo del LCD y del LED trasero con el botón, guardados en el equipo. |
 
 Todo se maneja con **un solo botón**, el BOOT:
 
@@ -45,6 +46,8 @@ esp32_gadget/
 ├── screen_slot.cpp      pantalla tragamonedas
 ├── screen_game.cpp      pantalla meteoritos (ASCII)
 ├── screen_net.cpp       pantalla de red
+├── screen_config.cpp    pantalla Config (brillo del LCD y del LED)
+├── config_value.h       pasos, topes y mapeo de brillo (puro, test en host)
 ├── screen_music.cpp     pantalla de música (Spotify)
 ├── screen_buddy.cpp     pantalla Sofía (cara del buddy)
 ├── buddy_face.h         ojo cuadrado redondeado, color del dueño y suavizado (puro, test en host)

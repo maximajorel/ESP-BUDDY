@@ -19,7 +19,11 @@
 #define SCREEN_NETWORK 3
 #define SCREEN_MUSIC 4
 #define SCREEN_BUDDY 5
-#define SCREEN_COUNT 6
+// Appended last for the same reason the music screen was: the screen ids are
+// part of the HTTP API, so inserting one earlier would move what an existing
+// panel already controls. The stored pick order migrates by appending it.
+#define SCREEN_SETTINGS 6
+#define SCREEN_COUNT 7
 
 // Shared layout bands, in landscape pixels. There is no header band: the screens
 // own the whole canvas from y=0, and only the footer and hold bar are shared.
@@ -161,3 +165,12 @@ void musicEnter();
 void musicLeave();
 bool musicTick(uint32_t nowMs);
 void musicShortPress();
+
+// Brightness configuration. The only screen whose gestures are not a plain tap:
+// a tap raises the highlighted value and a double tap moves the highlight, while
+// the hold still opens the picker so the screen can never trap the owner.
+void configEnter();
+// Persists a value whose debounced NVS write has not fired yet.
+void configLeave();
+bool configTick(uint32_t nowMs);
+void configShortPress();

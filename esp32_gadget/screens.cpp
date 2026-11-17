@@ -34,7 +34,8 @@ static bool s_wakePush = false;
 // Names shipped with the firmware. The owner can rename any screen from the web
 // panel; an absent NVS override falls back to these.
 static const char *const SCREEN_DEFAULT_NAMES[SCREEN_COUNT] = {
-    "RELOJ", "TRAGAMONEDAS", "METEORITOS", "RED", "MUSICA", "SOFIA"};
+    "RELOJ", "TRAGAMONEDAS", "METEORITOS", "RED", "MUSICA", "SOFIA",
+    "CONFIG"};
 
 // Names currently in use, indexed by screen id (not by pick position).
 static char s_names[SCREEN_COUNT][SCREEN_NAME_MAX + 1];
@@ -124,8 +125,10 @@ void screensGoTo(uint8_t index) {
   }
   // The music screen is the only one that has to stop background work when it
   // leaves the glass, so its exit is explicit here rather than in a hook every
-  // screen would have to implement.
+  // screen would have to implement. CONFIG is the second: a brightness changed
+  // a moment ago may still be waiting for its debounced NVS write.
   if (s_current == SCREEN_MUSIC && index != SCREEN_MUSIC) musicLeave();
+  if (s_current == SCREEN_SETTINGS && index != SCREEN_SETTINGS) configLeave();
   s_current = index;
   s_holdPermille = 0;
   switch (s_current) {
@@ -135,6 +138,7 @@ void screensGoTo(uint8_t index) {
     case SCREEN_NETWORK: netEnter(); break;
     case SCREEN_MUSIC: musicEnter(); break;
     case SCREEN_BUDDY: buddyEnter(); break;
+    case SCREEN_SETTINGS: configEnter(); break;
   }
 }
 
@@ -262,6 +266,7 @@ bool screensTick(uint32_t nowMs, uint16_t holdPermille) {
     case SCREEN_NETWORK: changed = netTick(nowMs); break;
     case SCREEN_MUSIC: changed = musicTick(nowMs); break;
     case SCREEN_BUDDY: changed = buddyTick(nowMs); break;
+    case SCREEN_SETTINGS: changed = configTick(nowMs); break;
   }
   if (holdPermille != s_holdPermille) changed = true;
   s_holdPermille = holdPermille;
@@ -291,6 +296,7 @@ void screensShortPress() {
     case SCREEN_NETWORK: netShortPress(); break;
     case SCREEN_MUSIC: musicShortPress(); break;
     case SCREEN_BUDDY: buddyShortPress(); break;
+    case SCREEN_SETTINGS: configShortPress(); break;
   }
 }
 

@@ -1,0 +1,22 @@
+boot 4
+hold
+sleep 300
+tap
+tap
+tap
+tap
+tap
+tap
+sleep 300
+hold
+sleep 500
+dump 4
+tap
+sleep 900
+dump 4
+doubletap
+sleep 900
+tap
+sleep 900
+dump 4
+api GET /api/status

@@ -1,8 +1,9 @@
-// ESP32 Gadget - five screens on a Waveshare ESP32-S3-LCD-1.47B.
+// ESP32 Gadget - seven screens on a Waveshare ESP32-S3-LCD-1.47B.
 //
-// Screens: CLOCK, SLOT MACHINE, DODGE (ASCII game), NETWORK and MUSIC. One
-// button drives everything: a short press acts on the current screen and a
-// one-second hold opens the picker, where the owner's order and names apply.
+// Screens: CLOCK, SLOT MACHINE, DODGE (ASCII game), NETWORK, MUSIC, BUDDY and
+// CONFIG (LCD and rear-LED brightness). One button drives everything: a short
+// press acts on the current screen and a one-second hold opens the picker, where
+// the owner's order and names apply.
 //
 // The serial console is a first-class part of the firmware, not debug leftovers.
 // The panel has no readable bus, so `dump` (an ASCII render of the framebuffer)
@@ -625,7 +626,7 @@ static void drawSplash() {
   gfxTextCentered(26, 3, "ESP32", GFX_WHITE);
   gfxTextCentered(56, 3, "GADGET", gfxHex(0xFFD700));
   gfxHLine(40, 86, DISPLAY_W - 80, gfxHex(0x333333));
-  gfxTextCentered(96, 1, "RELOJ TRAGAMONEDAS METEORITOS RED MUSICA SOFIA",
+  gfxTextCentered(96, 1, "RELOJ TRAGAMONEDAS METEORITOS RED MUSICA SOFIA CONFIG",
                   gfxHex(0x8A8A8A));
   gfxTextCentered(112, 1, "CONECTATE A ESTA RED:", gfxHex(0x7A8CA0));
   gfxTextCentered(124, 2, settingsGet().apSsid, GFX_WHITE);
