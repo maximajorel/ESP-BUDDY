@@ -55,6 +55,13 @@ int main() {
   check("a 300 ms shake makes it dizzy", p.dizzy);
   check("the dizzy face drops its lids", p.lid >= 0.25f);
   check("dizziness is not anger", !p.angry);
+  check("dizzy eyes keep their size", p.grow == 1.0f);
+  check("dizzy does not tremble", p.tremble == 0.0f);
+  check("dizzy raises the inner corners: worried, not angry",
+        p.browL < 0.0f && p.browR < 0.0f);
+  // Keep the dizzy face: once the second shake escalates, the state machine no
+  // longer answers for the earlier moment.
+  BuddyImuPose dizzyFace = p;
   {
     BuddyImuPose a = buddyImuPose(&sh, 1200);
     BuddyImuPose b = buddyImuPose(&sh, 1500);
@@ -72,6 +79,16 @@ int main() {
   check("the angry face glows hot", p.hot >= 0.5f);
   check("the inner corners drop", p.rotL > 0.0f && p.rotR < 0.0f);
   check("anger replaces the dizzy wobble", !p.dizzy);
+  check("anger grows the eyes", p.grow > 1.05f && p.grow <= 1.3f);
+  check("anger angles both brows down towards the nose",
+        p.browL > 0.5f && p.browR > 0.5f);
+  check("anger trembles", p.tremble >= 0.8f);
+  check("anger cuts the bottom lid too: a slit, not a droop", p.bottom > 0.0f);
+  check("the two faces do not share their brows",
+        p.browL - dizzyFace.browL > 0.5f);
+  check("the two faces do not share their body",
+        dizzyFace.grow == 1.0f && dizzyFace.tremble == 0.0f &&
+            dizzyFace.browL < 0.0f);
   {
     float maxAbs = 0.0f, lo = 0.0f, hi = 0.0f;
     for (uint32_t t = 3400; t < 4100; t += 40) {

@@ -42,6 +42,7 @@ struct BuddyImuPose {
   float gazeX = 0;
   float gazeY = 0;
   float lid = 0;       // extra eyelid on top of the state pose
+  float bottom = 0;    // extra bottom lid (the angry slit)
   bool wide = false;   // startle
   bool dizzy = false;
   bool angry = false;
@@ -53,6 +54,14 @@ struct BuddyImuPose {
   float rotL = 0;      // extra per-eye rotation (the angry inner corners)
   float rotR = 0;
   float hot = 0;       // 0..1 tint towards red
+  // The anatomy that makes anger a different face instead of the dizzy one
+  // with a red tint: the eye grows, the brows angle down towards the nose and
+  // the whole pair trembles. Dizzy keeps all three at their neutral values and
+  // carries worried brows instead.
+  float grow = 1.0f;
+  float browL = 0;
+  float browR = 0;
+  float tremble = 0;
 };
 
 static inline float buddyImuClamp(float v, float lo, float hi) {
@@ -166,15 +175,21 @@ static inline BuddyImuPose buddyImuPose(const BuddyImu *s, uint32_t nowMs) {
   }
 
   if ((int32_t)(s->angryUntil - nowMs) > 0) {
-    // Anger wins over everything: the eyes tilt inwards (both inner corners
-    // down), the lids cut sharp and the owner's colour glows hot. A little
-    // tremble is the last piece: it is shaking with contained rage.
+    // Anger is its own face, not the dizzy one in red: the eyes grow, the lids
+    // cut to a slit, the brows angle down towards the nose and the pair
+    // trembles while it slams wall to wall. Dizzy (below) keeps the orbit, the
+    // droop and the worried brows, so the two reactions never read alike.
     p.angry = true;
-    p.rotL = 16.0f;
-    p.rotR = -16.0f;
-    p.lid = 0.34f;
-    p.gazeY = 2.0f;
-    p.hot = 0.85f;
+    p.grow = 1.12f;
+    p.browL = 0.9f;
+    p.browR = 0.9f;
+    p.tremble = 1.0f;
+    p.rotL = 8.0f;
+    p.rotR = -8.0f;
+    p.lid = 0.32f;
+    p.bottom = 0.12f;
+    p.gazeY = 1.0f;
+    p.hot = 0.9f;
     // The eyes slam from one screen edge to the other: a triangle wave, so the
     // direction flips hard at the walls instead of sliding like a sine, and the
     // eye line leans into each hit. 640 ms per round trip reads as a tantrum.
@@ -185,12 +200,16 @@ static inline BuddyImuPose buddyImuPose(const BuddyImu *s, uint32_t nowMs) {
     p.gazeX = tri * amp;
     p.rot = tri * 4.0f;
   } else if ((int32_t)(s->dizzyUntil - nowMs) > 0) {
+    // Dizzy: the eyes orbit, the lids droop, the head wobbles and the inner
+    // corners lift. Worried, not cross; no growth, no tremble.
     p.dizzy = true;
+    p.browL = -0.5f;
+    p.browR = -0.5f;
     p.gazeX = sinf((float)nowMs * 0.012f) * 10.0f;
-    p.gazeY = cosf((float)nowMs * 0.009f) * 6.0f;
+    p.gazeY = cosf((float)nowMs * 0.009f) * 6.0f + 2.0f;
     p.rot = sinf((float)nowMs * 0.007f) * 9.0f;
-    p.lid = 0.3f;
-    p.hot = 0.15f;
+    p.lid = 0.38f;
+    p.hot = 0.12f;
   } else {
     // Gravity compensation: tilt the board and the eyes lean downhill. It adds
     // to the follow offset instead of replacing it.
