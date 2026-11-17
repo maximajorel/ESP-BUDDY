@@ -11,6 +11,7 @@
 #include "gfx.h"
 #include "imu.h"
 #include "rgb.h"
+#include "rotation.h"
 #include "settings.h"
 #include "text_fold.h"
 
@@ -598,6 +599,9 @@ bool buddyTick(uint32_t nowMs) {
   // the face can always come back to the state pose.
   float accel[3], gyro[3];
   imuReadAll(accel, gyro);
+  // The face reads the board, not the glass: when the image is the other one of
+  // the pair she has to lean the other way to keep leaning downhill to the owner.
+  rotMirrorInPlane(accel, gyro, rotationInPlaneSign());
   uint32_t dt = s_imuAt ? (nowMs - s_imuAt) : 100;
   s_imuAt = nowMs;
   buddyImuFeed(&s_imu, accel, gyro, nowMs, dt);

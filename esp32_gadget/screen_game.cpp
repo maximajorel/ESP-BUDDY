@@ -22,6 +22,7 @@
 #include "game_hits.h"
 #include "imu.h"
 #include "rgb.h"
+#include "rotation.h"
 #include "screens.h"
 #include "settings.h"
 #include "steer_solve.h"
@@ -642,12 +643,18 @@ static void readTilt(float dt) {
   imuReadAll(a, g);
 
   float sign = (float)s_cal.sign;
+  // The owner's image may be the other one of the pair: then the two in-plane
+  // readings point the other way and both steering axes turn over with them. The
+  // rotation is held for as long as a game runs, so this cannot change mid-run.
+  float mirror = (float)rotationInPlaneSign();
+  sign *= mirror;
   // En esta placa, sostenida con la pantalla hacia el dueño y el borde de arriba
   // lejos, un valor positivo del eje de adelante/atrás corresponde a inclinar el
   // borde de arriba hacia uno. Se verificó en hardware: sin este menos la nave
   // subía al inclinar "hacia adelante". El interruptor del panel sigue
   // invirtiendo respecto de este default.
   float signY = -(float)s_cal.signY;
+  signY *= mirror;
   float accelLat = (a[s_cal.latAxis] - s_cal.baseline) * sign;
   float accelFwd = (a[s_rotAxis] - s_cal.baselineY) * signY;
   float gyroLat = g[s_rotAxis] * 0.0174533f * sign;   // dps -> rad/s
