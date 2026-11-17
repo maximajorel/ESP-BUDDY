@@ -46,6 +46,26 @@ int main() {
   check("hot moves a mid value towards red",
         buddyEyeHot(0x808080u, 0.5f) > 0x808080u);
 
+  printf("-- glow shades\n");
+  check("scaling 100% keeps the colour",
+        buddyEyeScale(0x00B4FFu, 100) == 0x00B4FFu);
+  check("scaling 0% is black", buddyEyeScale(0x00B4FFu, 0) == 0x000000u);
+  check("the dim shade is a 32% scale",
+        buddyEyeScale(0x00B4FFu, 32) == buddyEyeDim(0x00B4FFu));
+  {
+    uint32_t inner = buddyEyeScale(0x00B4FFu, 26);
+    uint32_t outer = buddyEyeScale(0x00B4FFu, 12);
+    check("the glow fades outward", inner > outer && outer > 0x000000u);
+    check("the glow keeps the hue",
+          ((inner >> 8) & 0xFFu) > ((inner >> 16) & 0xFFu));
+  }
+
+  printf("-- rotated extents\n");
+  check("a rotated eye is taller than its box",
+        buddyEyeExtentY(48.0f, 48.0f, 16.0f) > 48.0f);
+  check("no rotation matches the box",
+        fabsf(buddyEyeExtentY(48.0f, 48.0f, 0.0f) - 48.0f) < 0.01f);
+
   printf("-- rounded square\n");
   BuddySquircle s = buddySquircle(48.0f, 48.0f);
   checkNear("corner radius is a fraction of the short half-axis", s.radius,
@@ -78,6 +98,25 @@ int main() {
   }
   check("the cross-eyed error keeps a gap too",
         buddyEyeGapPush(96.0f, 48.0f, 48.0f, BUDDY_EYE_GAP_MIN) > 0);
+
+  printf("-- lid bands cover the rotated eye and its glow\n");
+  {
+    // Angry: 16 deg tilt makes extentY ~59 for a 48 px box, lid 34%.
+    int extentY = (int)ceilf(buddyEyeExtentY(48.0f, 48.0f, 16.0f));
+    check("the angry rotation is taller than the box", extentY > 48);
+    BuddyLidBand top = buddyLidBandTop(88, extentY, BUDDY_GLOW_PAD, 0.34f);
+    check("the top band starts above the glow",
+          top.y0 <= 88 - extentY - BUDDY_GLOW_PAD);
+    check("and reaches the lid line",
+          top.y0 + top.h - 1 >= 88 - extentY + (int)(2.0f * extentY * 0.34f));
+    BuddyLidBand bot = buddyLidBandBottom(88, extentY, BUDDY_GLOW_PAD, 0.35f);
+    check("the bottom band reaches below the glow",
+          bot.y0 + bot.h - 1 >= 88 + extentY + BUDDY_GLOW_PAD);
+    check("and starts at the bottom lid line",
+          bot.y0 <= 88 + extentY - (int)(2.0f * extentY * 0.35f));
+    check("an open eye asks for no band",
+          buddyLidBandTop(88, extentY, BUDDY_GLOW_PAD, 0.0f).h == 0);
+  }
 
   printf("-- easing\n");
   checkNear("no time means no movement", buddyEase(2.0f, 9.0f, 0, 100.0f),

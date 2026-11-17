@@ -174,8 +174,16 @@ static inline BuddyImuPose buddyImuPose(const BuddyImu *s, uint32_t nowMs) {
     p.rotR = -16.0f;
     p.lid = 0.34f;
     p.gazeY = 2.0f;
-    p.gazeX = sinf((float)nowMs * 0.045f) * 1.5f;
     p.hot = 0.85f;
+    // The eyes slam from one screen edge to the other: a triangle wave, so the
+    // direction flips hard at the walls instead of sliding like a sine, and the
+    // eye line leans into each hit. 640 ms per round trip reads as a tantrum.
+    const float periodMs = 640.0f;
+    const float amp = 50.0f;
+    float t = fmodf((float)nowMs, periodMs) / periodMs;
+    float tri = t < 0.5f ? (4.0f * t - 1.0f) : (3.0f - 4.0f * t);
+    p.gazeX = tri * amp;
+    p.rot = tri * 4.0f;
   } else if ((int32_t)(s->dizzyUntil - nowMs) > 0) {
     p.dizzy = true;
     p.gazeX = sinf((float)nowMs * 0.012f) * 10.0f;

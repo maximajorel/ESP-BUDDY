@@ -36,6 +36,19 @@ todo...". Continuous pose channels (gaze, size, lids, rotation, hot tint, bob)
 are eased in time instead of snapping, and the face redraws at ~20 fps instead
 of 10 fps. Boolean gestures (blink, happy arcs) still snap: an eyelid is fast.
 
+S6. Lid bands cover the rotated eye — verbatim: "CUando se enoja se nota un
+poco de los bordes rojos por encima del negro, eso hay que arreglar, habria que
+hacer mas ancho esos bordes negros". The black lid band must start above the
+rotated eye extent plus its glow and reach the lid line, so no hot edge shows
+around the lid; the bottom band mirrors it.
+
+S7. Angry bounce and glow — verbatim: "me gustaria qye en ese caso como que los
+ojos reboten con los bordes de la pantalla, tipo mas exagerado. y podemos
+agregar un pequeño glow a los ojos? segun el color seleccionado". While angry,
+the whole pair slams wall to wall (triangle wave, direction flips at the glass
+edges). Every eye carries a soft two-layer halo derived from the owner's colour
+(and the hot blend when angry); the halo never merges between the two eyes.
+
 ## Tasks
 
 | ID | Spec | Route | Commit |
@@ -47,6 +60,7 @@ of 10 fps. Boolean gestures (blink, happy arcs) still snap: an eyelid is fast.
 | T5 | S2 | inline: NVS `bdEye` setting, `/api/status` eyeColor, `POST /api/settings` | — |
 | T6 | S2 | inline: Sofía card colour control, app.js wiring, repack + verify assets | — |
 | T7 | S1-S5 | inline: host tests, compile, flash, live verification (serial dump + API) | — |
+| T8 | S6,S7 | inline: sorted out-of-date lid bands + angry wall bounce + colour glow, tests | — |
 
 ## Log
 
@@ -81,6 +95,32 @@ L4: Persistence/API. `settingsGet/SetBuddyEyeColor` on its own NVS key `bdEye`
 restores the default; an invalid value is rejected with 400 and leaves NVS
 untouched. The Sofía card gained the colour input, five presets and a reset
 button; the panel posts the same field.
+
+L7: Evidence for S6/S7. Build 1,406,334 B (44%), flashed "Hash of data
+verified". Host tests buddy_face (lid bands, glow shades, extents), buddy_anim,
+buddy_imu (angry slam reaches +-50 px both ways and stays on the glass),
+buddy_state, buddy_phase, ui_color: all PASSED. Serial probe with
+`imufake 0 0 3 0 0 0`: the dizzy face starts below y≈72 (the band now covers the
+rotated extent) and the glow reads as a one or two sample halo at every edge;
+no tinted or glowing pixels above the lid. The glow is two layers at 30% and
+14% of the effective colour (owner, hot-blended while angry) and the pair gap
+is computed from the glow extents, so the halos stay apart.
+
+L6 (verbatim): "CUando se enoja se nota un poco de los bordes rojos por encima
+del negro, eso hay que arreglar, habria que hacer mas ancho esos bordes negros,
+y ademas me gustaria qye en ese caso como que los ojos reboten con los bordes de
+la pantalla, tipo mas exagerado. y podemos agregar un pequeño glow a los ojos?
+segun el color seleccionado"
+
+Root cause of the hot edge: the bands were sized from `pose.ry` as if the eye
+were unrotated, but anger rotates each eye 16 deg and the rotated extent is
+~59 px, so the tinted top poked above the band. `buddyLidBandTop/Bottom` (pure,
+tested) now size the band from the rotated extent plus the glow pad, and the
+band width uses the rotated x extent too. Anger gained a wall-to-wall triangle
+bounce (+-50 px, 640 ms round trip) so the eyes slam the glass edges. The glow
+is two squircle layers at 30% and 14% of the effective eye colour (owner colour,
+hot-blended when angry); the pair gap is computed from the glow extents so the
+halos never merge, and the happy caret gets a halo stroke of its own.
 
 L5: Delivery. The firmware landed as one work-unit commit (744 authored lines)
 instead of two ~400-line slices: the new pose channels (`rotL`, `rotR`, `hot`,

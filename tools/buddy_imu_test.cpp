@@ -72,6 +72,18 @@ int main() {
   check("the angry face glows hot", p.hot >= 0.5f);
   check("the inner corners drop", p.rotL > 0.0f && p.rotR < 0.0f);
   check("anger replaces the dizzy wobble", !p.dizzy);
+  {
+    float maxAbs = 0.0f, lo = 0.0f, hi = 0.0f;
+    for (uint32_t t = 3400; t < 4100; t += 40) {
+      float g = buddyImuPose(&sh, t).gazeX;
+      if (fabsf(g) > maxAbs) maxAbs = fabsf(g);
+      if (g < lo) lo = g;
+      if (g > hi) hi = g;
+    }
+    check("the angry eyes slam toward a screen edge", maxAbs > 45.0f);
+    check("the slam bounces both ways", hi > 40.0f && lo < -40.0f);
+    check("the slam stays on the glass", maxAbs <= 56.0f);
+  }
   p = buddyImuPose(&sh, 7000);
   check("anger expires", !p.angry);
 

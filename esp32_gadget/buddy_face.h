@@ -25,18 +25,30 @@
 #define BUDDY_EYE_CORNER_RATIO 0.38f
 // How far the emotional tint pulls the eye towards red.
 #define BUDDY_EYE_HOT_COLOR 0xFF3C1Eu
+// How far the black lid band reaches past the eye and its glow, so a rotated
+// eye can never show a hot sliver above the lid.
+#define BUDDY_GLOW_PAD 6
+
 // Time constant of the pose easing. About 100 ms means a field covers ~63% of
 // the distance in one 100 ms frame: quick enough to read as a reaction, slow
 // enough that the 20 fps face never pops.
 #define BUDDY_EASE_TAU_MS 100.0f
 
+// Scales every channel by `percent`, keeping the hue. Used for the dim face
+// and for the two glow layers around the eyes.
+static inline uint32_t buddyEyeScale(uint32_t rgb, int percent) {
+  if (percent <= 0) return 0x000000u;
+  if (percent > 100) percent = 100;
+  uint32_t r = ((rgb >> 16) & 0xFFu) * (uint32_t)percent / 100u;
+  uint32_t g = ((rgb >> 8) & 0xFFu) * (uint32_t)percent / 100u;
+  uint32_t b = (rgb & 0xFFu) * (uint32_t)percent / 100u;
+  return (r << 16) | (g << 8) | b;
+}
+
 // Dark shade for the dim (unpaired/offline) face: dim but still the owner's
 // hue, so the face keeps its identity when there is no bridge.
 static inline uint32_t buddyEyeDim(uint32_t rgb) {
-  uint32_t r = ((rgb >> 16) & 0xFFu) * 32u / 100u;
-  uint32_t g = ((rgb >> 8) & 0xFFu) * 32u / 100u;
-  uint32_t b = (rgb & 0xFFu) * 32u / 100u;
-  return (r << 16) | (g << 8) | b;
+  return buddyEyeScale(rgb, 32);
 }
 
 static inline uint32_t buddyEyeHot(uint32_t rgb, float hot) {
@@ -96,6 +108,11 @@ static inline float buddyEyeExtentX(float halfW, float halfH, float deg) {
   return fabsf(halfW * cosf(a)) + fabsf(halfH * sinf(a));
 }
 
+// Half extent in y of a rotated eye; the vertical mirror of buddyEyeExtentX.
+static inline float buddyEyeExtentY(float halfW, float halfH, float deg) {
+  return buddyEyeExtentX(halfH, halfW, deg);
+}
+
 // How far to push each eye outwards so the pair keeps `minGap` px between their
 // drawn extents. Returns 0 when they already fit.
 static inline int buddyEyeGapPush(float centreDistance, float extentL,
@@ -103,6 +120,47 @@ static inline int buddyEyeGapPush(float centreDistance, float extentL,
   float gap = centreDistance - (extentL + extentR);
   if (gap >= minGap) return 0;
   return (int)ceilf((minGap - gap) * 0.5f);
+}
+
+// A black lid band, in screen coordinates: where it starts and how tall it is.
+struct BuddyLidBand {
+  int y0;
+  int h;
+};
+
+// The band that covers everything from above the eye's rotated extent (and its
+// glow) down to the lid line. A lid of zero asks for nothing.
+static inline BuddyLidBand buddyLidBandTop(int cy, int extentY, int pad,
+                                           float lid) {
+  BuddyLidBand b;
+  b.y0 = cy - extentY - pad - 2;
+  if (!(lid > 0.02f)) {
+    b.h = 0;
+    return b;
+  }
+  float lidLine = (float)cy - (float)extentY +
+                  2.0f * (float)extentY * (lid > 1.0f ? 1.0f : lid);
+  b.h = (int)lidLine - b.y0 + 1;
+  if (b.h < 1) b.h = 1;
+  return b;
+}
+
+// The bottom lid is the same band mirrored: it starts at the bottom lid line
+// and covers down past the rotated extent and the glow.
+static inline BuddyLidBand buddyLidBandBottom(int cy, int extentY, int pad,
+                                              float bottom) {
+  BuddyLidBand b;
+  int end = cy + extentY + pad + 2;
+  if (!(bottom > 0.02f)) {
+    b.y0 = end;
+    b.h = 0;
+    return b;
+  }
+  if (bottom > 1.0f) bottom = 1.0f;
+  b.y0 = cy + extentY - (int)(2.0f * (float)extentY * bottom);
+  b.h = end - b.y0 + 1;
+  if (b.h < 1) b.h = 1;
+  return b;
 }
 
 // Exponential approach towards the target. Never overshoots, so a value that

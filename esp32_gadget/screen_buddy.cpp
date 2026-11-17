@@ -280,10 +280,17 @@ void buddyGetView(BuddyView *out) {
 // the RGB bead. Reference: RoboEyes-style animated eyes (FluxGarage), reduced to
 // what a 320x172 panel does well.
 
-// Bluer cyan: the owner saw the first cyan as green on the panel, so the
-// green channel gives way to blue while staying cyan.
-static const uint16_t FACE = gfxHex(0x00B4FF);
-static const uint16_t FACE_DIM = gfxHex(0x06455C);
+// The eyes glow: two soft layers of the owner's colour around the shape, so the
+// cyan (or whatever the owner picked) bleeds into the black like a lit bead.
+// BUDDY_GLOW_PAD is also how far the lid bands reach past the eye: a rotated
+// eye is taller than its box, and without covering the glow the hot tint of an
+// angry face leaked above the lid.
+static void drawEyeGlow(int x, int y, int halfW, int halfH, float deg,
+                        uint16_t inner, uint16_t outer) {
+  gfxFillSquircleRot(x, y, halfW + BUDDY_GLOW_PAD, halfH + BUDDY_GLOW_PAD, deg,
+                     outer);
+  gfxFillSquircleRot(x, y, halfW + 3, halfH + 3, deg, inner);
+}
 
 static void thickLine(int x0, int y0, int x1, int y1, uint16_t color) {
   gfxLine(x0, y0, x1, y1, color);
@@ -294,6 +301,16 @@ static void thickLine(int x0, int y0, int x1, int y1, uint16_t color) {
 static void happyEye(int cx, int cy, uint16_t color) {
   thickLine(cx - 30, cy + 10, cx, cy - 16, color);
   thickLine(cx, cy - 16, cx + 30, cy + 10, color);
+}
+
+// A caret drawn as a halo: the glow has no filled shape to sit behind here, so
+// the line itself gets the soft edge.
+static void happyEyeGlow(int cx, int cy, uint16_t glow) {
+  for (int d = -2; d <= 2; d++) {
+    if (d == 0) continue;
+    thickLine(cx - 30, cy + 10 + d, cx, cy - 16 + d, glow);
+    thickLine(cx, cy - 16 + d, cx + 30, cy + 10 + d, glow);
+  }
 }
 
 // Filled ellipse rotated by `deg` (screen pixels). For each row the implicit
@@ -442,25 +459,33 @@ static void drawFace(BuddyState state, const BuddyPose &pose, uint32_t nowMs,
   // Offline dims it; anger and dizziness blend it towards hot red on top, and
   // the owner's choice comes back as soon as the reaction expires.
   uint32_t owner = settingsGetBuddyEyeColor();
-  uint16_t color =
-      gfxHex(pose.dim ? buddyEyeDim(owner) : buddyEyeHot(owner, pose.hot));
+  uint32_t eyeRgb = pose.dim ? buddyEyeDim(owner) : buddyEyeHot(owner, pose.hot);
+  uint16_t color = gfxHex(eyeRgb);
+  uint16_t glowInner = gfxHex(buddyEyeScale(eyeRgb, 30));
+  uint16_t glowOuter = gfxHex(buddyEyeScale(eyeRgb, 14));
   int bob = (int)pose.bob;
 
   // Where each eye lands, and how much screen it covers once rotated. The pair
   // is pushed apart when the surprise widens them or a tilt eats the gap; the
-  // owner should never see the two eyes merge into one blob.
+  // owner should never see the two eyes (or their glow) merge into one blob.
+  bool shut = pose.blink || pose.closed;
   int eyeX[2];
-  int eyeExtent[2];
+  int eyeExtentX[2];
+  int eyeExtentY[2];
   float eyeDeg[2];
-  float halfH = (pose.blink || pose.closed) ? 4.0f : (float)pose.ry;
+  float halfH = shut ? 4.0f : (float)pose.ry;
   for (int i = 0; i < 2; i++) {
     eyeX[i] = cx[i] + (int)(pose.gazeX + (i == 0 ? pose.eyeGazeL : pose.eyeGazeR));
     eyeDeg[i] = pose.rot + (i == 0 ? pose.rotL : pose.rotR);
-    eyeExtent[i] = (int)ceilf(
+    eyeExtentX[i] = (int)ceilf(
         buddyEyeExtentX((float)pose.rx, halfH, eyeDeg[i]));
+    eyeExtentY[i] = (int)ceilf(
+        buddyEyeExtentY((float)pose.rx, halfH, eyeDeg[i]));
   }
-  int push = buddyEyeGapPush((float)(eyeX[1] - eyeX[0]), (float)eyeExtent[0],
-                             (float)eyeExtent[1], (float)BUDDY_EYE_GAP_MIN);
+  int push = buddyEyeGapPush(
+      (float)(eyeX[1] - eyeX[0]),
+      (float)(eyeExtentX[0] + BUDDY_GLOW_PAD),
+      (float)(eyeExtentX[1] + BUDDY_GLOW_PAD), (float)BUDDY_EYE_GAP_MIN);
   eyeX[0] -= push;
   eyeX[1] += push;
 
@@ -470,34 +495,41 @@ static void drawFace(BuddyState state, const BuddyPose &pose, uint32_t nowMs,
     int x = eyeX[i];
     int y = cy + bob + (int)pose.gazeY;
     if (happy) {
+      happyEyeGlow(x, y, glowOuter);
       happyEye(x, y, color);
       continue;
     }
-    if (pose.blink || pose.closed) {
+    float deg = eyeDeg[i];
+    drawEyeGlow(x, y, pose.rx, shut ? 4 : pose.ry, shut ? 0.0f : deg,
+                glowInner, glowOuter);
+    if (shut) {
       // A shut eye is a short rounded bar: it keeps the squircle language and
       // reads as a lid rather than a stray rectangle.
       gfxFillSquircleRot(x, y, pose.rx, 4, 0, color);
       continue;
     }
-    float deg = eyeDeg[i];
     gfxFillSquircleRot(x, y, pose.rx, pose.ry, deg, color);
     // A black band over the top of the eye: the eyelid. Black on black is free,
-    // so the eye is simply clipped. The two eyes can have different lids (the
-    // EMO thinking wink) and a bottom lid can cut the tired look.
+    // so the eye is simply clipped. It reaches past the rotated eye and its
+    // glow, because a 16 deg angry tilt makes the eye taller than pose.ry and
+    // the hot edge used to show above the lid. The two eyes can have different
+    // lids (the EMO thinking wink) and a bottom lid cuts the tired look.
     float top = pose.lid + (i == 0 ? pose.lidL : pose.lidR);
-    if (top > 0.02f) {
-      int h = (int)(pose.ry * 2 * top) + 2;
-      gfxFillRect(x - pose.rx - 4, y - pose.ry - 2, pose.rx * 2 + 8, h,
+    int bandHalfX = eyeExtentX[i] + BUDDY_GLOW_PAD + 2;
+    BuddyLidBand topBand =
+        buddyLidBandTop(y, eyeExtentY[i], BUDDY_GLOW_PAD, top);
+    if (topBand.h > 0) {
+      gfxFillRect(x - bandHalfX, topBand.y0, bandHalfX * 2, topBand.h,
                   GFX_BLACK);
     }
-    if (pose.bottom > 0.02f) {
-      // Cover the rotated eye's bottom edge too, or a 2 px sliver survives.
-      int h = (int)(pose.ry * 2 * pose.bottom) + 4;
-      int y0 = y + pose.ry - (int)(pose.ry * 2 * pose.bottom);
-      gfxFillRect(x - pose.rx - 4, y0, pose.rx * 2 + 8, h, GFX_BLACK);
+    BuddyLidBand bottomBand =
+        buddyLidBandBottom(y, eyeExtentY[i], BUDDY_GLOW_PAD, pose.bottom);
+    if (bottomBand.h > 0) {
+      gfxFillRect(x - bandHalfX, bottomBand.y0, bandHalfX * 2, bottomBand.h,
+                  GFX_BLACK);
     }
     if (state == BUDDY_ERROR) {
-      // Two crossed black strokes inside the cyan eye: the classic x x.
+      // Two crossed black strokes inside the eye: the classic x x.
       thickLine(x - 20, y - 22, x + 20, y + 22, GFX_BLACK);
       thickLine(x - 20, y + 22, x + 20, y - 22, GFX_BLACK);
     }
