@@ -56,6 +56,58 @@ int main() {
   c = buddyEyesCyan();
   check("eyes and idle LED share cyan", c.r == 0 && c.g == 180 && c.b == 255);
 
+  printf("-- hud: the finish is a transition, not a state\n");
+  {
+    BuddyHud h;
+    buddyHudStep(&h, BUDDY_PHASE_BUSY, 1000);
+    check("the first poll just adopts the phase",
+          buddyHudShown(&h, 1000) == BUDDY_PHASE_BUSY);
+    buddyHudStep(&h, BUDDY_PHASE_IDLE, 4000);
+    check("busy -> idle fabricates the check",
+          buddyHudShown(&h, 4000) == BUDDY_PHASE_OK);
+    check("the check is a pop, so its age is tracked",
+          buddyHudCheckAge(&h, 4150) == 150u);
+    check("the check expires on its own",
+          buddyHudShown(&h, 4000 + BUDDY_HUD_SYNTH_OK_MS + 1) ==
+              BUDDY_PHASE_IDLE);
+
+    // The guard the owner asked for: the poll keeps returning idle, and the
+    // check must not fire again for every poll.
+    for (uint32_t t = 8000; t < 20000; t += 1000) {
+      buddyHudStep(&h, BUDDY_PHASE_IDLE, t);
+    }
+    check("repeated idle polls never flash again",
+          buddyHudShown(&h, 20000) == BUDDY_PHASE_IDLE);
+
+    buddyHudStep(&h, BUDDY_PHASE_BUSY, 21000);
+    check("busy shows its own badge",
+          buddyHudShown(&h, 21000) == BUDDY_PHASE_BUSY);
+    buddyHudStep(&h, BUDDY_PHASE_IDLE, 22000);
+    check("a new busy -> idle is a new finish",
+          buddyHudShown(&h, 22000) == BUDDY_PHASE_OK);
+
+    buddyHudStep(&h, BUDDY_PHASE_ASK, 23000);
+    check("ask cancels the fabricated check",
+          buddyHudShown(&h, 23100) == BUDDY_PHASE_ASK);
+
+    BuddyHud ok;
+    buddyHudStep(&ok, BUDDY_PHASE_BUSY, 0);
+    buddyHudStep(&ok, BUDDY_PHASE_OK, 1000);
+    check("a real ok shows the check",
+          buddyHudShown(&ok, 1000) == BUDDY_PHASE_OK);
+    buddyHudStep(&ok, BUDDY_PHASE_OK, 2000);
+    check("and stays while the bridge still reports ok",
+          buddyHudShown(&ok, 9000) == BUDDY_PHASE_OK);
+    buddyHudStep(&ok, BUDDY_PHASE_IDLE, 10000);
+    check("ok -> idle does not fabricate a second check",
+          buddyHudShown(&ok, 10000) == BUDDY_PHASE_IDLE);
+
+    BuddyHud first;
+    buddyHudStep(&first, BUDDY_PHASE_OK, 500);
+    check("booting straight into ok shows the check once",
+          buddyHudShown(&first, 500) == BUDDY_PHASE_OK);
+  }
+
   printf("\n%s (%d failures)\n", g_failures == 0 ? "PASSED" : "FAILED",
          g_failures);
   return g_failures == 0 ? 0 : 1;

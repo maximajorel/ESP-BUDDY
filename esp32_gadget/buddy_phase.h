@@ -61,5 +61,68 @@ static inline bool buddyPhaseFinished(BuddyPhase previous, BuddyPhase now) {
          (previous == BUDDY_PHASE_BUSY && now == BUDDY_PHASE_IDLE);
 }
 
+// How long a fabricated check stays on the glass before the HUD returns to the
+// real phase.
+#define BUDDY_HUD_SYNTH_OK_MS 3000u
+
+// The HUD is a transition, not a state. `ok` pops once when it arrives, and
+// when the bridge skips it (the Desktop/Telegram path) the drop from busy to
+// idle fabricates it. The previous phase is remembered, because without that
+// guard the check would fire again on every idle poll and the twinkle would
+// mean nothing.
+struct BuddyHud {
+  bool have = false;
+  BuddyPhase phase = BUDDY_PHASE_IDLE;  // the last phase the bridge reported
+  BuddyPhase shown = BUDDY_PHASE_IDLE;  // what the glass should draw
+  uint32_t checkAt = 0;                 // when the current check started
+  bool sticky = false;                  // the bridge itself still says ok
+};
+
+static inline void buddyHudStep(BuddyHud *h, BuddyPhase phase,
+                                uint32_t nowMs) {
+  if (!h->have) {
+    h->have = true;
+    h->phase = phase;
+    h->shown = phase;
+    if (phase == BUDDY_PHASE_OK) {
+      h->checkAt = nowMs;
+      h->sticky = true;
+    }
+    return;
+  }
+  if (phase == h->phase) return;
+  if (phase == BUDDY_PHASE_OK) {
+    h->checkAt = nowMs;
+    h->sticky = true;
+    h->shown = BUDDY_PHASE_OK;
+  } else if (buddyPhaseFinished(h->phase, phase)) {
+    // Desktop/Telegram never send `ok`: the drop from busy to idle is the cue.
+    h->checkAt = nowMs;
+    h->sticky = false;
+    h->shown = BUDDY_PHASE_OK;
+  } else {
+    h->sticky = false;
+    h->shown = phase;
+  }
+  h->phase = phase;
+}
+
+// What to draw right now: the sticky/fabricated check while it lasts, then the
+// real phase.
+static inline BuddyPhase buddyHudShown(const BuddyHud *h, uint32_t nowMs) {
+  if (h->shown != BUDDY_PHASE_OK) return h->shown;
+  if (h->sticky) return BUDDY_PHASE_OK;
+  if ((int32_t)(h->checkAt + BUDDY_HUD_SYNTH_OK_MS - nowMs) > 0) {
+    return BUDDY_PHASE_OK;
+  }
+  return h->phase;
+}
+
+// Milliseconds since the current check started, for its pop and twinkle.
+// Meaningless unless buddyHudShown() is BUDDY_PHASE_OK.
+static inline uint32_t buddyHudCheckAge(const BuddyHud *h, uint32_t nowMs) {
+  return nowMs - h->checkAt;
+}
+
 // The eyes' cyan, shared so the LED and the face read as one thing.
 static inline BuddyRgb buddyEyesCyan() { return {0, 180, 255}; }
