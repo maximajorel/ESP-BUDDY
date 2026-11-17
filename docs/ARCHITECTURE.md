@@ -25,6 +25,7 @@ esp32_gadget.ino        boot, botón, loop
 ├── gfx.* + display.*   framebuffer, formas, texto y panel ST7789
 ├── ui_color.h, theme.h paleta compartida
 ├── settings.*          NVS: credenciales, ajustes, récords, calibración
+├── admin_auth.*        credenciales del panel, sesiones y protección de rutas
 ├── net.*               WiFi AP+STA, NTP, API HTTP y panel web
 ├── spotify_*.*         OAuth PKCE, consulta, parser y carátula
 ├── buddy_http.*        transporte del bridge: HTTP en la LAN, HTTPS validado
@@ -41,8 +42,8 @@ De arriba hacia abajo, nunca al revés:
    `game_difficulty.h`, `game_hits.h`, `config_value.h`, `screen_name.h`,
    `screen_order.h`, `steer_solve.h`, `tap_window.h`, `text_fold.cpp`,
    `buddy_face.h`, `buddy_anim.h`, `buddy_imu.h`, `buddy_url.h`, `buddy_link.h`,
-   `ui_color.h` y los `spotify_parse/pkce`. Son la parte que se puede probar en la
-   compu.
+   `admin_auth.*`, `ui_color.h` y los `spotify_parse/pkce`. Son la parte que se
+   puede probar en la compu.
 2. **Estado** — `settings.*` es el único dueño de NVS.
 3. **Servicios** — `net.*`, `spotify*.*`, `imu.*`, `rgb.*`, `rotation.*`.
 4. **Presentación** — `gfx.*`, `display.*`, `screens.*`, `screen_*`, `console.*`.
@@ -50,6 +51,27 @@ De arriba hacia abajo, nunca al revés:
 Una pantalla no habla HTTP directamente: lee estado ya resuelto (`spotifyState()`,
 `netStatus()`, `buddyState()`) y dibuja. Un servicio no dibuja. Un archivo puro
 no incluye `Arduino.h`; si lo necesita, la lógica no es pura y hay que separarla.
+
+### Quién puede tocar el panel web
+
+El panel vive en `/admin` y pide sesión; `/` es público porque es donde van el
+selector de pantalla y los juegos. La regla de qué pide sesión y qué no está en
+`admin_auth.cpp` (`adminRequiresSession`), no repartida por los handlers:
+
+- **Protegido**: toda página bajo `/admin` y todo verbo que escribe bajo `/api/`.
+- **Público**: `/`, `/login`, los assets, `POST /api/session` y las lecturas
+  (`GET /api/status`, `/api/scan`, `/api/spotify`, `/api/session`).
+
+La autenticación se aplica en el **transporte** (`net.cpp`), nunca dentro de
+`netHandleApi`, porque la consola serie llama al dispatcher en proceso y llegar al
+USB ya significa tener el equipo en la mano: `api POST /api/wifi {...}` sigue
+funcionando sin sesión a propósito.
+
+Las credenciales se guardan como sal + SHA-256 iterado, calculado por
+`adminHashDerive`. El build hace el mismo cálculo en Python
+(`tools/gen_admin_defaults.py`) para sembrar el valor del `.env`, y
+`tools/admin_seed_test.py` fija que las dos implementaciones coincidan.
+
 
 ## Mapa de módulos
 
@@ -60,7 +82,8 @@ no incluye `Arduino.h`; si lo necesita, la lógica no es pura y hay que separarl
 | `screens.*` | Menú, orden, nombres, sleep, chrome común | Lógica de una pantalla puntual |
 | `screen_*.cpp` | Estado y dibujo de una pantalla | Configurar red o NVS de otro módulo |
 | `settings.*` | Leer/escribir NVS y exponer valores tipados | Validar reglas de UI |
-| `net.*` | Red, servidor HTTP y handlers de la API | Formatear texto de pantalla |
+| `admin_auth.*` | Hash de la credencial, tabla de sesiones, throttle de login y qué rutas piden sesión | Tocar NVS, leer la cookie o decidir códigos HTTP |
+| `net.*` | Red, servidor HTTP y handlers de la API; aplica la sesión a cada request | Formatear texto de pantalla |
 | `rotation.*` | Aplicar modo/bloqueo y compensar ejes | Decidir gestos de pantalla |
 | `rgb.*` | Color, intensidad, efectos y dormir/prender del LED | Decidir qué color mostrar |
 | `buddy_led.*` | La luz trasera como semáforo de Sofía mientras su bridge esté configurado | Dibujar en el panel |

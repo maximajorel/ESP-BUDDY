@@ -116,6 +116,27 @@ esp32:esp32:esp32s3:CDCOnBoot=cdc,FlashSize=16M,PSRAM=opi,PartitionScheme=app3M_
 
 ## 4. Compilar y flashear
 
+### Antes de compilar: tu usuario y contraseña del panel
+
+El panel de administración pide usuario y contraseña. La primera vez salen de un
+archivo `.env` en la raíz del repositorio: copiá `.env.example` a `.env` y elegí
+los valores.
+
+```powershell
+copy .env.example .env      # después editá .env con tu usuario y contraseña
+python tools\gen_admin_defaults.py
+```
+
+Ese comando genera `esp32_gadget/admin_seed.h` (ignorado por git) con una **sal y
+un hash**: la contraseña en texto plano nunca entra al firmware, ni a la memoria
+del equipo, ni al repositorio. Si te olvidás de este paso, el equipo compila igual
+con `admin` / `admin` y el panel te obliga a cambiarla en el primer ingreso.
+
+Para cambiar el usuario y la contraseña **más adelante no hace falta recompilar**:
+se hace desde el panel, en la sección **Cuenta**. Editá el `.env` sólo si querés
+cambiar con qué credenciales arranca un equipo recién flasheado o restablecido de
+fábrica.
+
 ### Con Arduino IDE
 
 1. Abrí la carpeta `esp32_gadget/` (Arduino te muestra `esp32_gadget.ino`).
@@ -155,7 +176,9 @@ La contraseña de fábrica es **`12345678`**.
 | Red que crea el equipo | `ESP32-GADGET-XXXXXX` |
 | Contraseña | `12345678` |
 | Red del equipo | la que crea él mismo, no tu WiFi de casa |
-| Panel web | `http://192.168.4.1` |
+| Panel web | `http://192.168.4.1/admin` |
+| Usuario del panel | el `ADMIN_USER` del `.env` (o `admin` si compilaste sin `.env`) |
+| Contraseña del panel | el `ADMIN_PASS` del `.env` (o `admin`, que el panel obliga a cambiar) |
 | Zona horaria | `-3` (Tucumán, sin horario de verano) |
 | Récords | vacíos |
 
@@ -289,10 +312,40 @@ filtró. Es lo único que separa a cualquiera de pedirle cosas al agente.
 
 ## 8. Panel de administración web
 
-Conectate a la red del equipo y abrí **`http://192.168.4.1`**. El panel está en
-español y pensado para usarse con el dedo, desde el celular. En el celular las
-secciones se abren desde el botón **☰** de arriba; en la computadora el menú
-queda fijo a la izquierda.
+### Las dos entradas: `/` y `/admin`
+
+| Dirección | Qué hay | ¿Pide contraseña? |
+|---|---|---|
+| `http://192.168.4.1/` | La entrada pública. Ahí va a vivir el **selector de pantalla** y los juegos que hacen reaccionar al buddy. Hoy avisa que está en camino. | No |
+| `http://192.168.4.1/admin` | **Todas las configuraciones**: pantalla, luz, juegos, música, red, Sofía, sistema y cuenta. | Sí |
+| `http://192.168.4.1/login` | La puerta del panel. | — |
+
+Al abrir `/admin` sin sesión, el equipo te manda a `/login` y después te devuelve
+a la página que pediste. La sesión vive doce horas y se guarda en una cookie que
+el navegador no deja leer a los scripts; si el equipo se reinicia, hay que entrar
+de nuevo.
+
+### Usuario y contraseña
+
+- Vienen del `.env` con el que se compiló el firmware (ver paso 4).
+- Se cambian desde **Cuenta**, en el panel, pidiendo la contraseña actual. El
+  equipo guarda un hash con sal: no hay forma de leer la contraseña desde el panel
+  ni desde la consola serie.
+- Cambiarlas cierra la sesión de los demás dispositivos que tengan el panel
+  abierto, no la tuya.
+- **Salir** está arriba a la derecha y también en la tarjeta **Cuenta**.
+
+> **Ojo con la red.** El panel viaja por HTTP simple dentro de la red del equipo:
+> no hay TLS, porque el equipo no tiene un certificado válido. Sirve para la red
+> del propio gadget o tu casa; no lo expongas a internet. Las credenciales nunca
+> viajan en la URL ni quedan guardadas en el navegador más allá de la cookie de
+> sesión.
+
+### Adentro del panel
+
+El panel está en español y pensado para usarse con el dedo, desde el celular. En
+el celular las secciones se abren desde el botón **☰** de arriba; en la
+computadora el menú queda fijo a la izquierda.
 
 | Sección | Para qué sirve |
 |---|---|
@@ -546,6 +599,17 @@ En el panel, **WiFi de casa → Olvidar red**. Borra las credenciales y hace que
 equipo deje de reintentar, sin tocar los récords ni el nombre del punto de
 acceso. Después cargás la clave correcta.
 
+**Olvidé el usuario o la contraseña del panel.**
+No hay forma de recuperarla: el equipo guarda un hash, no la contraseña. En el
+panel, **Sistema → Restablecer de fábrica** (o `factory` por consola serie) vuelve
+a las credenciales del `.env` con el que se compiló el firmware —o a `admin` /
+`admin` si se compiló sin `.env`—, que el panel vuelve a pedir cambiar. El reset
+también borra el WiFi de casa y los récords.
+
+> Si además perdiste el acceso al panel, el botón BOOT no borra nada: el reset de
+> fábrica se hace desde el panel o por consola serie, y para llegar a la consola
+> alcanza con el cable USB.
+
 **No puedo entrar a `http://192.168.4.1`.**
 Casi siempre es que el teléfono volvió solo a los datos móviles porque la red del
 equipo no tiene internet. Ver el aviso del paso 6: elegí *Mantener conexión* /
@@ -609,9 +673,12 @@ esp32_gadget/
 ├── buddy_*.h               estados, fases, expresiones y reacciones de Sofía
 ├── spotify_*.h/.cpp        OAuth PKCE, consulta, parser y carátula
 ├── ui_color.h, theme.h     paleta compartida
+├── admin_auth.h/.cpp       credenciales, sesiones y qué rutas piden sesión (puro, test en host)
 ├── net.h/.cpp              WiFi, NTP, API y servidor web
+├── admin_seed.h            credenciales del .env: sal y hash (generado, no versionado)
 ├── web_assets.h            panel web empaquetado (generado)
-└── web_ui/                 panel web: index.html, styles.css, app.js
+└── web_ui/                 panel web: index.html (entrada), admin.html (panel),
+                            login.html + login.js (entrada), styles.css, app.js
 ```
 
 La arquitectura, las convenciones y el paso a paso para agregar una pantalla, un

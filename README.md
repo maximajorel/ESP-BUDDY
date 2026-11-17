@@ -75,7 +75,10 @@ MISO, así que la única forma honesta de ver la pantalla sin cámara es el coma
    secuencia reproducible en `tools/probes/`.
 4. Trabajo grande: documento en `odd/tasks/` (specs, tareas, evidencia) y
    commits en unidades revisables.
-5. El panel web se empaqueta antes de flashear:
+5. Las credenciales del panel se generan desde `.env` (copiá `.env.example`):
+   `python tools/gen_admin_defaults.py`. El firmware guarda sólo una sal y un
+   hash, y se pueden cambiar después desde `/admin`.
+6. El panel web se empaqueta antes de flashear:
    `python tools/pack_web.py esp32_gadget/web_ui esp32_gadget/web_assets.h`.
 
 Los archivos generados (`font5x7.h`, `web_assets.h`) no se editan a mano; el

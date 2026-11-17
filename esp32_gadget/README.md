@@ -53,6 +53,7 @@ Dos archivos son **generados**; si los editás a mano, se pierden:
 |---|---|
 | `font5x7.h` | `python tools/gen_font.py esp32_gadget/font5x7.h` |
 | `web_assets.h` | `python tools/pack_web.py esp32_gadget/web_ui esp32_gadget/web_assets.h` |
+| `admin_seed.h` | `python tools/gen_admin_defaults.py` (lee el `.env` de la raíz) |
 
 Olvidarse del segundo es el error más común: el equipo sigue sirviendo la versión
 vieja del panel aunque hayas cambiado el HTML.
@@ -68,6 +69,7 @@ En `../tools/`:
 | `mock_gadget_api.py` | Mock de la API para probar el panel web en el navegador sin la placa. |
 | `gen_font.py` | Genera la fuente desde glifos en ASCII art. |
 | `pack_web.py` | Empaqueta el panel web dentro del firmware. |
+| `gen_admin_defaults.py` | Convierte el `.env` en la sal y el hash de la credencial del panel. |
 
 ## Correr las pruebas
 

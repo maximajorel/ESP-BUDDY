@@ -25,6 +25,13 @@ MIME = {
     ".js": "application/javascript; charset=utf-8",
 }
 
+# What the panel is logged in with. The firmware seeds this from `.env` and keeps
+# it in NVS; the mock keeps the same two pieces of state so the browser exercises
+# the real flow: log in, change the pair, log out.
+ADMIN = {"user": "admin", "pass": "gadget", "mustChange": True}
+SESSIONS = set()
+SESSION_COOKIE = "sid"
+
 STATE = {
     "firmware": "esp32-gadget",
     "version": "1.0.0",
@@ -113,14 +120,30 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *_args):
         pass  # keep the test output clean
 
-    def _send(self, code, body, content_type):
+    def _send(self, code, body, content_type, extra_headers=None):
         raw = body.encode("utf-8") if isinstance(body, str) else body
         self.send_response(code)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(raw)))
         self.send_header("Cache-Control", "no-store")
+        for key, value in (extra_headers or {}).items():
+            self.send_header(key, value)
         self.end_headers()
         self.wfile.write(raw)
+
+    def _cookie_token(self):
+        header = self.headers.get("Cookie") or ""
+        for part in header.split(";"):
+            name, _, value = part.strip().partition("=")
+            if name == SESSION_COOKIE:
+                return value
+        return ""
+
+    def _authed(self):
+        return self._cookie_token() in SESSIONS
+
+    def _unauthorized(self):
+        self._json(401, {"ok": False, "error": "Sesion requerida"})
 
     def _json(self, code, payload):
         self._send(code, json.dumps(payload, ensure_ascii=False), "application/json")
@@ -139,12 +162,29 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/spotify":
             self._json(200, spotify_payload())
             return
+        if path == "/api/session":
+            payload = {"ok": True, "authenticated": self._authed()}
+            if payload["authenticated"]:
+                payload["user"] = ADMIN["user"]
+                payload["mustChange"] = ADMIN["mustChange"]
+            self._json(200, payload)
+            return
         if path.startswith("/api/"):
             self._fail(405, "Metodo no permitido")
             return
 
-        if path == "/":
+        if path == "/api/session":
+            return
+        if path in ("/admin", "/admin/") and not self._authed():
+            self._send(302, "", "text/plain", {"Location": "/login?next=/admin"})
+            return
+
+        if path in ("/", "/index"):
             path = "/index.html"
+        elif path in ("/admin", "/admin/"):
+            path = "/admin.html"
+        elif path in ("/login", "/login/"):
+            path = "/login.html"
         full = os.path.normpath(os.path.join(ROOT, path.lstrip("/")))
         if not full.startswith(os.path.normpath(ROOT)) or not os.path.isfile(full):
             self._send(404, "not found", "text/plain")
@@ -164,6 +204,54 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         log_request({"path": path, "body": body})
+
+        if path == "/api/session":
+            if body.get("user") != ADMIN["user"] or body.get("pass") != ADMIN["pass"]:
+                self._fail(401, "Usuario o contrasena incorrectos")
+                return
+            token = os.urandom(16).hex()
+            SESSIONS.add(token)
+            self._send(
+                200,
+                json.dumps({"ok": True, "user": ADMIN["user"],
+                            "mustChange": ADMIN["mustChange"]}),
+                "application/json",
+                {"Set-Cookie": "%s=%s; Path=/; HttpOnly; SameSite=Strict; Max-Age=43200"
+                               % (SESSION_COOKIE, token)},
+            )
+            return
+
+        if path == "/api/session/logout":
+            SESSIONS.discard(self._cookie_token())
+            self._send(
+                200,
+                json.dumps({"ok": True}),
+                "application/json",
+                {"Set-Cookie": "%s=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0"
+                               % SESSION_COOKIE},
+            )
+            return
+
+        # Every other write is protected, exactly like the firmware's transport.
+        if not self._authed():
+            self._unauthorized()
+            return
+
+        if path == "/api/admin/credentials":
+            if body.get("current") != ADMIN["pass"]:
+                self._fail(403, "La contrasena actual no es correcta")
+                return
+            user = str(body.get("user") or "")
+            password = str(body.get("pass") or "")
+            if not user or len(user) > 32:
+                self._fail(400, "El usuario necesita entre 1 y 32 caracteres sin espacios")
+                return
+            if len(password) < 8 or len(password) > 64:
+                self._fail(400, "La contrasena nueva necesita entre 8 y 64 caracteres")
+                return
+            ADMIN.update({"user": user, "pass": password, "mustChange": False})
+            self._json(200, {"ok": True})
+            return
 
         if path == "/api/wifi":
             ssid = body.get("ssid", "")
