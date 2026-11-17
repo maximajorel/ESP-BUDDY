@@ -69,13 +69,13 @@ transport, never inside the pure dispatcher.
 
 ## Tasks
 
-| ID | Spec | Route | Commit |
-| --- | --- | --- | --- |
-| T1 | S5, S7, S8 | inline: `admin_auth.*` + `tools/admin_auth_test.cpp` | C1 |
-| T2 | S2, S3, S6 | inline: `tools/gen_admin_defaults.py`, `.env.example`, `.gitignore`, `settings.*` seeding | C1 |
-| T3 | S1, S4, S5, S9 | inline: `net.cpp`/`net.h` transport, routes, session API | C2 |
-| T4 | S3, S4, S6 | inline: `web_ui/` login + admin + placeholder, `app.js`, repack | C3 |
-| T5 | all | inline: docs (`INSTALL.md`, `ARCHITECTURE.md`), `run_tests.py`, arduino-cli compile | C3 |
+| ID | Spec | Route | Commit | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | S5, S7, S8 | inline: `admin_auth.*` + `tools/admin_auth_test.cpp` | `a47c28b` | 109 host checks green |
+| T2 | S2, S3, S6 | inline: `tools/gen_admin_defaults.py`, `.env.example`, `.gitignore`, `settings.*` seeding | `a47c28b` | 33 host checks green, shared vector pinned |
+| T3 | S1, S4, S5, S9 | inline: `net.cpp`/`net.h` transport, routes, session API | `470853c` | compile 46% flash, mock contract (L6) |
+| T4 | S3, S4, S6 | inline: `web_ui/` login + admin + placeholder, `app.js`, repack | `470853c` | `node --check`, id cross-check, asset round trip |
+| T5 | all | inline: docs (`INSTALL.md`, `ARCHITECTURE.md`), `run_tests.py`, arduino-cli compile | `7ca1b40` | 26 host tests, compile clean |
 
 ## Log
 
@@ -139,3 +139,19 @@ serves `/admin` as a 404 or ships an asset header the directory no longer matche
 (the route map, the pages and the packed header are one unit). The generated
 header is not review reading: `tools/pack_web.py` produces it and
 `tools/verify_assets.py` proves the round trip on every test run.
+
+L9 (native review blocked, environment defect): `gentle_review inspect` reached
+`start`, and START refused with `candidate-owner-parent-chmod-ineffective`: the
+repository lives on a Windows mount (`/mnt/c`) that does not honor POSIX
+permission changes, so the provider cannot secure its candidate views. The
+provider reported `lineage_created: false` and `mutation_performed: false`, so no
+authority was created or burned. Remediation, which is the owner's decision
+because it changes the workspace layout: move the Git common directory to a
+POSIX-metadata filesystem (for example a WSL-native checkout) or mount the drive
+with metadata support, then START again. The lenses chosen for that review are
+risk, resilience and reliability.
+
+L10 (close-out): host tests 26 passed, firmware compiles at 46% flash / 16% RAM,
+working tree clean. Nothing was flashed: the board is on Windows COM5 and
+unreachable from this WSL session, so the first real login, the cookie round trip
+and the two pages on a phone still need one manual pass after flashing.
