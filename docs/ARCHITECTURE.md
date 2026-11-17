@@ -103,6 +103,12 @@ valor que otro módulo escribe no se duplica en `Settings`.
   el mismo archivo se nombra en el `.h` del módulo.
 - **Los límites se validan en un solo lugar.** El rango de brillo vive en
   `settings.*`; la pantalla y la API lo consumen, no lo reimplementan.
+- **El stack se pide donde se gasta.** `build_opt.h` sube el stack del lazo a
+  16 KB porque el panel corre ahí y un pedido a Sofía por HTTPS hace el handshake
+  TLS en esa tarea: con los 8 KB que da el core por defecto el desborde cae en el
+  heap y se ve como `CORRUPT HEAP`, no como un stack. Con TLS de por medio, pedí
+  el presupuesto de la tarea dedicada (12 KB) en vez de confiar en el default.
+  Ese archivo solo acepta flags del compilador: un comentario ahí rompe el build.
 
 ## Cómo extender
 
