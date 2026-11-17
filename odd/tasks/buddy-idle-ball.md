@@ -114,6 +114,20 @@ authorization). Firmware 1,430,126 B (45% flash) / 55,188 B (16% RAM) and
   `tapWindowPress` (the poll only reports singles), and a random idle blink
   could turn the happy eye into a 4 px bar because `baseRy` was computed before
   the happy branch. Both re-flashed and re-verified.
+L6 (verbatim): "che toco dos veses y no aparece la pelotita ehh?????????????????????"
+(with the board on SOFIA, bridge `state:bored`, `phase:idle`, `ball on=0`)
+
+Reproduced and fixed. The console `doubletap` worked, but the real button path
+did not: `buddyShortPress` only armed the window and the boop/toggle waited for
+`buddyTick` to poll it, so two physical releases more than 400 ms apart (a
+normal double click, press duration included) never paired and the ball never
+appeared. Now the first tap boops immediately and the second tap inside a
+600 ms release-to-release window (`BUDDY_TAP_DOUBLE_MS`) toggles the ball; there
+is no polling and no dead delay. The serial probe cannot send two releases 120 ms
+apart (its per-command drain takes ~1.7 s), which is why this only showed up with
+a finger; `doubletap` and `press` both still exercise the path. Re-flashed and
+verified with `doubletap` (`ball on=1`) and a single `press` (boop).
+
 - The expression rule from L4 is enforced in `.agents/skills/sofia-buddy-face/
   SKILL.md` and Engram (`buddy/face-expression-rule`). The new `buddyhappy`
   console pin is documented in the console help.

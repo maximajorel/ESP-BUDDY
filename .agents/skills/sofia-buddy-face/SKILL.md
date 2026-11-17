@@ -35,9 +35,12 @@ gyro reactions or the idle ball. Read this before choosing an expression shape.
 - **The idle ball belongs to idle.** It is drawn only when the shown state is
   idle/bored, the face is awake and the bridge phase is idle. While the ball is
   toggled on, the IMU shake channel is held calm (`buddyImuCalm`) so bouncing it
-  never reads as dizziness or anger. A double tap toggles it: consume the
-  `TAP_DOUBLE` returned by `tapWindowPress`; only `TAP_SINGLE` waits in
-  `tapWindowPoll`.
+  never reads as dizziness or anger. A double tap toggles it: `buddyShortPress`
+  boops on the first press and consumes the `TAP_DOUBLE` that `tapWindowPress`
+  returns on the second. Never wait for `tapWindowPoll` before booping: the
+  delay feels dead and a normal human double click then misses the window. The
+  buddy window is 600 ms release-to-release because the press duration is part
+  of the gap.
 - **Never flash without explicit owner authorization in the session.** Compile,
   then ask; after flashing, prove with the serial `dump` (no MISO on this panel).
 

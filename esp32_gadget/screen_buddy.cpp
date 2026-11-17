@@ -89,8 +89,12 @@ static BuddyBall s_ball;
 static bool s_ballOn = false;
 static uint32_t s_ballAt = 0;
 static float s_accel[3] = {0, 0, 0};
-// The one-tap/boop vs two-tap/ball decision. A single tap cannot act until the
-// window expires: it may be the first half of a double.
+// The one-tap/boop vs two-tap/ball decision. A touch panel would know the
+// difference at once; one button does not, so two presses inside this window
+// are the ball. It is measured release to release (the press duration is part of
+// the gap), which is why it is more generous than the 400 ms of the pickers.
+#define BUDDY_TAP_DOUBLE_MS 600
+
 static TapWindow s_tap = {false, 0};
 
 static void publish(BuddyState state, const char *label, int active,
@@ -300,11 +304,18 @@ void buddyPinFace(BuddyState state, uint32_t ageMs, uint32_t holdMs) {
 }
 
 void buddyShortPress() {
-  // One tap is a boop, two taps are the ball. The double is reported here, on
-  // the second press; only the single has to wait for the window to expire
-  // (buddyTick polls it), so the first half of a double is never eaten.
-  TapResult tap = tapWindowPress(s_tap, millis(), TAP_DOUBLE_MS);
-  if (tap == TAP_DOUBLE) buddySetBall(!s_ballOn);
+  // The first tap boops at once (waiting out the window made the face feel
+  // dead), and a second tap inside the window turns the first into the toggle.
+  // The boop already played, which is fine: she is happy you are playing. The
+  // old wait-for-the-poll design also lost the toggle when the second tap was a
+  // normal human double click.
+  TapResult tap = tapWindowPress(s_tap, millis(), BUDDY_TAP_DOUBLE_MS);
+  if (tap == TAP_DOUBLE) {
+    buddySetBall(!s_ballOn);
+  } else {
+    s_pokeUntil = millis() + 1100;
+    rgbPulse(255, 180, 220, 500);
+  }
   s_dirty = true;
 }
 
@@ -765,16 +776,6 @@ static BuddyImuPose readImu(uint32_t nowMs, bool calmReactions) {
 }
 
 bool buddyTick(uint32_t nowMs) {
-  // A pending tap is either the single-tap boop or the second half of a double
-  // tap on the ball. Nothing happens until the window says which one it was.
-  if (tapWindowPoll(s_tap, nowMs, TAP_DOUBLE_MS) == TAP_SINGLE) {
-    // A tap is a boop: happy eyes for a moment even if Sofía is busy. The
-    // double was already consumed by buddyShortPress; only singles wait here.
-    s_pokeUntil = nowMs + 1100;
-    rgbPulse(255, 180, 220, 500);
-    s_dirty = true;
-  }
-
   if (s_pin) {
     if ((int32_t)(s_pinStart + s_pinHold - nowMs) <= 0) {
       s_pin = false;
