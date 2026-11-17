@@ -57,11 +57,14 @@ static inline const char *buddyLinkWireName(BuddyLink link) {
 // those as a certificate problem would tell the owner to inspect a certificate
 // when the bridge was simply unreachable.
 //
-// The band is the module's own, -0x2080 (FEATURE_UNAVAILABLE) down to -0x3000
-// (FATAL_ERROR). The upper end is the one that matters in practice: the
+// The band is -0x2080 (X509 FEATURE_UNAVAILABLE) down to -0x3000 (X509
+// FATAL_ERROR). The upper end is the one that matters in practice: the
 // certificate bundle's verify callback reports a rejected chain as
 // MBEDTLS_ERR_X509_FATAL_ERROR, not as CERT_VERIFY_FAILED, which a device run
-// against a self-signed host showed.
+// against a self-signed host showed. PKCS5's codes (-0x2E00..-0x2F80) fall inside
+// the band numerically and read as certificate failures; PKCS5 has no part in a
+// TLS handshake, so the overlap cannot mislabel a real request. The neighbours
+// that do appear on that path sit outside: PEM -0x0C80, PK -0x3F80, SSL -0x7280.
 static inline bool buddyTlsErrorIsCertFailure(int lastError) {
   return lastError <= -0x2080 && lastError >= -0x3000;
 }

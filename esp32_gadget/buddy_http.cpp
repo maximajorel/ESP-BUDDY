@@ -88,6 +88,23 @@ static bool beginRequest(HTTPClient &http, const BuddyUrl &url, const char *path
   return true;
 }
 
+// A DNS failure never reaches the TLS client's error slot: NetworkClientSecure
+// returns from connect() before assigning `last_error`, which keeps whatever the
+// previous attempt left there, and stop() preserves it. Resolving first means the
+// reason is only ever read after an attempt that could actually have failed, so a
+// stale X509 code can no longer be blamed on a host that does not even resolve.
+// The lookup is the same one the client would do, so lwIP's cache serves it.
+static bool hostReachable(const BuddyUrl &url, BuddyHttpResult *out) {
+  if (!url.tls) return true;  // nothing downstream reads a TLS code over http
+  IPAddress literal;
+  if (literal.fromString(url.host)) return true;
+  IPAddress resolved;
+  if (Network.hostByName(url.host, resolved)) return true;
+  out->transportError = -1;
+  snprintf(out->detail, sizeof(out->detail), "dns");
+  return false;
+}
+
 // Turns the code HTTPClient returned into facts the classifier can use. Any
 // negative code is a transport failure, and on TLS that usually means the
 // handshake was rejected — mbedtls keeps the reason, so it travels to the panel
@@ -118,7 +135,7 @@ void buddyHttpGetState(const BuddyUrl &url, const char *token, BuddyHttpResult *
   if (!lockTransport()) return;
 
   HTTPClient http;
-  if (beginRequest(http, url, "/state", token)) {
+  if (hostReachable(url, out) && beginRequest(http, url, "/state", token)) {
     int code = http.GET();
     absorb(http, code, url.tls, out);
     // Only a 200 carries a state body. Reading a body off an error or a
@@ -136,7 +153,7 @@ void buddyHttpAsk(const BuddyUrl &url, const char *token, const String &json,
   if (!lockTransport()) return;
 
   HTTPClient http;
-  if (beginRequest(http, url, "/buddy/ask", token)) {
+  if (hostReachable(url, out) && beginRequest(http, url, "/buddy/ask", token)) {
     http.addHeader("Content-Type", "application/json");
     int code = http.POST((uint8_t *)json.c_str(), json.length());
     absorb(http, code, url.tls, out);

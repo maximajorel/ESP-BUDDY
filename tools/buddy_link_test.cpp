@@ -111,6 +111,13 @@ int main() {
         buddyTlsErrorIsCertFailure(-0x2080));
   check("the pk module below x509 is not a cert failure",
         !buddyTlsErrorIsCertFailure(-0x3F80));
+  // Band edges, so widening it later is a deliberate change with a diff.
+  check("just above the band, pem", !buddyTlsErrorIsCertFailure(-0x0C80));
+  check("just below the band, dhm", !buddyTlsErrorIsCertFailure(-0x3080));
+  // Documented overlap: PKCS5 shares the band numerically and never appears on a
+  // TLS handshake path, so it is left inside instead of narrowing X509's end.
+  check("pkcs5 reads as a cert failure (documented overlap)",
+        buddyTlsErrorIsCertFailure(-0x2F80));
   check("a positive success value is not a cert failure",
         !buddyTlsErrorIsCertFailure(1));
   expect("https, no answer, no certificate error -> offline",
