@@ -242,6 +242,12 @@ static void maybeSleep(uint32_t nowMs) {
     return;
   }
   if (screenSleepDue(nowMs, s_lastActivity, timeout.seconds)) {
+    // The numbers that fired, not just the fact: a timer that goes dark without
+    // saying why is the hardest kind of report to chase.
+    Serial.printf("sleep: %lums idle >= %us, pantalla %u, mascara 0x%02X\n",
+                  (unsigned long)(nowMs - s_lastActivity),
+                  (unsigned)timeout.seconds, (unsigned)s_current,
+                  (unsigned)timeout.mask);
     sleepScreen(nowMs);
   }
 }

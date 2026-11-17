@@ -48,6 +48,19 @@ int main() {
   check("the wrap under the threshold stays awake",
         screenSleepDue(0x00001000u, 0xFFFFF000u, 10), false);
 
+  printf("-- an activity newer than the clock the caller read\n");
+  // loop() reads millis() into `now`, then the button, console and network
+  // handlers stamp their own, later millis(). The subtraction then wraps to ~49
+  // days and the glass went dark on the spot: this is the CONFIG screen "turning
+  // off when I change something".
+  check("one millisecond ahead is not due", screenSleepDue(1000, 1001, 1), false);
+  check("five milliseconds ahead is not due", screenSleepDue(1000, 1005, 1),
+        false);
+  check("half a second ahead is not due", screenSleepDue(1000, 1500, 1), false);
+  check("one second ahead is not due", screenSleepDue(1000, 2000, 1), false);
+  check("ahead across the wrap is not due",
+        screenSleepDue(0xFFFFFFFEu, 0x00000002u, 1), false);
+
   printf("\n%s (%d failures)\n", g_failures == 0 ? "PASSED" : "FAILED",
          g_failures);
   return g_failures == 0 ? 0 : 1;
