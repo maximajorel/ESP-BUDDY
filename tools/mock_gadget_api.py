@@ -232,14 +232,24 @@ class Handler(BaseHTTPRequestHandler):
             )
             return
 
-        # The one public write, exactly like the firmware's transport: it only
-        # changes what the glass shows, so the picker works without a session.
+        # The public writes, exactly like the firmware's transport: they only
+        # change what the glass shows, so the picker and the web game work
+        # without a session.
         if path == "/api/screen":
             index = body.get("index")
             if not isinstance(index, int) or not 0 <= index < len(STATE["names"]):
                 self._fail(400, "Indice de pantalla fuera de rango")
                 return
             STATE["screen"] = index
+            self._json(200, {"ok": True})
+            return
+
+        if path == "/api/face":
+            mood = str(body.get("mood") or "")
+            hold = body.get("ms") or 0
+            if not isinstance(hold, int):
+                hold = 0
+            STATE["face"] = {"mood": mood, "ms": hold}
             self._json(200, {"ok": True})
             return
 

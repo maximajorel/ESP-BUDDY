@@ -143,7 +143,9 @@ bool adminRequiresSession(const char *method, const char *path);
 // the rule above allows, named once so the transport and the test agree.
 bool adminIsLoginPath(const char *method, const char *path);
 
-// The one public write: `POST /api/screen`, which only changes what the panel
-// shows. It exists because the screen picker lives outside the login, and it is
-// matched exactly so a trailing slash or any other write stays protected.
+// The two public writes: `POST /api/screen`, which only changes what the panel
+// shows, and `POST /api/face`, which lets the web game move the face. Both exist
+// because the picker and the games live outside the login, both are cosmetic and
+// reversible, and both are matched exactly so a trailing slash or any other
+// write stays protected.
 bool adminIsPublicWrite(const char *method, const char *path);

@@ -9,6 +9,7 @@
 #include "admin_auth.h"
 #include "console.h"
 #include "display.h"
+#include "net_ap_policy.h"
 #include "rgb.h"
 #include "rotation.h"
 #include "buddy_face.h"
@@ -39,6 +40,16 @@ static uint32_t s_staSince = 0;
 static volatile int s_disconnectReason = 0;
 #define STA_FAIL_HINT_MS 25000
 static char s_lastError[96] = "";
+
+// The access point's duty cycle. `auto` is the shipped behaviour: the AP carries
+// the panel while the home network is missing and steps aside once the station
+// link has proven itself. See net_ap_policy.h for why.
+static uint8_t s_apMode = NET_AP_AUTO;
+// What the radio is doing right now, so a transition happens once per crossing
+// instead of on every poll.
+static bool s_apRunning = true;
+// When the current station link came up, which is what earns the silence.
+static uint32_t s_staUpSince = 0;
 
 // Web panel sessions and the login throttle live in RAM only: a reboot logs
 // every device out, which is the one logout this board can guarantee. Nothing
@@ -516,6 +527,17 @@ static ApiResult apiScreen(const String &body) {
   return apiOk();
 }
 
+// The web game names a mood; buddy_game.h decides what it means on the glass.
+// The overlay expires on its own, so an abandoned tab cannot leave a face on.
+static ApiResult apiFace(const String &body) {
+  JsonDocument doc;
+  if (!parseOptionalJson(body, doc)) return apiFail(400, API_BAD_JSON);
+  const char *mood = doc["mood"] | "";
+  uint32_t holdMs = doc["ms"] | 0u;
+  buddyGameFaceMood(mood, holdMs);
+  return apiOk();
+}
+
 static ApiResult apiPress(const String &body) {
   JsonDocument doc;
   if (!parseOptionalJson(body, doc)) return apiFail(400, API_BAD_JSON);
@@ -838,6 +860,7 @@ static ApiResult apiAdminCredentials(const String &body) {
 static const char *const POST_PATHS[] = {
     "/api/wifi",           "/api/wifi/forget", "/api/time",
     "/api/ap",             "/api/settings",    "/api/screen",
+    "/api/face",
     "/api/press",          "/api/scores/reset", "/api/steer/reset",
     "/api/steer/swap",     "/api/restart",     "/api/factory",
     "/api/spotify/config", "/api/spotify/url", "/api/spotify/code",
@@ -909,6 +932,7 @@ ApiResult netHandleApi(const char *method, const char *path, const String &body)
   if (!strcmp(path, "/api/ap")) return apiAp(body);
   if (!strcmp(path, "/api/settings")) return apiSettings(body);
   if (!strcmp(path, "/api/screen")) return apiScreen(body);
+  if (!strcmp(path, "/api/face")) return apiFace(body);
   if (!strcmp(path, "/api/press")) return apiPress(body);
   if (!strcmp(path, "/api/scores/reset")) {
     settingsMutable().gameHighScore = 0;
@@ -1173,6 +1197,51 @@ static void startStation() {
   s_staSince = millis();
 }
 
+// Puts the AP where the policy says it belongs, and says so on the console when
+// it moves. Toggling the AP interface is used instead of WiFi.mode(), because
+// changing the global mode tears the station link down and the whole point of
+// the change is a link that stays up.
+static void applyApPolicy(bool staConnected, bool justConnected,
+                          uint32_t nowMs) {
+  if (justConnected) s_staUpSince = nowMs;
+  uint32_t upFor = staConnected ? (uint32_t)(nowMs - s_staUpSince) : 0;
+
+  bool want = netApShouldRun(s_apMode, staConnected, upFor);
+  if (want == s_apRunning) return;
+  s_apRunning = want;
+
+  txReliable(true);
+  if (want) {
+    WiFi.enableAP(true);
+    startAccessPoint();
+    Serial.printf("ap on   (%s, sta %s): http://%s\n",
+                  netApModeName(s_apMode), staConnected ? "conectado" : "caido",
+                  NET_AP_IP);
+  } else {
+    // Every client is dropped, sessions included: the panel continues on the
+    // station address, which the NETWORK screen and /api/status already show.
+    WiFi.softAPdisconnect(true);
+    WiFi.enableAP(false);
+    Serial.printf("ap off  (%s, sta conectado %lus): panel en http://%s\n",
+                  netApModeName(s_apMode), (unsigned long)(upFor / 1000),
+                  s_status.staIp);
+  }
+  txReliable(false);
+}
+
+uint8_t netApMode() { return s_apMode; }
+
+void netSetApMode(uint8_t mode) {
+  if (mode > NET_AP_FORCE_OFF) mode = NET_AP_AUTO;
+  s_apMode = mode;
+  // Applied here and not on the next tick: the console is the way back when the
+  // AP is off, and a command that prints "activo=no" right after `ap on` reads
+  // as a command that did nothing. The policy is idempotent, so netLoop's own
+  // call is a no-op when nothing changed.
+  applyApPolicy(s_status.staConnected, false, millis());
+  refreshStatus();
+}
+
 void netBegin() {
   WiFi.persistent(false);
   WiFi.mode(WIFI_AP_STA);
@@ -1341,13 +1410,15 @@ void netLoop() {
   // disconnected -> connected edge makes the first poll happen immediately.
   static bool s_staWasConnected = false;
   bool staConnected = WiFi.status() == WL_CONNECTED;
-  if (staConnected && !s_staWasConnected) {
+  bool justConnected = staConnected && !s_staWasConnected;
+  if (justConnected) {
     netApplyTimeZone();
     txReliable(true);
     Serial.println("sta conectado -> NTP re-armado, esperando la hora");
     txReliable(false);
   }
   s_staWasConnected = staConnected;
+  applyApPolicy(staConnected, justConnected, millis());
 
   // Keep the station link alive without ever blocking the loop. A previous
   // version called WiFi.disconnect() before each retry, which aborts the

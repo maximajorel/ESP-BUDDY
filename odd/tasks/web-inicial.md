@@ -68,6 +68,28 @@ S6. Dirección visual elegida: "Cara primero".
 Incluye: sin bloque de marca sobre la cara, sin eyebrow "Ahora en la pantalla",
 sin sección "También en la web" ni aclaraciones de sesión.
 
+S7. El equipo reacciona a la partida (pedido posterior):
+
+> "Ok asi esta bien el diseño. Podemos hacer que el ESP reaccione?"
+
+La web no describe una pose: nombra un estado de ánimo de un vocabulario cerrado
+(`focus`, `thinking`, `alert`, `happy`, `anger`, `sleepy`, `sad`) y el firmware lo
+aplica como overlay temporal sobre la pose del bridge. Reglas:
+
+- siempre expira (`400..8000 ms`, por defecto 2500), así una pestaña cerrada no
+  deja la cara congelada;
+- cada ánimo limpia los canales que no usa, para que la expresión anterior no se
+  filtre;
+- el overlay gana mientras dura y la cara vuelve sola al bridge al vencer;
+- al abrir el juego el equipo pasa a la pantalla SOFIA y al cerrarlo vuelve a la
+  pantalla que el dueño tenía.
+
+S8. Las casillas del ta-te-ti son cuadrados iguales, y una marca no redimensiona
+la grilla:
+
+> "cuando hago clic en las celdas del ta te ti, cambia de tamaño y comprime las
+> otras, tienen que ser cuadrados homogeneos redondeados todos."
+
 ## Tasks
 
 - T1 · S1 · Regla pública para `POST /api/screen` con su caso en el test de rutas · 5be0e0d
@@ -75,6 +97,9 @@ sin sección "También en la web" ni aclaraciones de sesión.
 - T3 · S2, S1 · Lanzador a pantalla completa con apps y grilla de pantallas leída de `/api/status` · f19a36f
 - T4 · S3, S5 · Ta-te-ti con tres dificultades y cara reactiva (mirada, párpados, poses) · f19a36f
 - T5 · S1-S6 · Empaquetado, documentación y verificación (tests, build) · f19a36f
+- T6 · S3, S5, S8 · Juego minimalista y celdas homogéneas · 710d70f
+- T7 · S7 · El equipo reacciona: `POST /api/face` público, `buddy_game.h` con su
+  test, overlay en `screen_buddy.cpp`, y la web nombrando ánimos · pendiente
 
 Corte de revisión: la entrega web va en un solo commit porque el artefacto
 generado (`web_assets.h`, ~4300 líneas de diff) domina el recuento; el código
@@ -123,3 +148,16 @@ L7 (evidencia de T1-T5):
 L8 (límites declarados): la cara es una réplica de gestos, no un espejo de la
 pose del firmware; el pill dice "En línea" (conexión) y no "En vivo". El mock
 todavía lista 6 pantallas (le falta CONFIG), desvío previo a esta entrega.
+
+L9 (pedido del equipo reaccionando): "Ok asi esta bien el diseño. Podemos hacer que el ESP reaccione?"
+
+L10 (evidencia de T7):
+- `tools/buddy_game_test.cpp`: 44 checks, 0 fallas (nombres, vencimiento con
+  wraparound de `millis()`, y qué canales limpia cada ánimo).
+- `admin_auth_test`: 116 checks, 0 fallas; el rojo previo fue exactamente
+  "POST /api/face: got protected want public".
+- Contra el mock, manejado por CDP: abrir el juego lleva el equipo a la pantalla
+  SOFIA (5) y manda `focus`; una jugada manda `thinking`; la respuesta manda
+  `alert`; ganar manda `anger` (6000 ms); cerrar limpia el ánimo y devuelve la
+  pantalla que el dueño tenía (0).
+- Firmware compilado con el FQBN real.

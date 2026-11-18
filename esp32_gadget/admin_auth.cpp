@@ -252,8 +252,11 @@ bool adminIsLoginPath(const char *method, const char *path) {
 bool adminIsPublicWrite(const char *method, const char *path) {
   if (!method || !path) return false;
   // Exact match only. A trailing slash, a different verb or any other write is
-  // not the picker and stays protected.
-  return strcmp(method, "POST") == 0 && strcmp(path, "/api/screen") == 0;
+  // not one of these and stays protected.
+  if (strcmp(method, "POST") != 0) return false;
+  // What the glass shows, and the face the web game makes it react with: both
+  // are cosmetic, reversible and carry no credentials.
+  return !strcmp(path, "/api/screen") || !strcmp(path, "/api/face");
 }
 
 bool adminRequiresSession(const char *method, const char *path) {

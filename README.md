@@ -18,7 +18,8 @@ menú de pantallas, cuyo orden y nombres se editan desde el panel web.
 
 La entrada pública `http://192.168.4.1/` no pide sesión: muestra la cara de
 Sofía, deja elegir la pantalla desde un menú a pantalla completa y abre el
-ta-te-ti 1v1 contra el buddy. La configuración sigue en `/admin`.
+ta-te-ti 1v1 contra el buddy, que reacciona en la cara del equipo mientras jugás.
+La configuración sigue en `/admin`.
 
 ## Empezar
 

@@ -69,3 +69,9 @@ BuddyMood buddyMood();
 
 // Console debug: put the idle distraction on the glass for `holdMs`.
 void buddyForceBug(uint32_t holdMs);
+
+// The web game's mood (`focus`, `thinking`, `alert`, `happy`, `anger`, `sleepy`,
+// `sad`), applied as a short-lived overlay over whatever the bridge produced.
+// An unknown or empty name clears it; it always expires on its own, so a closed
+// tab never freezes the face.
+void buddyGameFaceMood(const char *name, uint32_t holdMs);

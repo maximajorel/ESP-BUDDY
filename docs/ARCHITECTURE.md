@@ -60,13 +60,14 @@ selector de pantalla y los juegos. La regla de qué pide sesión y qué no está
 
 - **Protegido**: toda página bajo `/admin` y todo verbo que escribe bajo `/api/`.
 - **Público**: `/`, `/login`, los assets, `POST /api/session`, las lecturas
-  (`GET /api/status`, `/api/scan`, `/api/spotify`, `/api/session`) y una sola
-  escritura: `POST /api/screen`.
+  (`GET /api/status`, `/api/scan`, `/api/spotify`, `/api/session`) y dos
+  escrituras: `POST /api/screen` y `POST /api/face`.
 
-`POST /api/screen` es la excepción deliberada (`adminIsPublicWrite`): el selector
-de pantalla vive fuera del login y lo único que puede hacer es cambiar qué
-muestra el panel. No toca credenciales, red ni almacenamiento, y se compara
-exacto: una barra de más o cualquier otro verbo vuelve a pedir sesión.
+Las dos escrituras públicas son la excepción deliberada (`adminIsPublicWrite`):
+el selector de pantalla y el juego viven fuera del login. Una cambia qué muestra
+el panel y la otra, por unos segundos, qué expresión tiene la cara. Ninguna toca
+credenciales, red ni almacenamiento, las dos son reversibles por el dueño, y se
+comparan exacto: una barra de más o cualquier otro verbo vuelve a pedir sesión.
 
 La autenticación se aplica en el **transporte** (`net.cpp`), nunca dentro de
 `netHandleApi`, porque la consola serie llama al dispatcher en proceso y llegar al

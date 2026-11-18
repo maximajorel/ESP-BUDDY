@@ -1,4 +1,5 @@
 #include "screen_buddy.h"
+#include "buddy_game.h"
 
 #include <ArduinoJson.h>
 #include <math.h>
@@ -467,6 +468,10 @@ struct BuddyDrawInfo {
 static BuddyDrawInfo s_draw;
 // What the bead and the face are feeling right now, for buddy_led.cpp.
 static BuddyMood s_mood = BUDDY_MOOD_CALM;
+// The web game's overlay and the last mood actually drawn, so its expiry is a
+// repaint instead of a face stuck in the game's last expression.
+static BuddyGameOverride s_game;
+static BuddyGameMood s_gameDrawn = BUDDY_GAME_NONE;
 // The distraction currently on the glass, and the one the owner cancelled by
 // talking to Sofía (it never comes back for that event).
 static BuddyBug s_bug;
@@ -1000,10 +1005,23 @@ bool buddyTick(uint32_t nowMs) {
     s_ballPrimed = false;
   }
 
+  // The web game's overlay wins while it lasts: the browser cannot describe a
+  // pose, it names a mood, and buddy_game.h owns what that mood means.
+  BuddyGameMood gameMood = buddyGameCurrent(&s_game, nowMs);
+  if (gameMood != s_gameDrawn) {
+    s_gameDrawn = gameMood;
+    s_dirty = true;
+  }
+  if (gameMood != BUDDY_GAME_NONE) buddyGameApplyPose(&pose, gameMood);
+
   // The sleeping letters need both halves: eyes shut (deep boredom) and the
   // board lying on the table for a while.
   s_zzz = pose.closed && ip.lying && ip.lyingMs > 6000;
   s_mood = buddyMoodFrom(pose.closed, ip.angry, pose.tremble);
+  // The rear bead follows the game too: red when she wins, a faint ember for a
+  // draw. Everything else leaves the IMU's verdict alone.
+  if (gameMood == BUDDY_GAME_ANGER) s_mood = BUDDY_MOOD_ANGRY;
+  else if (gameMood == BUDDY_GAME_SLEEPY) s_mood = BUDDY_MOOD_SLEEPING;
 
   // Ease the whole pose. dt is clamped so a stalled frame (or returning from a
   // pinned face) never turns one step into a jump.
@@ -1035,6 +1053,16 @@ BuddyMood buddyMood() { return s_mood; }
 void buddyForceBug(uint32_t holdMs) {
   s_bugForcedUntil = millis() + holdMs;
   s_bugCancelled = 0xFFFFFFFFu;
+}
+
+void buddyGameFaceMood(const char *name, uint32_t holdMs) {
+  BuddyGameMood mood = buddyGameMoodFromName(name, BUDDY_GAME_NONE);
+  if (mood == BUDDY_GAME_NONE) {
+    buddyGameClear(&s_game);
+  } else {
+    buddyGameSet(&s_game, mood, holdMs, millis());
+  }
+  s_dirty = true;
 }
 
 void buddyDumpDraw() {
