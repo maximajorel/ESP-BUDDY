@@ -24,14 +24,23 @@ S2. El menú principal lista las aplicaciones de la web, empezando por juegos:
 
 > "el menu principal tendrá otras aplicaciones de la web, iniciando por juegos."
 
-S3. Primer juego: ta-te-ti 1v1 contra Sofía, con tres dificultades, y la cara
-reacciona a lo que pasa en la partida:
+S3. Primer juego: ta-te-ti 1v1 contra Sofía, con tres dificultades. La superficie
+del juego es minimalista, sin cara de fondo; los ojos que reaccionan son los del
+equipo:
 
 > "Haremos un ta te ti, con tres dificultades, los ojos deben reaccionar a las
 > cosas que pasen en el juego ya que es un 1v1 con el buddy."
 
+> "Mmm el ta te ti no hace falta que tenga el fondo los ojos. Los ojos solo
+> reaccionan en el ESP digamos. el ta te ti es mas minimalista"
+
+> "cuando hago clic en las celdas del ta te ti, cambia de tamaño y comprime las
+> otras, tienen que ser cuadrados homogeneos redondeados todos."
+
 Las tres dificultades son Fácil, Normal y Difícil, y solo cambia la calidad de
-la jugada del buddy, no el tablero.
+la jugada del buddy, no el tablero. Las nueve casillas son cuadrados iguales:
+filas y columnas `1fr` con mínimo cero, para que una marca nunca redimensione la
+grilla.
 
 S4. Los juegos de la web no son los juegos del equipo:
 

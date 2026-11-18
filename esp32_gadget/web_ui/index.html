@@ -65,7 +65,7 @@
     <button class="cover" type="button" data-open-game>
       <span class="cover-tag">1v1 contra Sofía</span>
       <h3>Ta-te-ti</h3>
-      <p>Elegí dificultad y jugá. Sus ojos siguen cada casilla: se achican cuando te ve venir y se encienden en rojo cuando gana.</p>
+      <p>Elegí dificultad y jugá. Tres niveles, del más blando al que no perdona.</p>
       <span class="chips">
         <span class="chip">Fácil · se distrae</span>
         <span class="chip">Normal · juega en serio</span>
@@ -122,11 +122,9 @@
   </div>
 </section>
 
-<!-- The game: the board lies over her face. -->
+<!-- The game: just the board. The device moves its eyes; this surface stays
+     minimal on purpose. -->
 <section class="game" id="gameView" role="dialog" aria-modal="true" aria-labelledby="gameTitle">
-  <div class="game-stage">
-    <div class="stage-face" data-face="game" data-mood="calm"></div>
-  </div>
   <div class="game-ui">
     <div class="game-top">
       <button class="icon-btn" type="button" data-close-game aria-label="Volver">
@@ -134,7 +132,6 @@
       </button>
       <div class="game-title">
         <h1 id="gameTitle">Ta-te-ti</h1>
-        <p>Sus ojos reaccionan a cada jugada</p>
       </div>
       <span class="versus"><b>Vos</b> · Sofía</span>
     </div>

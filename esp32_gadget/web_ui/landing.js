@@ -35,45 +35,31 @@
       '</g></svg>';
   }
 
+  // Only the entrance has a face. The game is a minimal board: the eyes that
+  // react to it are the device's, and this page does not draw them.
   var heroHost = document.querySelector('[data-face="hero"]');
-  var gameHost = document.querySelector('[data-face="game"]');
   heroHost.innerHTML = faceMarkup();
-  gameHost.innerHTML = faceMarkup();
   var hero = heroHost.firstElementChild;
-  var gameFace = gameHost.firstElementChild;
-  var faces = [hero, gameFace];
 
-  function mood(name) {
-    gameFace.dataset.mood = name;
-    if (!document.body.classList.contains("game-open")) hero.dataset.mood = name;
-  }
+  function mood(name) { hero.dataset.mood = name; }
 
+  // The whole eye group drifts, exactly like the firmware's gaze channel.
   function gaze(x, y) {
-    faces.forEach(function (svg) {
-      svg.style.setProperty("--gaze-x", x + "px");
-      svg.style.setProperty("--gaze-y", y + "px");
-    });
-  }
-
-  function gazeAtCell(index) {
-    var col = index % 3;
-    var row = Math.floor(index / 3);
-    gaze((col - 1) * 4, (row - 1) * 3);
+    hero.style.setProperty("--gaze-x", x + "px");
+    hero.style.setProperty("--gaze-y", y + "px");
   }
 
   function blink() {
-    faces.forEach(function (svg) {
-      var m = svg.dataset.mood;
-      if (m === "sleepy" || m === "blink") return;
-      svg.dataset.mood = "blink";
-      setTimeout(function () {
-        if (svg.dataset.mood === "blink") svg.dataset.mood = m;
-      }, 120);
-    });
+    var m = hero.dataset.mood;
+    if (m === "sleepy" || m === "blink") return;
+    hero.dataset.mood = "blink";
+    setTimeout(function () {
+      if (hero.dataset.mood === "blink") hero.dataset.mood = m;
+    }, 120);
   }
 
   function drift() {
-    var m = gameFace.dataset.mood;
+    var m = hero.dataset.mood;
     if (m === "calm" || m === "focus" || m === "bored" || m === "thinking") {
       gaze(Math.round(Math.random() * 6 - 3), Math.round(Math.random() * 4 - 2));
     } else if (m === "sleepy" || m === "dead") {
@@ -328,8 +314,6 @@
         cell.disabled = game.over || game.locked;
       }
       cell.addEventListener("click", function () { play(index); });
-      cell.addEventListener("mouseenter", function () { if (!game.over) gazeAtCell(index); });
-      cell.addEventListener("focus", function () { if (!game.over) gazeAtCell(index); });
       boardEl.appendChild(cell);
     });
   }
@@ -429,7 +413,6 @@
     game = { cells: [null, null, null, null, null, null, null, null, null], over: false, locked: false, diff: game.diff };
     renderBoard();
     say("Tu turno. Elegí una casilla.", "you");
-    mood("calm");
     refreshRecord();
   }
 
@@ -439,16 +422,12 @@
     if (result.mark === "draw") {
       score.draws++;
       say("Empate. Otra, dale.", "buddy", true);
-      mood("sleepy");
     } else if (result.mark === "x") {
       score.you++;
       say("Me ganaste… otra vez no, ¿eh?", "buddy", true);
-      mood("sad");
-      setTimeout(function () { if (game.over) mood("bored"); }, 1500);
     } else {
       score.buddy++;
       say("¡Gané! Te leí la jugada.", "buddy", true);
-      mood("anger");
     }
     saveScore();
     refreshRecord();
@@ -461,7 +440,6 @@
 
   function place(index, mark) {
     game.cells[index] = mark;
-    gazeAtCell(index);
     renderBoard();
     var result = winnerOf(game.cells);
     if (result) {
@@ -474,18 +452,16 @@
   function play(index) {
     if (game.over || game.locked || game.cells[index]) return;
     game.locked = true;
-    mood("focus");
     say("Mm…", "you");
     if (place(index, "x")) {
       game.locked = false;
       return;
     }
-    // Sofia answers after a beat. The eyes are the clock: thinking, then move.
-    mood("thinking");
+    // Sofia answers after a beat, and the device is the one that shows her
+    // thinking.
     say("Dejame pensar…", "buddy", true);
     setTimeout(function () {
       var pick = buddyPick();
-      mood(pick === 4 ? "alert" : "focus");
       if (!place(pick, "o")) {
         game.locked = false;
         var threats = LINES.filter(function (line) {
@@ -494,7 +470,6 @@
           return mine === 2 && hers === 0;
         }).length;
         say(threats ? "Te vi venir. No tan rápido." : "Tu turno. Sorprendeme.", "you");
-        mood(threats ? "alert" : "calm");
         // The cells were rebuilt while the board was still locked; without this
         // repaint every empty cell stays disabled and the game dead-ends after
         // one exchange.
@@ -509,7 +484,6 @@
         other.setAttribute("aria-pressed", other === button);
       });
       game.diff = button.dataset.diff;
-      mood("thinking");
       say("Dificultad " + button.firstChild.textContent + ". Nueva partida.", "buddy");
       setTimeout(reset, 700);
     });
@@ -524,7 +498,6 @@
     gameOpener = opener || document.activeElement;
     closeMenu();
     document.body.classList.add("game-open");
-    mood("calm");
     reset();
     document.querySelector("[data-close-game]").focus();
   }
@@ -532,7 +505,6 @@
   function closeGame() {
     if (!document.body.classList.contains("game-open")) return;
     document.body.classList.remove("game-open");
-    mood("calm");
     if (gameOpener && gameOpener.focus) gameOpener.focus();
   }
 
