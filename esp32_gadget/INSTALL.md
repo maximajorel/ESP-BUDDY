@@ -316,7 +316,7 @@ filtró. Es lo único que separa a cualquiera de pedirle cosas al agente.
 
 | Dirección | Qué hay | ¿Pide contraseña? |
 |---|---|---|
-| `http://192.168.4.1/` | La entrada pública. Ahí va a vivir el **selector de pantalla** y los juegos que hacen reaccionar al buddy. Hoy avisa que está en camino. | No |
+| `http://192.168.4.1/` | La entrada pública: la cara de Sofía, el **selector de pantalla** en un menú a pantalla completa y el ta-te-ti. | No |
 | `http://192.168.4.1/admin` | **Todas las configuraciones**: pantalla, luz, juegos, música, red, Sofía, sistema y cuenta. | Sí |
 | `http://192.168.4.1/login` | La puerta del panel. | — |
 

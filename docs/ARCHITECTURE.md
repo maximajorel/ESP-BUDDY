@@ -59,8 +59,14 @@ selector de pantalla y los juegos. La regla de qué pide sesión y qué no está
 `admin_auth.cpp` (`adminRequiresSession`), no repartida por los handlers:
 
 - **Protegido**: toda página bajo `/admin` y todo verbo que escribe bajo `/api/`.
-- **Público**: `/`, `/login`, los assets, `POST /api/session` y las lecturas
-  (`GET /api/status`, `/api/scan`, `/api/spotify`, `/api/session`).
+- **Público**: `/`, `/login`, los assets, `POST /api/session`, las lecturas
+  (`GET /api/status`, `/api/scan`, `/api/spotify`, `/api/session`) y una sola
+  escritura: `POST /api/screen`.
+
+`POST /api/screen` es la excepción deliberada (`adminIsPublicWrite`): el selector
+de pantalla vive fuera del login y lo único que puede hacer es cambiar qué
+muestra el panel. No toca credenciales, red ni almacenamiento, y se compara
+exacto: una barra de más o cualquier otro verbo vuelve a pedir sesión.
 
 La autenticación se aplica en el **transporte** (`net.cpp`), nunca dentro de
 `netHandleApi`, porque la consola serie llama al dispatcher en proceso y llegar al
@@ -174,8 +180,11 @@ valor que otro módulo escribe no se duplica en `Settings`.
 1. Escribí un `static ApiResult apiX(const String &body)` en `net.cpp` y un
    `static JsonDocument parseBody(...)` con el guard común.
 2. Registralo en la tabla de rutas `GET/POST` correspondiente.
-3. Si el panel lo usa, actualizá `web_ui/app.js` **y** corré
+3. Si el panel o la entrada pública lo usan, actualizá `web_ui/app.js` o
+   `web_ui/landing.js`, y corré
    `python tools/pack_web.py esp32_gadget/web_ui esp32_gadget/web_assets.h`.
+   El mock (`tools/mock_gadget_api.py`) tiene que reflejar la misma regla de
+   acceso que el transporte; si no, la prueba sin placa miente.
 4. Probá el endpoint sin red con `api GET /api/...` desde la consola.
 
 ### Una regla nueva con prueba
