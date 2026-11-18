@@ -249,11 +249,19 @@ bool adminIsLoginPath(const char *method, const char *path) {
   return !strcmp(path, "/api/session") || !strcmp(path, "/api/session/logout");
 }
 
+bool adminIsPublicWrite(const char *method, const char *path) {
+  if (!method || !path) return false;
+  // Exact match only. A trailing slash, a different verb or any other write is
+  // not the picker and stays protected.
+  return strcmp(method, "POST") == 0 && strcmp(path, "/api/screen") == 0;
+}
+
 bool adminRequiresSession(const char *method, const char *path) {
   // Fail closed: a request the transport could not describe is never public.
   if (!method || !path) return true;
   if (path[0] != '/') return true;
   if (adminIsLoginPath(method, path)) return false;
+  if (adminIsPublicWrite(method, path)) return false;
 
   if (!strcmp(path, "/admin") || !strcmp(path, "/admin/") ||
       !strcmp(path, "/admin.html") || !strncmp(path, "/admin/", 7)) {
@@ -262,9 +270,9 @@ bool adminRequiresSession(const char *method, const char *path) {
 
   bool isApi = strncmp(path, "/api/", 5) == 0;
   if (isApi && strcmp(method, "GET") != 0) {
-    // Every write verb under /api, including the ones no route knows: answering
-    // a 401 for an unknown path costs nothing and an unauthenticated write is
-    // never allowed to reach the dispatcher.
+    // Every other write verb under /api, including the ones no route knows:
+    // answering a 401 for an unknown path costs nothing and an unauthenticated
+    // write can only reach the one endpoint named above.
     return true;
   }
   return false;

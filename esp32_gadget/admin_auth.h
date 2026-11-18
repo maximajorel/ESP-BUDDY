@@ -142,3 +142,8 @@ bool adminRequiresSession(const char *method, const char *path);
 // Public endpoints that change the session itself. They are the two exceptions
 // the rule above allows, named once so the transport and the test agree.
 bool adminIsLoginPath(const char *method, const char *path);
+
+// The one public write: `POST /api/screen`, which only changes what the panel
+// shows. It exists because the screen picker lives outside the login, and it is
+// matched exactly so a trailing slash or any other write stays protected.
+bool adminIsPublicWrite(const char *method, const char *path);

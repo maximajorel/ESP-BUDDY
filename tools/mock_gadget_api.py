@@ -232,6 +232,17 @@ class Handler(BaseHTTPRequestHandler):
             )
             return
 
+        # The one public write, exactly like the firmware's transport: it only
+        # changes what the glass shows, so the picker works without a session.
+        if path == "/api/screen":
+            index = body.get("index")
+            if not isinstance(index, int) or not 0 <= index < len(STATE["names"]):
+                self._fail(400, "Indice de pantalla fuera de rango")
+                return
+            STATE["screen"] = index
+            self._json(200, {"ok": True})
+            return
+
         # Every other write is protected, exactly like the firmware's transport.
         if not self._authed():
             self._unauthorized()
@@ -352,15 +363,6 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/panel/colors":
-            self._json(200, {"ok": True})
-            return
-
-        if path == "/api/screen":
-            index = body.get("index")
-            if not isinstance(index, int) or not 0 <= index < len(STATE["names"]):
-                self._fail(400, "Indice de pantalla fuera de rango")
-                return
-            STATE["screen"] = index
             self._json(200, {"ok": True})
             return
 

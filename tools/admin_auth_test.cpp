@@ -341,6 +341,15 @@ static void testRoutes() {
       // Public session endpoints.
       {"POST", "/api/session", false, "logging in cannot require being logged in"},
       {"POST", "/api/session/logout", false, "logging out is idempotent"},
+      // The one public write: the screen picker lives outside the login.
+      {"POST", "/api/screen", false,
+       "choosing what the glass shows needs no session"},
+      {"POST", "/api/screen/", true,
+       "the public write is compared exactly"},
+      {"POST", "/api/press", true,
+       "a button press is not the picker"},
+      {"POST", "/api/screens/order", true,
+       "reordering screens is configuration, not the picker"},
       // Everything that mutates.
       {"POST", "/api/wifi", true, "WiFi credentials"},
       {"POST", "/api/ap", true, "access point credentials"},
