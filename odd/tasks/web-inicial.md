@@ -61,11 +61,16 @@ sin sección "También en la web" ni aclaraciones de sesión.
 
 ## Tasks
 
-- T1 · S1 · Regla pública para `POST /api/screen` con su caso en el test de rutas · commit 1
-- T2 · S1, S6 · Landing nueva en `index.html` + estilos en `styles.css` · commit 2
-- T3 · S2, S1 · Lanzador a pantalla completa con apps y grilla de pantallas leída de `/api/status` · commit 3
-- T4 · S3, S5 · Ta-te-ti con tres dificultades y cara reactiva (mirada, párpados, poses) · commit 4
-- T5 · S1-S6 · Empaquetado, documentación y verificación (tests, build) · commit 5
+- T1 · S1 · Regla pública para `POST /api/screen` con su caso en el test de rutas · 5be0e0d
+- T2 · S1, S6 · Landing nueva en `index.html` + estilos en `styles.css` · f19a36f
+- T3 · S2, S1 · Lanzador a pantalla completa con apps y grilla de pantallas leída de `/api/status` · f19a36f
+- T4 · S3, S5 · Ta-te-ti con tres dificultades y cara reactiva (mirada, párpados, poses) · f19a36f
+- T5 · S1-S6 · Empaquetado, documentación y verificación (tests, build) · f19a36f
+
+Corte de revisión: la entrega web va en un solo commit porque el artefacto
+generado (`web_assets.h`, ~4300 líneas de diff) domina el recuento; el código
+propio ronda las 1400 líneas (HTML, CSS y JS). Separarlo dejaría commits cuya
+página no carga o cuyos assets no coinciden con `verify_assets`.
 
 ## Log
 
@@ -91,3 +96,21 @@ pantalla completa con las pantallas en grilla.
 
 L6: La cara del navegador replica gestos del panel, pero no lee su estado real:
 el firmware todavía no publica la pose. Queda anotado como límite explícito.
+
+L7 (evidencia de T1-T5):
+- `python tools/run_tests.py` → 27 suites en verde, `web_assets.h` sin problemas.
+- `admin_auth_test`: 113 checks, 0 fallas; el rojo previo fue exactamente
+  "POST /api/screen: got protected want public".
+- Firmware compilado con el FQBN real: exit 0, 47% de flash, 1499714 bytes.
+- Sin placa: el panel se manejó con `tools/mock_gadget_api.py` y Chromium
+  headless por CDP. Sin errores de consola. `scrollWidth == clientWidth == 430`.
+  El menú abre a pantalla completa (430), la grilla lista las pantallas,
+  `POST /api/screen` cambia el equipo y el carrusel sigue el cambio.
+- Ta-te-ti: en Difícil, 6 partidas autojugadas contra movimientos aleatorios,
+  6 victorias del buddy y 0 derrotas; el récord sobrevive al recargar.
+- El mock quedó alineado con la regla de acceso: `/api/screen` público,
+  `/api/settings` y `/api/screens/order` siguen respondiendo 401.
+
+L8 (límites declarados): la cara es una réplica de gestos, no un espejo de la
+pose del firmware; el pill dice "En línea" (conexión) y no "En vivo". El mock
+todavía lista 6 pantallas (le falta CONFIG), desvío previo a esta entrega.
