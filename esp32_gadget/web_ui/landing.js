@@ -211,6 +211,24 @@
     });
   }
 
+  // The face lives on the device; this page only names a mood from the closed
+  // vocabulary the firmware knows. An older build without the endpoint must not
+  // break the game, so failures are swallowed.
+  var BUDDY_SCREEN = 5;  // SCREEN_BUDDY in screens.h
+  var screenBeforeGame = null;
+
+  function face(mood, ms) {
+    api("POST", "/api/face", { mood: mood, ms: ms || 0 }).catch(function () {});
+  }
+
+  function setDeviceScreen(id) {
+    if (!device.loaded || device.current === id) return Promise.resolve();
+    return api("POST", "/api/screen", { index: id }).then(function () {
+      device.current = id;
+      markCurrent();
+    }).catch(function () {});
+  }
+
   ui.carousel.addEventListener("click", function (event) {
     var button = event.target.closest("[data-screen]");
     if (button) chooseScreen(Number(button.dataset.screen));
@@ -422,12 +440,15 @@
     if (result.mark === "draw") {
       score.draws++;
       say("Empate. Otra, dale.", "buddy", true);
+      face("sleepy", 5000);
     } else if (result.mark === "x") {
       score.you++;
       say("Me ganaste… otra vez no, ¿eh?", "buddy", true);
+      face("happy", 5000);
     } else {
       score.buddy++;
       say("¡Gané! Te leí la jugada.", "buddy", true);
+      face("anger", 6000);
     }
     saveScore();
     refreshRecord();
@@ -453,6 +474,7 @@
     if (game.over || game.locked || game.cells[index]) return;
     game.locked = true;
     say("Mm…", "you");
+    face("focus", 1500);
     if (place(index, "x")) {
       game.locked = false;
       return;
@@ -460,8 +482,10 @@
     // Sofia answers after a beat, and the device is the one that shows her
     // thinking.
     say("Dejame pensar…", "buddy", true);
+    face("thinking", 1500);
     setTimeout(function () {
       var pick = buddyPick();
+      face("alert", 1200);
       if (!place(pick, "o")) {
         game.locked = false;
         var threats = LINES.filter(function (line) {
@@ -498,6 +522,11 @@
     gameOpener = opener || document.activeElement;
     closeMenu();
     document.body.classList.add("game-open");
+    // The eyes that react are the device's, so the game asks for the face and
+    // gives the owner's screen back when it closes.
+    screenBeforeGame = device.loaded ? device.current : null;
+    setDeviceScreen(BUDDY_SCREEN);
+    face("focus", 4000);
     reset();
     document.querySelector("[data-close-game]").focus();
   }
@@ -505,6 +534,11 @@
   function closeGame() {
     if (!document.body.classList.contains("game-open")) return;
     document.body.classList.remove("game-open");
+    face("", 0);
+    if (screenBeforeGame !== null) {
+      setDeviceScreen(screenBeforeGame);
+      screenBeforeGame = null;
+    }
     if (gameOpener && gameOpener.focus) gameOpener.focus();
   }
 

@@ -99,7 +99,7 @@ la grilla:
 - T5 · S1-S6 · Empaquetado, documentación y verificación (tests, build) · f19a36f
 - T6 · S3, S5, S8 · Juego minimalista y celdas homogéneas · 710d70f
 - T7 · S7 · El equipo reacciona: `POST /api/face` público, `buddy_game.h` con su
-  test, overlay en `screen_buddy.cpp`, y la web nombrando ánimos · pendiente
+  test, overlay en `screen_buddy.cpp`, y la web nombrando ánimos · 17c9285 + este commit
 
 Corte de revisión: la entrega web va en un solo commit porque el artefacto
 generado (`web_assets.h`, ~4300 líneas de diff) domina el recuento; el código
