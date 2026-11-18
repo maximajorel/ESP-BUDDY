@@ -41,7 +41,8 @@ estado en NVS (`settings.*`), servicios (`net.*`, `spotify_*`, `imu.*`,
 - `screen_*.cpp` — una pantalla cada uno; no hablan HTTP ni escriben NVS.
 - `*.h` puros — `rotation_policy`, `game_difficulty`, `game_hits`,
   `config_value`, `screen_name`, `screen_order`, `steer_solve`,
-  `tap_window`, `text_fold`, `buddy_face`, `buddy_anim`, `ui_color`.
+  `tap_window`, `text_fold`, `buddy_face`, `buddy_anim`, `buddy_sleep`,
+  `buddy_event`, `ui_color`.
 
 El mapa completo de módulos, la regla de dependencias, las claves de NVS y el
 paso a paso para agregar una pantalla, un comando o un endpoint están en
@@ -86,8 +87,9 @@ compilación también cuenta como fallo: un test que deja de compilar no puede
 seguir pareciendo verde.
 
 La lógica que se prueba vive en archivos puros (`*.h` sin Arduino) a propósito:
-`rotation_policy.h`, `game_difficulty.h`, `spotify_parse.cpp`, `buddy_face.h` y
-derivados. Si agregás una regla nueva, esa es la forma de fijarla sin la placa.
+`rotation_policy.h`, `game_difficulty.h`, `spotify_parse.cpp`, `buddy_face.h`,
+`buddy_sleep.h`, `buddy_event.h` y derivados. Si agregás una regla nueva, esa es
+la forma de fijarla sin la placa.
 
 
 El panel no tiene MISO, así que no se puede leer la pantalla por software. La

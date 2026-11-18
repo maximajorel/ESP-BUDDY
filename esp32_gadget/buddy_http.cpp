@@ -25,10 +25,19 @@
 static WiFiClient s_plain;
 static WiFiClientSecure s_tls;
 static bool s_tlsReady = false;
+// The long-poll gets its own socket on purpose. `GET /events?wait=25` holds the
+// read for up to 25 s, and sharing one client would make the panel's `ask` wait
+// behind it — a button that does nothing for half a minute. Two sockets cost one
+// extra TLS session when the bridge is https, and buy a face that answers while
+// the event stream is parked.
+static WiFiClient s_eventsPlain;
+static WiFiClientSecure s_eventsTls;
+static bool s_eventsTlsReady = false;
 // The poller task and the panel's ask run in different tasks and share those
 // clients. Without this lock a POST could interleave with a GET on the same
 // socket and corrupt the session, which would look like a flaky bridge.
 static SemaphoreHandle_t s_lock = nullptr;
+static SemaphoreHandle_t s_eventsLock = nullptr;
 
 static bool lockTransport() {
   if (!s_lock) return false;
@@ -43,6 +52,7 @@ void buddyHttpBegin() {
   // Created once at boot: both transports come from different tasks, and a lazy
   // creation could race the poller against the first ask from the panel.
   if (!s_lock) s_lock = xSemaphoreCreateMutex();
+  if (!s_eventsLock) s_eventsLock = xSemaphoreCreateMutex();
 }
 
 static void ensureTls() {
@@ -50,6 +60,13 @@ static void ensureTls() {
   s_tls.useBuiltinCACertBundle();
   s_tls.setHandshakeTimeout(BUDDY_TLS_HANDSHAKE_S);
   s_tlsReady = true;
+}
+
+static void ensureEventsTls() {
+  if (s_eventsTlsReady) return;
+  s_eventsTls.useBuiltinCACertBundle();
+  s_eventsTls.setHandshakeTimeout(BUDDY_TLS_HANDSHAKE_S);
+  s_eventsTlsReady = true;
 }
 
 static void reset(BuddyHttpResult *out) {
@@ -65,21 +82,34 @@ static void reset(BuddyHttpResult *out) {
 // when the URL could not be built, which is the only failure that has no
 // transport error code.
 static bool beginRequest(HTTPClient &http, const BuddyUrl &url, const char *path,
-                         const char *token) {
+                         const char *token, uint32_t readTimeoutMs = 0,
+                         bool events = false) {
   char endpoint[BUDDY_URL_MAX + 24];
   if (!buddyUrlJoin(url, path, endpoint, sizeof(endpoint))) return false;
 
   http.setReuse(true);
-  http.setTimeout(BUDDY_HTTP_TIMEOUT_MS);
+  if (readTimeoutMs > 0) {
+    // The long-poll is the only request allowed to wait longer than the tunnel
+    // budget: the bridge holds the answer on purpose. Connect stays short, so a
+    // dead host is still detected in five seconds.
+    http.setTimeout((uint16_t)readTimeoutMs);
+  } else {
+    http.setTimeout(BUDDY_HTTP_TIMEOUT_MS);
+  }
   http.setConnectTimeout(BUDDY_HTTP_TIMEOUT_MS);
   http.setUserAgent(BUDDY_HTTP_USER_AGENT);
 
   bool begun;
   if (url.tls) {
-    ensureTls();
-    begun = http.begin(s_tls, endpoint);
+    if (events) {
+      ensureEventsTls();
+      begun = http.begin(s_eventsTls, endpoint);
+    } else {
+      ensureTls();
+      begun = http.begin(s_tls, endpoint);
+    }
   } else {
-    begun = http.begin(s_plain, endpoint);
+    begun = http.begin(events ? s_eventsPlain : s_plain, endpoint);
   }
   if (!begun) return false;
 
@@ -109,12 +139,14 @@ static bool hostReachable(const BuddyUrl &url, BuddyHttpResult *out) {
 // negative code is a transport failure, and on TLS that usually means the
 // handshake was rejected — mbedtls keeps the reason, so it travels to the panel
 // instead of being swallowed.
-static void absorb(HTTPClient &http, int code, bool tls, BuddyHttpResult *out) {
+static void absorb(HTTPClient &http, int code, bool tls, BuddyHttpResult *out,
+                   WiFiClientSecure *tlsClient = nullptr) {
   if (code <= 0) {
     out->transportError = code;
     if (tls) {
+      WiFiClientSecure *client = tlsClient ? tlsClient : &s_tls;
       char detail[sizeof(out->detail)];
-      int err = s_tls.lastError(detail, sizeof(detail));
+      int err = client->lastError(detail, sizeof(detail));
       // The raw reason always travels; only the X509 range is a rejected
       // certificate. A connect that never got to a handshake reports -1, and that
       // is "nobody answered", not a certificate problem.
@@ -144,6 +176,38 @@ void buddyHttpGetState(const BuddyUrl &url, const char *token, BuddyHttpResult *
   }
   http.end();
   unlockTransport();
+}
+
+// GET <base>/events?since=<seq>&wait=<sec>. The bridge holds the request for up
+// to `waitSec` and answers `[]` when nothing happened, which is a timeout and
+// not a failure. The read budget is `waitSec` plus a margin: a client that gives
+// up before the bridge answers turns every long-poll into a retry loop.
+void buddyHttpGetEvents(const BuddyUrl &url, const char *token, int since,
+                        int waitSec, BuddyHttpResult *out) {
+  if (!out) return;
+  reset(out);
+  if (waitSec < 1) waitSec = 1;
+  if (waitSec > BUDDY_EVENTS_MAX_WAIT_SEC) waitSec = BUDDY_EVENTS_MAX_WAIT_SEC;
+  if (since < 0) since = 0;
+  char path[48];
+  snprintf(path, sizeof(path), "/events?since=%d&wait=%d", since, waitSec);
+  uint32_t readMs = (uint32_t)(waitSec + BUDDY_EVENTS_MARGIN_SEC) * 1000u;
+
+  if (!s_eventsLock) return;
+  if (xSemaphoreTake(s_eventsLock, pdMS_TO_TICKS(BUDDY_TRANSPORT_LOCK_MS)) !=
+      pdTRUE) {
+    return;
+  }
+
+  HTTPClient http;
+  if (hostReachable(url, out) &&
+      beginRequest(http, url, path, token, readMs, true)) {
+    int code = http.GET();
+    absorb(http, code, url.tls, out, &s_eventsTls);
+    if (code == 200) out->body = http.getString();
+  }
+  http.end();
+  xSemaphoreGive(s_eventsLock);
 }
 
 void buddyHttpAsk(const BuddyUrl &url, const char *token, const String &json,

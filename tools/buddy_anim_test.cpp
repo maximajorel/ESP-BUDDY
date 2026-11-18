@@ -39,15 +39,15 @@ int main() {
   check("the same state is always shown",
         buddyShownState(BUDDY_IDLE, BUDDY_IDLE, 0) == BUDDY_IDLE);
 
-  printf("-- bored ladder\n");
-  BuddyPose p = buddyPose(BUDDY_BORED, 1000, 1000, seed);
-  check("0-20 s is neutral and open", !p.closed && p.lid < 0.02f);
-  p = buddyPose(BUDDY_BORED, 30000, 30000, seed);
-  check("20-60 s drifts the gaze", p.gazeX != 0.0f || p.lid > 0.05f);
-  p = buddyPose(BUDDY_BORED, 70000, 70000, seed);
-  check("60-120 s drops the lids", p.lid >= 0.3f && !p.closed);
-  p = buddyPose(BUDDY_BORED, 130000, 130000, seed);
-  check("120 s+ is asleep", p.closed);
+  printf("-- asleep ladder (the local sleep clock drives its bands)\n");
+  BuddyPose p = buddyPose(BUDDY_ASLEEP, 1000, 1000, seed);
+  check("under 60 s it is neutral and open", !p.closed && p.lid < 0.02f);
+  p = buddyPose(BUDDY_ASLEEP, 70000, 70000, seed);
+  check("60-120 s drifts the gaze", p.gazeX != 0.0f || p.lid > 0.05f);
+  p = buddyPose(BUDDY_ASLEEP, 130000, 130000, seed);
+  check("120-180 s drops the lids", p.lid >= 0.3f && !p.closed);
+  p = buddyPose(BUDDY_ASLEEP, 190000, 190000, seed);
+  check("180 s+ is asleep", p.closed);
 
   printf("-- new pose channels default to off\n");
   {
@@ -76,16 +76,16 @@ int main() {
     check("it relaxes after the happy second", !late.happy && late.lid > 0.05f);
   }
 
-  printf("-- breathing while idle and bored\n");
+  printf("-- breathing while idle and asleep\n");
   {
     float bobA = buddyPose(BUDDY_IDLE, 0, 0, seed).bob;
     float bobB = buddyPose(BUDDY_IDLE, 0, 900, seed).bob;
     check("idle breathes", fabsf(bobA - bobB) > 0.2f);
-    float asleep = buddyPose(BUDDY_BORED, 130000, 130000, seed).bob;
-    float asleepLater = buddyPose(BUDDY_BORED, 130000, 131500, seed).bob;
-    check("the bored face breathes until it falls asleep",
-          fabsf(buddyPose(BUDDY_BORED, 70000, 70000, seed).bob -
-                buddyPose(BUDDY_BORED, 70000, 71500, seed).bob) > 0.3f);
+    float asleep = buddyPose(BUDDY_ASLEEP, 190000, 190000, seed).bob;
+    float asleepLater = buddyPose(BUDDY_ASLEEP, 190000, 191500, seed).bob;
+    check("the face breathes until it falls asleep",
+          fabsf(buddyPose(BUDDY_ASLEEP, 70000, 70000, seed).bob -
+                buddyPose(BUDDY_ASLEEP, 70000, 71500, seed).bob) > 0.3f);
     check("and then it stops completely", asleep == 0.0f && asleepLater == 0.0f);
   }
 
@@ -287,11 +287,11 @@ int main() {
 
   printf("-- the asleep face freezes\n");
   {
-    // S12/S17: bored past two minutes the eyes shut and nothing moves at all.
+    // Deep sleep past three minutes: the eyes shut and nothing moves at all.
     bool moved = false;
     for (uint32_t t = 0; t < 6000; t += 50) {
-      BuddyPose a = buddyPose(BUDDY_BORED, 130000, 1000 + t, seed);
-      BuddyPose b = buddyPose(BUDDY_BORED, 130000, 1050 + t, seed);
+      BuddyPose a = buddyPose(BUDDY_ASLEEP, 190000, 1000 + t, seed);
+      BuddyPose b = buddyPose(BUDDY_ASLEEP, 190000, 1050 + t, seed);
       if (!a.closed) moved = true;
       if (fabsf(a.bob) > 0.001f || fabsf(a.gazeX) > 0.001f ||
           fabsf(a.gazeY) > 0.001f) {
@@ -299,8 +299,8 @@ int main() {
       }
       if (a.blink || b.blink) moved = true;
     }
-    BuddyPose asleep = buddyPose(BUDDY_BORED, 130000, 5000, seed);
-    check("deep boredom shuts the eyes", asleep.closed);
+    BuddyPose asleep = buddyPose(BUDDY_ASLEEP, 190000, 5000, seed);
+    check("deep sleep shuts the eyes", asleep.closed);
     check("and nothing at all happens there", !moved);
   }
 

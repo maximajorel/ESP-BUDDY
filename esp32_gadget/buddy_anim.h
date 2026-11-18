@@ -494,21 +494,24 @@ static inline BuddyPose buddyPose(BuddyState state, uint32_t ageMs,
       }
       break;
     }
-    case BUDDY_BORED:
-      if (ageMs < 20000) {
-        // Neutral, normal blink.
-      } else if (ageMs < 60000) {
-        // Gaze drifts to the sides and comes back, with a micro sigh.
+    case BUDDY_ASLEEP:
+      // `ageMs` is the time since the last IMU stimulus, so the bands are the
+      // sleep thresholds in `buddy_sleep.h` and not arbitrary ones: light sleep
+      // at 60 s, no more lids at 120 s, eyes shut at 180 s.
+      if (ageMs < 60000) {
+        // Just nodded off: still looks present, normal blink.
+      } else if (ageMs < 120000) {
+        // Light sleep: gaze drifts to the sides and comes back, with a sigh.
         p.gazeX = sinf((float)ageMs * 0.0009f) * 14.0f;
         p.lid = 0.08f;
-      } else if (ageMs < 120000) {
+      } else if (ageMs < 180000) {
         // Starts to nod: the lids drop and bounce.
         p.lid = 0.35f;
         p.gazeY = sinf((float)ageMs * 0.002f) * 3.0f;
       } else {
-        // Deeply bored: the eyes shut and the face stops. No breath, no drift,
+        // Deep sleep: the eyes shut and the face stops. No breath, no drift,
         // no blink. The owner asked for exactly that ("que ahi no pase nada");
-        // motion is what wakes it, not time.
+        // motion is what wakes it, and now the bridge cannot argue.
         p.closed = true;
         p.bob = 0.0f;
         genericBlink = false;
@@ -536,7 +539,7 @@ static inline BuddyPose buddyPose(BuddyState state, uint32_t ageMs,
     p.bob = breath * 1.0f;
   }
 
-  if (state == BUDDY_BORED) {
+  if (state == BUDDY_ASLEEP) {
     // The breath never stops, not even asleep: it is the only motion left.
     float breath = buddyBreath(nowMs);
     p.bob = p.closed ? breath * 2.0f : breath * 1.2f;

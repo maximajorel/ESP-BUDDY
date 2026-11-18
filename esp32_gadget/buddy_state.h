@@ -14,7 +14,9 @@
 
 enum BuddyState {
   BUDDY_IDLE,
-  BUDDY_BORED,        // idle for >180 s, the bridge says so
+  // Local only: the board's own sleep clock (`buddy_sleep.h`) picks this pose.
+  // It is never a wire name — sleeping is patience, and patience is the body's.
+  BUDDY_ASLEEP,
   BUDDY_THINKING,
   BUDDY_TOOL,
   BUDDY_WAITING,
@@ -30,7 +32,9 @@ enum BuddyState {
 static inline BuddyState buddyStateFromName(const char *name) {
   if (!name || !*name) return BUDDY_IDLE;
   if (strcmp(name, "idle") == 0) return BUDDY_IDLE;
-  if (strcmp(name, "bored") == 0) return BUDDY_BORED;
+  // `bored` left the contract with the local sleep clock. A bridge that still
+  // sends it lands on idle through the fallback below, which is exactly right:
+  // the server reports what it is doing, it does not order a nap.
   if (strcmp(name, "thinking") == 0) return BUDDY_THINKING;
   if (strcmp(name, "tool") == 0) return BUDDY_TOOL;
   if (strcmp(name, "waiting") == 0) return BUDDY_WAITING;
@@ -39,10 +43,18 @@ static inline BuddyState buddyStateFromName(const char *name) {
   return BUDDY_IDLE;
 }
 
+// The console's `buddyface <name>` can also pin the local-only sleep ladder,
+// which no bridge ever sends but the probe needs to dump. Everything else is the
+// wire vocabulary, unchanged.
+static inline BuddyState buddyFacePinFromName(const char *name) {
+  if (name && strcmp(name, "asleep") == 0) return BUDDY_ASLEEP;
+  return buddyStateFromName(name);
+}
+
 static inline const char *buddyStateWireName(BuddyState state) {
   switch (state) {
     case BUDDY_IDLE: return "idle";
-    case BUDDY_BORED: return "bored";
+    case BUDDY_ASLEEP: return "asleep";
     case BUDDY_THINKING: return "thinking";
     case BUDDY_TOOL: return "tool";
     case BUDDY_WAITING: return "waiting";

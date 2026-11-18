@@ -47,6 +47,11 @@ struct BuddyView {
   bool ledValid;
   uint32_t ageMs;       // age of the snapshot
   uint32_t stateAgeMs;  // how long the bridge says this state has lasted
+  // How long the bridge says Hermes has been quiet. It is an input to the local
+  // sleep clock, never an order to sleep; `false` for a bridge without the field.
+  float sleepHintSec;
+  bool sleepHintValid;
+  int evSeq;            // cursor for the /events long-poll
   uint32_t revision;
   // Why the link is in the shape it is: the glass can only dim, the panel names
   // the cause (no clock, rejected certificate, Cloudflare, wrong token...).
@@ -61,6 +66,11 @@ bool buddyAsk(const char *prompt, char *err, size_t errCap);
 
 // Console diagnostic: the geometry of the last face drawn (no readable bus).
 void buddyDumpDraw();
+
+// Console diagnostic: the local sleep clock — the stage, the board's silence, the
+// bridge's hint and the /events cursor. The decision is the board's, so this is
+// the only way to prove a shake woke it without a photograph.
+void buddyDumpSleep();
 
 // What the face is feeling right now, so the rear bead can match it: anger is
 // red, deep sleep is a faint ember, everything else follows the bridge phase.

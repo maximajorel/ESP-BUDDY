@@ -11,7 +11,9 @@
 #include "buddy_face.h"
 #include "buddy_http.h"
 #include "buddy_imu.h"
+#include "buddy_event.h"
 #include "buddy_link.h"
+#include "buddy_sleep.h"
 #include "buddy_url.h"
 #include "gfx.h"
 #include "imu.h"
@@ -25,6 +27,15 @@
 // --- snapshot shared with the poller task -----------------------------------
 
 #define BUDDY_POLL_MS 1000
+// The long-poll: how long the bridge may hold the request, and how many failures
+// in a row turn the task back into the 1 s poll. Three is the number in the
+// bridge contract: one dropped long-poll is normal, three is a transport that
+// cannot be trusted with the event stream.
+#define BUDDY_EV_WAIT_SEC 25
+#define BUDDY_EV_FAILS_TO_POLL 3
+// A bridge without /events is probed this often. Not every poll: the 404 costs a
+// full round trip and an old bridge will never grow the endpoint while we ask.
+#define BUDDY_EV_PROBE_MS 60000L
 // The same budget the Spotify poller gives its TLS work (spotify.cpp): a
 // handshake over https spends stack in mbedtls, and 8 KB was sized for plain
 // HTTP on the LAN.
@@ -46,6 +57,11 @@ struct BuddySnapshot {
   uint32_t fetchedAt = 0;
   uint32_t stateSinceMs = 0;  // millis of the first observation of this state
   uint32_t sinceAgeMs = 0;    // state age reported by the bridge at fetchedAt
+  // `sleep_hint` is the bridge's silence, not an order: the local sleep clock in
+  // buddy_sleep.h takes the MIN of this and the board's own silence.
+  float sleepHintSec = 0.0f;
+  bool sleepHintValid = false;
+  int evSeq = -1;             // cursor for the /events long-poll
   uint32_t revision = 0;
   // Why the last attempt ended the way it did. The glass has one "no signal"
   // face, but the panel can say which of the several causes it was.
@@ -68,6 +84,29 @@ static uint32_t s_pokeUntil = 0;
 static uint32_t s_surpriseUntil = 0;
 static BuddyImu s_imu;
 static uint32_t s_imuAt = 0;
+// The board's own patience, and whether the last frame drew the asleep pose.
+// Zero-initialised means "moved at boot": the first idle stretch starts counting
+// at power-on instead of waiting for a shake that may never come.
+static BuddySleepClock s_sleep;
+static bool s_asleepDrawn = false;
+// The `/events` cursor: the last `seq` applied. It lives in the poller task and
+// nowhere else, so it needs no lock. -1 means "no /state yet", which asks the ring
+// for everything it still holds instead of replaying it from `since=0`.
+static int s_evCursor = -1;
+// The bridge's own cursor, from the last /state. When it goes backwards the ring
+// restarted, and our cursor has to follow instead of waiting for a number that
+// will never arrive.
+static int s_evServerSeq = -1;
+// Reaction deadlines set by an event (or by a poll that saw the same change), so
+// the frame can paint them before the bridge's own answer arrives. 0 = nothing
+// queued.
+static uint32_t s_listenUntil = 0;
+static uint32_t s_doneWinUntil = 0;
+static uint32_t s_doneReliefUntil = 0;
+// An event carried a state but not the HUD's phase or the bead's colour, so one
+// /state follows to take them from the bridge instead of leaving the last ones on
+// the glass. Same task, so no lock is needed.
+static bool s_stateRefresh = false;
 static bool s_pin = false;
 static BuddyState s_pinState = BUDDY_IDLE;
 static uint32_t s_pinAge = 0;
@@ -107,7 +146,8 @@ static void publish(BuddyState state, const char *label, int active,
                     bool online, bool configured, uint32_t stateAgeMs = 0,
                     BuddyPhase phase = BUDDY_PHASE_IDLE,
                     BuddyRgb led = {0, 180, 255}, bool ledValid = false,
-                    BuddyLink link = BUDDY_LINK_OK, const char *detail = nullptr) {
+                    BuddyLink link = BUDDY_LINK_OK, const char *detail = nullptr,
+                    float sleepHintSec = -1.0f, int evSeq = -1) {
   if (!s_lock) return;
   if (xSemaphoreTake(s_lock, pdMS_TO_TICKS(50)) != pdTRUE) return;
   const char *safeDetail = detail ? detail : "";
@@ -118,7 +158,8 @@ static void publish(BuddyState state, const char *label, int active,
                  s_snap.led.r != led.r || s_snap.led.g != led.g ||
                  s_snap.led.b != led.b || s_snap.link != link ||
                  strcmp(s_snap.linkDetail, safeDetail) != 0 ||
-                 strcmp(s_snap.label, label ? label : "") != 0;
+                 strcmp(s_snap.label, label ? label : "") != 0 ||
+                 (sleepHintSec >= 0.0f && sleepHintSec != s_snap.sleepHintSec);
   if (s_snap.state != state) {
     s_snap.stateSinceMs = millis();
     s_snap.sinceAgeMs = stateAgeMs;
@@ -134,10 +175,29 @@ static void publish(BuddyState state, const char *label, int active,
   s_snap.online = online;
   s_snap.configured = configured;
   s_snap.link = link;
+  // A negative hint means "the bridge did not send one this time"; it keeps the
+  // previous value instead of un-sleeping the face on a malformed body.
+  if (sleepHintSec >= 0.0f) {
+    s_snap.sleepHintSec = sleepHintSec;
+    s_snap.sleepHintValid = true;
+  }
+  if (evSeq >= 0) s_snap.evSeq = evSeq;
   snprintf(s_snap.linkDetail, sizeof(s_snap.linkDetail), "%s", safeDetail);
   s_snap.fetchedAt = millis();
   if (changed) s_snap.revision++;
   xSemaphoreGive(s_lock);
+}
+
+// The state the snapshot already holds, for the one decision that needs the
+// previous value: a `done` that arrived from a poll instead of an event carries
+// no `prev`, and the snapshot is where the previous state still lives.
+static BuddyState snapshotState() {
+  BuddyState st = BUDDY_UNCONFIGURED;
+  if (s_lock && xSemaphoreTake(s_lock, pdMS_TO_TICKS(50)) == pdTRUE) {
+    st = s_snap.state;
+    xSemaphoreGive(s_lock);
+  }
+  return st;
 }
 
 // GET /state with the bridge token. The transport picks the scheme: plain HTTP
@@ -152,6 +212,7 @@ static void publishFailure(BuddyLink link, const char *detail, bool configured) 
 // the transport moved, the contract did not.
 static void parseState(JsonDocument &doc) {
   const char *name = doc["state"] | "";
+  BuddyState next = buddyStateFromName(name);
   const char *label = doc["label"] | "";
   int active = doc["active"] | 0;
   // `since` is an epoch float. The device clock may not be synced yet, so only
@@ -199,36 +260,70 @@ static void parseState(JsonDocument &doc) {
   // folded label too (it is the same text the owner reads on the device).
   char folded[BUDDY_LABEL_MAX + 1];
   textFoldAscii(clean, folded, sizeof(folded));
-  publish(buddyStateFromName(name), folded, active, true, true, age, phase, led,
-          ledValid, BUDDY_LINK_OK);
+  // `sleep_hint` is Hermes' silence in seconds and `ev_seq` is the cursor for
+  // /events. Both are optional: an old bridge simply omits them, and then the
+  // sleep clock runs on the board's own silence alone.
+  float hint = doc["sleep_hint"] | -1.0f;
+  if (!(hint >= 0.0f) || hint > 86400.0f) hint = -1.0f;
+  int evSeq = doc["ev_seq"] | -1;
+  if (evSeq < 0) evSeq = -1;
+  // The cursor for the long-poll. A bridge without the field leaves it alone, and
+  // then the event task keeps asking from the last known seq.
+  if (evSeq >= 0) {
+    s_evServerSeq = evSeq;
+    s_evCursor = evSeq;
+  }
+  // The poll path gets the same graded `done` as the event stream: the previous
+  // state is whatever the snapshot already held. Without this, a bridge without
+  // /events would show one flat celebration for both endings.
+  if (next == BUDDY_DONE) {
+    BuddyState prev = snapshotState();
+    if (prev == BUDDY_TOOL) {
+      s_doneWinUntil = millis() + 1500;
+    } else if (prev == BUDDY_THINKING) {
+      s_doneReliefUntil = millis() + 1500;
+    }
+  }
+  publish(next, folded, active, true, true, age, phase, led, ledValid,
+          BUDDY_LINK_OK, nullptr, hint, evSeq);
 }
 
-static void pollOnce() {
+// Resolves the stored target both transports need. Returns false when the reason
+// was already published — unconfigured, a URL that cannot be parsed, a clock that
+// cannot validate a certificate — so the caller only has to wait and try again.
+static bool resolveTarget(BuddyUrl *url, char *token, size_t tokenCap) {
   char urlText[SETTINGS_BUDDY_URL_MAX + 1];
-  char token[SETTINGS_BUDDY_TOKEN_MAX + 1];
   settingsGetBuddyUrl(urlText, sizeof(urlText));
-  settingsGetBuddyToken(token, sizeof(token));
+  settingsGetBuddyToken(token, tokenCap);
   if (!urlText[0] || !token[0]) {
     publish(BUDDY_UNCONFIGURED, "", 0, false, false, 0, BUDDY_PHASE_IDLE,
             BuddyRgb{0, 180, 255}, false, BUDDY_LINK_UNCONFIGURED);
-    return;
+    return false;
   }
 
   // A stored URL that cannot be used is its own cause: the request would fail
   // anyway and "sin señal" would hide the typo the owner has to fix.
-  BuddyUrl url;
-  BuddyUrlError urlErr = buddyUrlParse(urlText, &url);
+  BuddyUrlError urlErr = buddyUrlParse(urlText, url);
   if (urlErr != BUDDY_URL_OK) {
     publishFailure(BUDDY_LINK_BAD_URL, buddyUrlErrorName(urlErr), true);
-    return;
+    return false;
   }
 
   // HTTPS validates the certificate against the clock. Without SNTP the chain
   // reads as not-yet-valid, so say "no clock" instead of blaming the network.
-  if (url.tls && !netStatus().timeSynced) {
+  if (url->tls && !netStatus().timeSynced) {
     publishFailure(BUDDY_LINK_NO_TIME, "sntp", true);
-    return;
+    return false;
   }
+  return true;
+}
+
+// One `GET /state`. Also the only place that learns the `/events` cursor, which
+// is why the two paths share it.
+static void pollOnce() {
+  BuddyUrl url;
+  char token[SETTINGS_BUDDY_TOKEN_MAX + 1];
+  if (!resolveTarget(&url, token, sizeof(token))) return;
 
   BuddyHttpResult res;
   buddyHttpGetState(url, token, &res);
@@ -258,11 +353,181 @@ static void pollOnce() {
   publishFailure(link, res.detail[0] ? res.detail : "", true);
 }
 
+// --- the event stream -------------------------------------------------------
+//
+// Set by an event so the frame can paint the reaction before the bridge's own
+// answer arrives. 0 means nothing is queued.
+// Applies an event's state at once and keeps everything else the snapshot had,
+// then asks for one fresh /state. The face reacts in milliseconds while the HUD's
+// phase and the bead's colour still come from the bridge instead of a guess.
+static void applyEventState(BuddyState state, const char *label, uint32_t ageMs) {
+  int active = 0;
+  BuddyPhase phase = BUDDY_PHASE_IDLE;
+  BuddyRgb led = {0, 180, 255};
+  bool ledValid = false;
+  float hint = -1.0f;
+  int evSeq = -1;
+  if (s_lock && xSemaphoreTake(s_lock, pdMS_TO_TICKS(50)) == pdTRUE) {
+    active = s_snap.active;
+    phase = s_snap.phase;
+    led = s_snap.led;
+    ledValid = s_snap.ledValid;
+    if (s_snap.sleepHintValid) hint = s_snap.sleepHintSec;
+    evSeq = s_snap.evSeq;
+    xSemaphoreGive(s_lock);
+  }
+  publish(state, label, active, true, true, ageMs, phase, led, ledValid,
+          BUDDY_LINK_OK, nullptr, hint, evSeq);
+  s_stateRefresh = true;
+}
+
+// Decodes the array. Returns the number of events applied, or -1 when the body
+// was not the array the bridge promises (a 200 with HTML is a captive portal, and
+// it must not touch the face).
+static int parseEvents(const String &body, uint32_t nowMs) {
+  JsonDocument doc;
+  if (deserializeJson(doc, body)) return -1;
+  JsonArray arr = doc.as<JsonArray>();
+  if (arr.isNull()) return -1;
+
+  int applied = 0;
+  for (JsonVariant item : arr) {
+    JsonObject ev = item.as<JsonObject>();
+    if (ev.isNull()) continue;
+    BuddyEvent e;
+    e.seq = ev["seq"] | -1;
+    e.kind = buddyEventKindFromName(ev["event"] | "");
+    // A retried long-poll hands back events from before the last one; the cursor
+    // is the only thing that keeps the face from replaying them.
+    if (!buddyEventApply(s_evCursor, e.seq)) continue;
+
+    if (e.kind == BUDDY_EVENT_ASK_ACCEPTED) {
+      // "Te escuche": without it the button feels dead until the first thinking.
+      s_listenUntil = nowMs + 800;
+      s_dirty = true;
+    } else if (e.kind == BUDDY_EVENT_STATE || e.kind == BUDDY_EVENT_LABEL) {
+      const char *name = ev["state"] | "";
+      const char *rawLabel = ev["label"] | "";
+      char clean[BUDDY_LABEL_MAX + 1];
+      char folded[BUDDY_LABEL_MAX + 1];
+      buddyLabelClean(rawLabel, clean, sizeof(clean));
+      textFoldAscii(clean, folded, sizeof(folded));
+      BuddyState state = buddyStateFromName(name);
+      if (e.kind == BUDDY_EVENT_STATE) {
+        const char *prevName = ev["prev"] | "";
+        e.prev = *prevName ? buddyStateFromName(prevName) : BUDDY_UNCONFIGURED;
+        if (state == BUDDY_DONE) {
+          // The direction of the change is the emotion: a finished tool is a win,
+          // a finished thought is relief.
+          if (buddyDoneReaction(e.prev, 0) == BUDDY_DONE_WIN) {
+            s_doneWinUntil = nowMs + 1500;
+          } else if (buddyDoneReaction(e.prev, 0) == BUDDY_DONE_RELIEF) {
+            s_doneReliefUntil = nowMs + 1500;
+          }
+        }
+      }
+      applyEventState(state, folded, 0);
+      s_dirty = true;
+    }
+    s_evCursor = e.seq;
+    applied++;
+  }
+  return applied;
+}
+
+// One long-poll. Returns 0 when the transport worked (including the `[]` that
+// means "nothing new"), 1 when /events is missing on this bridge, and 2 on a
+// transport failure.
+static int eventsOnce(uint32_t nowMs) {
+  BuddyUrl url;
+  char token[SETTINGS_BUDDY_TOKEN_MAX + 1];
+  if (!resolveTarget(&url, token, sizeof(token))) return 2;
+
+  // The ring restarted: its cursor is older than ours, so `since` would ask for
+  // events we will never see. Adopt the bridge's position and carry on.
+  if (s_evServerSeq >= 0 && buddyEventsNeedResync(s_evServerSeq, s_evCursor)) {
+    s_evCursor = s_evServerSeq;
+  }
+
+  BuddyHttpResult res;
+  int since = s_evCursor < 0 ? 0 : s_evCursor;
+  buddyHttpGetEvents(url, token, since, BUDDY_EV_WAIT_SEC, &res);
+
+  if (res.status == 404) return 1;
+  if (res.status != 200) return 2;
+  if (parseEvents(res.body, nowMs) < 0) return 2;
+  return 0;
+}
+
+// Which transport the task is using. The poll never disappears: it is the
+// fallback for a bridge without /events, a network that cannot hold a socket, and
+// the resync after the bridge restarts its ring.
+enum BuddyNetMode { BUDDY_NET_EVENTS, BUDDY_NET_POLL };
+
 static void pollTask(void *arg) {
   (void)arg;
+  BuddyNetMode mode = BUDDY_NET_EVENTS;
+  int fails = 0;
+  uint32_t lastPoll = 0;
+  uint32_t lastProbe = 0;
+
   for (;;) {
-    pollOnce();
-    vTaskDelay(pdMS_TO_TICKS(BUDDY_POLL_MS));
+    uint32_t now = millis();
+
+    if (mode == BUDDY_NET_EVENTS) {
+      // A cursor the bridge no longer knows (it restarted) answers `[]`, so the
+      // only way forward is one /state, which also restores the cursor.
+      if (s_evCursor < 0) {
+        pollOnce();
+        // Still no cursor: this bridge does not speak `ev_seq`, so there is
+        // nothing to long-poll from. Stay on the 1 s poll and probe later.
+        if (s_evCursor < 0) {
+          mode = BUDDY_NET_POLL;
+          lastProbe = millis();
+        }
+        vTaskDelay(pdMS_TO_TICKS(BUDDY_POLL_MS));
+        continue;
+      }
+      int rc = eventsOnce(now);
+      if (rc == 1) {
+        mode = BUDDY_NET_POLL;
+        lastProbe = millis();
+        continue;
+      }
+      if (rc == 2) {
+        if (++fails >= BUDDY_EV_FAILS_TO_POLL) {
+          mode = BUDDY_NET_POLL;
+          lastProbe = millis();
+        }
+        vTaskDelay(pdMS_TO_TICKS(BUDDY_POLL_MS));
+        continue;
+      }
+      fails = 0;
+      if (s_stateRefresh) {
+        // The face already reacted to the event; this only brings the HUD's phase
+        // and the bead's colour up to date, which the event does not carry.
+        s_stateRefresh = false;
+        pollOnce();
+      }
+      // `[]` (a timeout or a restarted ring) answers immediately, so without this
+      // the loop would hammer the bridge; and a delivery that lands mid-request
+      // must not be invisible until the next wait.
+      vTaskDelay(pdMS_TO_TICKS(50));
+      continue;
+    }
+
+    // BUDDY_NET_POLL: one /state per second, and a probe for /events now and
+    // then so a firmware upgrade on the bridge is picked up without a reboot.
+    if ((uint32_t)(now - lastPoll) >= BUDDY_POLL_MS) {
+      lastPoll = now;
+      pollOnce();
+      fails = 0;
+    }
+    if ((uint32_t)(now - lastProbe) >= (uint32_t)BUDDY_EV_PROBE_MS) {
+      lastProbe = now;
+      mode = BUDDY_NET_EVENTS;
+    }
+    vTaskDelay(pdMS_TO_TICKS(50));
   }
 }
 
@@ -355,6 +620,9 @@ void buddyGetView(BuddyView *out) {
   out->ledValid = s_snap.ledValid;
   out->revision = s_snap.revision;
   out->link = s_snap.link;
+  out->sleepHintSec = s_snap.sleepHintSec;
+  out->sleepHintValid = s_snap.sleepHintValid;
+  out->evSeq = s_snap.evSeq;
   snprintf(out->linkDetail, sizeof(out->linkDetail), "%s", s_snap.linkDetail);
   snprintf(out->label, sizeof(out->label), "%s", s_snap.label);
   if (s_snap.fetchedAt) out->ageMs = millis() - s_snap.fetchedAt;
@@ -514,7 +782,7 @@ static void drawZzz(uint32_t nowMs, uint32_t eyeRgb) {
 // --- HUD: the functional channel --------------------------------------------
 //
 // A 20 px badge in the top-right corner. The face may be ambiguous (focused vs
-// bored); the HUD never lies. `busy` is motion, `ok` is a check with a green
+// nodding off); the HUD never lies. `busy` is motion, `ok` is a check with a green
 // twinkle after a 250 ms pop, `ask` pulses, and idle leaves the glass clean.
 // The synthesis (busy -> idle on Desktop/Telegram, where the bridge never sends
 // `ok`) and the previous-phase guard live in buddy_phase.h so a host test can
@@ -901,19 +1169,33 @@ bool buddyTick(uint32_t nowMs) {
   bool animate = (uint32_t)(nowMs - s_lastDraw) >= BUDDY_FRAME_MS;
   if (!news && !animate) return false;
 
-  // The ball is an idle toy: it exists only while the glass shows the idle or
-  // bored ladder and the bridge says nobody is working. It stays toggled on
-  // across a busy spell, but is not simulated or drawn until she is free.
-  bool ballGame = s_ballOn && view.phase == BUDDY_PHASE_IDLE &&
-                  (shown == BUDDY_IDLE || shown == BUDDY_BORED);
-
   uint32_t shownAge = s_shownBaseAge + (uint32_t)(nowMs - s_shownAt);
-  BuddyPose pose = buddyPose(shown, shownAge, nowMs, s_seed);
-  if (ballGame && pose.closed) {
-    // Deep boredom would shut the eyes exactly while the owner is bouncing the
-    // toy at them. With the ball on the glass she is playing, not asleep.
-    pose = buddyPose(BUDDY_IDLE, shownAge, nowMs, s_seed);
-  }
+
+  // The physical layer comes first: the IMU is local, and a shake has to count as
+  // a stimulus in the same frame it happens instead of waiting for the next one.
+  // That is the fix for "lo muevo y se despierta, lo dejo y se vuelve a dormir al
+  // toque": the server no longer has a vote on when the body is tired.
+  BuddyImuPose ip = readImu(nowMs, s_ballOn);
+  if (ip.wake) buddySleepStimulus(&s_sleep, nowMs);
+
+  // Sleeping is patience, and patience is local: MIN(the bridge's silence, the
+  // board's silence) from buddy_sleep.h. Only a state that is not asking for
+  // attention may doze: `thinking` or `waiting` is the server working, and the
+  // ball is the owner playing, so neither is a nap.
+  BuddySleepStage sleepStage = buddySleepClockStage(
+      &s_sleep, nowMs, view.sleepHintSec, view.sleepHintValid);
+  bool ballGame = s_ballOn && view.phase == BUDDY_PHASE_IDLE &&
+                  shown == BUDDY_IDLE;
+  bool canSleep =
+      view.online && !ballGame && (shown == BUDDY_IDLE || shown == BUDDY_DONE);
+  bool asleepNow = canSleep && sleepStage != BUDDY_SLEEP_AWAKE;
+
+  // `shown` stays the bridge's state (the HUD and the bead follow it); the sleep
+  // ladder is a pose, not a state the server ever names.
+  BuddyState poseState = asleepNow ? BUDDY_ASLEEP : shown;
+  uint32_t poseAge =
+      asleepNow ? buddySleepClockIdleMs(&s_sleep, nowMs) : shownAge;
+  BuddyPose pose = buddyPose(poseState, poseAge, nowMs, s_seed);
   if (shown == BUDDY_TOOL && (int32_t)(s_surpriseUntil - nowMs) > 0) {
     pose.surprise = true;
     pose.rx = 50;
@@ -921,12 +1203,39 @@ bool buddyTick(uint32_t nowMs) {
     pose.lid = 0.0f;
   }
 
+  // `done` used to be one animation for every arrival. The direction of the
+  // change is the emotion: a tool that finished is a win (a bigger, faster
+  // bounce), a thought that finished is relief (a calm landing with heavy lids).
+  // Both come from the `prev` field the bridge started sending in `state` events.
+  if (shown == BUDDY_DONE) {
+    if ((int32_t)(s_doneWinUntil - nowMs) > 0) {
+      pose.happy = true;
+      pose.bob = sinf((float)nowMs * 0.012f) * 3.0f;
+    } else if ((int32_t)(s_doneReliefUntil - nowMs) > 0) {
+      pose.happy = true;
+      pose.lid = 0.3f;
+      pose.bob = sinf((float)nowMs * 0.0016f) * 1.0f;
+    }
+  }
+
+  // The button's "te escuche": one lid drop, centred. Without it a press feels
+  // dead for as long as it takes the run to report its first `thinking`, and that
+  // second is exactly what reads as a broken button.
+  if ((int32_t)(s_listenUntil - nowMs) > 0) {
+    pose.lid = 0.35f;
+    pose.gazeX = 0.0f;
+    pose.gazeY = 0.0f;
+    pose.blink = false;
+    pose.closed = false;
+    pose.happy = false;
+  }
+
   // Physical layer: the IMU is local and the bridge never sees it. A missing
   // sensor reads zero, which the feed ignores, and every reaction expires, so
   // the face can always come back to the state pose.
   // The toy owns the shake channel whenever it is toggled on: bouncing it is
-  // play, never a dizzy spell, even while the ball waits out a busy state.
-  BuddyImuPose ip = readImu(nowMs, s_ballOn);
+  // play, never a dizzy spell, even while the ball waits out a busy state. The
+  // sample was already read at the top of the frame.
   pose.gazeX += ip.gazeX;
   pose.gazeY += ip.gazeY;
   if (ip.lid > pose.lid) pose.lid = ip.lid;
@@ -946,18 +1255,35 @@ bool buddyTick(uint32_t nowMs) {
     pose.ry = 60;
   }
   if (ip.faceDown) pose.lid = 0.6f;
-  // Lifted off the table, or the board moved while the face was asleep: wake
-  // with a start, then let the state take over again.
-  // Waking: seed the lid shut once so the opening travels through the ease
-  // instead of popping, then let the state take over.
-  if (ip.wake) {
-    if (pose.closed && !s_waking) {
-      s_waking = true;
-      buddyPoseFilterSeedLid(&s_filter, 1.0f);
-    }
-    if (pose.closed || shown == BUDDY_BORED) buddyWakeEyes(&pose);
-  } else {
+  // Waking from the local sleep: seed the lid shut once so the opening travels
+  // through the ease instead of popping, then open. This fires on the frame the
+  // clock says awake, which a shake produces immediately because the stimulus
+  // above already reset the silence. The shape of the wake depends on what woke
+  // it: a shake with nothing behind it is a yawn, being spoken to is a startle,
+  // and an approval is a straight look at the owner.
+  if (asleepNow) {
+    s_asleepDrawn = true;
     s_waking = false;
+  } else if (s_asleepDrawn) {
+    s_asleepDrawn = false;
+    s_waking = true;
+    buddyPoseFilterSeedLid(&s_filter, 1.0f);
+    BuddyWakeReaction wake = buddyWakeReaction(BUDDY_IDLE, shown);
+    buddyWakeEyes(&pose);
+    if (wake == BUDDY_WAKE_YAWN) {
+      // Nothing happened: the eyes open heavy and it takes a breath to focus.
+      pose.surprise = false;
+      pose.rx = 0;
+      pose.ry = 0;
+      pose.lid = 0.45f;
+    } else if (wake == BUDDY_WAKE_ATTEND) {
+      // Somebody is waiting on an answer: straight to the owner, no startle.
+      pose.surprise = false;
+      pose.rx = 0;
+      pose.ry = 40;
+      pose.gazeX = 0.0f;
+      pose.gazeY = 0.0f;
+    }
   }
   if (poke) pose.happy = true;
 
@@ -973,10 +1299,10 @@ bool buddyTick(uint32_t nowMs) {
     bug.x = 40.0f + (float)((nowMs / 20u) % 240u);
     bug.y = 70.0f;
   }
-  // "Idle" here means awake and not being talked to: the idle face and the bored
-  // ladder (which is exactly when the owner expects her to find something to
-  // play with). A face whose eyes are shut is asleep, and sleeps through it.
-  bool awakeIdle = (shown == BUDDY_IDLE || shown == BUDDY_BORED) && !pose.closed;
+  // "Idle" here means awake and not being talked to: the idle face is exactly
+  // when the owner expects her to find something to play with. A face on the
+  // sleep ladder, or one whose eyes are already shut, sleeps through it.
+  bool awakeIdle = shown == BUDDY_IDLE && !asleepNow && !pose.closed;
   bool ballVisible = ballGame && !pose.closed;
   bool quiet =
       awakeIdle && view.phase == BUDDY_PHASE_IDLE && !poke && !ballVisible;
@@ -1020,8 +1346,8 @@ bool buddyTick(uint32_t nowMs) {
   }
   if (gameMood != BUDDY_GAME_NONE) buddyGameApplyPose(&pose, gameMood);
 
-  // The sleeping letters need both halves: eyes shut (deep boredom) and the
-  // board lying on the table for a while.
+  // The sleeping letters need both halves: eyes shut (deep sleep) and the board
+  // lying on the table for a while.
   s_zzz = pose.closed && ip.lying && ip.lyingMs > 6000;
   s_mood = buddyMoodFrom(pose.closed, ip.angry, pose.tremble);
   // The rear bead follows the game too: red when she wins, a faint ember for a
@@ -1088,6 +1414,20 @@ void buddyDumpDraw() {
                   s_draw.rx[i], s_draw.ry[i], s_draw.extentY[i],
                   s_draw.deg[i]);
   }
+}
+
+void buddyDumpSleep() {
+  BuddyView view;
+  buddyGetView(&view);
+  uint32_t now = millis();
+  BuddySleepStage stage = buddySleepClockStage(&s_sleep, now, view.sleepHintSec,
+                                              view.sleepHintValid);
+  static const char *kStage[] = {"awake", "light", "deep"};
+  Serial.printf(
+      "sleep stage=%s idle=%lums hint=%s%.1fs cursor=%d asleep=%d\n",
+      kStage[stage & 3], (unsigned long)buddySleepClockIdleMs(&s_sleep, now),
+      view.sleepHintValid ? "" : "none/", (double)view.sleepHintSec, view.evSeq,
+      s_asleepDrawn ? 1 : 0);
 }
 
 // One sentence per cause, because that is what the owner gets in the panel

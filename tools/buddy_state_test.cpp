@@ -35,7 +35,9 @@ static void checkText(const char *what, const char *got, const char *want) {
 int main() {
   printf("-- state names from the bridge\n");
   checkInt("idle", buddyStateFromName("idle"), BUDDY_IDLE);
-  checkInt("bored", buddyStateFromName("bored"), BUDDY_BORED);
+  // `bored` is gone from the contract: the bridge no longer orders a nap, and an
+  // old bridge that still sends it must land on idle, not on some hidden state.
+  checkInt("bored is no longer a wire name", buddyStateFromName("bored"), BUDDY_IDLE);
   checkInt("thinking", buddyStateFromName("thinking"), BUDDY_THINKING);
   checkInt("tool", buddyStateFromName("tool"), BUDDY_TOOL);
   checkInt("waiting", buddyStateFromName("waiting"), BUDDY_WAITING);
@@ -48,9 +50,18 @@ int main() {
   checkInt("names are case sensitive on purpose",
            buddyStateFromName("IDLE"), BUDDY_IDLE);
 
+  printf("-- the console can pin the local-only sleep ladder\n");
+  checkInt("asleep is not a wire name", buddyStateFromName("asleep"), BUDDY_IDLE);
+  checkInt("but buddyface can still pin it", buddyFacePinFromName("asleep"),
+           BUDDY_ASLEEP);
+  checkInt("everything else stays the wire vocabulary",
+           buddyFacePinFromName("tool"), BUDDY_TOOL);
+  checkInt("and a null pin is idle", buddyFacePinFromName(nullptr), BUDDY_IDLE);
+
   printf("-- the wire name round-trips\n");
   checkText("idle", buddyStateWireName(BUDDY_IDLE), "idle");
-  checkText("bored", buddyStateWireName(BUDDY_BORED), "bored");
+  checkText("asleep never travels to the bridge", buddyStateWireName(BUDDY_ASLEEP),
+            "asleep");
   checkText("tool", buddyStateWireName(BUDDY_TOOL), "tool");
   checkText("done", buddyStateWireName(BUDDY_DONE), "done");
   checkText("offline", buddyStateWireName(BUDDY_OFFLINE), "offline");
