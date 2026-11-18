@@ -30,6 +30,7 @@ cámara es el comando `dump`, que escribe el framebuffer en ASCII.
 | `buddy_life.txt` | La cara de Sofía: microsaccadas, cejas neutrales, anatomía de enojo/mareo y el tilde sintetizado del HUD. |
 | `buddy_ball_gravity.txt` | La pelotita de Sofía con gravedad calibrada: `imufake` inclina a un lado y al otro y `buddydraw` muestra hacia dónde cae y a qué velocidad. |
 | `calibration_config.txt` | El wizard de calibración en CONFIG: lo abre el botón del panel, se completan centro + cuatro direcciones con `imufake`, y se verifica `steer.calibrated` y los ejes en `/api/status`. |
+| `buddy_game_face.txt` | El ánimo del ta-te-ti web llega a la cara: `focus` (lid 0.18), `thinking` (parpadeo asimétrico), `anger` (`hot=1.00`, `grow=1.12`, ojos inclinados ±8°), `sleepy` (ojo cerrado) y el limpiado que devuelve la pose del bridge. |
 | `buddy_ball.txt` | La cara feliz con squircle y curva bajo los ojos, la pelotita roja empujada por `imufake`, sus rebotes y el doble toque que la prende y apaga. Requiere el bridge en idle. |
 | `console_smoke.txt` | Ejercita todos los comandos de consola que movió el refactor (toques, menú, rotación, ejes, LED, buddy, IMU falso, assets, fuente, parser y framebuffer). Deja el reloj en 12 h si el doble toque entra: volvé a tocarlo en RELOJ para restaurar 24 h. |
 | `all_screens.txt` | `dump` de las siete pantallas, una por una. |

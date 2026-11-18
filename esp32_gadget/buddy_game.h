@@ -116,6 +116,8 @@ static inline void buddyGameApplyPose(BuddyPose *p, BuddyGameMood mood) {
 
   p->closed = false;
   p->blink = false;
+  // The unpaired face is dim by design; a game reaction is not a dim face.
+  p->dim = false;
   p->surprise = false;
   p->happy = false;
   p->hot = 0.0f;

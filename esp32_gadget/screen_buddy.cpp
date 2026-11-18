@@ -851,12 +851,19 @@ bool buddyTick(uint32_t nowMs) {
   BuddyView view;
   buddyGetView(&view);
 
+  // The web game's overlay, read once: it decides whether the badge is allowed
+  // to cover the eyes and, further down, which mood the pose carries.
+  BuddyGameMood gameMood = buddyGameCurrent(&s_game, nowMs);
+  bool gameFace = gameMood != BUDDY_GAME_NONE;
+
   // No bridge to read: the badge replaces the eyes entirely. It is checked before
   // the pose, the anti-flicker hold and the HUD, because all three are pictures of
   // a bridge state the device does not have. The HUD's own step is skipped, not
   // reset, so the phase animation picks up where it was when the link returns; and
   // the pose ease clamps its dt to 200 ms, so the way back does not jump.
-  if (buddyShowsLinkBadge(view.link)) {
+  // While the game is playing the badge steps aside: the owner asked for a face,
+  // and the bridge's absence is still visible the moment the game ends.
+  if (buddyShowsLinkBadge(view.link) && !gameFace) {
     bool badgeAnimate = (uint32_t)(nowMs - s_lastDraw) >= BUDDY_FRAME_MS;
     bool badgeNews = s_dirty || !s_badge || view.revision != s_drawnRevision;
     if (!badgeNews && !badgeAnimate) return false;
@@ -1007,7 +1014,6 @@ bool buddyTick(uint32_t nowMs) {
 
   // The web game's overlay wins while it lasts: the browser cannot describe a
   // pose, it names a mood, and buddy_game.h owns what that mood means.
-  BuddyGameMood gameMood = buddyGameCurrent(&s_game, nowMs);
   if (gameMood != s_gameDrawn) {
     s_gameDrawn = gameMood;
     s_dirty = true;

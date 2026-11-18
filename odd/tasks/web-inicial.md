@@ -161,3 +161,20 @@ L10 (evidencia de T7):
   `alert`; ganar manda `anger` (6000 ms); cerrar limpia el ánimo y devuelve la
   pantalla que el dueño tenía (0).
 - Firmware compilado con el FQBN real.
+
+L11 (evidencia en la placa, 2026-11-18):
+- Flasheado en COM5 con el FQBN real: `Hash of data verified`.
+- `tools/probes/buddy_game_face.txt` sobre la placa: los cinco ánimos llegan al
+  renderizador. `buddydraw` después de `focus` da `lid=0.18`; después de `anger`,
+  `mood=angry grow=1.12 hot=1.00 push=17` con ojos en ±8° (el `dump` los muestra
+  inclinados); después de `sleepy`, `lid=1.00` y `ry=4`; al limpiar vuelve a la
+  pose del bridge. `thinking` se aplica (lid base 0, la asimetría vive en
+  lidL/lidR, que `buddydraw` no imprime).
+- HTTP real sin cookie: `POST /api/face` → `{"ok":true}`, `POST /api/screen` → 200,
+  `POST /api/settings` → 401.
+- Página servida por la placa en `http://192.168.100.75/`: 7 pantallas en el orden
+  guardado, abre el juego, cambia el equipo a SOFIA (5) y la partida corre sin
+  errores de consola.
+- Hallazgo del día: con el bridge configurado pero caído, la placa muestra la
+  placa de estado en vez de los ojos, así que el ánimo no se veía. El overlay
+  ahora aparta ese cartel mientras dura el juego; el cartel vuelve al terminar.

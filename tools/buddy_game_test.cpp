@@ -108,12 +108,14 @@ static BuddyPose posed(BuddyGameMood mood) {
   p.closed = true;
   p.blink = true;
   p.surprise = true;
+  p.dim = true;
   buddyGameApplyPose(&p, mood);
   return p;
 }
 
 static void testPoses() {
   BuddyPose focus = posed(BUDDY_GAME_FOCUS);
+  check("S7 every mood clears the unpaired dim", !focus.dim);
   check("S7 focus narrows the lids", focus.lid > 0.15f && focus.lid < 0.25f);
   check("S7 focus opens the eyes", !focus.closed && !focus.blink);
   check("S7 focus drops the hot tint", focus.hot == 0.0f);

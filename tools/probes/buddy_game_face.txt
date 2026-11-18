@@ -1,0 +1,30 @@
+# La cara del equipo reacciona al ta-te-ti.
+#
+# El ánimo viaja como un nombre (`focus`, `thinking`, `anger`...) a la API
+# pública y el firmware lo aplica como overlay temporal sobre la pose. La prueba
+# sin cámara es `buddydraw`: cuenta la anatomía que el renderizador usó. El enojo
+# tiene que dar `hot=1.00`, `grow>1.05` y párpados inclinados en sentidos
+# opuestos; "pensando" tiene que dar el parpadeo asimétrico (lidL ~0, lidR ~0.42);
+# al limpiar el ánimo la cara vuelve a la pose del bridge.
+#
+# La pantalla tiene que ser SOFIA para que la cara se dibuje.
+boot 4
+api GET /api/status
+api POST /api/screen {"index":5}
+sleep 1500
+api POST /api/face {"mood":"focus","ms":8000}
+sleep 500
+buddydraw
+api POST /api/face {"mood":"thinking","ms":8000}
+sleep 700
+buddydraw
+api POST /api/face {"mood":"anger","ms":8000}
+sleep 700
+buddydraw
+dump
+api POST /api/face {"mood":"sleepy","ms":8000}
+sleep 700
+buddydraw
+api POST /api/face {"mood":"","ms":0}
+sleep 900
+buddydraw
