@@ -1,0 +1,50 @@
+# Sueño local y /events: lo que se puede probar sin cámara.
+#
+# El reloj de sueño es local, así que la prueba honesta es leerlo. `buddysleep`
+# imprime el stage (awake/light/deep), el silencio medido por el IMU, el
+# `sleep_hint` que manda el bridge y el cursor de /events.
+#
+# Lo que hay que mirar, en orden:
+#   1. `idle=` sube mientras la placa está quieta y el stage pasa a light a los
+#      60 s y a deep a los 180 s (no hay que esperar 3 minutos: `imufake` con
+#      una pose quieta deja el reloj corriendo, y el stage se puede forzar con
+#      `buddyface asleep 200` para dumpear la escalera).
+#   2. Un golpe al IMU (`imufake` con una sacudida) tiene que dejar `idle=0` en
+#      la lectura siguiente: eso es el "se despierta al instante".
+#   3. `hint=` tiene que aparecer con un número cuando el bridge manda
+#      `sleep_hint`, y con `none/` cuando no.
+#   4. `cursor=` distinto de -1: el long-poll arrancó.
+screen 5
+sleep 1500
+buddysleep
+
+# Sacudida PRIMERO: `buddyface` devuelve antes del bloque de sueño, así que pinear
+# una cara antes de medir deja el reloj congelado y la lectura miente.
+imufake 2.4 0 0 300 0 0
+sleep 400
+buddysleep
+
+# Quieta otra vez: el silencio tiene que volver a crecer desde cero.
+imufake 1 0 0 0 0 0
+sleep 2000
+buddysleep
+imureal
+
+# La escalera de sueño, pineada y al final, para dumpear los ojos cerrados.
+buddyface asleep 200
+sleep 500
+buddydraw
+
+# De punta a punta: el panel le pide un run al bridge usando el token guardado en
+# el equipo, así que el ask.accepted y los cambios de estado del run son eventos
+# reales. `cursor` tiene que subir y el estado pasar a thinking/tool y después a
+# done sin que nadie toque la placa.
+buddysleep
+api POST /api/buddy/ask {"prompt":"ok"}
+sleep 2500
+buddysleep
+api GET /api/status
+sleep 6000
+buddysleep
+api GET /api/status
+status

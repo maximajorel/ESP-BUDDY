@@ -1103,6 +1103,11 @@ bool buddyTick(uint32_t nowMs) {
       if ((uint32_t)(nowMs - s_lastDraw) < BUDDY_FRAME_MS) return false;
       s_drawnState = s_pinState;
       BuddyImuPose ip = readImu(nowMs, false);
+      // The pin is not part of the live pose, but it must not freeze the clock
+      // either: with `buddyface` up for twenty seconds the board would keep
+      // counting silence through a shake, and the console would report a sleep
+      // the live path had already broken.
+      if (ip.wake) buddySleepStimulus(&s_sleep, nowMs);
       BuddyPose pose =
           buddyPose(s_pinState, s_pinAge + (nowMs - s_pinStart), nowMs, s_seed);
       if (ip.wake && pose.closed) buddyWakeEyes(&pose);

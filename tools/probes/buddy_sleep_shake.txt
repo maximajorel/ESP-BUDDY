@@ -1,0 +1,19 @@
+# Una sacudida del IMU contra el reloj de sueño local, sin `sleep` de por medio.
+#
+# `imufake 2.4 0 0 300 0 0` es 2.4 g de aceleración lateral y 300 dps de giro: el
+# feed lo lee como movimiento real y arma `wakeUntil` por 4 s, que es lo que
+# despierta la cara sin esperar al bridge. Las tres lecturas seguidas existen para
+# separar "no hubo estímulo" de "el estímulo fue hace rato": si el reloj quedó en
+# cero, siguió en cero, y después vuelve a crecer, el camino está entero.
+screen 5
+sleep 1200
+buddysleep
+imu
+imufake 2.4 0 0 300 0 0
+buddysleep
+buddysleep
+buddysleep
+imufake 1 0 0 0 0 0
+sleep 5000
+buddysleep
+imureal
