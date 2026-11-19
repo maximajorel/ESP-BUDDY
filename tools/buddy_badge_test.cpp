@@ -1,10 +1,10 @@
-// Host-side test for the "no bridge" badge decision (S1 of the link badge).
+// Host-side test for the "no bridge" corner mark decision (S8 of the link badge).
 //
 //   g++ -std=c++17 -O1 -I esp32_gadget tools/buddy_badge_test.cpp -o /tmp/bbt && /tmp/bbt
 //
-// The glass has one badge for "there is no bridge to show". It must appear for
-// every way the link can fail, and never while the bridge is answering: an icon
-// where the eyes belong is a promise the owner reads as "this is broken".
+// The corner has one no-link mark. It must appear for every way the link can fail,
+// and never while the bridge is answering: an alarm where nothing is wrong is a
+// promise the owner reads as broken.
 
 #include <cstdio>
 #include <cstring>
@@ -23,10 +23,10 @@ static void check(const char *what, bool ok) {
 }
 
 int main() {
-  printf("-- a healthy bridge shows the eyes\n");
+  printf("-- a healthy bridge shows the HUD phase\n");
   check("ok shows the face", !buddyShowsLinkBadge(BUDDY_LINK_OK));
 
-  printf("-- every failure shows the badge\n");
+  printf("-- every failure shows the corner mark\n");
   check("offline", buddyShowsLinkBadge(BUDDY_LINK_OFFLINE));
   check("rejected certificate", buddyShowsLinkBadge(BUDDY_LINK_TLS));
   check("cloudflare block", buddyShowsLinkBadge(BUDDY_LINK_BLOCKED));
@@ -47,7 +47,7 @@ int main() {
     if (buddyShowsLinkBadge((BuddyLink)i)) badges++;
   }
   // Two of the nine causes keep the face: ok and unconfigured.
-  check("7 of 9 causes show the badge", badges == 7);
+  check("7 of 9 causes show the mark", badges == 7);
   check("the only face is ok", !buddyShowsLinkBadge((BuddyLink)0));
   check("out-of-range cause is not a badge",
         !buddyShowsLinkBadge((BuddyLink)99));

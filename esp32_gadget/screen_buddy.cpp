@@ -117,7 +117,7 @@ static bool s_phasePinned = false;
 static BuddyPhase s_phasePinValue = BUDDY_PHASE_IDLE;
 static uint32_t s_phasePinUntil = 0;
 static bool s_dirty = true;
-// Whether the plate is currently the no-link badge instead of the face.
+// Whether the corner currently shows the no-link mark instead of the HUD phase.
 static bool s_badge = false;
 // The eased face. The ladders produce a target every frame; this filter is what
 // actually moves the eyes, so no field ever jumps between two frames.
@@ -856,47 +856,63 @@ static void hudAsk(uint32_t nowMs) {
   gfxFillCircle(HUD_CX, HUD_CY + (int)(9.0f * scale), 2, red);
 }
 
-// No bridge: the plate says so instead of showing eyes with nothing behind them.
+// No bridge: the corner says so, and the eyes stay.
 //
-// The arcs are three concentric filled discs with the middle punched out by a
-// black disc one stroke thinner, and then everything below the centre is cleared:
-// what is left is the upper half of each ring, which is the WiFi glyph. The panel
-// has no alpha, so this is cheaper and cleaner than an arc rasteriser, and the
-// owner's colour keeps the badge recognisably hers while the dim shade marks the
-// link as dead.
-#define BUDDY_BADGE_CX 132
-#define BUDDY_BADGE_CY 112
-#define BUDDY_BADGE_STROKE 9
-#define BUDDY_BADGE_MARK_X 212
-#define BUDDY_BADGE_MARK_Y 52
-#define BUDDY_BADGE_MARK_W 20
+// The plate used to lose its whole face to a full-screen WiFi badge. The owner
+// asked for the opposite (L19): keep the eyes and put a phone's WiFi mark in the
+// HUD corner. A dead link is still the one thing he can act on, so the mark keeps
+// the alarm channel the full-screen badge had, and only the size changed.
+#define HUD_WIFI_APEX_Y (HUD_CY + 5)
 
-static void drawLinkBadge(uint32_t nowMs) {
-  gfxClear(GFX_BLACK);
-  uint32_t owner = settingsGetBuddyEyeColor();
-  uint16_t arc = gfxHex(buddyEyeScale(owner, 45));
-  static const int kRadii[3] = {66, 50, 34};
-  for (int i = 0; i < 3; i++) {
-    gfxFillCircle(BUDDY_BADGE_CX, BUDDY_BADGE_CY, kRadii[i], arc);
-    gfxFillCircle(BUDDY_BADGE_CX, BUDDY_BADGE_CY, kRadii[i] - BUDDY_BADGE_STROKE,
-                  GFX_BLACK);
-  }
-  gfxFillRect(BUDDY_BADGE_CX - 70, BUDDY_BADGE_CY + 1, 140, 72, GFX_BLACK);
-  // The dot the arcs radiate from.
-  gfxFillCircle(BUDDY_BADGE_CX, BUDDY_BADGE_CY, BUDDY_BADGE_STROKE, arc);
-  // The alert mark blinks: a steady "!" on a dead screen reads as a hung device,
-  // a slow pulse reads as something to fix. Drawn thick and square instead of with
-  // the 5x7 font, because at this size the font's one-pixel stem reads as a hair
-  // next to the arcs, and its cell would leave the pair visibly off-centre.
-  if ((nowMs % 1700u) < 1200u) {
-    uint16_t hot = gfxHex(BUDDY_EYE_HOT_COLOR);
-    gfxFillRect(BUDDY_BADGE_MARK_X, BUDDY_BADGE_MARK_Y, BUDDY_BADGE_MARK_W, 48, hot);
-    gfxFillCircle(BUDDY_BADGE_MARK_X + BUDDY_BADGE_MARK_W / 2, BUDDY_BADGE_MARK_Y + 62,
-                  11, hot);
+// One band of the fan. The panel has no arc primitive and a 24 px glyph does not
+// deserve one: a pixel belongs to the band when its distance from the apex sits
+// between the two radii and its direction is inside the ±45° wedge, which is
+// exactly the fan a phone draws.
+static void hudWifiBand(int rInner, int rOuter, uint16_t color) {
+  int inner2 = rInner * rInner;
+  int outer2 = rOuter * rOuter;
+  for (int dy = 0; dy <= rOuter; dy++) {
+    for (int dx = -dy; dx <= dy; dx++) {
+      int d2 = dx * dx + dy * dy;
+      if (d2 < inner2 || d2 > outer2) continue;
+      gfxPixel(HUD_CX + dx, HUD_WIFI_APEX_Y - dy, color);
+    }
   }
 }
 
-static void drawHud(BuddyPhase phase, BuddyRgb led, uint32_t nowMs) {  buddyHudStep(&s_hud, phase, nowMs);
+// The muted fan plus a hot slash. The fan is the owner's colour at half light so
+// it never outshines the face two finger-widths away, and the slash pulses slowly
+// because a steady alarm reads as a hung device while a pulse reads as something
+// to fix. The slash is drawn over a black gap: without it the fan looks crossed
+// out instead of cut, which is the phone's way of saying "no connection".
+static void hudLinkDown(uint32_t nowMs) {
+  const int apex = HUD_WIFI_APEX_Y;
+  uint16_t fan = gfxHex(buddyEyeScale(settingsGetBuddyEyeColor(), 50));
+  hudWifiBand(4, 6, fan);
+  hudWifiBand(9, 11, fan);
+  hudWifiBand(14, 16, fan);
+  gfxFillCircle(HUD_CX, apex, 2, fan);
+  const int x0 = HUD_CX - 11, y0 = apex - 3;
+  const int x1 = HUD_CX + 11, y1 = apex - 17;
+  for (int i = -2; i <= 2; i++) gfxLine(x0, y0 + i, x1, y1 + i, GFX_BLACK);
+  float pulse = 0.55f + 0.45f * (0.5f + 0.5f * cosf((float)nowMs * 0.0037f));
+  uint16_t hot =
+      gfxHex(buddyEyeScale(BUDDY_EYE_HOT_COLOR, (int)(pulse * 100.0f)));
+  gfxLine(x0, y0, x1, y1, hot);
+  gfxLine(x0, y0 + 1, x1, y1 + 1, hot);
+}
+
+// The HUD slot: one corner, one meaning. A dead link owns it, because a phase
+// animation describes a bridge the device cannot reach; otherwise it is the
+// phase. The step is skipped rather than reset while offline, so the animation
+// resumes where it was when the link comes back.
+static void drawHud(BuddyPhase phase, BuddyRgb led, bool linkDown,
+                    uint32_t nowMs) {
+  if (linkDown) {
+    hudLinkDown(nowMs);
+    return;
+  }
+  buddyHudStep(&s_hud, phase, nowMs);
   BuddyPhase shown = buddyHudShown(&s_hud, nowMs);
   if (shown == BUDDY_PHASE_BUSY) {
     hudBusy(led, nowMs);
@@ -1152,26 +1168,17 @@ bool buddyTick(uint32_t nowMs) {
   BuddyGameMood gameMood = buddyGameCurrent(&s_game, nowMs);
   bool gameFace = gameMood != BUDDY_GAME_NONE;
 
-  // No bridge to read: the badge replaces the eyes entirely. It is checked before
-  // the pose, the anti-flicker hold and the HUD, because all three are pictures of
-  // a bridge state the device does not have. The HUD's own step is skipped, not
-  // reset, so the phase animation picks up where it was when the link returns; and
-  // the pose ease clamps its dt to 200 ms, so the way back does not jump.
-  // While the game is playing the badge steps aside: the owner asked for a face,
-  // and the bridge's absence is still visible the moment the game ends.
-  if (buddyShowsLinkBadge(view.link) && !gameFace) {
-    bool badgeAnimate = (uint32_t)(nowMs - s_lastDraw) >= BUDDY_FRAME_MS;
-    bool badgeNews = s_dirty || !s_badge || view.revision != s_drawnRevision;
-    if (!badgeNews && !badgeAnimate) return false;
-    s_badge = true;
-    drawLinkBadge(nowMs);
-    s_drawnRevision = view.revision;
-    s_drawnState = view.state;
-    s_lastDraw = nowMs;
-    s_dirty = false;
-    return true;
+  // No bridge to read: the corner carries the alarm and the eyes stay. The face
+  // keeps the dim, calm offline pose, and the mark lives in the HUD slot instead
+  // of taking the plate. While the game is playing the mark steps aside: the
+  // owner asked for a face during the game, and the link's absence is visible the
+  // moment it ends. Arriving or leaving is news by itself, so the frame redraws
+  // once more than the animation alone would.
+  bool linkDown = buddyShowsLinkBadge(view.link) && !gameFace;
+  if (linkDown != s_badge) {
+    s_badge = linkDown;
+    s_dirty = true;
   }
-  s_badge = false;
 
   bool poke = (int32_t)(s_pokeUntil - nowMs) > 0;
   bool news = s_dirty || view.revision != s_drawnRevision;
@@ -1407,9 +1414,10 @@ bool buddyTick(uint32_t nowMs) {
   }
 
   drawFace(shown, eased, nowMs, poke, ballVisible);
-  hudTrack(view.phase, nowMs);
+  if (!linkDown) hudTrack(view.phase, nowMs);
   drawHud(view.phase,
-          view.ledValid ? view.led : buddyPhaseDefaultLed(view.phase), nowMs);
+          view.ledValid ? view.led : buddyPhaseDefaultLed(view.phase), linkDown,
+          nowMs);
   s_drawnRevision = view.revision;
   s_lastDraw = nowMs;
   s_dirty = false;

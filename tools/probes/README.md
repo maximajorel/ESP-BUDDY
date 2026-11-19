@@ -28,6 +28,7 @@ cámara es el comando `dump`, que escribe el framebuffer en ASCII.
 | `wifi_recovery.txt` | Credenciales incorrectas y `wifi/forget`. |
 | `imu.txt` | Lecturas crudas del sensor. |
 | `hardening_verify.txt` | Humo después de flashear: arranque, `help`, estado, CONFIG y API. |
+| `buddy_link_corner.txt` | La marca de "sin bridge" en la esquina del HUD: con el link caído los ojos siguen y el abanico WiFi con la barra aparece; al restaurar la URL la esquina vuelve a la fase. Rompe y restaura `buddyUrl` en el mismo paso. |
 | `buddy_life.txt` | La cara de Sofía: microsaccadas, cejas neutrales, anatomía de enojo/mareo y el tilde sintetizado del HUD. |
 | `buddy_ball_gravity.txt` | La pelotita de Sofía con gravedad calibrada: `imufake` inclina a un lado y al otro y `buddydraw` muestra hacia dónde cae y a qué velocidad. |
 | `calibration_config.txt` | El wizard de calibración en CONFIG: lo abre el botón del panel, se completan centro + cuatro direcciones con `imufake`, y se verifica `steer.calibrated` y los ejes en `/api/status`. |

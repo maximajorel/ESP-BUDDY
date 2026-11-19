@@ -46,6 +46,16 @@ S7. Panel and docs tell the truth about the new case: the field accepts a URL,
 the hint shows an `https://` example, and README/INSTALL/ARCHITECTURE describe
 both transports.
 
+S8. A dead link keeps the face — verbatim: "quiero que cuando no tenga conexion,
+en vez de ahora que esta el logo de wifi. bastante feo encima, ponerlo en esa
+esquina pero que los ojos sigan entendes? El logo de wifi que sea como los que
+usan los celulares..". The eyes stay on the glass in the dim offline pose, and a
+phone-style WiFi fan with a slash takes the HUD corner (top-right, the slot the
+busy dots and the check already use) while the link is down. It appears for the
+seven failure causes of S5 and never for `ok` or `unconfigured`, which keeps the
+quiet face. One corner, one meaning: the mark replaces the phase animation while
+it lasts and gives it back without a reset.
+
 ## Tasks
 
 | ID | Spec | Route | Commit |
@@ -57,6 +67,7 @@ both transports.
 | T5 | S6,S5 | inline: `settingsSetBuddyUrl` validates through `buddy_url.h`, `/api/status` exposes the cause, API returns the reason | c8f57c5 |
 | T6 | S7 | inline: panel placeholder/hint/validation in `web_ui/`, repack `web_assets.h` | f6c0e76 |
 | T7 | S7 | inline: README, INSTALL, ARCHITECTURE, and the Cloudflare configuration note | f6c0e76 |
+| T9 | S8 | inline: `screen_buddy.cpp` corner mark (fan + slash, no arc rasteriser), `buddy_badge.h`/test comments, HUD slot precedence | pending |
 | T8 | all | inline: host tests, build, flash, live check over HTTPS and over the LAN IP | 1d34370 |
 
 ## Log
@@ -243,3 +254,46 @@ board is verified): with the link broken the dump shows the three arcs and the m
 five dumps in a row read `mark, mark, plain, mark, mark`, matching the blink duty
 cycle; after restoring the LAN URL the dump shows the two eyes again (37 eye rows).
 `tools/run_tests.py` 21 passed plus the new `buddy_badge_test`.
+
+L18 (spec, added after the fact): the badge decision above became S8 in the Specs
+section; it was written as prose in this log first, which is why the numbering
+starts at eight.
+
+L19 (verbatim, requirement change): "Viste que cuando le hablo a sofia en la
+esquina superior derecha se ponen los tres puntitos, o el tilde, quiero que
+cuando no tenga conexion, en vez de ahora que esta el logo de wifi. bastante feo
+encima, ponerlo en esa esquina pero que los ojos sigan entendes? El logo de wifi
+que sea como los que usan los celulares.."
+
+The full-screen badge is gone. A dead link now keeps the eyes (the dim offline
+pose the state ladder already draws) and puts a phone-style WiFi fan in the HUD
+corner, slashed, in place of the phase animation. The slot keeps one meaning at a
+time: link failure wins while it lasts, because a phase animation describes a
+bridge the device cannot reach; the HUD step is still skipped, not reset, so the
+animation resumes where it was. The game face still suppresses the mark, the same
+decision L17 recorded.
+
+Drawing: a fan is a pixel test, not an arc rasteriser — a pixel belongs to a band
+when its distance from the apex sits between the two radii and its direction is
+inside the ±45° wedge. Three bands (4-6, 9-11, 14-16 px) plus a 2 px dot at the
+apex, in the owner's colour at half light so the corner never outshines the face.
+The slash is a black 5 px gap with a 2 px hot line inside it, pulsing on a ~1.7 s
+cosine: a steady alarm reads as a hung device, a pulse reads as something to fix.
+The glyph occupies x 291-318, y 6-25 at the shipped 320x172 geometry.
+
+Evidence: `tools/run_tests.py` 31 passed and the firmware compiles with the
+shipped FQBN. Flashed to COM5 (hash of data verified) after the owner's explicit
+authorization, then probed with `tools/probes/buddy_link_corner.txt`, which breaks
+`buddyUrl` to `http://192.0.2.1:9` (TEST-NET-1, unroutable), waits 12 s and
+restores the real URL in the same run.
+
+- Healthy baseline (`link":"ok"`): `fbpix 285 4 36 22` is 22 rows of `0000`, i.e.
+  the corner is clean and the phase HUD owns it.
+- Broken link (`"online":false,"state":"offline","link":"offline"`): the same
+  region shows 108 lit pixels in exactly two colours, `02cf` (the owner's
+  `#00B4FF` at 50% = `(0,88,120)`) for the fan and `9102` (the hot `#FF3C1E` at a
+  ~56% pulse = `(144,32,16)`) for the slash; the ASCII `dump 2` keeps both eye
+  blobs on the glass with the mark in the top-right corner.
+- Restored URL (`"link":"ok"`): corner back to `0000`, full-brightness eyes, and
+  the check's green `04a3` still shows when the phase drops busy to idle, so the
+  refactored `drawHud` did not cost the HUD its other states.

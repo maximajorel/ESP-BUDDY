@@ -1,0 +1,22 @@
+# La marca de "sin bridge" vive en la esquina del HUD (S8) y ya no reemplaza la cara.
+#
+# Precondición: la pantalla SOFIA arriba y el bridge respondiendo (link "ok").
+# Rompe la URL a propósito (TEST-NET-1, no ruteable) para que el poll falle, mira
+# la esquina y después restaura la URL real. El último status tiene que volver a
+# "link":"ok": si no, la URL quedó rota en NVS.
+boot 4
+screen 5
+sleep 900
+api GET /api/status
+dump 2
+fbpix 285 4 36 22
+api POST /api/settings {"buddyUrl":"http://192.0.2.1:9"}
+sleep 12000
+api GET /api/status
+dump 2
+fbpix 285 4 36 22
+api POST /api/settings {"buddyUrl":"https://buddy.maximajorel.com.ar"}
+sleep 6000
+api GET /api/status
+dump 2
+fbpix 285 4 36 22
