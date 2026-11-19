@@ -307,6 +307,25 @@ cosas del lado del equipo:
 El token del buddy ahora viaja por internet: usá uno largo y cambialo si se
 filtró. Es lo único que separa a cualquiera de pedirle cosas al agente.
 
+**Quién decide que se duerme.** El bridge manda el estado y `sleep_hint` (cuántos
+segundos lleva Hermes sin hacer nada); la placa decide la paciencia con el mínimo
+entre ese número y su propio silencio medido por el IMU. Movés la placa y se
+despierta al instante; el servidor no puede volver a dormirla mientras el
+acelerómetro registre movimiento reciente. Los umbrales (60 s de cabeceo, 180 s de
+ojos cerrados) son `#define` en `buddy_sleep.h`.
+
+**Eventos.** La placa mantiene un long-poll contra `GET /events?since=<seq>&wait=25`
+para no perderse nada que dure menos de un segundo. Si el bridge no tiene el
+endpoint (404), o la red no sostiene el socket, cae sola al poll de `/state` cada
+1 s y reintenta el long-poll cada 60 s.
+
+Para verlo por consola sin cámara:
+
+```
+buddysleep     # stage, silencio local, sleep_hint y cursor
+buddyface asleep 200   # pinea la escalera de sueño para dumpearla
+```
+
 ### Red
 
 - Nombre y contraseña del WiFi del equipo, en grande, para poder leerlos y conectarte.

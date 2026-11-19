@@ -251,6 +251,7 @@ static void printHelp() {
   Serial.println("  api <METHOD> <path> [json] call the HTTP API in-process");
   Serial.println("  dump [step]                ASCII render of the framebuffer");
   Serial.println("  buddydraw                  geometria de la ultima cara dibujada");
+  Serial.println("  buddysleep                 reloj de suenio local (stage, idle, hint)");
   Serial.println("  bug [seg]                  fuerza la distraccion del bicho");
   Serial.println("  ball [on|off]              la pelotita roja del estado idle");
   Serial.println("  reboot                     restart");
@@ -411,7 +412,7 @@ static void handleCommand(char *line) {
   if (!strcmp(argv[0], "buddyface") && argc >= 2) {
     // Debug pin for the face language: dump an expression without waiting for
     // the bridge to reach that age (for example `buddyface thinking 25`).
-    BuddyState st = buddyStateFromName(argv[1]);
+    BuddyState st = buddyFacePinFromName(argv[1]);
     uint32_t age = argc >= 3 ? (uint32_t)atoi(argv[2]) * 1000u : 0;
     buddyPinFace(st, age, 20000);
     Serial.printf("buddy face pinned: %s age %lus\n", buddyStateWireName(st),
@@ -433,6 +434,12 @@ static void handleCommand(char *line) {
   }
   if (!strcmp(argv[0], "buddydraw")) {
     buddyDumpDraw();
+    return;
+  }
+  if (!strcmp(argv[0], "buddysleep")) {
+    // The sleep decision is local, so the only honest way to check "a shake wakes
+    // it in 100 ms" without a camera is to read the clock it decides on.
+    buddyDumpSleep();
     return;
   }
   if (!strcmp(argv[0], "fbpix")) {
