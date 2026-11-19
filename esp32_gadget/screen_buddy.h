@@ -80,6 +80,19 @@ BuddyMood buddyMood();
 // Console debug: put the idle distraction on the glass for `holdMs`.
 void buddyForceBug(uint32_t holdMs);
 
+// Whether this board has a bridge URL and token, i.e. whether the boot wake can
+// replace the text splash (the splash names the AP an unconfigured board needs).
+bool buddyConfigured();
+
+// The boot wake: it owns the glass for `BUDDY_WAKE_MS` from `nowMs`, draws at
+// most one frame per `BUDDY_FRAME_MS`, and ends on the neutral idle face. `Tick`
+// returns whether it drew and `false` once nothing is running; `Cancel` skips it
+// and returns whether there was a wake to skip.
+void buddyWakeBegin(uint32_t nowMs);
+bool buddyWakeActive();
+bool buddyWakeCancel();
+bool buddyWakeTick(uint32_t nowMs);
+
 // The web game's mood (`focus`, `thinking`, `alert`, `happy`, `anger`, `sleepy`,
 // `sad`), applied as a short-lived overlay over whatever the bridge produced.
 // An unknown or empty name clears it; it always expires on its own, so a closed

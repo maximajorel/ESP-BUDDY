@@ -299,6 +299,60 @@ int main() {
           out.grow == 1.12f && out.tremble == 1.0f);
   }
 
+  printf("-- the vertical aperture\n");
+  {
+    // open 1 is the previous look: exactly the grown squircle the renderer drew
+    // before the channel existed.
+    check("a fully open eye is exactly the grown squircle",
+          buddyEyeHalfH(48.0f, 1.0f, 1.0f, false) == lroundf(48.0f));
+    check("a fully open eye follows grow",
+          buddyEyeHalfH(48.0f, 1.12f, 1.0f, false) == lroundf(48.0f * 1.12f));
+    check("the previous look also holds at another size",
+          buddyEyeHalfH(60.0f, 1.06f, 1.0f, false) == lroundf(60.0f * 1.06f));
+    check("a shut eye is the 4 px bar whatever the aperture",
+          buddyEyeHalfH(48.0f, 1.0f, 1.0f, true) == 4 &&
+              buddyEyeHalfH(48.0f, 1.0f, 0.4f, true) == 4);
+    check("a closed aperture is the 4 px bar",
+          buddyEyeHalfH(48.0f, 1.0f, 0.0f, false) == 4 &&
+              buddyEyeHalfH(48.0f, 1.0f, -2.0f, false) == 4);
+    check("the aperture is clamped above one",
+          buddyEyeHalfH(48.0f, 1.0f, 3.0f, false) ==
+              buddyEyeHalfH(48.0f, 1.0f, 1.0f, false));
+    check("half an aperture is halfway between the bar and the eye",
+          buddyEyeHalfH(48.0f, 1.0f, 0.5f, false) ==
+              lroundf(4.0f + (48.0f - 4.0f) * 0.5f));
+    int prev = 0;
+    bool monotonic = true;
+    for (int i = 0; i <= 20; i++) {
+      int h = buddyEyeHalfH(48.0f, 1.0f, (float)i / 20.0f, false);
+      if (h < prev) monotonic = false;
+      prev = h;
+    }
+    check("the half height only grows with the aperture", monotonic);
+  }
+
+  printf("-- the energy channel\n");
+  {
+    check("full energy is 100%", buddyGlowPercent(1.0f) == 100);
+    check("energy clamps above one", buddyGlowPercent(4.0f) == 100);
+    check("no energy is 0%",
+          buddyGlowPercent(0.0f) == 0 && buddyGlowPercent(-1.0f) == 0);
+    check("half energy is 50%", buddyGlowPercent(0.5f) == 50);
+    check("energy reads as a whole percent", buddyGlowPercent(0.03f) == 3);
+  }
+
+  printf("-- the aperture and energy defaults\n");
+  {
+    BuddyPose base;
+    check("full aperture by default", base.open == 1.0f);
+    check("full energy by default", base.glow == 1.0f);
+    check("an untouched pose draws the shipped eye",
+          buddyEyeHalfH((float)base.ry, base.grow, base.open,
+                        base.blink || base.closed) == lroundf((float)base.ry));
+    check("an untouched pose keeps full energy",
+          buddyGlowPercent(base.glow) == 100);
+  }
+
   if (g_failures) {
     printf("\n%d FAILED\n", g_failures);
     return 1;

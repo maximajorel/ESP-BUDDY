@@ -34,6 +34,7 @@ cámara es el comando `dump`, que escribe el framebuffer en ASCII.
 | `buddy_game_face.txt` | El ánimo del ta-te-ti web llega a la cara: `focus` (lid 0.18), `thinking` (parpadeo asimétrico), `anger` (`hot=1.00`, `grow=1.12`, ojos inclinados ±8°), `sleepy` (ojo cerrado) y el limpiado que devuelve la pose del bridge. |
 | `buddy_sleep_events.txt` | Sueño local y `/events`: el reloj de silencio, el reset por IMU, `sleep_hint`, el cursor y un run de punta a punta. |
 | `buddy_sleep_shake.txt` | La sacudida contra el reloj de sueño, sin `sleep` de por medio (el `wakeUntil` dura 4 s y una espera larga lo tapa). |
+| `buddy_wake.txt` | El despertar de arranque, repetido con `wake`: negro, la ranura que crece, el ojo entero, el sacudón y la sonrisa, medidos con `buddydraw` (`open`, `glow`) y `dump`. |
 | `buddy_ball.txt` | La cara feliz con squircle y curva bajo los ojos, la pelotita roja empujada por `imufake`, sus rebotes y el doble toque que la prende y apaga. Requiere el bridge en idle. |
 | `console_smoke.txt` | Ejercita todos los comandos de consola que movió el refactor (toques, menú, rotación, ejes, LED, buddy, IMU falso, assets, fuente, parser y framebuffer). Deja el reloj en 12 h si el doble toque entra: volvé a tocarlo en RELOJ para restaurar 24 h. |
 | `all_screens.txt` | `dump` de las siete pantallas, una por una. |

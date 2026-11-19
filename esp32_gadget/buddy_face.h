@@ -250,6 +250,29 @@ static inline float buddyLidLineBottom(int cy, int extentY, float bottom) {
   return (float)cy + (float)extentY - 2.0f * (float)extentY * bottom;
 }
 
+// Half extent in y of the drawn eye. `grow` already decides how tall the eye is;
+// `open` is the aperture that carries the eye from a shut 4 px bar to that full
+// squircle, which is what lets the boot wake open a slit into a face and what
+// keeps the same shape language for a blink. A shut eye is a bar whatever the
+// aperture says, because a blink does not travel through the ease.
+static inline int buddyEyeHalfH(float ry, float grow, float open, bool shut) {
+  if (shut) return 4;
+  if (!(open > 0.0f)) return 4;
+  if (open > 1.0f) open = 1.0f;
+  float full = ry * grow;
+  if (full < 4.0f) full = 4.0f;
+  return (int)lroundf(4.0f + (full - 4.0f) * open);
+}
+
+// The face's energy as a whole percent of the owner's eye colour, so the eye and
+// its three halos fade together: 0 turns the panel black, 100 is the shipped
+// look, and everything between is the face coming up.
+static inline int buddyGlowPercent(float glow) {
+  if (!(glow > 0.0f)) return 0;
+  if (glow >= 1.0f) return 100;
+  return (int)lroundf(glow * 100.0f);
+}
+
 // Exponential approach towards the target. Never overshoots, so a value that
 // stops changing settles exactly on it instead of vibrating around it.
 static inline float buddyEase(float current, float target, uint32_t dtMs,

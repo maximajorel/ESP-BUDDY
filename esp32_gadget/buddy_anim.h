@@ -40,6 +40,13 @@ struct BuddyPose {
   // brows on purpose: the only upper feature of this face is the black eyelid.
   float grow = 1.0f;   // eye scale: anger makes the eye bigger
   float tremble = 0;   // 0..1 shake the renderer adds after the easing
+  // The two channels the boot wake needs and no expression did: `open` is how
+  // far the eye is open vertically (0 is the 4 px blink bar, 1 the full
+  // squircle) and `glow` is the face's energy, which scales the eye colour and
+  // its three halos together (0 is a black panel). Both default to 1 so every
+  // existing expression draws exactly the frame it drew before them.
+  float open = 1.0f;   // vertical aperture: 0 = the 4 px blink bar, 1 = full
+  float glow = 1.0f;   // energy: scales the eye colour and its halos, 0 = black
   // There is no mouth and no brow on this face: everything is the two eyes.
   // A head turn is faked the only way two flat eyes can fake it: the eye on the
   // far side shrinks and the near eye grows, exactly like a real head turning

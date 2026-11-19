@@ -15,6 +15,7 @@
 #include "buddy_link.h"
 #include "buddy_sleep.h"
 #include "buddy_url.h"
+#include "buddy_wake.h"
 #include "gfx.h"
 #include "imu.h"
 #include "net.h"
@@ -729,6 +730,8 @@ struct BuddyDrawInfo {
   int extentY[2] = {0, 0};
   float deg[2] = {0, 0};
   float grow = 1.0f;
+  float open = 0;
+  float glow = 0;
   float lid = 0;
   float hot = 0;
   int push = 0;
@@ -917,6 +920,12 @@ static void drawFace(BuddyState state, const BuddyPose &pose, uint32_t nowMs,
   // the owner's choice comes back as soon as the reaction expires.
   uint32_t owner = settingsGetBuddyEyeColor();
   uint32_t eyeRgb = pose.dim ? buddyEyeDim(owner) : buddyEyeHot(owner, pose.hot);
+  // The face's energy: it scales the eye colour before the three glow shades are
+  // derived from it, so the eye and its halos fade together. Energy 1 is exactly
+  // the shipped colour (the helper returns it untouched at 100%), and 0 is a
+  // black panel, which is the first frame of the boot wake.
+  int energy = buddyGlowPercent(pose.glow);
+  if (energy < 100) eyeRgb = buddyEyeScale(eyeRgb, energy);
   uint16_t color = gfxHex(eyeRgb);
   uint16_t glowInner = gfxHex(buddyEyeScale(eyeRgb, BUDDY_GLOW_SHADE_INNER));
   int bob = (int)pose.bob;
@@ -934,8 +943,7 @@ static void drawFace(BuddyState state, const BuddyPose &pose, uint32_t nowMs,
   int baseRx = (int)lroundf((float)pose.rx * grow);
   // A happy eye is never a blink bar: the joy is the squircle plus its lower
   // lid, and a random idle blink landing inside the poke must not erase it.
-  int baseRy =
-      (shut && !happy) ? 4 : (int)lroundf((float)pose.ry * grow);
+  int baseRy = buddyEyeHalfH((float)pose.ry, grow, pose.open, shut && !happy);
   // A turned head, faked with two flat eyes: the eye on the side the head turns
   // away from gets narrower (a rotating sphere foreshortens) and the near eye
   // gets wider, so the pair visibly disagrees in size. `tilt` then rolls both
@@ -971,6 +979,8 @@ static void drawFace(BuddyState state, const BuddyPose &pose, uint32_t nowMs,
   s_draw.have = true;
   s_draw.push = push;
   s_draw.grow = grow;
+  s_draw.open = pose.open;
+  s_draw.glow = pose.glow;
   s_draw.lid = pose.lid;
   s_draw.hot = pose.hot;
   for (int i = 0; i < 2; i++) {
@@ -1423,15 +1433,88 @@ void buddyGameFaceMood(const char *name, uint32_t holdMs) {
   s_dirty = true;
 }
 
+// --- the boot wake -----------------------------------------------------------
+//
+// The first frame of a configured board is not a splash but Sofía waking up: the
+// ladder in buddy_wake.h owns the glass for its whole length, and `screensTick`
+// suspends every screen while it runs so nothing can draw over it. It is an
+// overlay of its own and not a state, because the bridge has no vote on how the
+// face comes up and the owner asked for something that happens once.
+static bool s_wakeOn = false;
+static uint32_t s_wakeStart = 0;
+static uint32_t s_wakeDraw = 0;
+
+// Whether this board has a bridge to wake up for. An unconfigured board keeps the
+// text splash, because that splash names the access point its owner has to join;
+// a configured one has nothing to say and can just wake up.
+bool buddyConfigured() {
+  char url[SETTINGS_BUDDY_URL_MAX + 1];
+  char token[SETTINGS_BUDDY_TOKEN_MAX + 1];
+  settingsGetBuddyUrl(url, sizeof(url));
+  settingsGetBuddyToken(token, sizeof(token));
+  return url[0] && token[0];
+}
+
+void buddyWakeBegin(uint32_t nowMs) {
+  s_wakeOn = true;
+  s_wakeStart = nowMs;
+  // Backdated by one frame so the very first tick draws instead of waiting 50 ms
+  // on a panel that is still black.
+  s_wakeDraw = nowMs - BUDDY_FRAME_MS;
+  s_dirty = true;
+}
+
+bool buddyWakeActive() { return s_wakeOn; }
+
+// The owner asked to skip it (a tap or a hold). Returns whether there was
+// anything to skip, so the button handler knows if it already used the gesture.
+bool buddyWakeCancel() {
+  if (!s_wakeOn) return false;
+  s_wakeOn = false;
+  s_dirty = true;
+  return true;
+}
+
+bool buddyWakeTick(uint32_t nowMs) {
+  if (!s_wakeOn) return false;
+  uint32_t t = nowMs - s_wakeStart;
+  if (buddyWakeDone(t)) {
+    s_wakeOn = false;
+    // A repaint marker: the screen that takes the glass back must draw at once
+    // instead of waiting for its own next tick to notice it was covered.
+    s_dirty = true;
+    return false;
+  }
+  if ((uint32_t)(nowMs - s_wakeDraw) < BUDDY_FRAME_MS) return false;
+  s_wakeDraw = nowMs;
+  // The wake is not a bridge state, so it starts from a default pose and only
+  // its own seven channels move: no bridge, no IMU, no ball and no HUD.
+  BuddyPose pose;
+  buddyWakePose(t, &pose);
+  // The tremble is noise, not intent, so it goes on after the ladder exactly as
+  // the live path does it: same salts and same amplitudes, so the shake reads as
+  // the face's own shake and not as a second, softer one.
+  if (pose.tremble > 0.01f) {
+    pose.gazeX += buddyTremble(nowMs, s_seed, 11u, 1.6f);
+    pose.gazeY += buddyTremble(nowMs, s_seed, 23u, 1.0f);
+    pose.rot += buddyTremble(nowMs, s_seed, 37u, 2.2f);
+  }
+  s_mood = buddyMoodFrom(false, false, pose.tremble);
+  drawFace(BUDDY_IDLE, pose, nowMs, false, false);
+  s_lastDraw = nowMs;
+  s_dirty = false;
+  return true;
+}
+
 void buddyDumpDraw() {
   if (!s_draw.have) {
     Serial.println("buddydraw: todavia no dibujo");
     return;
   }
   static const char *kMoods[] = {"calm", "angry", "sleeping"};
-  Serial.printf("draw mood=%s grow=%.2f lid=%.2f hot=%.2f push=%d\n",
-                kMoods[s_mood & 3], s_draw.grow, s_draw.lid, s_draw.hot,
-                s_draw.push);
+  Serial.printf("draw mood=%s grow=%.2f open=%.2f glow=%.2f lid=%.2f hot=%.2f push=%d\n",
+                kMoods[s_mood & 3], s_draw.grow, s_draw.open, s_draw.glow,
+                s_draw.lid, s_draw.hot, s_draw.push);
   Serial.printf("ball on=%d active=%d x=%.1f y=%.1f vx=%.1f vy=%.1f\n",
                 s_ballOn, s_ball.active, s_ball.x, s_ball.y, s_ball.vx,
                 s_ball.vy);

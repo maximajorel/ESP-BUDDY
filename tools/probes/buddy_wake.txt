@@ -1,0 +1,15 @@
+# El despertar de arranque en el vidrio. `wake` lo repite sin desenchufar la
+# placa y `dump` muestra el framebuffer; `buddydraw` publica open/glow, así que
+# el embudo se mide sin foto. La consola tarda ~1.5 s por comando (ida y vuelta
+# del puerto), así que el tiempo real del ladder es el `sleep` + ese overhead:
+# con `sleep 2400` después de `wake`, el dump cae a los ~3.9 s, dentro de la
+# sonrisa (3.8-4.38 s), y se ve el ojo con el borde de abajo plano.
+wake
+sleep 2400
+dump 4
+sleep 1500
+buddydraw
+# Control: la pose del bridge vuelve intacta después del despertar.
+buddyface idle 10
+sleep 900
+buddydraw

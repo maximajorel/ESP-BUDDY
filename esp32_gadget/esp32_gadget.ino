@@ -20,6 +20,7 @@
 #include "net.h"
 #include "rgb.h"
 #include "rotation.h"
+#include "screen_buddy.h"
 #include "buddy_led.h"
 #include "screens.h"
 #include "settings.h"
@@ -72,11 +73,18 @@ void setup() {
   g_imuOk = imuBegin();
   pinMode(BTN_PIN, INPUT_PULLUP);
 
-  drawSplash();
+  // The first frame belongs to the owner, not to the sketch: a board with a
+  // bridge wakes up as Sofía, while an unconfigured board keeps the text splash
+  // because that splash names the access point it has to be joined to. The wake
+  // must start after screensBegin so the face owns the glass and the first
+  // screensTick can draw it; the splash keeps its place before netBegin.
+  bool wakeAtBoot = buddyConfigured();
+  if (!wakeAtBoot) drawSplash();
 
   netBegin();
   spotifyBegin();
   screensBegin();
+  if (wakeAtBoot) buddyWakeBegin(millis());
 
   Serial.printf("\n%s %s ready\n", "esp32-gadget", "1.0.0");
   Serial.printf("ap=%s  panel=http://%s\n", settingsGet().apSsid, NET_AP_IP);

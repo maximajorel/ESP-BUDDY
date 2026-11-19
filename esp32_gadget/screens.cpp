@@ -266,6 +266,18 @@ bool screensTick(uint32_t nowMs, uint16_t holdPermille) {
   rotationSetHeld((s_current == SCREEN_GAME && gameWantsScreenOn()) ||
                   (s_current == SCREEN_SETTINGS && configWizardActive()));
 
+  // The boot wake owns the glass while it runs: it is checked before the sleep
+  // state, the pushed repaint and the picker, because a screen, a menu or the
+  // hold bar drawn on top of the waking face would break the one moment the
+  // owner asked for. When it finishes in this tick the glass is free again and a
+  // normal frame follows, with the activity clock restarted so the wake counts
+  // as the interaction it was.
+  if (buddyWakeActive()) {
+    bool drew = buddyWakeTick(nowMs);
+    if (buddyWakeActive()) return drew;
+    s_lastActivity = nowMs;
+  }
+
   if (s_asleep) return false;
   if (s_wakePush) {
     s_wakePush = false;
@@ -307,6 +319,12 @@ bool screensTick(uint32_t nowMs, uint16_t holdPermille) {
 }
 
 void screensShortPress() {
+  // A tap during the boot wake skips the rest of it instead of acting on a
+  // screen: the owner just wants the face up now, not to shoot or switch.
+  if (buddyWakeCancel()) {
+    s_lastActivity = millis();
+    return;
+  }
   if (s_asleep) {
     // The tap that lights the glass must not also shoot, spin or switch screens.
     wakeScreen(millis());
@@ -330,6 +348,12 @@ void screensShortPress() {
 }
 
 void screensLongPress() {
+  // Same rule as the tap: the first hold during the wake skips it and does not
+  // open the picker.
+  if (buddyWakeCancel()) {
+    s_lastActivity = millis();
+    return;
+  }
   if (s_asleep) {
     // A hold only wakes; it must not open the picker while the owner is just
     // trying to see the screen again.

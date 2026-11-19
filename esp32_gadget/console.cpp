@@ -232,6 +232,7 @@ static void printHelp() {
   Serial.println("  arttest                    redecodifica la caratula e informa");
   Serial.println("  fbpix [x] [y] [w] [h]      pixeles del framebuffer en hex");
   Serial.println("  buddyface <state> [ageS]   fija una cara para dump (thinking 25)");
+  Serial.println("  wake                       repite el despertar de arranque (dump)");
   Serial.println("  buddyphase <phase> [sec]   fija el HUD/LED (ask, ok, busy, idle)");
   Serial.println("  buddyhappy [sec]           fija la cara feliz (dump de la sonrisa)");
   Serial.println("  order [ids...]             orden del menu de pantallas");
@@ -417,6 +418,13 @@ static void handleCommand(char *line) {
     buddyPinFace(st, age, 20000);
     Serial.printf("buddy face pinned: %s age %lus\n", buddyStateWireName(st),
                   (unsigned long)(age / 1000));
+    return;
+  }
+  if (!strcmp(argv[0], "wake")) {
+    // The wake is a boot-only animation, so replaying it is the only way to see
+    // it again without unplugging the board: `wake` then `dump` is the probe.
+    buddyWakeBegin(millis());
+    Serial.println("wake: despertar de arranque en curso");
     return;
   }
   if (!strcmp(argv[0], "ball")) {
