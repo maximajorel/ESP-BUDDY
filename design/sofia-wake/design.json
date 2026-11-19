@@ -1,0 +1,27 @@
+{
+  "title": "Sofía · animación de arranque",
+  "brief": "Animación de inicio para Sofía en el vidrio de 320x172: qué se ve la primera vez que la placa se prende, antes de que exista un estado del bridge. Tres formas de despertar, sólo con ojos.",
+  "artboards": [
+    {
+      "file": "01-amanecer.html",
+      "title": "Amanecer — la luz antes que los ojos",
+      "tradeoff": "Lo más cálido y lo más lento: 5 s hasta el idle, y los últimos dos son para el sacudón de ojos y la sonrisa; con alguien que prende y apaga seguido, esa espera se siente. Un toque lo saltea.",
+      "width": 1000,
+      "height": 900
+    },
+    {
+      "file": "02-barrido.html",
+      "title": "Barrido — nace de una línea",
+      "tradeoff": "El más rápido (1.7 s) y el único que se lee como arranque de máquina, no como despertar: menos compañía.",
+      "width": 1000,
+      "height": 760
+    },
+    {
+      "file": "03-curiosa.html",
+      "title": "Curiosa — un ojo, después el otro, y la cabeza gira",
+      "tradeoff": "La que más personalidad tiene, y la única que en frío se puede leer como falla del panel si la asimetría dura de más.",
+      "width": 1000,
+      "height": 900
+    }
+  ]
+}

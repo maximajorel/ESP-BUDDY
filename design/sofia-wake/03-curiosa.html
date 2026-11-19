@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sofía · arranque 03 · curiosa</title>
+<style>
+  :root {
+    --bg: #0e1015; --card: #161a22; --inset: #1b212b; --line: #262d3a;
+    --tx: #e8ecf4; --dim: #94a0b4; --gold: #ffd700; --gold-soft: #3a3212;
+    --eye: #00b4ff; --eye-hot: #ff3c1e; --ok: #4ade80; --bad: #f87171;
+    --radius: 16px; --tap: 44px;
+  }
+  * { box-sizing: border-box; }
+  html { color-scheme: dark; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg); color: var(--tx);
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display: flex; justify-content: center;
+  }
+  .stage { width: 1000px; padding: 32px 40px 46px; display: flex; flex-direction: column; gap: 20px; }
+  header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
+  h1 { margin: 0; font-size: 26px; letter-spacing: -0.3px; }
+  .sub { margin: 6px 0 0; color: var(--dim); font-size: 14px; max-width: 64ch; }
+  .badge { font-size: 11px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase;
+           color: var(--gold); background: var(--gold-soft); border: 1px solid var(--gold-soft);
+           border-radius: 999px; padding: 7px 12px; white-space: nowrap; }
+
+  .annotated { position: relative; align-self: center; width: 640px; height: 344px; }
+  .annotated canvas { display: block; width: 640px; height: 344px; image-rendering: pixelated;
+                      border: 1px solid var(--line); border-radius: 10px; background: #000; }
+  .leader { position: absolute; background: var(--line); }
+  .leader.v { width: 1px; }
+  .leader.h { height: 1px; }
+  .tag { position: absolute; font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+         color: var(--dim); background: var(--bg); padding: 2px 6px; border: 1px solid var(--line);
+         border-radius: 6px; white-space: nowrap; }
+  .tag b { color: var(--tx); font-weight: 650; }
+
+  .transport { display: flex; align-items: center; gap: 14px; }
+  .transport button { font: inherit; font-weight: 650; background: var(--gold); color: #0e1015; border: 0;
+                      border-radius: 10px; padding: 10px 16px; min-height: var(--tap); cursor: pointer; width: 118px; }
+  .transport button:focus-visible, .transport input[type=range]:focus-visible,
+  .sheet button:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+  .transport input[type=range] { flex: 1; accent-color: var(--eye); min-height: var(--tap); }
+  .clock { font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--dim); min-width: 168px; text-align: right; }
+  .clock b { color: var(--tx); font-weight: 650; }
+
+  .sheet { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
+  .sheet button { padding: 6px; background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+                  cursor: pointer; display: flex; flex-direction: column; gap: 6px; min-height: var(--tap); }
+  .sheet button.on { border-color: var(--gold); background: var(--gold-soft); }
+  .sheet canvas { width: 100%; height: auto; display: block; border-radius: 5px; image-rendering: pixelated; }
+  .sheet span { font: 10px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--dim); text-align: left; }
+  .sheet button.on span { color: var(--gold); }
+
+  .note { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .note p { margin: 0; font-size: 13px; color: var(--dim); }
+  .note b { color: var(--tx); font-weight: 650; }
+  .tradeoff { border-left: 2px solid var(--gold); padding-left: 12px; }
+  code { font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--tx); }
+</style>
+</head>
+<body>
+<div class="stage">
+  <header>
+    <div>
+      <h1>Curiosa</h1>
+      <p class="sub">Un ojo se abre antes que el otro y la cabeza gira desde donde estaba mirando hasta
+        mirarte. No se enciende: se da vuelta. La asimetría es el carácter y también el riesgo.</p>
+    </div>
+    <span class="badge">Dirección 03 · curiosa</span>
+  </header>
+
+  <div class="annotated">
+    <canvas id="glass" width="320" height="172" role="img"
+            aria-label="Animación: primero abre el ojo derecho, después el izquierdo, mientras la cabeza gira hacia el frente"></canvas>
+    <div class="leader v" style="left: 148px; top: 20px; height: 76px"></div>
+    <div class="tag" style="left: 96px; top: 2px">ojo lejano · <b>openR</b></div>
+    <div class="leader v" style="left: 492px; top: 20px; height: 76px"></div>
+    <div class="tag" style="left: 448px; top: 2px">ojo cercano · <b>turn</b></div>
+    <div class="leader h" style="left: 40px; top: 300px; width: 150px"></div>
+    <div class="tag" style="left: 40px; top: 310px">respiración · <b>bob</b></div>
+    <div class="leader h" style="left: 460px; top: 300px; width: 140px"></div>
+    <div class="tag" style="left: 470px; top: 310px">energía · <b>glow</b></div>
+  </div>
+
+  <div class="transport">
+    <button id="play" type="button">Pausa</button>
+    <input id="scrub" type="range" min="0" max="3200" step="10" value="0" aria-label="Recorrer la animación">
+    <span class="clock"><b id="ms">0</b> ms · <span id="phase">despierta</span></span>
+  </div>
+
+  <div class="sheet" id="sheet" role="group" aria-label="Fotogramas clave"></div>
+
+  <div class="note">
+    <p class="tradeoff"><b>Compromiso:</b> la que más personalidad tiene y la única que hay que cuidar en
+      frío: dos ojos que no abren juntos, apenas se enciende, se pueden leer como una falla del panel. Por
+      eso el ojo izquierdo abre recién a 1.1 s y el giro empieza enseguida: la intención tiene que ser
+      legible antes de que la asimetría dure.</p>
+    <p><b>Cómo se logra:</b> <code>openL</code> y <code>openR</code> (una apertura por ojo, ya propuesta
+      para las otras dos direcciones), <code>turn</code> de 0.6 a 0 —el mismo canal que ya usa el giro de
+      cabeza— y <code>gazeX</code> acompañando al giro para que el par no se vea pegado al centro. El
+      pestañeo de confirmación usa <code>open</code> en ambos ojos.</p>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var W = 320, H = 172, EYE_X = [105, 215], EYE_Y = 88, R = 48, CORNER = 0.38, PAD = 6, BAR = 4;
+  var OWNER = [0, 180, 255], HOT = [255, 60, 30];
+
+  var buf = document.createElement("canvas");
+  buf.width = W; buf.height = H;
+  var b = buf.getContext("2d");
+
+  function clamp(v, a, c) { return v < a ? a : v > c ? c : v; }
+  function mix(a, c, t) {
+    return "rgb(" + Math.round(a[0] + (c[0] - a[0]) * t) + "," +
+      Math.round(a[1] + (c[1] - a[1]) * t) + "," + Math.round(a[2] + (c[2] - a[2]) * t) + ")";
+  }
+  function shade(rgb, pct) { return mix([0, 0, 0], rgb, pct / 100); }
+  function ease(name, t) {
+    switch (name) {
+      case "linear": return t;
+      case "easeIn": return t * t;
+      case "easeOut": return 1 - (1 - t) * (1 - t);
+      case "easeOutCubic": return 1 - Math.pow(1 - t, 3);
+      case "easeInOut": var x = t * 2; return x < 1 ? x * x / 2 : 1 - Math.pow(2 - x, 2) / 2;
+      default: return t;
+    }
+  }
+  function squircle(g, x, y, hw, hh, deg, fill) {
+    g.save();
+    g.translate(x, y);
+    g.rotate(deg * Math.PI / 180);
+    var r = CORNER * Math.min(hw, hh);
+    g.beginPath();
+    if (g.roundRect) { g.roundRect(-hw, -hh, hw * 2, hh * 2, r); }
+    else {
+      g.moveTo(-hw + r, -hh); g.lineTo(hw - r, -hh); g.quadraticCurveTo(hw, -hh, hw, -hh + r);
+      g.lineTo(hw, hh - r); g.quadraticCurveTo(hw, hh, hw - r, hh); g.lineTo(-hw + r, hh);
+      g.quadraticCurveTo(-hw, hh, -hw, hh - r); g.lineTo(-hw, -hh + r);
+      g.quadraticCurveTo(-hw, -hh, -hw + r, -hh);
+    }
+    g.fillStyle = fill; g.fill();
+    g.restore();
+  }
+
+  function drawPose(target, p) {
+    b.fillStyle = "#000000";
+    b.fillRect(0, 0, W, H);
+    var tint = clamp(p.hot, 0, 1);
+    var rgb = [OWNER[0] + (HOT[0] - OWNER[0]) * tint,
+               OWNER[1] + (HOT[1] - OWNER[1]) * tint,
+               OWNER[2] + (HOT[2] - OWNER[2]) * tint];
+    var glow = clamp(p.glow, 0, 1);
+    for (var i = 0; i < 2; i++) {
+      var openI = Math.min(p.open, i === 0 ? p.openL : p.openR);
+      var grow = p.grow > 0.2 ? p.grow : 1;
+      var hw = R * grow * (i === 0 ? 1 - 0.22 * p.turn : 1 + 0.22 * p.turn);
+      var hh = openI < 0.02 ? BAR : Math.max(BAR, R * openI * grow);
+      var deg = p.rot + p.tilt;
+      var a = deg * Math.PI / 180;
+      var ex = Math.abs(hw * Math.cos(a)) + Math.abs(hh * Math.sin(a));
+      var ey = Math.abs(hw * Math.sin(a)) + Math.abs(hh * Math.cos(a));
+      var x = EYE_X[i] + p.gazeX + 5 * p.turn;
+      var y = EYE_Y + p.bob + p.gazeY;
+      if (glow > 0) {
+        squircle(b, x, y, hw + PAD + 6, hh + PAD + 6, deg, shade(rgb, 7 * glow));
+        squircle(b, x, y, hw + PAD + 4, hh + PAD + 4, deg, shade(rgb, 17 * glow));
+        squircle(b, x, y, hw + PAD + 2, hh + PAD + 2, deg, shade(rgb, 32 * glow));
+      }
+      squircle(b, x, y, hw, hh, deg, shade(rgb, 100 * glow));
+      var bandHalf = ex + PAD + 2, span = 2 * ey + 2 * PAD;
+      if (p.lid > 0) {
+        b.fillStyle = "#000000";
+        b.fillRect(x - bandHalf, y - ey - PAD, bandHalf * 2, span * clamp(p.lid, 0, 1));
+      }
+      if (p.bottom > 0) {
+        var bh = span * clamp(p.bottom, 0, 1);
+        b.fillStyle = "#000000";
+        b.fillRect(x - bandHalf, y + ey + PAD - bh, bandHalf * 2, bh);
+      }
+    }
+    var cw = target.canvas.width, ch = target.canvas.height;
+    target.imageSmoothingEnabled = cw > W;
+    target.drawImage(buf, 0, 0, cw, ch);
+  }
+
+  var BASE = { open: 1, openL: 1, openR: 1, glow: 1, lid: 0, bottom: 0, grow: 1,
+               bob: 0, turn: 0, tilt: 0, rot: 0, gazeX: 0, gazeY: 0, hot: 0 };
+  var KEYS = [
+    { at: 0, ease: "linear", pose: { openL: 0, openR: 0, glow: 0, turn: 0.6, gazeX: 9 } },
+    { at: 420, ease: "linear", pose: { openL: 0, openR: 0, glow: 0.35, turn: 0.6, gazeX: 9 } },
+    { at: 1150, ease: "easeOut", pose: { openL: 0.03, openR: 1, glow: 1, turn: 0.55, gazeX: 8 } },
+    { at: 1550, ease: "easeInOut", pose: { openL: 1, openR: 1, turn: 0.2, gazeX: 3 } },
+    { at: 1850, ease: "easeOut", pose: { openL: 1, openR: 1, turn: 0, gazeX: 0 } },
+    { at: 2100, ease: "easeInOut", pose: { openL: 0.04, openR: 0.04 } },
+    { at: 2240, ease: "easeOut", pose: { openL: 1, openR: 1 } },
+    { at: 2600, ease: "easeInOut", pose: { openL: 1, openR: 1, turn: -0.12, gazeX: -2.5, bob: 1.2 } },
+    { at: 3200, ease: "easeInOut", pose: { openL: 1, openR: 1, turn: 0, gazeX: 0, bob: 0 } }
+  ];
+  var PHASES = [
+    { from: 0, to: 420, label: "dormida" },
+    { from: 420, to: 1150, label: "abre un ojo" },
+    { from: 1150, to: 1850, label: "gira la cabeza" },
+    { from: 1850, to: 2240, label: "pestañeo" },
+    { from: 2240, to: 3200, label: "idle" }
+  ];
+  var SHOTS = [0, 700, 1150, 1500, 2100, 2700];
+
+  function poseAt(ms) {
+    var p = {}, field;
+    for (field in BASE) p[field] = BASE[field];
+    if (ms >= KEYS[KEYS.length - 1].at) {
+      for (field in KEYS[KEYS.length - 1].pose) p[field] = KEYS[KEYS.length - 1].pose[field];
+      return p;
+    }
+    for (var i = 0; i < KEYS.length - 1; i++) {
+      var k0 = KEYS[i], k1 = KEYS[i + 1];
+      if (ms < k0.at || ms > k1.at) continue;
+      var t = (ms - k0.at) / Math.max(1, k1.at - k0.at);
+      var e = ease(k1.ease, t);
+      for (field in BASE) {
+        var a = field in k0.pose ? k0.pose[field] : BASE[field];
+        var c = field in k1.pose ? k1.pose[field] : BASE[field];
+        p[field] = a + (c - a) * e;
+      }
+      return p;
+    }
+    for (var k in KEYS[0].pose) p[k] = KEYS[0].pose[k];
+    return p;
+  }
+
+  var out = document.getElementById("glass").getContext("2d");
+  var sheet = document.getElementById("sheet");
+  var shots = SHOTS.map(function (at) {
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.setAttribute("aria-label", "Ir al fotograma de " + at + " ms");
+    var c = document.createElement("canvas");
+    c.width = 160; c.height = 86;
+    var label = document.createElement("span");
+    label.textContent = at + " ms";
+    btn.appendChild(c); btn.appendChild(label);
+    drawPose(c.getContext("2d"), poseAt(at));
+    sheet.appendChild(btn);
+    return { at: at, el: btn };
+  });
+
+  var scrub = document.getElementById("scrub");
+  var playBtn = document.getElementById("play");
+  var msOut = document.getElementById("ms");
+  var phaseOut = document.getElementById("phase");
+  var DUR = 3200;
+  var t = 0, playing = true, last = 0;
+  var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  function paint() {
+    var ms = reduce ? DUR : t;
+    drawPose(out, poseAt(ms));
+    scrub.value = String(Math.round(ms));
+    msOut.textContent = String(Math.round(ms));
+    var name = PHASES[0].label;
+    for (var i = 0; i < PHASES.length; i++) if (ms >= PHASES[i].from) name = PHASES[i].label;
+    phaseOut.textContent = name;
+    var nearest = 0, best = Infinity;
+    for (var j = 0; j < shots.length; j++) {
+      var d = Math.abs(shots[j].at - ms);
+      if (d < best) { best = d; nearest = j; }
+      shots[j].el.className = "";
+    }
+    if (best < 280) shots[nearest].el.className = "on";
+  }
+
+  function seek(ms) {
+    playing = false; last = 0; playBtn.textContent = "Reproducir";
+    t = ms; paint();
+  }
+
+  shots.forEach(function (s) { s.el.addEventListener("click", function () { seek(s.at); }); });
+
+  function frame(now) {
+    if (playing) {
+      if (!last) last = now;
+      t += now - last;
+      if (t > DUR + 900) t = 0;
+      last = now;
+    } else { last = 0; }
+    paint();
+    requestAnimationFrame(frame);
+  }
+
+  playBtn.addEventListener("click", function () {
+    playing = !playing; last = 0;
+    playBtn.textContent = playing ? "Pausa" : "Reproducir";
+  });
+  scrub.addEventListener("input", function () { seek(Number(scrub.value)); });
+
+  if (reduce) { playing = false; playBtn.textContent = "Reproducir"; }
+  paint();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

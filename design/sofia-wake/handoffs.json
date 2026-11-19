@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "chosen": "01-amanecer.html",
+  "handoffs": {
+    "01-amanecer.html": {
+      "status": "implemented",
+      "queued": false,
+      "sentAt": "2026-11-19T14:09:06.289Z",
+      "startedAt": "2026-11-19T14:10:00.173Z",
+      "implementedAt": "2026-11-19T14:58:16.077Z",
+      "note": "Implementado en el firmware: canales open/glow, escalera buddyWakePose (5 s), overlay de arranque que reemplaza el splash en placa configurada, toque/hold lo saltea, consola `wake`. 31 tests host verdes y compilación OK (47% flash). Falta flashear y correr el probe."
+    }
+  }
+}
