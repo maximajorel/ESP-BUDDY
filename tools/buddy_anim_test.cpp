@@ -570,6 +570,117 @@ int main() {
                                                  buddyIdleDuration(BUDDY_IDLE_BUG, 1u));
   }
 
+  // The six idle events added on top of the original seven. Each one exists
+  // because it does something structurally new; these checks pin down exactly
+  // what, so a later tweak cannot quietly turn it into a copy of a neighbour.
+  printf("\n-- the newer idle events\n");
+  {
+    struct Case {
+      BuddyIdleKind kind;
+      float t;
+    };
+
+    // Squint: narrows from BELOW. A heavy upper lid reads as sleepy, not focused.
+    {
+      BuddyPose p;
+      BuddyIdleEvent e;
+      e.active = true;
+      e.kind = BUDDY_IDLE_SQUINT;
+      e.hash = 0x11u;
+      e.durationMs = buddyIdleDuration(BUDDY_IDLE_SQUINT, 0x11u);
+      e.t = 0.5f;
+      buddyIdleApply(e, 1000u, &p);
+      check("squint narrows from below, not above", p.bottom > 0.2f && p.lid < 0.2f);
+      check("squint leans in", p.grow > 1.0f);
+    }
+
+    // Bliss: shut and flattened, and explicitly NOT the doze's startle.
+    {
+      BuddyPose p;
+      BuddyIdleEvent e;
+      e.active = true;
+      e.kind = BUDDY_IDLE_BLISS;
+      e.hash = 0x22u;
+      e.durationMs = buddyIdleDuration(BUDDY_IDLE_BLISS, 0x22u);
+      e.t = 0.5f;
+      buddyIdleApply(e, 1000u, &p);
+      check("bliss closes the eyes", p.lid > 0.5f);
+      // ry is PIXELS here (48 is normal). Writing a factor of 0.88 left the eye
+      // at 1% of its size, so the range matters more than the exact value.
+      check("bliss flattens without shrinking", p.ry >= 39 && p.ry < 48);
+      check("bliss is not a startle", !p.surprise);
+    }
+
+    // Greet: the head turns, but the eyes come back LAST. Moving both in step
+    // is a twitch; the lag is the whole gesture.
+    {
+      BuddyPose peak, tail;
+      BuddyIdleEvent e;
+      e.active = true;
+      e.kind = BUDDY_IDLE_GREET;
+      e.hash = 0x33u;
+      e.durationMs = buddyIdleDuration(BUDDY_IDLE_GREET, 0x33u);
+      e.t = 0.55f;
+      buddyIdleApply(e, 1000u, &peak);
+      e.t = 0.95f;
+      buddyIdleApply(e, 1000u, &tail);
+      check("greet turns the head", fabsf(peak.turn) > 0.15f);
+      check("greet leaves the eyes a beat behind", fabsf(tail.gazeX) > 0.5f);
+    }
+
+    // Sheepish: the two eyes must DISAGREE. Both drifting together is just
+    // looking away; one leading is what says "you caught me".
+    {
+      BuddyPose p;
+      BuddyIdleEvent e;
+      e.active = true;
+      e.kind = BUDDY_IDLE_SHEEPISH;
+      e.hash = 0x44u;
+      e.durationMs = buddyIdleDuration(BUDDY_IDLE_SHEEPISH, 0x44u);
+      e.t = 0.5f;
+      buddyIdleApply(e, 1000u, &p);
+      check("sheepish looks down", p.gazeY > 1.0f);
+      check("sheepish eyes disagree", fabsf(p.eyeGazeR) > 0.5f);
+      check("sheepish turns away", fabsf(p.turn) > 0.1f);
+    }
+
+    // Puff: the breath has to be visible in the eye itself. A breath that only
+    // moves `bob` is invisible on a 1.47" glass at arm's length.
+    {
+      BuddyPose p;
+      BuddyIdleEvent e;
+      e.active = true;
+      e.kind = BUDDY_IDLE_PUFF;
+      e.hash = 0x55u;
+      e.durationMs = buddyIdleDuration(BUDDY_IDLE_PUFF, 0x55u);
+      e.t = 0.30f;   // top of the inhale
+      buddyIdleApply(e, 1000u, &p);
+      check("puff inflates the eye", p.ry > 50);
+      check("puff lifts the chest", p.bob > 1.0f);
+    }
+
+    // Track: it crosses the glass instead of turning once and holding, which is
+    // what separates it from Peek.
+    {
+      float minX = 1e9f, maxX = -1e9f, maxGrow = 1.0f;
+      BuddyIdleEvent e;
+      e.active = true;
+      e.kind = BUDDY_IDLE_TRACK;
+      e.hash = 0x66u;
+      e.durationMs = buddyIdleDuration(BUDDY_IDLE_TRACK, 0x66u);
+      for (int i = 0; i <= 40; ++i) {
+        BuddyPose p;
+        e.t = i / 40.0f;
+        buddyIdleApply(e, 1000u, &p);
+        if (p.gazeX < minX) minX = p.gazeX;
+        if (p.gazeX > maxX) maxX = p.gazeX;
+        if (p.grow > maxGrow) maxGrow = p.grow;
+      }
+      check("track crosses the whole glass", maxX > 8.0f && minX < -8.0f);
+      check("track comes towards the glass", maxGrow > 1.01f);
+    }
+  }
+
   printf("\n%s (%d failures)\n", g_failures == 0 ? "PASSED" : "FAILED",
          g_failures);
   return g_failures == 0 ? 0 : 1;

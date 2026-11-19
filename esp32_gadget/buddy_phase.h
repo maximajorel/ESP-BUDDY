@@ -14,6 +14,10 @@ enum BuddyPhase {
   BUDDY_PHASE_BUSY,
   BUDDY_PHASE_OK,
   BUDDY_PHASE_ASK,
+  // An appointment is close. Its own phase (not `ask`) because the LED needs a
+  // colour that is neither "I need you now" red nor "I am working" amber, and
+  // because the bead pulses it instead of holding it flat.
+  BUDDY_PHASE_EVENT,
 };
 
 static inline BuddyPhase buddyPhaseFromName(const char *name) {
@@ -21,6 +25,7 @@ static inline BuddyPhase buddyPhaseFromName(const char *name) {
   if (strcmp(name, "busy") == 0) return BUDDY_PHASE_BUSY;
   if (strcmp(name, "ok") == 0) return BUDDY_PHASE_OK;
   if (strcmp(name, "ask") == 0) return BUDDY_PHASE_ASK;
+  if (strcmp(name, "event") == 0) return BUDDY_PHASE_EVENT;
   // "idle", an unknown future phase, or a missing field: the HUD stays empty.
   return BUDDY_PHASE_IDLE;
 }
@@ -30,6 +35,7 @@ static inline const char *buddyPhaseWireName(BuddyPhase phase) {
     case BUDDY_PHASE_BUSY: return "busy";
     case BUDDY_PHASE_OK: return "ok";
     case BUDDY_PHASE_ASK: return "ask";
+    case BUDDY_PHASE_EVENT: return "event";
     case BUDDY_PHASE_IDLE: break;
   }
   return "idle";
@@ -48,6 +54,9 @@ static inline BuddyRgb buddyPhaseDefaultLed(BuddyPhase phase) {
     case BUDDY_PHASE_BUSY: return {255, 190, 0};
     case BUDDY_PHASE_OK: return {0, 255, 80};
     case BUDDY_PHASE_ASK: return {255, 40, 40};
+    // Violet: nothing else in the table is violet, so "the clock is talking"
+    // can never be mistaken for working, done or a question.
+    case BUDDY_PHASE_EVENT: return {170, 80, 255};
     case BUDDY_PHASE_IDLE: break;
   }
   return {0, 180, 255};

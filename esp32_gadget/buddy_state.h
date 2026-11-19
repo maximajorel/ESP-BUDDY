@@ -22,6 +22,11 @@ enum BuddyState {
   BUDDY_WAITING,
   BUDDY_ERROR,
   BUDDY_DONE,
+  // An appointment is close (bridge-side calendar). Unlike every other state
+  // this one is not "what Sofía is doing": it is the clock pressing, and the
+  // ladder gets louder as the event approaches. `ageMs` is the time *to* the
+  // event, not the time since the state started, so the face escalates by itself.
+  BUDDY_UPCOMING,
   BUDDY_OFFLINE,      // the bridge did not answer
   BUDDY_UNCONFIGURED  // no URL or no token yet
 };
@@ -40,6 +45,7 @@ static inline BuddyState buddyStateFromName(const char *name) {
   if (strcmp(name, "waiting") == 0) return BUDDY_WAITING;
   if (strcmp(name, "error") == 0) return BUDDY_ERROR;
   if (strcmp(name, "done") == 0) return BUDDY_DONE;
+  if (strcmp(name, "upcoming") == 0) return BUDDY_UPCOMING;
   return BUDDY_IDLE;
 }
 
@@ -60,6 +66,7 @@ static inline const char *buddyStateWireName(BuddyState state) {
     case BUDDY_WAITING: return "waiting";
     case BUDDY_ERROR: return "error";
     case BUDDY_DONE: return "done";
+    case BUDDY_UPCOMING: return "upcoming";
     case BUDDY_UNCONFIGURED: return "unconfigured";
     case BUDDY_OFFLINE: break;
   }

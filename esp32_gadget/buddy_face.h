@@ -291,6 +291,13 @@ static inline float buddyEase(float current, float target, uint32_t dtMs,
 
 // The eased pose channels. Booleans are not smoothed: an eyelid closes in a
 // blink, and a morph between an arc and an open eye would look like rubber.
+// Per-channel time constants. See the note above BUDDY_EASE_TAU_MS: small tau
+// leads, large tau trails, and the gaze has to stay the fastest or the face
+// stops looking like it is looking at anything.
+#define BUDDY_EASE_TAU_GAZE_MS 45.0f   // the saccade: leads everything
+#define BUDDY_EASE_TAU_SIZE_MS 90.0f   // grow / ry: settles in the middle
+#define BUDDY_EASE_TAU_LID_MS 150.0f   // eyelids: heavy, always lagging
+
 struct BuddyPoseFilter {
   bool seeded = false;
   float gazeX, gazeY, eyeGazeL, eyeGazeR;
@@ -344,22 +351,22 @@ static inline BuddyPose buddyPoseFilterStep(BuddyPoseFilter *f,
 
   BuddyPose p = target;
   float tau = BUDDY_EASE_TAU_MS;
-  f->gazeX = buddyEase(f->gazeX, target.gazeX, dtMs, tau);
-  f->gazeY = buddyEase(f->gazeY, target.gazeY, dtMs, tau);
-  f->eyeGazeL = buddyEase(f->eyeGazeL, target.eyeGazeL, dtMs, tau);
-  f->eyeGazeR = buddyEase(f->eyeGazeR, target.eyeGazeR, dtMs, tau);
-  f->rx = buddyEase(f->rx, (float)target.rx, dtMs, tau);
-  f->ry = buddyEase(f->ry, (float)target.ry, dtMs, tau);
-  f->lid = buddyEase(f->lid, target.lid, dtMs, tau);
-  f->lidL = buddyEase(f->lidL, target.lidL, dtMs, tau);
-  f->lidR = buddyEase(f->lidR, target.lidR, dtMs, tau);
-  f->bottom = buddyEase(f->bottom, target.bottom, dtMs, tau);
+  f->gazeX = buddyEase(f->gazeX, target.gazeX, dtMs, BUDDY_EASE_TAU_GAZE_MS);
+  f->gazeY = buddyEase(f->gazeY, target.gazeY, dtMs, BUDDY_EASE_TAU_GAZE_MS);
+  f->eyeGazeL = buddyEase(f->eyeGazeL, target.eyeGazeL, dtMs, BUDDY_EASE_TAU_GAZE_MS);
+  f->eyeGazeR = buddyEase(f->eyeGazeR, target.eyeGazeR, dtMs, BUDDY_EASE_TAU_GAZE_MS);
+  f->rx = buddyEase(f->rx, (float)target.rx, dtMs, BUDDY_EASE_TAU_SIZE_MS);
+  f->ry = buddyEase(f->ry, (float)target.ry, dtMs, BUDDY_EASE_TAU_SIZE_MS);
+  f->lid = buddyEase(f->lid, target.lid, dtMs, BUDDY_EASE_TAU_LID_MS);
+  f->lidL = buddyEase(f->lidL, target.lidL, dtMs, BUDDY_EASE_TAU_LID_MS);
+  f->lidR = buddyEase(f->lidR, target.lidR, dtMs, BUDDY_EASE_TAU_LID_MS);
+  f->bottom = buddyEase(f->bottom, target.bottom, dtMs, BUDDY_EASE_TAU_LID_MS);
   f->rot = buddyEase(f->rot, target.rot, dtMs, tau);
   f->rotL = buddyEase(f->rotL, target.rotL, dtMs, tau);
   f->rotR = buddyEase(f->rotR, target.rotR, dtMs, tau);
   f->hot = buddyEase(f->hot, target.hot, dtMs, tau);
   f->bob = buddyEase(f->bob, target.bob, dtMs, tau);
-  f->grow = buddyEase(f->grow, target.grow, dtMs, tau);
+  f->grow = buddyEase(f->grow, target.grow, dtMs, BUDDY_EASE_TAU_SIZE_MS);
   f->tremble = buddyEase(f->tremble, target.tremble, dtMs, tau);
   f->tilt = buddyEase(f->tilt, target.tilt, dtMs, tau);
   f->turn = buddyEase(f->turn, target.turn, dtMs, tau);

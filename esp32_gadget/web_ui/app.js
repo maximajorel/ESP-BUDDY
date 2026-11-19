@@ -453,7 +453,7 @@
     var buddy = status.buddy || {};
     var buddyNames = {
       idle: 'En calma', bored: 'Aburrida', thinking: 'Pensando', tool: 'Trabajando',
-      waiting: 'Esperando', error: 'Error', done: 'Listo',
+      waiting: 'Esperando', error: 'Error', done: 'Listo', upcoming: 'Se viene algo',
       offline: 'Sin señal', unconfigured: 'Sin configurar'
     };
     setText('buddyState', buddyNames[buddy.state] || buddy.state || '—');
@@ -477,6 +477,14 @@
       buddyLink.title = buddy.linkDetail || '';
     }
     if (buddy.url) setValue('buddyUrl', buddy.url);
+    // El panel del calendario vive en el BRIDGE, no en la placa: es el único que
+    // tiene las credenciales de Google. La placa solo arma el atajo con la URL
+    // que ya tiene guardada, así el dueño no la tipea dos veces.
+    var calLink = $('buddyCalendarLink');
+    if (calLink) {
+      calLink.href = buddy.url ? buddy.url.replace(/\/+$/, '') + '/calendar_page' : '#';
+      calLink.title = buddy.url ? calLink.href : 'Configurá primero la URL del bridge';
+    }
     if (buddy.eyeColor) setValue('buddyEyeColor', buddy.eyeColor);
 
     // Sofía owns the bead while her bridge is configured: buddyLedTick repaints her

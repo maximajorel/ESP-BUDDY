@@ -353,6 +353,37 @@ int main() {
           buddyGlowPercent(base.glow) == 100);
   }
 
+  // One tau for every channel made the whole face arrive at once. Now the gaze
+  // lands first, the size settles in the middle and the lids trail: that delay
+  // is what the eye reads as weight.
+  printf("-- channels are staggered (gaze leads, lids trail)\n");
+  {
+    BuddyPose closing;          // the settled state we ease OUT of
+    closing.gazeX = 0.0f;
+    closing.ry = 48;
+    closing.lid = 0.0f;
+    BuddyPose target;
+    target.gazeX = 10.0f;
+    target.ry = 60;
+    target.lid = 0.5f;
+    BuddyPoseFilter f;
+    buddyPoseFilterReset(&f);
+    // The first step after a reset ADOPTS the target (deliberate: the face must
+    // not slide in from zero on frame one), so prime the filter before timing.
+    buddyPoseFilterStep(&f, closing, 50);
+    BuddyPose out;
+    for (int i = 0; i < 3; ++i) out = buddyPoseFilterStep(&f, target, 50);
+    const float gazeFrac = out.gazeX / 10.0f;
+    const float sizeFrac = ((float)out.ry - 48.0f) / 12.0f;
+    const float lidFrac = out.lid / 0.5f;
+    check("the gaze gets there first", gazeFrac > sizeFrac);
+    check("the lids are still on the way", sizeFrac >= lidFrac);
+    // After 150 ms the lid is deliberately only ~63% of the way, i.e. one tau
+    // behind. Tightening this is the regression signal for someone "fixing"
+    // the stagger back into a single tau.
+    check("the lids trail by about one tau", lidFrac > 0.4f && lidFrac < 0.8f);
+  }
+
   if (g_failures) {
     printf("\n%d FAILED\n", g_failures);
     return 1;

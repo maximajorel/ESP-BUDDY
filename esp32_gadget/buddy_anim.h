@@ -286,12 +286,21 @@ enum BuddyIdleKind {
   BUDDY_IDLE_SHIVER,  // a quick shake, like a dog shaking off water
   BUDDY_IDLE_LOOKUP,  // hears something above and scans the ceiling
   BUDDY_IDLE_DOZE,    // almost nods off, then snaps awake
+  BUDDY_IDLE_SQUINT,  // something tiny on the glass: leans in, eyes narrow
+  BUDDY_IDLE_BLISS,   // eyes shut, happy: the face of a cat in the sun
+  BUDDY_IDLE_GREET,   // notices you're there: head comes round, eyes lag behind
+  BUDDY_IDLE_SHEEPISH,// caught doing nothing: looks away, eyes disagree
+  BUDDY_IDLE_PUFF,    // gathers itself: one long breath in, then settles
+  BUDDY_IDLE_TRACK,   // follows something crossing in FRONT (depth, not sideways)
   BUDDY_IDLE_COUNT
 };
 
 #define BUDDY_IDLE_EPOCH_MS 180000u   // 3 min: at most one event per epoch
 #define BUDDY_IDLE_SPREAD_MS 130000u  // it may start anywhere in the epoch
-#define BUDDY_IDLE_CHANCE 45u         // and most epochs are completely empty
+// Con trece tipos de evento la duracion media baja (varios son cortos), asi que
+// con 45 la cara quedaba quieta mas del 99% del dia y el test la frena. Con 55
+// vuelve a tener aire sin volverse un circo: el techo del test es 8%.
+#define BUDDY_IDLE_CHANCE 55u         // and most epochs are completely empty
 
 struct BuddyIdleEvent {
   bool active = false;
@@ -314,6 +323,17 @@ static inline uint32_t buddyIdleDuration(uint8_t kind, uint32_t h) {
     case BUDDY_IDLE_SHIVER: return 900u;
     case BUDDY_IDLE_LOOKUP: return 3600u;
     case BUDDY_IDLE_DOZE:   return 4200u;
+    // Los seis nuevos, elegidos por lo que NO existe todavía y no por lo que
+    // falta de una lista: entrecerrar, contento cerrado, desfase cabeza/ojos,
+    // vergüenza asimétrica, respiración visible y profundidad.
+    // Squint dura más que un blink a propósito: si dura lo mismo se lee como
+    // pestañeo y no como "está mirando algo".
+    case BUDDY_IDLE_SQUINT:   return 2600u;
+    case BUDDY_IDLE_BLISS:    return 3000u;
+    case BUDDY_IDLE_GREET:    return 3800u;
+    case BUDDY_IDLE_SHEEPISH: return 2800u;
+    case BUDDY_IDLE_PUFF:     return 3200u;
+    case BUDDY_IDLE_TRACK:    return 4000u;
     default:                return 0u;
   }
 }
@@ -430,6 +450,87 @@ static inline void buddyIdleApply(const BuddyIdleEvent &e, uint32_t nowMs,
         p->gazeY = -6.0f;
         p->tremble = 0.25f * (1.0f - snap);
       }
+      break;
+    }
+    case BUDDY_IDLE_SQUINT: {
+      // Algo chico en el vidrio: se acerca y entrecierra. Sólo párpado inferior
+      // arriba, que es como se ve "afinar la vista": el superior bajaría a
+      // párpado dormido y ahí la cara se lee aburrida, no concentrada.
+      p->bottom = 0.42f * pulse;
+      p->lid = 0.10f * pulse;
+      p->grow = 1.0f + 0.05f * pulse;   // se inclina hacia adelante
+      p->gazeY = 3.0f * pulse;
+      p->turn = 0.10f * side * pulse;
+      p->tremble = 0.05f * pulse;        // el micro-temblor de sostener el foco
+      break;
+    }
+    case BUDDY_IDLE_BLISS: {
+      // Contento sin sonrisa: los ojos se cierran y la cara se afloja hacia
+      // arriba. El "gato al sol": cerrado pero contento, no dormido.
+      p->lid = 0.88f * pulse;
+      p->bottom = 0.20f * pulse;
+      // `ry` son píxeles (48 = normal), no un factor: 40 achata sin achicar.
+      p->ry = 48.0f - 8.0f * pulse;
+      p->gazeY = -4.0f * pulse;
+      p->tilt = 4.0f * side * pulse;
+      p->bob = sinf((float)nowMs * 0.0016f) * 1.1f;
+      break;
+    }
+    case BUDDY_IDLE_GREET: {
+      // Alguien llegó: la cabeza gira al costado donde estaba y después vuelve
+      // al centro MIENTRAS los ojos se quedan un toque más. El desfase es todo
+      // el chiste: si cabeza y ojos vuelven juntos se lee como un tic, no como
+      // "te vio".
+      float turnOut = pulse;
+      float eyesLag = sinf(t * PI_F * 0.75f);  // vuelve antes, sostenido
+      p->turn = 0.22f * side * turnOut;
+      p->gazeX = 11.0f * side * eyesLag;
+      p->tilt = 5.0f * side * turnOut;
+      p->lid = 0.05f;
+      p->bottom = 0.10f * pulse;
+      break;
+    }
+    case BUDDY_IDLE_SHEEPISH: {
+      // Lo agarraste sin hacer nada: mira para otro lado, vuelve, y se vuelve a
+      // ir. La clave es la ASIMETRÍA: los dos ojos no se van juntos (eso sería
+      // mirar); uno lidera y el otro sigue.
+      float away = pulse;
+      p->turn = -0.26f * side * away;    // gira la cara hacia donde no estás
+      p->gazeX = -14.0f * side * away;
+      p->eyeGazeR = 3.5f * side * away;  // un ojo se escapa un poco más
+      p->gazeY = 5.0f * away;            // mirada abajo: es la vergüenza
+      p->lid = 0.18f * away;             // párpado bajo, no entrecerrado
+      p->tilt = -3.0f * side * away;
+      break;
+    }
+    case BUDDY_IDLE_PUFF: {
+      // Un resoplido: no hay boca, así que se cuenta con el pecho. El ojo se
+      // agranda al inspirar y se achica al soltar, y `bob` lleva el ritmo. La
+      // curva es asimétrica a propósito: infla rápido y suelta lento. Un seno
+      // simétrico se lee como latido, no como aire.
+      float in = t < 0.30f ? (t / 0.30f) : 1.0f;
+      float out = t >= 0.30f ? (t - 0.30f) / 0.70f : 0.0f;
+      float air = in * (1.0f - out);
+      p->ry = 48.0f + 7.0f * air;
+      p->lid = 0.32f * air;
+      p->bottom = 0.12f * air;
+      p->grow = 1.0f + 0.035f * air;
+      p->bob = 2.2f * air;
+      p->gazeY = -2.0f * air;
+      break;
+    }
+    case BUDDY_IDLE_TRACK: {
+      // Algo cruza por DELANTE del vidrio, de cerca: horizontal de punta a
+      // punta pero en curva (se acerca al ojo y se aleja), y con un retraso
+      // entre mirada y cabeza. Lo que lo distingue de PEEK es que no se
+      // detiene: lo que se mueve sin parar se lee como "algo pasó".
+      float x = cosf(t * 2.0f * PI_F);        // +1 -> -1 -> +1
+      float depth = sinf(t * PI_F);           // cuánto se acerca al vidrio
+      p->gazeX = 24.0f * x * (0.55f + 0.45f * depth);
+      p->turn = 0.16f * x * depth;            // la cabeza la sigue, retrasada
+      p->grow = 1.0f + 0.03f * depth;         // el bicho pasa cerca: se agranda
+      p->gazeY = -3.0f * depth;
+      p->bottom = 0.14f * depth;
       break;
     }
     default:
