@@ -124,4 +124,10 @@ void loop() {
   if (screensTick(now, s_button.holdPermille(now))) {
     displayPush(gfxBuffer());
   }
+
+  // One millisecond of sleep per pass. This loop has no blocking call of its
+  // own, so without this the task spins at 240 MHz for the whole life of the
+  // board and the idle task never runs; 1 ms is far below what the button, the
+  // sensor or a 20 fps face need, and it hands the core back between frames.
+  vTaskDelay(1);
 }

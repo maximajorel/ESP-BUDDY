@@ -166,6 +166,32 @@ static void printStatus() {
   txReliable(false);
 }
 
+// Thermal and power diagnostics. The board is sealed and has no readable bus, so
+// the radio and backlight state plus the heap are the only honest way to tell
+// "the firmware is burning cycles" apart from "the radio is on and the glass is
+// lit". One line on purpose: a probe samples it every few seconds and the values
+// only mean something when compared across runs.
+//
+// No temperatureRead() here, and it must not come back. The Arduino core reads
+// the internal sensor through the same hardware the WiFi PHY uses: polling it
+// while the radio is up wedged two boards hard enough that even the ROM
+// bootloader stopped answering, and unplugging was the only way out. The chip's
+// number was also out of the sensor's configured range (the core installs it for
+// 10-50 C and this board idles above 75), so it was never a thermometer. Heat is
+// measured from outside now.
+static void printTemp() {
+  const NetStatus &st = netStatus();
+  Serial.printf(
+      "temp cpu=%lud  heap=%lu psram=%lu  ap=%s clients=%u  "
+      "sta=%s rssi=%d  mode=%u  bl=%u rgb=%u\n",
+      (unsigned long)getCpuFrequencyMhz(),
+      (unsigned long)ESP.getFreeHeap(), (unsigned long)ESP.getFreePsram(),
+      st.apActive ? "on" : "off", (unsigned)st.apClients,
+      st.staConnected ? "ok" : (st.staConfigured ? "down" : "unset"),
+      (int)st.staRssi, (unsigned)(WiFi.getMode()),
+      (unsigned)displayGetBacklight(), (unsigned)rgbLevel());
+}
+
 static void printImu() {
   if (!g_imuOk) {
     Serial.println("imu missing");
@@ -199,6 +225,7 @@ static void printHelp() {
   Serial.println("  imureal                    vuelve al sensor real");
   Serial.println("  gamestate                  estado, nave, puntaje, nivel, meteoritos y cazas");
   Serial.println("  imu                        one sensor reading");
+  Serial.println("  temp                       consumo y estado: CPU, heap, radios, backlight y LED (sin sensor térmico: cuelga la placa)");
   Serial.println("  ap [auto|on|off]           si el punto de acceso emite (auto: se apaga con la red de casa)");
   Serial.println("  fonttest                   glifos que resuelve el binario");
   Serial.println("  parsetest                  parser contra un JSON fijo");
@@ -298,6 +325,12 @@ static void handleCommand(char *line) {
   }
   if (!strcmp(argv[0], "imu")) {
     printImu();
+    return;
+  }
+  if (!strcmp(argv[0], "temp")) {
+    txReliable(true);
+    printTemp();
+    txReliable(false);
     return;
   }
   if (!strcmp(argv[0], "ap")) {

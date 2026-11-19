@@ -45,7 +45,10 @@ void settingsResetDefaults() {
   deriveApSsid(s.apSsid, sizeof(s.apSsid));
   copyInto(s.apPass, sizeof(s.apPass), SETTINGS_AP_PASS_DEFAULT);
   s.tzOffsetHours = -3;  // Tucuman, Argentina: no daylight saving
-  s.brightness = 90;
+  // 90% lit the panel beautifully and baked the board: the backlight is a lamp
+  // glued to an already warm chip, and half of it is still readable in a lit
+  // room. The owner can still turn it up from CONFIG, it is stored per device.
+  s.brightness = 50;
   s.slotHighScore = 0;
   s.gameHighScore = 0;
   s.clock24h = true;
@@ -71,7 +74,7 @@ void settingsBegin() {
         strcmp(s_settings.apSsid + strlen(s_settings.apSsid) - 7, "-000000") == 0) {
       deriveApSsid(s_settings.apSsid, sizeof(s_settings.apSsid));
     }
-    if (s_settings.brightness > 100) s_settings.brightness = 90;
+    if (s_settings.brightness > 100) s_settings.brightness = 50;
     // Migration: everything up to this build used a word-like password.
     if (strcmp(s_settings.apPass, SETTINGS_AP_PASS_LEGACY) == 0) {
       copyInto(s_settings.apPass, sizeof(s_settings.apPass),

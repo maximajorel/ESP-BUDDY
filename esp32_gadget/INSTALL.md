@@ -525,6 +525,7 @@ panel web. Abrí el monitor serie a **115200** baudios y escribí `help`.
 | Comando | Qué hace |
 |---|---|
 | `status` | Estado completo: pantalla, orientación, WiFi, hora, ejes del juego, récords, memoria. |
+| `temp` | Consumo y estado: frecuencia de CPU, heap, estado de las dos radios, backlight y nivel del LED. **No** lee el sensor térmico del chip: en el S3 comparte hardware con el PHY del WiFi y sondearlo con la radio arriba colgó la placa hasta tener que desenchufarla. |
 | `ap` | Cómo está el punto de acceso: modo (`auto`, `on`, `off`), si está emitiendo y cuántos clientes tiene. |
 | `ap auto\|on\|off` | `auto` es la regla de fábrica (el AP se apaga cuando el WiFi de casa lleva 30 s conectado y vuelve si se cae); `on` lo levanta ahora; `off` lo silencia. No se guarda: al reiniciar vuelve a `auto`. |
 | `screen 0..6` | Salta a una pantalla (0 reloj, 1 tragamonedas, 2 meteoritos, 3 red, 4 música, 5 Sofía, 6 Config). |
@@ -621,6 +622,16 @@ también borra el WiFi de casa y los récords.
 > Si además perdiste el acceso al panel, el botón BOOT no borra nada: el reset de
 > fábrica se hace desde el panel o por consola serie, y para llegar a la consola
 > alcanza con el cable USB.
+
+**El equipo no contesta en el puerto serie y no se puede flashear.**
+`arduino-cli` dice `Failed to connect to ESP32-S3: No serial data received` y el
+puerto sigue apareciendo en `arduino-cli board list`. El chip quedó colgado: ni
+el bootloader responde. **Desenchufá el USB y volvé a enchufarlo** (o apretá
+EN). No hay nada que se arregle por software desde ese estado, y el reset por
+DTR/RTS que hace el flasheador no alcanza.
+
+Se comprobó con el sensor térmico interno: leerlo con el WiFi activo cuelga la
+placa así. Por eso `temp` ya no lo lee.
 
 **No puedo entrar a `http://192.168.4.1`.**
 Casi siempre es que el teléfono volvió solo a los datos móviles porque la red del
