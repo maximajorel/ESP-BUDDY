@@ -13,6 +13,7 @@
 #include "rgb.h"
 #include "rotation.h"
 #include "buddy_face.h"
+#include "buddy_calendar.h"
 #include "buddy_url.h"
 #include "screen_buddy.h"
 #include "screen_sleep.h"
@@ -273,6 +274,13 @@ static void buildStatusJson(String &out) {
     obj["linkDetail"] = buddy.linkDetail;
     obj["url"] = url;
     {
+      // Igual que el token de lectura: se publica si está, nunca el valor. El
+      // panel lo usa para saber si puede guardar el calendario o pedir cosas.
+      char ask[SETTINGS_BUDDY_ASK_TOKEN_MAX + 1];
+      settingsGetBuddyAskToken(ask, sizeof(ask));
+      obj["hasAskToken"] = ask[0] != '\0';
+    }
+    {
       char eyeHex[8];
       uiColorToHex(settingsGetBuddyEyeColor(), eyeHex);
       obj["eyeColor"] = eyeHex;
@@ -417,6 +425,12 @@ static ApiResult apiSettings(const String &body) {
   if (!doc["buddyToken"].isNull()) {
     const char *token = doc["buddyToken"] | "";
     if (!settingsSetBuddyToken(token)) return apiFail(400, "Token del buddy invalido");
+  }
+  if (!doc["buddyAskToken"].isNull()) {
+    const char *token = doc["buddyAskToken"] | "";
+    if (!settingsSetBuddyAskToken(token)) {
+      return apiFail(400, "Token de administracion invalido");
+    }
   }
 
   if (doc["screenTimeoutSec"].is<int>() || doc["screenTimeoutMask"].is<int>()) {
@@ -700,6 +714,84 @@ static ApiResult apiBuddyAsk(const String &body) {
   return apiOk();
 }
 
+// El calendario lo resuelve el bridge; el panel del ESP es su cara. Todo esto
+// proxea para que configurarlo no obligue a abrir otra web. Leer usa el token del
+// buddy, escribir el de administración: por eso `hasAskToken` viaja al panel, que
+// con eso decide si muestra el botón de guardar o el paso que falta.
+static void fillCalendarJson(JsonDocument &doc) {
+  BuddyCalendarStatus cal;
+  const bool reachable = buddyCalendarStatus(&cal);
+  doc["ok"] = reachable;
+  doc["reachable"] = reachable;
+  doc["bridgeStatus"] = cal.status;
+  doc["configured"] = cal.configured;
+  doc["active"] = cal.active;
+  doc["hasClientId"] = cal.hasClientId;
+  doc["hasClientSecret"] = cal.hasClientSecret;
+  doc["hasRefreshToken"] = cal.hasRefreshToken;
+  doc["hasAskToken"] = cal.hasAskToken;
+  doc["calendarId"] = cal.calendarId;
+  doc["leadMin"] = cal.leadMin;
+  doc["graceMin"] = cal.graceMin;
+  doc["oauthRedirect"] = cal.redirect;
+  doc["hasNext"] = cal.hasNext;
+  doc["nextSummary"] = cal.nextSummary;
+  doc["nextInMin"] = cal.nextInMin;
+}
+
+static ApiResult apiCalendarStatus() {
+  ApiResult r;
+  JsonDocument doc;
+  fillCalendarJson(doc);
+  serializeJson(doc, r.body);
+  return r;
+}
+
+static ApiResult apiCalendarSave(const String &body) {
+  JsonDocument doc;
+  if (!parseOptionalJson(body, doc)) return apiFail(400, API_BAD_JSON);
+  BuddyCalendarEdit edit;
+  edit.clientId = doc["clientId"] | "";
+  edit.clientSecret = doc["clientSecret"] | "";
+  edit.refreshToken = doc["refreshToken"] | "";
+  edit.calendarId = doc["calendarId"] | "";
+  edit.leadMin = doc["leadMin"] | 0;
+  edit.graceMin = doc["graceMin"].is<int>() ? (int)doc["graceMin"] : -1;
+  char error[80];
+  if (!buddyCalendarSave(edit, error, sizeof(error))) {
+    return apiFail(502, error[0] ? error : "No pude guardar el calendario");
+  }
+  return apiCalendarStatus();
+}
+
+static ApiResult apiCalendarForget() {
+  char error[80];
+  if (!buddyCalendarForget(error, sizeof(error))) {
+    return apiFail(502, error[0] ? error : "No pude olvidar el calendario");
+  }
+  return apiCalendarStatus();
+}
+
+// El bridge arma la URL de Google con PKCE y su propio `state`; el ESP sólo la
+// devuelve para que el panel abra la pestaña. El código vuelve al bridge, no a la
+// placa: así el refresh token nunca pasa por el equipo.
+static ApiResult apiCalendarOAuth(const String &body) {
+  JsonDocument doc;
+  if (!parseOptionalJson(body, doc)) return apiFail(400, API_BAD_JSON);
+  char url[256];
+  char error[80];
+  if (!buddyCalendarOAuthStart(doc["clientId"] | "", doc["clientSecret"] | "", url,
+                               sizeof(url), error, sizeof(error))) {
+    return apiFail(502, error[0] ? error : "No pude empezar la conexion con Google");
+  }
+  ApiResult r;
+  JsonDocument out;
+  out["ok"] = true;
+  out["url"] = url;
+  serializeJson(out, r.body);
+  return r;
+}
+
 // The panel needs to know what is missing, not just that something failed: the
 // three auth states map to three different things the owner has to do.
 static ApiResult apiSpotifyStatus() {
@@ -866,6 +958,7 @@ static const char *const POST_PATHS[] = {
     "/api/spotify/config", "/api/spotify/url", "/api/spotify/code",
     "/api/spotify/forget", "/api/screens/order", "/api/screens/names",
     "/api/panel/colors", "/api/buddy/ask", "/api/admin/credentials",
+    "/api/calendar/save", "/api/calendar/oauth", "/api/calendar/forget",
 };
 static const uint32_t POST_PATH_COUNT = sizeof(POST_PATHS) / sizeof(POST_PATHS[0]);
 
@@ -892,13 +985,15 @@ ApiResult netHandleApi(const char *method, const char *path, const String &body)
     return isPost ? apiScanStart() : apiScanRead();
   }
 
-  if (!strcmp(path, "/api/status") || !strcmp(path, "/api/spotify")) {
+  if (!strcmp(path, "/api/status") || !strcmp(path, "/api/spotify") ||
+      !strcmp(path, "/api/calendar")) {
     if (isPost) return apiFail(405, "Metodo no permitido");
     if (!strcmp(path, "/api/status")) {
       ApiResult r;
       buildStatusJson(r.body);
       return r;
     }
+    if (!strcmp(path, "/api/calendar")) return apiCalendarStatus();
     return apiSpotifyStatus();
   }
 
@@ -911,6 +1006,9 @@ ApiResult netHandleApi(const char *method, const char *path, const String &body)
   }
   if (!strcmp(path, "/api/wifi")) return apiWifi(body);
   if (!strcmp(path, "/api/buddy/ask")) return apiBuddyAsk(body);
+  if (!strcmp(path, "/api/calendar/save")) return apiCalendarSave(body);
+  if (!strcmp(path, "/api/calendar/oauth")) return apiCalendarOAuth(body);
+  if (!strcmp(path, "/api/calendar/forget")) return apiCalendarForget();
   if (!strcmp(path, "/api/panel/colors")) {
     // Panel self-test on demand. It blocks for ~5 s while the three colour bars
     // are shown, then the current screen is painted back.

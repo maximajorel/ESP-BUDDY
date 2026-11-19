@@ -99,10 +99,16 @@ bool settingsSetScreenOrder(const uint8_t *order, uint8_t count);
 // never reaches the device; this token only opens the local bridge.
 #define SETTINGS_BUDDY_URL_MAX 96
 #define SETTINGS_BUDDY_TOKEN_MAX 64
+// El token de administración (el "ask" del bridge) abre la escritura: guardar el
+// calendario, pedirle cosas a Sofía. Va en su propia clave porque el de lectura
+// lo tiene cualquiera con la placa y rotar uno no puede arrastrar al otro.
+#define SETTINGS_BUDDY_ASK_TOKEN_MAX 64
 void settingsGetBuddyUrl(char *out, size_t cap);
 void settingsGetBuddyToken(char *out, size_t cap);
 bool settingsSetBuddyUrl(const char *url);
 bool settingsSetBuddyToken(const char *token);
+void settingsGetBuddyAskToken(char *out, size_t cap);
+bool settingsSetBuddyAskToken(const char *token);
 
 // Owner-chosen name for one screen. Each name lives under its own NVS key so the
 // settings blob layout stays untouched; an absent key means "use the built-in

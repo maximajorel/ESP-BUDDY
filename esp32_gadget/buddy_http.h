@@ -50,3 +50,12 @@ void buddyHttpGetEvents(const BuddyUrl &url, const char *token, int since,
 // asynchronously, so no body is kept.
 void buddyHttpAsk(const BuddyUrl &url, const char *token, const String &json,
                   BuddyHttpResult *out);
+
+// Un pedido suelto a cualquier endpoint del bridge, con el token que le pase el
+// que llama. Existe por el calendario: la lectura usa el token del buddy y la
+// escritura el de administración, y ninguno de los dos puede salir de acá.
+// `verb` es "GET" o "POST"; `json` sólo se envía en POST (y puede ir vacío).
+// A diferencia del poll, guarda el cuerpo de cualquier 2xx: son respuestas
+// cortas de administración, no estados que se miren cada segundo.
+void buddyHttpCall(const BuddyUrl &url, const char *path, const char *verb,
+                   const char *token, const String &json, BuddyHttpResult *out);

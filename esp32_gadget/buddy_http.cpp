@@ -225,3 +225,30 @@ void buddyHttpAsk(const BuddyUrl &url, const char *token, const String &json,
   http.end();
   unlockTransport();
 }
+
+// El mismo socket y el mismo lock que el poll: es un pedido de administración,
+// no un stream, así que esperar el turno del poller es lo correcto. El cuerpo se
+// lee en cualquier 2xx porque el bridge contesta 200 al estado y 202 al ask.
+void buddyHttpCall(const BuddyUrl &url, const char *path, const char *verb,
+                   const char *token, const String &json, BuddyHttpResult *out) {
+  if (!out) return;
+  reset(out);
+  if (!path || !*path) return;
+  const bool post = verb && !strcmp(verb, "POST");
+  if (!lockTransport()) return;
+
+  HTTPClient http;
+  if (hostReachable(url, out) && beginRequest(http, url, path, token)) {
+    int code;
+    if (post) {
+      http.addHeader("Content-Type", "application/json");
+      code = http.POST((uint8_t *)json.c_str(), json.length());
+    } else {
+      code = http.GET();
+    }
+    absorb(http, code, url.tls, out);
+    if (code >= 200 && code < 300) out->body = http.getString();
+  }
+  http.end();
+  unlockTransport();
+}

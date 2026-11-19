@@ -305,6 +305,26 @@ bool settingsSetBuddyToken(const char *token) {
   return s_prefs.putString("bdTok", token) > 0;
 }
 
+void settingsGetBuddyAskToken(char *out, size_t cap) {
+  if (!out || cap == 0) return;
+  out[0] = '\0';
+  if (!s_loaded && !s_prefs.begin("gadget", true)) return;
+  String value = s_prefs.getString("bdAsk", "");
+  snprintf(out, cap, "%s", value.c_str());
+}
+
+bool settingsSetBuddyAskToken(const char *token) {
+  if (!s_loaded && !s_prefs.begin("gadget", false)) return false;
+  if (!token || !*token) {
+    // Borrar el token de administración deja el equipo en sólo lectura, que es
+    // exactamente lo que el panel promete cuando dice "olvidar".
+    s_prefs.remove("bdAsk");
+    return true;
+  }
+  if (strlen(token) > SETTINGS_BUDDY_ASK_TOKEN_MAX) return false;
+  return s_prefs.putString("bdAsk", token) > 0;
+}
+
 // --- screen names -----------------------------------------------------------
 
 // "sn0".."sn9": short enough for the 15-byte NVS key limit and independent per
