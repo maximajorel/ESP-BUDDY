@@ -1,0 +1,24 @@
+# El estado `upcoming` que anuncia el bridge (una cita que se acerca) tiene que
+# dibujarse distinto de `idle`: escalera de tres bandas sobre el tiempo que
+# FALTA (lejos tranquilo, en el medio gira la cabeza, encima lo más animado).
+# `buddydraw` publica los canales de la pose, así que la comparación es honesta
+# sin cámara: misma pose que idle = la escalera no llegó al vidrio.
+boot 4
+buddyface idle 10
+sleep 1200
+buddydraw
+sleep 1500
+buddydraw
+buddyface upcoming 3600
+sleep 2000
+buddydraw
+buddyface upcoming 600
+sleep 2000
+buddydraw
+buddyface upcoming 120
+sleep 2000
+buddydraw
+dump 2
+buddyface idle 10
+sleep 1200
+buddydraw
