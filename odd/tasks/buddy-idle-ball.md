@@ -172,3 +172,31 @@ gained gravity-on-each-axis and rest-against-a-wall cases; suite 24 passed.
 - The expression rule from L4 is enforced in `.agents/skills/sofia-buddy-face/
   SKILL.md` and Engram (`buddy/face-expression-rule`). The new `buddyhappy`
   console pin is documented in the console help.
+
+L9 (hardware, `f3945c8` pulleado de la otra máquina): el head turn y la familia de
+eventos idle se verificaron en la placa, no solo en el suite de host. Build
+1.505.694 B (47%), upload a COM5 escribió 1.505.840 B y respondió `Hash of data
+verified`. `tools/probes/buddy_face_turn.txt` maneja `buddydraw`, que imprime la
+geometría de la última cara dibujada:
+
+```
+buddyface waiting 8000  -> eye0 rx=53 eye1 rx=46 deg=2.9   asking: turn + tilt
+buddyface waiting 20000 -> eye0 rx=48 eye1 rx=51 deg=1.7   fidgeting: turn flips
+buddyface error 9000    -> eye0 rx=50 eye1 rx=46 deg=2.6   apology: turn = -0.22
+buddyface idle 10       -> eye0 rx=48 eye1 rx=48 deg=0.0   control: symmetric
+bug 6                   -> eye0 rx=48 eye1 rx=48 deg=0.0   bug is gaze, not size
+```
+
+El control de `idle` es lo que hace la prueba concluyente: sin evento el par sale
+exactamente simétrico (48/48, deg 0.0), así que la diferencia de ancho en las
+bandas de waiting y apology es el canal `turn` y nada más. En el pin de error,
+`lid=0.42`, `ry=36` y `hot=0.30` coinciden con la banda de disculpa de `buddyPose`.
+
+No verificado en hardware: las otras seis clases de idle (wink, peek, yawn,
+shiver, look-up, doze). No tienen pin de consola y las épocas son de 3 minutos, así
+que descansan solo en `buddy_anim_test`. Un pin `buddyidle <kind>` las haría
+verificables.
+
+De paso, el run probó en placa el commit del AP: `ap off  (auto, sta conectado
+30s): panel en http://192.168.100.75` — la regla del duty se aplicó sola y el panel
+siguió vivo en la IP del router.

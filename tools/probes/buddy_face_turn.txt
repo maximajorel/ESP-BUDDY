@@ -1,0 +1,24 @@
+# Head turn and tilt on the real glass. `buddydraw` prints the geometry of the
+# last drawn face, so the turn is proved by the two eyes disagreeing in width
+# (rx) and the tilt by a non-zero deg, not by looking at a photograph.
+boot 4
+buddyface waiting 8000
+sleep 900
+buddydraw
+buddyface waiting 20000
+sleep 900
+buddydraw
+buddyface error 9000
+sleep 900
+buddydraw
+# Control: idle with no event must draw the old symmetric pair.
+buddyface idle 10
+sleep 900
+buddydraw
+# The idle family still has its bug, and the forced pin proves the path.
+bug 6
+sleep 900
+buddydraw
+buddyface idle 10
+sleep 900
+dump 3
