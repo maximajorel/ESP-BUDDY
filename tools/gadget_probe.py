@@ -63,10 +63,16 @@ def main(argv):
     commands = argv[2:]
 
     # `@file` keeps JSON bodies away from any shell quoting: one command per
-    # line, read verbatim.
+    # line, read verbatim. Lines starting with `#` are comments for the reader,
+    # not firmware input: sending them made every annotated probe open with a
+    # burst of `unknown: #` that looked like a broken console.
     if first.startswith("@"):
         with open(first[1:], "r", encoding="utf-8") as handle:
-            commands = [line.rstrip("\n") for line in handle if line.strip()]
+            commands = [
+                line.rstrip("\n")
+                for line in handle
+                if line.strip() and not line.lstrip().startswith("#")
+            ]
         first = "boot"
 
     log = open(OUT, "w", encoding="utf-8", newline="\n")
