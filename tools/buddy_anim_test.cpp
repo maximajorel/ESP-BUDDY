@@ -59,13 +59,54 @@ int main() {
     check("the eye box is square", base.rx == base.ry);
   }
 
-  printf("-- waiting looks around and bobs\n");
+  printf("-- waiting (asking the owner): expectant -> pleading -> fidgeting\n");
   {
+    // 0-4 s: attention held on the owner, eyes up and open, no squint.
     BuddyPose a = buddyPose(BUDDY_WAITING, 0, 0, seed);
-    BuddyPose b = buddyPose(BUDDY_WAITING, 1300, 1300, seed);
-    check("the gaze swings around while waiting", fabsf(a.gazeX - b.gazeX) > 3.0f);
-    check("the impatience bobs", fabsf(buddyPose(BUDDY_WAITING, 0, 300, seed).bob) > 0.5f);
-    check("waiting stays open eyed", a.lid < 0.05f);
+    check("the expectant look points at the owner", a.gazeY < -3.0f);
+    check("it stays open eyed", a.lid < 0.05f);
+    check("it asks with a wide-ish eye", a.ry >= 50);
+    check("the head is steady in the first band", fabsf(a.turn) < 0.01f);
+    check("the sway is small, not a look-around", fabsf(a.gazeX) <= 5.5f);
+
+    // 4-12 s: pleads, tilts and leans in towards the viewer.
+    BuddyPose b = buddyPose(BUDDY_WAITING, 8000, 8000, seed);
+    check("the head turns while asking", fabsf(b.turn) > 0.05f);
+    check("it tilts the whole pair", fabsf(b.tilt) > 0.5f);
+    check("the asking eye lowers its lid a hair", b.bottom > 0.05f);
+
+    // 12 s+: fidgets, the look wanders further than the first band.
+    BuddyPose c = buddyPose(BUDDY_WAITING, 20000, 20000, seed);
+    check("it fidgets when nobody answers", fabsf(c.gazeX) > 6.0f);
+    check("fidgeting turns the head further", fabsf(c.turn) > fabsf(b.turn));
+    check("waiting never narrows the eyes in anger", c.hot < 0.01f);
+
+    // Nothing in the ladder may read as a squint.
+    bool anySquint = false;
+    for (uint32_t t = 0; t < 20000; t += 137) {
+      if (buddyPose(BUDDY_WAITING, t, t, seed).ry < 45) anySquint = true;
+    }
+    check("the whole ladder keeps the eyes open", !anySquint);
+  }
+
+  printf("-- error: startle -> frustration -> apology\n");
+  {
+    BuddyPose s = buddyPose(BUDDY_ERROR, 200, 10, seed);
+    check("it startles crossed", s.eyeGazeL > 0 && s.eyeGazeR < 0);
+    check("the startle blinks hard", s.blink);
+    check("error tints hot", s.hot > 0.2f);
+
+    BuddyPose f = buddyPose(BUDDY_ERROR, 3000, 3000, seed);
+    check("frustration squeezes the eyes", f.ry < 45);
+    check("frustration looks down", f.gazeY > 3.0f);
+    check("frustration shakes", f.tremble > 0.3f);
+    check("frustration is hotter than the startle", f.hot > s.hot);
+
+    BuddyPose ap = buddyPose(BUDDY_ERROR, 9000, 9000, seed);
+    check("the apology droops the lids", ap.lid > 0.35f);
+    check("the apology turns away", ap.turn < 0.0f);
+    check("the apology stops shaking", ap.tremble < 0.01f);
+    check("the apology looks down", ap.gazeY > 6.0f);
   }
 
   printf("-- done bounces then relaxes\n");
@@ -74,6 +115,18 @@ int main() {
     BuddyPose late = buddyPose(BUDDY_DONE, 4000, 4000, seed);
     check("the happy second bounces", fabsf(happy.bob) > 0.5f);
     check("it relaxes after the happy second", !late.happy && late.lid > 0.05f);
+    check("the afterglow raises the lower lid", late.bottom > 0.05f);
+    check("the afterglow is not the full arc", !late.happy);
+  }
+
+  printf("-- the new channels default to the old look\n");
+  {
+    BuddyPose base;
+    check("no tilt by default", base.tilt == 0.0f);
+    check("no head turn by default", base.turn == 0.0f);
+    check("no tilt by default", base.tilt == 0.0f);
+    check("idle never turns the head", buddyPose(BUDDY_IDLE, 1000, 1000, seed).turn == 0.0f);
+    check("tool never turns the head", buddyPose(BUDDY_TOOL, 5000, 5000, seed).turn == 0.0f);
   }
 
   printf("-- breathing while idle and asleep\n");
@@ -314,7 +367,9 @@ int main() {
     bool monotone = true;
     float prevX = 0;
     float lastStep = 0.0f;
-    for (uint32_t t = 0; t < 400000; t += 100) {
+    // A full day, because the bugs went from a 50 s drumbeat to the same rare
+    // clock as every other idle event: roughly one an hour, never in your face.
+    for (uint32_t t = 0; t < 24u * 3600u * 1000u; t += 200) {
       BuddyBug b = buddyBugAt(t, seed);
       if (b.active) {
         if (b.eventId != lastId) {
@@ -342,7 +397,8 @@ int main() {
         }
       }
     }
-    check("a distraction shows up now and then", events >= 4);
+    check("a bug shows up now and then", events >= 8);
+    check("but the glass is not crawling with them", events <= 120);
     check("the bug stays on the glass", !offscreen);
     check("the eyes have to travel to follow it", wentWide);
     check("the bug crawls one way, it does not bounce", monotone);
@@ -419,6 +475,99 @@ int main() {
     check("the breath is a full sine", peak > 0.98f);
     check("the idle eye line rises and falls about one pixel",
           idlePeak > 0.9f && idlePeak < 1.2f);
+  }
+
+  printf("-- idle events: rare, varied, and never on top of each other\n");
+  {
+    uint32_t seed2 = 0x5EED1234u;
+    // Purity: the schedule is a function of the clock and the seed alone.
+    BuddyIdleEvent a1 = buddyIdleEventAt(1234567u, seed2);
+    BuddyIdleEvent a2 = buddyIdleEventAt(1234567u, seed2);
+    check("the idle schedule is deterministic", a1.active == a2.active &&
+                                                   a1.kind == a2.kind &&
+                                                   a1.startMs == a2.startMs);
+
+    // Rarity: over a simulated day, most of the clock has no event at all.
+    const uint32_t DAY = 24u * 60u * 60u * 1000u;
+    uint32_t busyMs = 0;
+    uint32_t prevEnd = 0;
+    bool overlap = false;
+    uint32_t seen[16] = {0};
+    int kinds = 0;
+    BuddyIdleEvent last;
+    for (uint32_t now = 0; now < DAY; now += 500u) {
+      BuddyIdleEvent e = buddyIdleEventAt(now, seed2);
+      if (!e.active) continue;
+      busyMs += 500u;
+      if (e.eventId != last.eventId) {
+        // A new event: it must not start before the previous one ended.
+        if (prevEnd != 0 && e.startMs < prevEnd) overlap = true;
+        prevEnd = e.startMs + e.durationMs;
+        last = e;
+        if (e.kind < 16) seen[e.kind]++;
+      }
+    }
+    check("idle events take under 8% of the day", busyMs * 100u < DAY * 8u);
+    check("idle events take at least 1% of the day", busyMs * 100u > DAY * 1u);
+    check("two idle events never overlap", !overlap);
+
+    // Variety: every kind gets its turn over a day, so no event is dead code.
+    for (int k = 1; k < (int)BUDDY_IDLE_COUNT; k++) {
+      if (seen[k] > 0) kinds++;
+    }
+    check("every kind of idle event shows up", kinds == (int)BUDDY_IDLE_COUNT - 1);
+
+    // Each event is short enough to live inside one epoch, so the "one event
+    // per epoch" guarantee actually holds.
+    bool tooLong = false;
+    for (int k = 1; k < (int)BUDDY_IDLE_COUNT; k++) {
+      if (buddyIdleDuration((uint8_t)k, 0x1234u) == 0) tooLong = true;
+      if (buddyIdleDuration((uint8_t)k, 0x1234u) >= BUDDY_IDLE_EPOCH_MS) tooLong = true;
+    }
+    check("every event fits inside its epoch", !tooLong);
+
+    // Every non-bug event has to actually move the eyes. This is the test that
+    // keeps a new kind from being declared and then forgotten.
+    bool allMove = true;
+    for (int k = 1; k < (int)BUDDY_IDLE_COUNT; k++) {
+      if (k == BUDDY_IDLE_BUG) continue;
+      BuddyPose base;
+      BuddyPose moved;
+      BuddyIdleEvent e;
+      e.active = true;
+      e.kind = (uint8_t)k;
+      e.hash = 0x00A50000u;
+      e.durationMs = 3000;
+      // Mid-event is where the effect peaks.
+      e.t = 0.5f;
+      buddyIdleApply(e, 1000u, &moved);
+      bool same = moved.turn == base.turn && moved.tilt == base.tilt &&
+                  moved.lid == base.lid && moved.lidL == base.lidL &&
+                  moved.lidR == base.lidR && moved.gazeX == base.gazeX &&
+                  moved.gazeY == base.gazeY && moved.bottom == base.bottom &&
+                  moved.tremble == base.tremble && moved.ry == base.ry &&
+                  !moved.surprise;
+      if (same) allMove = false;
+    }
+    check("every idle event actually moves the eyes", allMove);
+
+    // And none of them may run while Sofía is talking: the renderer cancels by
+    // eventId, so the id has to be unique per event.
+    uint32_t probe = 0;
+    uint32_t probeEpoch = 0;
+    for (uint32_t now = 0; now < DAY; now += 250u) {
+      BuddyIdleEvent e = buddyIdleEventAt(now, seed2);
+      if (e.active) {
+        probe = e.eventId;
+        probeEpoch = e.startMs / BUDDY_IDLE_EPOCH_MS;
+        break;
+      }
+    }
+    check("idle events carry the epoch as their id", probe == probeEpoch);
+
+    // A shiver is short and a bug is long: the durations are not all the same.
+    check("a shiver is quicker than a bug", buddyIdleDuration(BUDDY_IDLE_SHIVER, 1u) <
+                                                 buddyIdleDuration(BUDDY_IDLE_BUG, 1u));
   }
 
   printf("\n%s (%d failures)\n", g_failures == 0 ? "PASSED" : "FAILED",

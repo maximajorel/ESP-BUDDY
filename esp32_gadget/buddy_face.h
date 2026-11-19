@@ -275,6 +275,7 @@ struct BuddyPoseFilter {
   float lid, lidL, lidR, bottom;
   float rot, rotL, rotR, hot, bob;
   float grow, tremble;
+  float tilt, turn;
 };
 
 static inline void buddyPoseFilterReset(BuddyPoseFilter *f) {
@@ -313,6 +314,8 @@ static inline BuddyPose buddyPoseFilterStep(BuddyPoseFilter *f,
     f->bob = target.bob;
     f->grow = target.grow;
     f->tremble = target.tremble;
+    f->tilt = target.tilt;
+    f->turn = target.turn;
     return target;
   }
 
@@ -335,6 +338,8 @@ static inline BuddyPose buddyPoseFilterStep(BuddyPoseFilter *f,
   f->bob = buddyEase(f->bob, target.bob, dtMs, tau);
   f->grow = buddyEase(f->grow, target.grow, dtMs, tau);
   f->tremble = buddyEase(f->tremble, target.tremble, dtMs, tau);
+  f->tilt = buddyEase(f->tilt, target.tilt, dtMs, tau);
+  f->turn = buddyEase(f->turn, target.turn, dtMs, tau);
 
   p.gazeX = f->gazeX;
   p.gazeY = f->gazeY;
@@ -353,5 +358,7 @@ static inline BuddyPose buddyPoseFilterStep(BuddyPoseFilter *f,
   p.bob = f->bob;
   p.grow = f->grow;
   p.tremble = f->tremble;
+  p.tilt = f->tilt;
+  p.turn = f->turn;
   return p;
 }

@@ -40,6 +40,14 @@ struct BuddyPose {
   // brows on purpose: the only upper feature of this face is the black eyelid.
   float grow = 1.0f;   // eye scale: anger makes the eye bigger
   float tremble = 0;   // 0..1 shake the renderer adds after the easing
+  // There is no mouth and no brow on this face: everything is the two eyes.
+  // A head turn is faked the only way two flat eyes can fake it: the eye on the
+  // far side shrinks and the near eye grows, exactly like a real head turning
+  // away from the camera. `turn` is -1 (looking far left) .. +1 (far right);
+  // the renderer spreads it into per-eye scale and a small pair shift.
+  float turn = 0;
+  // A whole-pair roll in degrees (positive = clockwise): the head tilting.
+  float tilt = 0;
   bool blink = false;
   bool happy = false;
   bool closed = false;
@@ -251,14 +259,176 @@ static inline float buddyBreath(uint32_t nowMs) {
 
 // --- idle distractions --------------------------------------------------------
 //
-// Every so often the idle face finds something to look at: a bug crawls across
-// the glass and the eyes follow it. The event is scheduled in 50 s windows, so
-// two events never overlap, and it dies the instant anything else happens on the
-// bridge: the owner talking to Sofía always wins over the bug.
-#define BUDDY_EVENT_EPOCH_MS 50000u
-#define BUDDY_EVENT_SPREAD_MS 38000u  // the bug lands anywhere in the window
-#define BUDDY_EVENT_MIN_MS 7000u
-#define BUDDY_EVENT_MAX_MS 12000u
+// --- Idle events: the face finds its own business --------------------------
+//
+// A cat does not fidget on a schedule you can predict, and neither does this
+// face. The clock is cut into long epochs, most epochs are empty on purpose (a
+// face that twitches every 50 s is a screen saver, not a pet), and when one
+// does land it picks a different bit of business each time. Everything is pure
+// clock + seed: no state, so it is testable and it never repeats itself.
+//
+// None of these events ever takes over while Sofía is doing something. The
+// renderer cancels the running event the moment the bridge speaks, because the
+// owner talking to her always wins over a yawn.
+enum BuddyIdleKind {
+  BUDDY_IDLE_NONE = 0,
+  BUDDY_IDLE_BUG,     // a bug crawls across the glass and the eyes follow it
+  BUDDY_IDLE_WINK,    // one eye shuts, then the other
+  BUDDY_IDLE_PEEK,    // something off to one side: the head turns and holds
+  BUDDY_IDLE_YAWN,    // the lids sink most of the way and come back
+  BUDDY_IDLE_SHIVER,  // a quick shake, like a dog shaking off water
+  BUDDY_IDLE_LOOKUP,  // hears something above and scans the ceiling
+  BUDDY_IDLE_DOZE,    // almost nods off, then snaps awake
+  BUDDY_IDLE_COUNT
+};
+
+#define BUDDY_IDLE_EPOCH_MS 180000u   // 3 min: at most one event per epoch
+#define BUDDY_IDLE_SPREAD_MS 130000u  // it may start anywhere in the epoch
+#define BUDDY_IDLE_CHANCE 45u         // and most epochs are completely empty
+
+struct BuddyIdleEvent {
+  bool active = false;
+  uint8_t kind = BUDDY_IDLE_NONE;
+  uint32_t eventId = 0;   // the epoch, so the renderer can cancel this one
+  uint32_t startMs = 0;
+  uint32_t durationMs = 0;
+  uint32_t hash = 0;
+  float t = 0.0f;         // 0..1 through the event
+};
+
+// Each piece of business has its own honest length: a shiver is over in under a
+// second, a bug crossing the glass takes its time.
+static inline uint32_t buddyIdleDuration(uint8_t kind, uint32_t h) {
+  switch (kind) {
+    case BUDDY_IDLE_BUG:    return 7000u + (h >> 9) % 5000u;
+    case BUDDY_IDLE_WINK:   return 2200u;
+    case BUDDY_IDLE_PEEK:   return 3200u + (h >> 9) % 1500u;
+    case BUDDY_IDLE_YAWN:   return 3400u;
+    case BUDDY_IDLE_SHIVER: return 900u;
+    case BUDDY_IDLE_LOOKUP: return 3600u;
+    case BUDDY_IDLE_DOZE:   return 4200u;
+    default:                return 0u;
+  }
+}
+
+static inline BuddyIdleEvent buddyIdleEventAt(uint32_t nowMs, uint32_t seed) {
+  BuddyIdleEvent e;
+  uint32_t epoch = nowMs / BUDDY_IDLE_EPOCH_MS;
+  uint32_t base = epoch * BUDDY_IDLE_EPOCH_MS;
+  uint32_t h = buddyHash32(seed ^ (epoch * 0xB5297A4Du));
+  // Most epochs are quiet. This is the whole point of the change: the idle face
+  // should be calm by default and surprising only now and then.
+  if (h % 100u >= BUDDY_IDLE_CHANCE) return e;
+  uint8_t kind = (uint8_t)(1u + ((h >> 3) % (uint32_t)(BUDDY_IDLE_COUNT - 1)));
+  uint32_t duration = buddyIdleDuration(kind, h);
+  if (duration == 0u) return e;
+  uint32_t start = base + ((h >> 8) % BUDDY_IDLE_SPREAD_MS);
+  if (start + duration > base + BUDDY_IDLE_EPOCH_MS) {
+    // Keep the event inside its own epoch, so two events can never overlap and
+    // the hash stays a pure function of the epoch.
+    start = base + BUDDY_IDLE_EPOCH_MS - duration;
+  }
+  if ((int32_t)(nowMs - start) < 0) return e;
+  uint32_t in = nowMs - start;
+  if (in >= duration) return e;
+  e.active = true;
+  e.kind = kind;
+  e.eventId = epoch;
+  e.startMs = start;
+  e.durationMs = duration;
+  e.hash = h;
+  e.t = (float)in / (float)duration;
+  return e;
+}
+
+// Paint one idle event onto the pose. Only the eyes move: there is no mouth and
+// no brow to work with, so every beat is expressed as lids, eye size and a head
+// turn faked by the size difference between the two eyes.
+static inline void buddyIdleApply(const BuddyIdleEvent &e, uint32_t nowMs,
+                                  BuddyPose *p) {
+  if (!e.active || p == nullptr) return;
+  if (e.kind == BUDDY_IDLE_BUG) return;  // the renderer draws the bug itself
+  const float PI_F = 3.14159265f;
+  float t = e.t;
+  float pulse = sinf(t * PI_F);  // 0 -> 1 -> 0: fades in and out, no pop
+  float side = ((e.hash >> 24) & 1u) ? 1.0f : -1.0f;
+  switch (e.kind) {
+    case BUDDY_IDLE_WINK: {
+      // One eye shuts all the way, opens, then the other one does the same.
+      float phase = (t < 0.5f ? t * 2.0f : (t - 0.5f) * 2.0f);
+      float w = sinf(phase * PI_F);
+      if (t < 0.5f) {
+        p->lidR = w;  // right eye winks first
+      } else {
+        p->lidL = w;
+      }
+      p->tilt = 3.0f * side * pulse;
+      break;
+    }
+    case BUDDY_IDLE_PEEK: {
+      // Something moved off to the side: the head turns towards it, the eyes
+      // lead, and the pair holds there long enough to be seen. `turn` is what
+      // makes one eye grow and the other shrink, so the glass reads as a head
+      // actually rotating rather than two dots sliding right.
+      p->turn = 0.45f * side * pulse;
+      p->gazeX = 20.0f * side * pulse;
+      p->gazeY = -2.0f;
+      p->tilt = -4.0f * side * pulse;
+      p->bottom = 0.08f * pulse;  // a slightly hooded, curious eye
+      break;
+    }
+    case BUDDY_IDLE_YAWN: {
+      // There is no mouth to open, so a yawn is the lids sinking most of the way
+      // and dragging back up, with the whole face tipping back.
+      p->lid = 0.72f * pulse;
+      p->bottom = 0.25f * pulse;
+      p->ry = 52.0f - 14.0f * pulse;
+      p->gazeY = -7.0f * pulse;
+      p->tilt = 5.0f * side * pulse;
+      p->bob = sinf((float)nowMs * 0.0022f) * 1.4f;
+      break;
+    }
+    case BUDDY_IDLE_SHIVER: {
+      // A fast shudder: the eyes rattle side to side and the lids pinch.
+      p->tremble = 0.9f;
+      p->turn = 0.12f * sinf(t * 6.2831853f * 5.0f);
+      p->lid = 0.10f;
+      break;
+    }
+    case BUDDY_IDLE_LOOKUP: {
+      // Something on the ceiling: the eyes climb, the head tips back and turns
+      // towards whatever it heard. Looking up is `gazeY` negative and a positive
+      // tilt on the side it heard it from.
+      p->gazeY = -14.0f * pulse;
+      p->gazeX = 9.0f * side * pulse;
+      p->turn = 0.25f * side * pulse;
+      p->tilt = -7.0f * side * pulse;
+      p->lid = 0.06f;
+      break;
+    }
+    case BUDDY_IDLE_DOZE: {
+      // Nods off, then snaps back. The fall is slow and the recovery is a
+      // startle: the only honest joke a face with no mouth can play.
+      float fall = t < 0.72f ? (t / 0.72f) : 1.0f;
+      float snap = t >= 0.72f ? (t - 0.72f) / 0.28f : 0.0f;
+      float shutness = fall * (1.0f - snap);
+      p->lid = 0.90f * shutness;
+      p->bottom = 0.35f * shutness;
+      p->ry = 50.0f - 26.0f * shutness;
+      p->gazeY = 4.0f * shutness;
+      if (snap > 0.05f) {
+        p->surprise = true;
+        p->ry = 60.0f;
+        p->lid = 0.0f;
+        p->gazeY = -6.0f;
+        p->tremble = 0.25f * (1.0f - snap);
+      }
+      break;
+    }
+    default:
+      break;
+  }
+}
 
 struct BuddyBug {
   bool active = false;
@@ -271,25 +441,20 @@ struct BuddyBug {
 
 static inline BuddyBug buddyBugAt(uint32_t nowMs, uint32_t seed) {
   BuddyBug b;
-  uint32_t epoch = nowMs / BUDDY_EVENT_EPOCH_MS;
-  uint32_t base = epoch * BUDDY_EVENT_EPOCH_MS;
-  uint32_t h = buddyHash32(seed ^ (epoch * 0xB5297A4Du));
-  uint32_t start = base + (h % BUDDY_EVENT_SPREAD_MS);
-  uint32_t duration =
-      BUDDY_EVENT_MIN_MS + ((h >> 8) % (BUDDY_EVENT_MAX_MS - BUDDY_EVENT_MIN_MS));
-  if ((int32_t)(nowMs - start) < 0) return b;
-  uint32_t in = nowMs - start;
-  if (in >= duration) return b;
-  float t = (float)in / (float)duration;
+  BuddyIdleEvent e = buddyIdleEventAt(nowMs, seed);
+  if (!e.active || e.kind != BUDDY_IDLE_BUG) return b;
+  uint32_t h = e.hash;
   b.active = true;
-  b.eventId = epoch;
-  b.startMs = start;
-  b.durationMs = duration;
+  b.eventId = e.eventId;
+  b.startMs = e.startMs;
+  b.durationMs = e.durationMs;
+  float t = e.t;
   // Crawls in from one side and out the other, wandering up and down.
   float dir = ((h >> 16) & 1u) ? 1.0f : -1.0f;
   float from = dir > 0.0f ? -20.0f : 340.0f;
   float to = dir > 0.0f ? 340.0f : -20.0f;
   b.x = from + (to - from) * t;
+  uint32_t in = (uint32_t)(t * (float)e.durationMs);
   float wobble = sinf(t * 6.2831853f * 1.5f + (float)((h >> 20) % 100u));
   b.y = 96.0f + wobble * 34.0f - (float)in * 0.0015f;
   return b;
@@ -388,28 +553,106 @@ static inline BuddyPose buddyPose(BuddyState state, uint32_t ageMs,
       if (ageMs < 1200) {
         p.happy = true;
         p.bob = sinf((float)nowMs * 0.010f) * 2.5f;
+        // The victory jump: a single lift on the first 400 ms, so "done" after
+        // a tool lands harder than the quiet check of a plain finish.
+        if (ageMs < 400) {
+          p.bob -= 4.0f * sinf((float)ageMs * 0.0078f);
+          p.ry = 54;
+        }
       } else {
+        // Afterglow: pleased, not beaming. The lower lid rises a little and
+        // the face breathes, which is the difference between "I won" and "ahh".
+        p.bottom = 0.14f;
         p.lid = 0.15f;
+        p.ry = 44;
         p.bob = sinf((float)nowMs * 0.0016f) * 1.0f;
       }
       break;
-    case BUDDY_ERROR:
-      // Confusion: eyes point at each other and blink on a fast, fixed beat.
+    case BUDDY_ERROR: {
+      // Something broke, and it is not the owner's fault: the face is upset
+      // with itself. Three bands, escalating with how long it has been stuck:
+      //   0-1.2 s  startled: wide, hot-tinted, a hard double blink.
+      //   1.2-6 s  frustrated: eyes squeezed by the lids, looking down, a fast
+      //            tremble. Shame/annoyance, not confusion.
+      //   6 s+     the apology: eyes droop, one slow sad blink, the head turns
+      //            away. This is what a stuck job looks like after a while.
+      // The crossed look survives as the very first instants, because that is
+      // what "no entiendo" reads as, and then it turns into "uf".
       genericBlink = false;
-      p.eyeGazeL = 7;
-      p.eyeGazeR = -7;
-      p.lid = 0.05f;
-      p.blink = (nowMs % 900) < 120;
+      if (ageMs < 1200) {
+        p.eyeGazeL = 7;
+        p.eyeGazeR = -7;
+        p.lid = 0.05f;
+        p.hot = 0.45f;
+        p.rx = 50;
+        p.ry = 54;
+        p.blink = (nowMs % 420) < 70;
+      } else if (ageMs < 6000) {
+        p.eyeGazeL = 3.0f;
+        p.eyeGazeR = -3.0f;
+        p.hot = 0.6f;
+        p.grow = 1.06f;
+        p.ry = 40;
+        p.lid = 0.22f;
+        p.lidL = 0.08f;
+        p.gazeY = 7.0f;              // looks down: rueful
+        p.tilt = -5.0f;
+        p.tremble = 0.5f;
+        p.bob = sinf((float)nowMs * 0.0075f) * 1.2f;
+      } else {
+        p.hot = 0.3f;
+        p.ry = 36;
+        p.lid = 0.42f;               // heavy, drooping lids
+        p.bottom = 0.12f;
+        p.gazeY = 9.0f;
+        p.tilt = -3.0f * sinf((float)ageMs * 0.0006f);
+        p.turn = -0.22f;             // turns the head away, embarrassed
+        p.bob = sinf((float)nowMs * 0.0014f) * 1.4f;
+        // One long sorry blink every ~3.2 s, on a fixed but unhurried beat.
+        p.blink = (nowMs % 3200) < 300;
+      }
       break;
-    case BUDDY_WAITING:
-      // Waiting for an approval is nervous, not static: the look swings between
-      // the owner and the sides, with a small impatient bob.
+    }
+    case BUDDY_WAITING: {
+      // The owner has to answer: this is not "the server is busy", it is "I am
+      // looking at you". The ladder escalates in three bands:
+      //   0-4 s   expectant: eyes up, holding on the owner, head steady.
+      //   4-12 s  asking: the head turns slightly aside and tips, the way people
+      //           tilt when they are waiting for an answer, with a faster bob.
+      //   12 s+   fidgeting: the look wanders off (does the owner even see me?),
+      //           the head keeps turning, and the lower lids rise a touch.
+      // Nothing here ever narrows the eyes: a squint reads as annoyance, and
+      // the owner being slow to answer is not something to be annoyed about.
       p.rx = 50;
-      p.ry = 50;
-      p.gazeX = sinf((float)ageMs * 0.0012f) * 14.0f;
-      p.gazeY = -2.0f;
-      p.bob = sinf((float)nowMs * 0.004f) * 3.0f;
+      p.ry = 52;
+      p.gazeY = -6.0f;
+      if (ageMs < 4000) {
+        // A slow sway, so the attention is alive but clearly held on the owner.
+        p.gazeX = sinf((float)ageMs * 0.0009f) * 5.0f;
+        p.bob = sinf((float)nowMs * 0.0045f) * 2.0f;
+      } else if (ageMs < 12000) {
+        // Asking: the head turns and tips, the eyes stay on the owner.
+        float t = (float)(ageMs - 4000) / 8000.0f;
+        p.tilt = 4.5f * sinf((float)ageMs * 0.0011f);
+        p.turn = 0.16f * sinf((float)ageMs * 0.0007f);
+        p.gazeY = -8.0f;
+        p.bob = sinf((float)nowMs * 0.0062f) * 3.0f;
+        // The lower lid comes up a hair: a soft, patient eye, not a squint.
+        p.bottom = 0.10f;
+        (void)t;
+      } else {
+        // Fidgeting: the look wanders and the head turns further, so the near
+        // eye visibly grows while the far one shrinks.
+        uint32_t t = ageMs - 12000;
+        p.tilt = 3.0f * sinf((float)t * 0.0007f);
+        p.turn = 0.34f * sinf((float)t * 0.0009f);
+        p.gazeX = sinf((float)t * 0.0013f) * 16.0f;
+        p.gazeY = -4.0f + sinf((float)t * 0.0021f) * 3.0f;
+        p.lid = 0.06f + 0.10f * fabsf(sinf((float)t * 0.0026f));
+        p.bob = sinf((float)nowMs * 0.0035f) * 2.5f;
+      }
       break;
+    }
     case BUDDY_TOOL: {
       // A tool starting is a small surprise: wide for 200 ms, then the cycle.
       if (ageMs < 200) {

@@ -936,14 +936,27 @@ static void drawFace(BuddyState state, const BuddyPose &pose, uint32_t nowMs,
   // lid, and a random idle blink landing inside the poke must not erase it.
   int baseRy =
       (shut && !happy) ? 4 : (int)lroundf((float)pose.ry * grow);
+  // A turned head, faked with two flat eyes: the eye on the side the head turns
+  // away from gets narrower (a rotating sphere foreshortens) and the near eye
+  // gets wider, so the pair visibly disagrees in size. `tilt` then rolls both
+  // eyes together. Positive turn = head goes to the owner's right.
+  float turn = pose.turn;
+  if (turn > 1.0f) turn = 1.0f;
+  if (turn < -1.0f) turn = -1.0f;
+  const float BUDDY_TURN_SCALE = 0.22f;
   BuddyPerspective per = buddyPerspective(pose.gazeX);
   for (int i = 0; i < 2; i++) {
     float widen = i == 0 ? per.widenL : per.widenR;
     float lead = i == 0 ? per.pushL : per.pushR;
-    eyeRx[i] = (int)lroundf((float)baseRx * widen);
-    eyeX[i] = cx[i] + (int)(pose.gazeX + lead +
+    // i == 0 is the left eye on screen. Turning right grows the right eye.
+    float turnScale = (i == 0) ? (1.0f - BUDDY_TURN_SCALE * turn)
+                              : (1.0f + BUDDY_TURN_SCALE * turn);
+    eyeRx[i] = (int)lroundf((float)baseRx * widen * turnScale);
+    // The whole pair also slides a couple of pixels the way the head turns.
+    float turnX = 5.0f * turn;
+    eyeX[i] = cx[i] + (int)(pose.gazeX + lead + turnX +
                             (i == 0 ? pose.eyeGazeL : pose.eyeGazeR));
-    eyeDeg[i] = pose.rot + (i == 0 ? pose.rotL : pose.rotR);
+    eyeDeg[i] = pose.rot + pose.tilt + (i == 0 ? pose.rotL : pose.rotR);
     eyeExtentX[i] = (int)ceilf(
         buddyEyeExtentX((float)eyeRx[i], (float)baseRy, eyeDeg[i]));
     eyeExtentY[i] = (int)ceilf(
@@ -1295,6 +1308,10 @@ bool buddyTick(uint32_t nowMs) {
   // Distractions: only while the face is genuinely idle and Sofía is doing
   // nothing. The moment she is spoken to (any other state, phase or a tap) the
   // event is cancelled for good; the eyes follow the bug otherwise.
+  // The idle events are a family now (bug, wink, yawn, peek, shiver, look-up,
+  // doze), all scheduled off the same long, mostly-empty clock. Anything that is
+  // not the bug is painted straight onto the pose through its eyes.
+  BuddyIdleEvent idle = buddyIdleEventAt(nowMs, s_seed);
   BuddyBug bug = buddyBugAt(nowMs, s_seed);
   // Console override: `bug <seconds>` puts the distraction on the glass now, so
   // the probe can prove it without waiting for the hashed window.
@@ -1311,8 +1328,12 @@ bool buddyTick(uint32_t nowMs) {
   bool ballVisible = ballGame && !pose.closed;
   bool quiet =
       awakeIdle && view.phase == BUDDY_PHASE_IDLE && !poke && !ballVisible;
-  if (!quiet && bug.active) s_bugCancelled = bug.eventId;
+  if (!quiet && idle.active) s_bugCancelled = idle.eventId;
+  if (idle.active && idle.eventId == s_bugCancelled) idle.active = false;
   if (bug.active && bug.eventId == s_bugCancelled) bug.active = false;
+  if (idle.active && idle.kind != BUDDY_IDLE_BUG) {
+    buddyIdleApply(idle, nowMs, &pose);
+  }
   if (bug.active) {
     float gx = 0, gy = 0;
     buddyBugGaze(bug, &gx, &gy);
