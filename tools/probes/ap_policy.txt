@@ -1,0 +1,21 @@
+# La política del punto de acceso: cuándo emite y cuándo se corre.
+#
+# Requiere el WiFi de casa configurado y conectado. La primera foto muestra el
+# estado de arranque (el AP arriba, porque en el arranque todavía no hay enlace);
+# después de los 30 s de enlace probado el AP tiene que estar apagado solo, y los
+# overrides de la consola tienen que poder levantarlo y bajarlo a mano.
+temp
+ap
+sleep 40000
+ap
+temp
+ap on
+sleep 3000
+ap
+ap off
+sleep 3000
+ap
+ap auto
+sleep 3000
+ap
+status

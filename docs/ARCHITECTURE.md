@@ -27,6 +27,7 @@ esp32_gadget.ino        boot, botón, loop
 ├── settings.*          NVS: credenciales, ajustes, récords, calibración
 ├── admin_auth.*        credenciales del panel, sesiones y protección de rutas
 ├── net.*               WiFi AP+STA, NTP, API HTTP y panel web
+│   └── net_ap_policy.h cuándo emite el AP (puro, test en host)
 ├── spotify_*.*         OAuth PKCE, consulta, parser y carátula
 ├── buddy_http.*        transporte del bridge: HTTP en la LAN, HTTPS validado
 ├── rotation.*          política de rotación aplicada al panel

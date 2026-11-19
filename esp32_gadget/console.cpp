@@ -15,6 +15,7 @@
 #include "gfx.h"
 #include "imu.h"
 #include "net.h"
+#include "net_ap_policy.h"
 #include "rgb.h"
 #include "rotation.h"
 #include "buddy_phase.h"
@@ -198,6 +199,7 @@ static void printHelp() {
   Serial.println("  imureal                    vuelve al sensor real");
   Serial.println("  gamestate                  estado, nave, puntaje, nivel, meteoritos y cazas");
   Serial.println("  imu                        one sensor reading");
+  Serial.println("  ap [auto|on|off]           si el punto de acceso emite (auto: se apaga con la red de casa)");
   Serial.println("  fonttest                   glifos que resuelve el binario");
   Serial.println("  parsetest                  parser contra un JSON fijo");
   Serial.println("  arttest                    redecodifica la caratula e informa");
@@ -296,6 +298,28 @@ static void handleCommand(char *line) {
   }
   if (!strcmp(argv[0], "imu")) {
     printImu();
+    return;
+  }
+  if (!strcmp(argv[0], "ap")) {
+    // The console is the way back when the router's LAN is unreachable: with the
+    // AP quiet there is no page to ask for it. `auto` returns the radio to the
+    // shipped rule (up while the station link is down), `on` raises it now.
+    if (argc > 1) {
+      if (!strcmp(argv[1], NET_AP_MODE_AUTO_NAME)) {
+        netSetApMode(NET_AP_AUTO);
+      } else if (!strcmp(argv[1], NET_AP_MODE_ON_NAME)) {
+        netSetApMode(NET_AP_FORCE_ON);
+      } else if (!strcmp(argv[1], NET_AP_MODE_OFF_NAME)) {
+        netSetApMode(NET_AP_FORCE_OFF);
+      } else {
+        Serial.println("uso: ap [auto|on|off]");
+        return;
+      }
+    }
+    const NetStatus &st = netStatus();
+    Serial.printf("ap modo %s  activo=%s  http://%s  clients=%u\n",
+                  netApModeName(netApMode()), st.apActive ? "si" : "no",
+                  NET_AP_IP, (unsigned)st.apClients);
     return;
   }
   if (!strcmp(argv[0], "parsetest")) {    // Runs the real parser on a fixed body, so a parse problem is separated from

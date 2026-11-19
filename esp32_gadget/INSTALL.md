@@ -215,14 +215,18 @@ El reloj sólo puede ponerse en hora solo si el equipo entra a internet.
 En unos segundos la pantalla RED pasa a `EN LINEA` y el reloj toma la hora por
 NTP. El firmware reinicia el pedido de hora en el momento exacto en que el WiFi
 conecta, así que la hora aparece en segundos y no hay que esperar ni reiniciar.
-El equipo queda conectado a las dos redes a la vez: la suya (para el panel) y la de
-casa (para internet).
+
+Unos **30 segundos después** de que el WiFi de casa queda conectado, el equipo
+apaga su propia red (`ESP32-GADGET-XXXXXX`): una radio emitiendo para nadie es
+calor y consumo al vicio. El panel no se pierde, sigue vivo en la dirección que
+te dio el router; si el WiFi de casa se cae, el AP vuelve solo en el acto. Si
+necesitás el AP de vuelta ahora mismo, escribí `ap on` en la consola serie.
 
 ### Cómo entrar al panel una vez conectado a tu WiFi
 
 Este es el punto que más confunde: **no tenés que desconectarte de tu WiFi de
-casa para usar el panel**. El equipo atiende por los dos lados al mismo tiempo,
-así que tenés dos direcciones y las dos funcionan:
+casa para usar el panel**. El equipo atiende por los dos lados, así que tenés dos
+direcciones y las dos funcionan:
 
 | Estás conectado a… | Abrí |
 |---|---|
@@ -231,7 +235,9 @@ así que tenés dos direcciones y las dos funcionan:
 
 La primera es la cómoda: seguís con internet y con el panel a la vez. La segunda
 sirve cuando estás en un lugar sin tu red, o si el equipo todavía no tiene WiFi
-de casa configurado.
+de casa configurado. Con el WiFi de casa conectado y estable el AP se apaga a los
+30 segundos, así que la segunda fila vale mientras no haya red de casa, o después
+de un `ap on` por consola.
 
 Esa IP se la asigna tu router por DHCP, así que **puede cambiar** si reiniciás el
 router o el equipo queda mucho tiempo apagado. Cuando cambie, mirá la pantalla RED
@@ -515,6 +521,8 @@ panel web. Abrí el monitor serie a **115200** baudios y escribí `help`.
 | Comando | Qué hace |
 |---|---|
 | `status` | Estado completo: pantalla, orientación, WiFi, hora, ejes del juego, récords, memoria. |
+| `ap` | Cómo está el punto de acceso: modo (`auto`, `on`, `off`), si está emitiendo y cuántos clientes tiene. |
+| `ap auto\|on\|off` | `auto` es la regla de fábrica (el AP se apaga cuando el WiFi de casa lleva 30 s conectado y vuelve si se cae); `on` lo levanta ahora; `off` lo silencia. No se guarda: al reiniciar vuelve a `auto`. |
 | `screen 0..6` | Salta a una pantalla (0 reloj, 1 tragamonedas, 2 meteoritos, 3 red, 4 música, 5 Sofía, 6 Config). |
 | `press [ms]` | Simula un toque corto. |
 | `doubletap` | Dos toques rápidos por la ruta de la pantalla actual (en CONFIG mueve el foco). |
@@ -616,6 +624,10 @@ equipo no tiene internet. Ver el aviso del paso 6: elegí *Mantener conexión* /
 *Usar sin Internet* y reintentá. Fijate también que la barra de WiFi del teléfono
 siga mostrando `ESP32-GADGET-XXXXXX` y no tu red de casa.
 
+Si el equipo **ya tiene** WiFi de casa configurado y conectado, el AP está
+apagado a propósito: entrá por la dirección que muestra la pantalla RED (la que
+te dio el router) o escribí `ap on` en la consola serie para levantarlo.
+
 **La nave se mueve con el eje equivocado.**
 En el panel, **Juegos → Cambiar eje del control**. Si igual no responde, tocá
 **Recalibrar controles** (te abre el wizard en CONFIG) y repetí el gesto
@@ -675,6 +687,7 @@ esp32_gadget/
 ├── ui_color.h, theme.h     paleta compartida
 ├── admin_auth.h/.cpp       credenciales, sesiones y qué rutas piden sesión (puro, test en host)
 ├── net.h/.cpp              WiFi, NTP, API y servidor web
+├── net_ap_policy.h         cuándo emite el punto de acceso (puro, test en host)
 ├── admin_seed.h            credenciales del .env: sal y hash (generado, no versionado)
 ├── web_assets.h            panel web empaquetado (generado)
 └── web_ui/                 panel web: index.html (entrada), admin.html (panel),

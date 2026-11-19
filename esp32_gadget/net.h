@@ -1,8 +1,11 @@
 // WiFi, NTP and the web admin panel.
 //
-// The device runs both radios at once: an access point so a phone or laptop can
-// always reach the admin panel and read the connection data off the screen, and
-// an optional station link to the home network for NTP and internet time.
+// The device can run both radios at once: an optional station link to the home
+// network for NTP, internet time and the panel on the LAN, and an access point
+// that is the only way in when there is no home network. They are not both on
+// for the whole life of the board - the AP steps aside once the station link has
+// proven itself, because an idle AP is heat and power for nothing. The duty rule
+// lives in net_ap_policy.h.
 #pragma once
 
 #include <Arduino.h>
@@ -53,6 +56,12 @@ bool netSetSta(const char *ssid, const char *pass);
 
 // Restarts the access point. Returns false on invalid input.
 bool netSetAp(const char *ssid, const char *pass);
+
+// The AP's duty cycle: NET_AP_AUTO (default), NET_AP_FORCE_ON, NET_AP_FORCE_OFF.
+// Not persisted on purpose - a forced-off AP that survived a reboot would be a
+// lockout. Applied by the next netLoop tick.
+uint8_t netApMode();
+void netSetApMode(uint8_t mode);
 
 // Forgets the home network and drops the station link. Without this, a typo in
 // the password would be unrecoverable from the panel: the only remaining way
