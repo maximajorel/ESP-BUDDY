@@ -43,12 +43,7 @@ static void sample(float out[3], float x, float y, float z) {
 
 static RotationPolicy fresh(uint8_t applied) {
   RotationPolicy p;
-  p.applied = applied;
-  p.anchor = applied;
-  p.reference = 0;
-  p.haveRef = false;
-  p.candidate = 0;
-  p.sinceMs = 0;
+  rotPolicyStart(&p, applied);
   return p;
 }
 
@@ -60,14 +55,16 @@ int main() {
     RotationPolicy p = fresh(ROT_POLICY_A);
     sample(a, 0.62f, 0.10f, 0.77f);
     checkInt("applied stays A", rotPolicyFeed(&p, a, 0, 1, 1000), ROT_POLICY_A);
-    checkInt("reference learned as +1", p.reference, 1);
+    // The learned reference is the normalized in-plane direction of that sample.
+    checkFloat("reference direction x", p.refX, 0.987241f);
+    checkFloat("reference direction y", p.refY, 0.159232f);
     checkInt("anchor is A", p.anchor, ROT_POLICY_A);
   }
 
   printf("-- flat on its back: no in-plane gravity, keep the last image\n");
   {
     RotationPolicy p = fresh(ROT_POLICY_A);
-    sample(a, 0.30f, 0.05f, 0.94f);
+    sample(a, 0.45f, 0.05f, 0.89f);
     rotPolicyFeed(&p, a, 0, 1, 1000);  // learn with A
     sample(a, 0.02f, -0.10f, 0.99f);   // lying flat, no in-plane direction
     checkInt("flat keeps A at once", rotPolicyFeed(&p, a, 0, 1, 1100),
@@ -137,17 +134,141 @@ int main() {
              ROT_POLICY_A);
   }
 
+  printf("-- the hold does not matter: the short axis may carry gravity too\n");
+  {
+    // Held landscape, the way the 320x172 image is actually read: the long axis
+    // of the glass is horizontal, so gravity lands on the short axis. Which of
+    // the two in-plane axes carries gravity must not decide whether the board
+    // can be turned 180 degrees.
+    RotationPolicy p = fresh(ROT_POLICY_A);
+    sample(a, 0.05f, 0.70f, 0.71f);
+    rotPolicyFeed(&p, a, 0, 1, 1000);
+    sample(a, -0.05f, -0.70f, 0.71f);
+    checkInt("a turn is spotted with gravity on the short axis",
+             rotPolicyFeed(&p, a, 0, 1, 1000), ROT_POLICY_A);
+    checkInt("and it flips once the window elapses",
+             rotPolicyFeed(&p, a, 0, 1, 1000 + ROT_SETTLE_MS), ROT_POLICY_B);
+
+    // The same hold, rolled to steer: gravity slides towards the glass axis but
+    // the in-plane direction barely moves, so it is not a turn.
+    RotationPolicy q = fresh(ROT_POLICY_A);
+    sample(a, 0.05f, 0.70f, 0.71f);
+    rotPolicyFeed(&q, a, 0, 1, 1000);
+    sample(a, 0.10f, 0.50f, 0.86f);
+    checkInt("a steering roll in that hold is not a turn",
+             rotPolicyFeed(&q, a, 0, 1, 60000), ROT_POLICY_A);
+  }
+
+  printf("-- a flat sample in the middle of a turn does not restart the window\n");
+  {
+    // The gadget passes through "lying flat" while it is being turned, and the
+    // sensor drops samples. Restarting the settle window on every such sample
+    // is why a real turn sometimes never completed.
+    RotationPolicy p = fresh(ROT_POLICY_A);
+    sample(a, 0.62f, 0.10f, 0.77f);
+    rotPolicyFeed(&p, a, 0, 1, 1000);
+    sample(a, -0.60f, 0.05f, 0.78f);
+    rotPolicyFeed(&p, a, 0, 1, 1000);  // the turn is voted for at 1000
+    sample(a, 0.02f, -0.02f, 0.99f);   // one flat sample mid-gesture
+    checkInt("a flat sample keeps the current image",
+             rotPolicyFeed(&p, a, 0, 1, 1200), ROT_POLICY_A);
+    sample(a, -0.60f, 0.05f, 0.78f);
+    checkInt("the next vote resumes the same window",
+             rotPolicyFeed(&p, a, 0, 1, 1300), ROT_POLICY_A);
+    checkInt("and it flips when the window started at the first vote elapses",
+             rotPolicyFeed(&p, a, 0, 1, 1000 + ROT_SETTLE_MS), ROT_POLICY_B);
+  }
+
+  printf("-- a flat stretch does not stall the window either\n");
+  {
+    // At the 10 Hz the loop samples with, a real turn keeps dropping readings
+    // while the board is edge-on to gravity. As long as the voting samples keep
+    // pointing the same way, the window has to keep counting.
+    RotationPolicy p = fresh(ROT_POLICY_A);
+    sample(a, 0.62f, 0.10f, 0.77f);
+    rotPolicyFeed(&p, a, 0, 1, 1000);
+    sample(a, -0.60f, 0.05f, 0.78f);
+    rotPolicyFeed(&p, a, 0, 1, 1000);
+    sample(a, 0.02f, -0.02f, 0.99f);
+    rotPolicyFeed(&p, a, 0, 1, 1100);  // flat, no vote
+    rotPolicyFeed(&p, a, 0, 1, 1200);  // flat, no vote
+    sample(a, -0.60f, 0.05f, 0.78f);
+    checkInt("a vote after the flat stretch keeps the window",
+             rotPolicyFeed(&p, a, 0, 1, 1300), ROT_POLICY_A);
+    checkInt("and it flips on the first vote past the deadline",
+             rotPolicyFeed(&p, a, 0, 1, 1000 + ROT_SETTLE_MS), ROT_POLICY_B);
+
+    // Turning back to the image on the glass, however, is a real cancellation.
+    RotationPolicy q = fresh(ROT_POLICY_A);
+    sample(a, 0.62f, 0.10f, 0.77f);
+    rotPolicyFeed(&q, a, 0, 1, 1000);
+    sample(a, -0.60f, 0.05f, 0.78f);
+    rotPolicyFeed(&q, a, 0, 1, 1000);
+    sample(a, 0.02f, -0.02f, 0.99f);
+    rotPolicyFeed(&q, a, 0, 1, 1100);
+    sample(a, 0.62f, 0.10f, 0.77f);
+    checkInt("an upright vote after the flat stretch cancels",
+             rotPolicyFeed(&q, a, 0, 1, 1200), ROT_POLICY_A);
+    sample(a, -0.60f, 0.05f, 0.78f);
+    checkInt("a new turn has to settle from scratch",
+             rotPolicyFeed(&q, a, 0, 1, 1300), ROT_POLICY_A);
+    checkInt("and flips only after its own window",
+             rotPolicyFeed(&q, a, 0, 1, 1300 + ROT_SETTLE_MS), ROT_POLICY_B);
+  }
+
+  printf("-- a grip change is absorbed so the next turn is still caught\n");
+  {
+    // The reference is learned from whatever hold the first sample found. The
+    // owner then changes grip, or switched the gadget on in another pose: a
+    // quarter turn in the plane is neither "upright" nor "turned" for that old
+    // reference, and a reference that never moved left every later 180 degree
+    // turn undetectable. Holding one direction steadily is not a decision, so it
+    // becomes the new reference after a couple of seconds.
+    RotationPolicy p = fresh(ROT_POLICY_A);
+    sample(a, 0.62f, 0.10f, 0.77f);
+    rotPolicyFeed(&p, a, 0, 1, 1000);
+    sample(a, 0.10f, 0.62f, 0.77f);  // the same board, held a quarter turn round
+    bool moved = false;
+    for (uint32_t t = 1100; t <= 3600; t += 100) {
+      if (rotPolicyFeed(&p, a, 0, 1, t) != ROT_POLICY_A) moved = true;
+    }
+    checkInt("a grip change alone never flips the image", moved ? 1 : 0, 0);
+    checkFloat("the reference followed the new hold x", p.refX, 0.159232f);
+    checkFloat("the reference followed the new hold y", p.refY, 0.987241f);
+
+    sample(a, -0.10f, -0.62f, 0.77f);
+    checkInt("a turn from the new hold is still caught",
+             rotPolicyFeed(&p, a, 0, 1, 3700), ROT_POLICY_A);
+    checkInt("and flips after its own window",
+             rotPolicyFeed(&p, a, 0, 1, 3700 + ROT_SETTLE_MS), ROT_POLICY_B);
+  }
+
+  printf("-- pitching the board forward is not a turn\n");
+  {
+    RotationPolicy p = fresh(ROT_POLICY_A);
+    sample(a, 0.62f, 0.10f, 0.77f);
+    rotPolicyFeed(&p, a, 0, 1, 1000);
+    // Gravity moves out of the long axis towards the glass axis; the in-plane
+    // direction it leaves behind is the same one.
+    sample(a, 0.30f, 0.08f, 0.95f);
+    checkInt("pitch keeps A", rotPolicyFeed(&p, a, 0, 1, 1100), ROT_POLICY_A);
+    sample(a, 0.05f, 0.02f, 0.99f);
+    checkInt("pitching almost flat keeps A too",
+             rotPolicyFeed(&p, a, 0, 1, 60000), ROT_POLICY_A);
+  }
+
   printf("-- the mapping survives the flip: only the sign that flipped counts\n");
   {
     RotationPolicy p = fresh(ROT_POLICY_A);
     sample(a, 0.62f, 0.10f, 0.77f);
     rotPolicyFeed(&p, a, 0, 1, 1000);
     checkInt("anchor stays A after learning", p.anchor, ROT_POLICY_A);
-    checkInt("reference stays +1", p.reference, 1);
+    checkFloat("reference x unchanged by the flip", p.refX, 0.987241f);
     sample(a, -0.60f, 0.05f, 0.78f);
     rotPolicyFeed(&p, a, 0, 1, 1100);
     rotPolicyFeed(&p, a, 0, 1, 1100 + ROT_SETTLE_MS);
-    checkInt("learning never repeats", p.reference, 1);
+    checkInt("the image did flip", p.applied, ROT_POLICY_B);
+    checkFloat("learning never repeats", p.refX, 0.987241f);
   }
 
   printf("-- a mirrored orientation is never the answer\n");

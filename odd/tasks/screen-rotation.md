@@ -153,3 +153,71 @@ funciona") y pidio meter todo en master. `master` estaba en 29c64dc y `HEAD` lo
 tenia como ancestro, asi que la integracion fue **fast-forward** a 8a82677: los 13
 commits de la cadena (buddy squircle, screen-settings y esta feature), arbol
 limpio, sin merge commit. No hay remoto configurado, asi que no se publico nada.
+
+L12 (auditoria del dueno, post-merge): "la rotacion automatica no funciona bien, o
+ni anda a veces". Tres defectos reales encontrados leyendo el codigo:
+
+1. La politica miraba **un solo eje** (el largo) y exigia que dominara 1.5x sobre
+   el corto. Sostenido de costado, que es como se lee la imagen 320x172 sobre el
+   vidrio vertical, la gravedad cae sobre el eje **corto**: `magAlong <
+   ROT_MIN_G` siempre y la imagen nunca giraba. Solo funcionaba en el agarre
+   parado.
+2. Cada muestra sin componente en el plano (el equipo pasa por "acostado"
+   mientras lo giras, o se pierde una lectura del I2C) ponia `candidate = 0` y
+   reiniciaba la ventana de asentamiento: en hardware con lecturas perdidas la
+   ventana de 450 ms podia no completarse nunca.
+3. La referencia se aprendia **una sola vez**. Si el dueno cambiaba el agarre ~90
+   grados, o encendia el equipo en otra pose, `dot = 0` para las dos imagenes y la
+   politica quedaba ciega: ningun giro posterior se detectaba.
+
+Tambien se corrigio `rotationInPlaneSign()`: comparaba contra `s_policy.applied`,
+que no se actualiza cuando un modo fijado pone otra imagen en el vidrio, asi que
+el juego y la cara de Sofia espejaban para el lado equivocado tras fijar la
+rotacion.
+
+Nueva politica (`rotation_policy.h`): decision por la **direccion** de la gravedad
+en el plano, con histeresis (`ROT_FLIP_DOT` -0.5 / `ROT_BACK_DOT` +0.5), las
+muestras sin plano se **abstienen** en vez de reiniciar la ventana, y
+`ROT_REANCHOR_MS` (2 s) reaprende la referencia cuando el dueno mantiene una pose
+sin que haya decision (un giro real decide en 450 ms, muy por debajo).
+
+L13 (verificacion, host): `python3 tools/run_tests.py` -> 27/27. Las reglas nuevas
+se vieron en RED antes del arreglo: giro con la gravedad en el eje corto, muestra
+plana en medio del giro, y cambio de agarre seguido de un giro de 180 (esta ultima
+tambien en RED contra una copia del header con `ROT_REANCHOR_MS` enorme).
+`arduino-cli compile --warnings all` con el FQBN de INSTALL.md: 0 errores, un
+warning preexistente ajeno a la rotacion (`buddy_link.h`, switch sin
+`BUDDY_LINK_OFFLINE`).
+
+L14 (hardware, bloqueado primero): el dueno autorizo flashear y correr
+`tools/probes/rot_auto_check.txt` (que ahora cubre el agarre parado y el de
+costado, y verifica que un rolido de timon no mueva la imagen). La primera subida
+fallo dos veces con "Failed to connect to ESP32-S3: No serial data received"
+(arduino-cli y tambien `python -m esptool --before usb-reset`) y abrir el puerto
+no devolvia ni el banner: el equipo no respondia, ni la app ni el bootloader.
+Hizo falta un RESET fisico del dueno; sin eso no se puede flashear.
+
+L15 (hardware, verificado): con el equipo despierto, `arduino-cli upload -p COM5`
+con el FQBN de INSTALL.md escribio 1455552 bytes y respondio `Hash of data
+verified`. `tools/probes/rot_auto_check.txt` sobre el firmware nuevo:
+
+```
+rot mode=auto (4) lock=off image=1 sign=1      <- estado inicial
+imufake  1.00  0.00  0.00  -> image=1 sign=1   agarre parado, sin cambio
+imufake -1.00  0.00  0.00  -> image=2 sign=-1  giro 180: cambia
+imufake  0.05  0.70  0.71  -> image=2 sign=-1  agarre de costado: sin cambio
+imufake -0.05 -0.70  0.71  -> image=1 sign=1   giro 180 en ese agarre: CAMBIA
+imufake -0.10 -0.50  0.86  -> image=1 sign=1   rolido de timon: sin cambio
+imufake -0.05 -0.70  0.71  -> image=1 sign=1   vuelve al agarre: sin cambio
+imureal                    -> image=2 sign=-1  sigue la pose real del equipo
+```
+
+Lo importante es la cuarta linea: con la politica anterior esa pose (gravedad
+sobre el eje corto) no decidia nunca. `sign` acompania a la imagen en todas las
+lineas, que es la correccion de `rotationInPlaneSign()`.
+
+L16 (hardware, restaurado): `tools/probes/rotation_restore.txt` -> `rot
+mode=auto (4) lock=off image=1 sign=1` y `/api/status` con `orientation: 1`,
+`rotationMode: "auto"`, `rotationLocked: false`. Unico efecto lateral de la
+prueba: el AP se apago solo a los 30 s de enlace de casa probado, que es su
+comportamiento documentado.

@@ -22,16 +22,30 @@
 #define ROT_POLICY_A 1
 #define ROT_POLICY_B 2
 
-// Gravity has to lean at least this far along the long axis before the reading
-// can mean "turned around" instead of "lying flat". In g.
+// Gravity has to lean at least this far into the plane of the glass before a
+// reading can mean "turned around" instead of "lying flat". In g. Measured on
+// the projection, whichever in-plane axis carries it: the owner reads the
+// 320x172 image held landscape, where the long axis is horizontal and the short
+// one takes the gravity, and also holds it upright, where the long axis does.
 #define ROT_MIN_G 0.35f
-// ...and the long axis has to carry this much more gravity than the short one, so
-// the roll a player uses to steer the dodge game never reads as a 180 degree
-// turn: that gesture moves gravity onto the short axis, not past the long one.
-#define ROT_DOMINANCE 1.5f
+// Cosine of the angle between the in-plane gravity now and the one seen when the
+// current image was upright. The two images are 180 degrees apart, so only an
+// outright reversal counts: -0.50 is 120 degrees away, which a steering roll or
+// a forward tilt never reaches, and turning the board around overshoots.
+#define ROT_FLIP_DOT (-0.50f)
+// ...and the way back. The gap between the two is the hysteresis that keeps a
+// board resting near the boundary from repainting every second.
+#define ROT_BACK_DOT 0.50f
 // A new decision has to hold this long before the image flips. Handling the
 // gadget swings it about, and a wobble must not repaint the screen twice.
 #define ROT_SETTLE_MS 450
+// How long the same direction has to persist, with no decision being made, before
+// it is taken as the new "upright" for the image on the glass. The owner changes
+// grip, and the gadget is often switched on in whatever pose it was left in; a
+// reference learned once would leave every other hold unable to ever report a
+// turn. A real turn decides in ROT_SETTLE_MS, far shorter than this, and a very
+// slow turn is indistinguishable from a grip change by gravity alone.
+#define ROT_REANCHOR_MS 2000
 
 // Owner-facing modes. The auto mode is deliberately not one of the driver's
 // rotation numbers so a stored rotation can never be confused with it.
@@ -41,11 +55,13 @@
 
 struct RotationPolicy {
   uint8_t applied;   // orientation on the panel: ROT_POLICY_A or ROT_POLICY_B
-  uint8_t anchor;    // orientation the reference sign was observed with
-  int8_t reference;  // sign of the long axis seen while `anchor` was applied
+  uint8_t anchor;    // orientation the reference direction was observed with
+  float refX;        // unit in-plane gravity seen while `anchor` was applied
+  float refY;
   bool haveRef;      // false until one usable sample has been seen
   int8_t candidate;  // orientation the recent samples point at, 0 when none
   uint32_t sinceMs;  // when that candidate first appeared
+  uint32_t stableSinceMs;  // since when the direction has been steady
 };
 
 // A stored rotation (0..3, ROT_MODE_AUTO or anything corrupt) folded onto the
@@ -59,10 +75,32 @@ static inline uint8_t rotPolicyOther(uint8_t orientation) {
   return orientation == ROT_POLICY_A ? ROT_POLICY_B : ROT_POLICY_A;
 }
 
+// Seeds a policy that will decide from the image on the glass right now. Every
+// place that adopts or adopts-again the automatic mode starts from here, so the
+// reference is never half-carried over from a mode that had stopped listening to
+// the sensor.
+static inline void rotPolicyStart(RotationPolicy *p, uint8_t applied) {
+  if (!p) return;
+  p->applied = rotPolicySeed(applied);
+  p->anchor = p->applied;
+  p->refX = 0.0f;
+  p->refY = 0.0f;
+  p->haveRef = false;
+  p->candidate = 0;
+  p->sinceMs = 0;
+  p->stableSinceMs = 0;
+}
+
 // Feeds one sample and returns the orientation to apply. `longAxis`/`shortAxis`
-// are the two axes in the plane of the glass; on this board X (0) is the long one
-// and Z (2) looks out of the glass, which is fixed by the layout, but they are
-// parameters so the rule stays checkable on the host.
+// are the two axes in the plane of the glass; on this board X (0) and Y (1) are
+// the in-plane pair and Z (2) looks out of the glass, which is fixed by the
+// layout, but they are parameters so the rule stays checkable on the host.
+//
+// The decision is made on the direction of the in-plane gravity, not on one
+// axis: a board turned 180 degrees in its own plane reports the same vector
+// negated, whichever of the two axes happens to carry it. A steering roll or a
+// forward tilt moves the magnitude between axes and out of the plane but leaves
+// the direction alone, so neither reads as a turn.
 static inline uint8_t rotPolicyFeed(RotationPolicy *p, const float accel[3],
                                     uint8_t longAxis, uint8_t shortAxis,
                                     uint32_t nowMs) {
@@ -72,53 +110,81 @@ static inline uint8_t rotPolicyFeed(RotationPolicy *p, const float accel[3],
   if (p->applied != ROT_POLICY_A && p->applied != ROT_POLICY_B) {
     p->applied = rotPolicySeed(p->applied);
   }
-  int8_t applied = (int8_t)p->applied;
   if (!accel || longAxis > 2 || shortAxis > 2 || longAxis == shortAxis) {
     return p->applied;
   }
 
   float along = accel[longAxis];
   float across = accel[shortAxis];
-  float magAlong = fabsf(along);
-  float magAcross = fabsf(across);
+  float mag = sqrtf(along * along + across * across);
 
-  // Flat on its back, or a roll about the long axis: no decision this sample.
-  // Dropping the candidate is what makes a wobble harmless.
-  if (magAlong < ROT_MIN_G || magAlong < ROT_DOMINANCE * magAcross) {
-    p->candidate = 0;
-    return p->applied;
-  }
+  // Flat on its back or face down: nothing in the plane to look at. Keep the
+  // last image instead of guessing, and let the sample abstain. It must not
+  // discard a window another sample started: the board passes through exactly
+  // this reading while it is being turned, and restarting the settle time on
+  // every such sample is what made a real turn sit undecided forever.
+  if (mag < ROT_MIN_G) return p->applied;
 
-  int8_t sign = along > 0.0f ? 1 : -1;
+  float nx = along / mag;
+  float ny = across / mag;
 
-  // First usable sample: learn which sign means which image, from the image the
-  // panel is actually showing right now. No hardware assumption has to be
+  // First usable sample: learn which direction means which image, from the image
+  // the panel is actually showing right now. No hardware assumption has to be
   // written down, and it survives a reboot because the applied orientation is
   // the one that was stored.
   if (!p->haveRef) {
     p->haveRef = true;
     p->anchor = p->applied;
-    p->reference = sign;
+    p->refX = nx;
+    p->refY = ny;
     p->candidate = 0;
+    p->stableSinceMs = nowMs;
     return p->applied;
   }
 
-  int8_t want = (int8_t)(sign == p->reference ? p->anchor
-                                              : rotPolicyOther(p->anchor));
-  if (want == applied) {
+  float dot = nx * p->refX + ny * p->refY;
+
+  // Only a reversal of the in-plane gravity is a turn. The two thresholds leave
+  // a wide band in the middle where the image simply stays as it is.
+  uint8_t want = p->applied;
+  if (p->applied == p->anchor) {
+    if (dot <= ROT_FLIP_DOT) want = rotPolicyOther(p->anchor);
+  } else {
+    if (dot >= ROT_BACK_DOT) want = p->anchor;
+  }
+
+  // The direction this hold gives the anchored image: when the other image is on
+  // the glass, the same physical hold points the other way.
+  float anchorX = (p->applied == p->anchor) ? nx : -nx;
+  float anchorY = (p->applied == p->anchor) ? ny : -ny;
+
+  if (want == p->applied) {
     p->candidate = 0;
+    p->sinceMs = 0;
+    // No decision for a while: this is simply how the owner is holding it, so it
+    // becomes the reference the next turn is measured against.
+    if (p->stableSinceMs == 0) {
+      p->stableSinceMs = nowMs;
+    } else if ((uint32_t)(nowMs - p->stableSinceMs) >= ROT_REANCHOR_MS) {
+      p->refX = anchorX;
+      p->refY = anchorY;
+      p->stableSinceMs = nowMs;
+    }
     return p->applied;
   }
 
-  if (p->candidate != want) {
-    p->candidate = want;
+  // A decision is being confirmed: nothing about this hold is stable.
+  p->stableSinceMs = 0;
+  if (p->candidate != (int8_t)want) {
+    p->candidate = (int8_t)want;
     p->sinceMs = nowMs;
-    return p->applied;
   }
   if ((uint32_t)(nowMs - p->sinceMs) < ROT_SETTLE_MS) return p->applied;
 
-  p->applied = (uint8_t)want;
+  p->applied = want;
   p->candidate = 0;
+  p->sinceMs = 0;
+  p->stableSinceMs = 0;
   return p->applied;
 }
 

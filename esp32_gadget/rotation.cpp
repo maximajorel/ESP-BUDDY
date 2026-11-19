@@ -50,12 +50,7 @@ void rotationBegin() {
   // mirrored value (a debug leftover, never something the owner wants) is folded
   // onto the real pair. A pinned mode keeps exactly what was stored.
   uint8_t seed = rotPolicySeed(stored);
-  s_policy.applied = seed;
-  s_policy.anchor = seed;
-  s_policy.reference = 0;
-  s_policy.haveRef = false;
-  s_policy.candidate = 0;
-  s_policy.sinceMs = 0;
+  rotPolicyStart(&s_policy, seed);
 
   displaySetOrientation(rotModeIsConcrete(s_mode) ? pinnedOrientation(s_mode)
                                                   : seed);
@@ -105,7 +100,14 @@ int8_t rotationInPlaneSign() {
   // Nothing is known until one usable sample has taught which physical direction
   // means which image; until then the readings are used as they come.
   if (!s_policy.haveRef) return 1;
-  return s_policy.applied == s_policy.anchor ? 1 : -1;
+  // Compare against the image really on the glass, not the policy's own idea of
+  // it: a pinned mode puts an image there without the sensor running, and
+  // reading the stale policy value flipped the game's steering the wrong way.
+  uint8_t onGlass = displayGetOrientation();
+  if (onGlass != ROT_POLICY_A && onGlass != ROT_POLICY_B) {
+    onGlass = s_policy.applied;
+  }
+  return onGlass == s_policy.anchor ? 1 : -1;
 }
 
 bool rotationSetMode(uint8_t mode) {
@@ -117,11 +119,7 @@ bool rotationSetMode(uint8_t mode) {
   } else if (!s_locked) {
     // Back to automatic: adopt the image already on the glass so the switch does
     // not jump, then let the sensor take over from here.
-    s_policy.applied = rotPolicySeed(displayGetOrientation());
-    s_policy.anchor = s_policy.applied;
-    s_policy.haveRef = false;
-    s_policy.candidate = 0;
-    s_policy.sinceMs = 0;
+    rotPolicyStart(&s_policy, displayGetOrientation());
   }
   return true;
 }
@@ -133,6 +131,7 @@ bool rotationSetLocked(bool locked) {
     // Locking freezes what is on the glass right now, so unlocking later cannot
     // surprise the owner with a jump to a decision taken minutes ago.
     s_policy.candidate = 0;
+    s_policy.sinceMs = 0;
     settingsSetOrientation(displayGetOrientation());
   }
   return true;
@@ -144,6 +143,7 @@ void rotationSetHeld(bool held) {
   // The player has been tilting the board to steer: any candidate gathered while
   // held is a steering gesture, not a turn. Start clean when the hold lifts.
   s_policy.candidate = 0;
+  s_policy.sinceMs = 0;
 }
 
 bool rotationIsHeld() { return s_held; }

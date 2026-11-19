@@ -1,0 +1,39 @@
+# La rotación automática, con el sensor falso y la pantalla de verdad.
+#
+# El acelerómetro no se puede inclinar desde la PC, así que `imufake` reemplaza
+# la lectura. Cada pose se sostiene más de 2 s: la política re-ancla la
+# referencia a la pose que el dueño mantiene, que es lo que permite que el giro
+# siguiente se detecte aunque el agarre haya cambiado.
+boot 4
+rot auto
+rot lock off
+rot
+
+# Agarre parado: la gravedad cae sobre el eje largo. Girar 180 en el plano
+# cambia la imagen (image=1 <-> image=2, sign= se invierte con ella).
+imufake 1 0 0 0 0 0
+sleep 2600
+rot
+imufake -1 0 0 0 0 0
+sleep 1600
+rot
+
+# Agarre de costado, que es como se lee la imagen horizontal: la gravedad cae
+# sobre el eje corto. Antes esta pose no decidía nunca; ahora también gira.
+imufake 0.05 0.70 0.71 0 0 0
+sleep 2600
+rot
+imufake -0.05 -0.70 0.71 0 0 0
+sleep 1600
+rot
+
+# Un rolido de timón en ese mismo agarre no es un giro: la imagen no cambia.
+imufake -0.10 -0.50 0.86 0 0 0
+sleep 1600
+rot
+imufake -0.05 -0.70 0.71 0 0 0
+sleep 1600
+rot
+
+imureal
+rot

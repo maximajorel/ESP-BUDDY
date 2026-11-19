@@ -395,8 +395,10 @@ sin recompilar ni usar la consola.
 ### Si la imagen se ve girada
 
 El equipo **gira solo** según cómo lo apoyes: el acelerómetro elige entre las dos
-orientaciones horizontales y la imagen las sigue sin que toques nada. Tres cosas
-lo pueden detener:
+orientaciones horizontales y la imagen las sigue sin que toques nada. No importa
+cómo lo sostengas: la decisión se toma por la **dirección** de la gravedad dentro
+del plano de la pantalla, así que funciona tanto de costado (para leer la imagen
+horizontal) como parado de pie. Tres cosas lo pueden detener:
 
 - **Automática / Horizontal / Horizontal invertida** en el panel, o la fila
   `ROTACION` de la pantalla Config: si elegís una de las dos horizontales, la
@@ -409,8 +411,10 @@ lo pueden detener:
 Un límite honesto: **acostado de espaldas sobre la mesa, el sensor no puede notar
 un giro de 180 grados** (la gravedad queda perpendicular al plano y no hay nada en
 el plano que mirar). En ese caso el equipo se queda con la última orientación en
-vez de adivinar; si lo querés siempre igual, elegí Horizontal o bloqueá la
-rotación. Todo queda guardado y sobrevive a un corte de luz.
+vez de adivinar, y una lectura suelta sin plano no reinicia la cuenta: si el
+equipo pasa por esa posición girándolo, el cambio se aplica igual. Si lo querés
+siempre igual, elegí Horizontal o bloqueá la rotación. Todo queda guardado y
+sobrevive a un corte de luz.
 
 ### Si la nave no se mueve como esperás
 
