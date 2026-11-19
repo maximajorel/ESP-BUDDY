@@ -60,11 +60,11 @@ photograph.
 
 | ID | Spec | Route | Commit |
 |----|------|-------|--------|
-| T1 | S3,S4 | inline: `BuddyPose.open/glow` + pure `buddyEyeHalfH`/`buddyGlowPercent` in `buddy_face.h`, cases in `tools/buddy_face_test.cpp` | working tree (sin commit: la rama y el commit los decide el dueño) |
-| T2 | S1,S3 | worker: pure `esp32_gadget/buddy_wake.h` ladder + `tools/buddy_wake_test.cpp` | working tree (sin commit: la rama y el commit los decide el dueño) |
-| T3 | S4 | worker: `screen_buddy.cpp` `drawFace` honours `open` and `glow`; `s_draw` and `buddydraw` report them | working tree (sin commit: la rama y el commit los decide el dueño) |
-| T4 | S1,S5 | worker: wake overlay in `screen_buddy`+`screens`, `.ino` boot branch, console `wake`, help line | working tree (sin commit: la rama y el commit los decide el dueño) |
-| T5 | S1-S5 | inline: `tools/run_tests.py` 31 passed, firmware compile 47% flash / 17% RAM, probe `tools/probes/buddy_wake.txt`; flashing waits for the owner | working tree (sin commit: la rama y el commit los decide el dueño) |
+| T1 | S3,S4 | inline: `BuddyPose.open/glow` + pure `buddyEyeHalfH`/`buddyGlowPercent` in `buddy_face.h`, cases in `tools/buddy_face_test.cpp` | 8ee3d4a |
+| T2 | S1,S3 | worker: pure `esp32_gadget/buddy_wake.h` ladder + `tools/buddy_wake_test.cpp` | 8ee3d4a |
+| T3 | S4 | worker: `screen_buddy.cpp` `drawFace` honours `open` and `glow`; `s_draw` and `buddydraw` report them | 8ee3d4a |
+| T4 | S1,S5 | worker: wake overlay in `screen_buddy`+`screens`, `.ino` boot branch, console `wake`, help line | 8ee3d4a |
+| T5 | S1-S5 | inline: `tools/run_tests.py` 31 passed, firmware compile 47% flash / 17% RAM, probe `tools/probes/buddy_wake.txt`; flashing waits for the owner | 8ee3d4a |
 
 ## Log
 
@@ -109,3 +109,7 @@ with the normal rounded eye once the wake ended. The console answers in ~1.5 s
 per command, so the first 900 ms of a cold boot cannot be sampled from the
 console: that stretch is pinned on the host by `buddy_wake_test`, not on the
 glass.
+
+L8. Landed on branch `feat/buddy-wake`: the design record is `1fc2854`
+(design/system.md, design/system.html and the three artboards) and the firmware,
+tests, probe and this document are `8ee3d4a`. Flashed from `8ee3d4a` on COM5.
