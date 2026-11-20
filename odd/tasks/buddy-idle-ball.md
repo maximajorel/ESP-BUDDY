@@ -200,3 +200,8 @@ verificables.
 De paso, el run probó en placa el commit del AP: `ap off  (auto, sta conectado
 30s): panel en http://192.168.100.75` — la regla del duty se aplicó sola y el panel
 siguió vivo en la IP del router.
+
+L9: La física de la pelota se mudó a unidades SI en `odd/tasks/buddy-gravity.md`
+(tercer pedido del dueño: "sigue siendo medio liviana"). S2 (doble toque, rebote
+en los bordes, la mirada sigue) y S3 (sólo en reposo, sin mareos) siguen valiendo
+igual; cambian los números de `buddy_ball.h`, no el contrato con el vidrio.

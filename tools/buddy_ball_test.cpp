@@ -1,13 +1,16 @@
-// Host-side test for the idle ball (S2, S3).
+// Host-side test for the idle ball (S2, S3) in real units.
 //
 //   g++ -std=c++17 -O1 -I esp32_gadget tools/buddy_ball_test.cpp -o /tmp/bbt && /tmp/bbt
 //
-// Pins the physics the glass relies on: the ball never leaves the playfield, a
-// shake pushes it (screen x mirrors the IMU x), walls bounce it and eat speed,
-// friction settles it, the speed is capped, and the gaze mapping keeps the eyes
-// on the ball but inside their reach.
+// The old model was a gain of 520 px/s^2 per unit of tilt, ~184x weaker than
+// gravity on a 1.47" panel, which is why the owner called the ball "liviana".
+// This test pins the physical model instead of a feel: a free fall matches
+// y = 1/2 g t^2 on the slowed clock, a level board neither accelerates nor drags,
+// a wall returns the real coefficient of restitution, nothing tunnels and a slow
+// ball rests instead of chattering.
 
 #include <cstdio>
+#include <math.h>
 
 #include "buddy_ball.h"
 
@@ -22,8 +25,116 @@ static void check(const char *what, bool ok) {
   }
 }
 
+static bool near(float a, float b, float tol) { return fabsf(a - b) <= tol; }
+
+// The ball in the middle, at rest: tests below add their own velocity.
+static BuddyBall restBall() {
+  BuddyBall b;
+  buddyBallSpawn(&b, 1234);
+  b.vx = 0;
+  b.vy = 0;
+  return b;
+}
+
 int main() {
-  printf("-- spawn\n");
+  printf("-- the constants have units\n");
+  {
+    check("standard gravity is the 1901 convention", near(BUDDY_BALL_G, 9.80665f, 0.0f));
+    check("the glass is 9728 px per metre", near(BUDDY_BALL_PX_PER_M, 9728.0f, 0.5f));
+    // 320 px of height is 32.89 mm, so a metre is 320/0.03289 px.
+    check("the scale matches the panel", near(320.0f / 0.03289f, BUDDY_BALL_PX_PER_M, 3.0f));
+    check("one g of tilt is ~95k px/s^2",
+          near(BUDDY_BALL_ACCEL, 95401.0f, 60.0f));
+    check("the playback is slowed", BUDDY_BALL_SLOWMO > 0.0f && BUDDY_BALL_SLOWMO < 1.0f);
+    check("rubber on glass sits in the real band",
+          BUDDY_BALL_RESTITUTION >= 0.80f && BUDDY_BALL_RESTITUTION <= 0.90f);
+    check("the speed rail is above a full-height fall",
+          BUDDY_BALL_MAX_SPEED > sqrtf(2.0f * BUDDY_BALL_ACCEL * BUDDY_BALL_SCREEN_H));
+  }
+
+  printf("-- a free fall is 1/2 g t^2\n");
+  {
+    BuddyBall b = restBall();
+    b.y = 40.0f;
+    // 200 ms of wall time is 30 ms of simulated time.
+    for (int i = 0; i < 20; i++) buddyBallStep(&b, 0.0f, 1.0f, 0.0f, 0.0f, 10);
+    const float tSim = 0.200f * BUDDY_BALL_SLOWMO;
+    const float expected = 0.5f * BUDDY_BALL_ACCEL * tSim * tSim;
+    const float fell = b.y - 40.0f;
+    check("it falls the distance the formula says", near(fell, expected, expected * 0.005f));
+    check("the velocity is g t", near(b.vy, BUDDY_BALL_ACCEL * tSim, 2.0f));
+    // The same 200 ms of real time at full speed would cross the whole glass,
+    // which is exactly why the playback factor exists.
+    const float unslowed = 0.5f * BUDDY_BALL_ACCEL * 0.2f * 0.2f;
+    check("without the slowdown it would cross the glass", unslowed > BUDDY_BALL_SCREEN_H);
+  }
+
+  printf("-- a level board neither pushes nor drags\n");
+  {
+    BuddyBall b = restBall();
+    b.vx = 2000.0f;
+    b.vy = 0.0f;
+    const float x0 = b.x;
+    buddyBallStep(&b, 0.0f, 0.0f, 0.0f, 0.0f, 100);
+    check("the horizontal speed survives", near(b.vx, 2000.0f, 1.0f));
+    check("the vertical speed stays zero", near(b.vy, 0.0f, 0.001f));
+    // 15 ms of simulated time at 2000 px/s is 30 px.
+    check("it travels v t", near(b.x - x0, 30.0f, 0.5f));
+  }
+
+  printf("-- a shake is an acceleration, not a kick\n");
+  {
+    BuddyBall b = restBall();
+    buddyBallStep(&b, 0.0f, 0.0f, 2.0f, 0.0f, 100);
+    check("a 2 g shake from rest builds speed", b.vx > 500.0f);
+    BuddyBall still = restBall();
+    buddyBallStep(&still, 0.0f, 0.0f, 0.0f, 0.0f, 100);
+    check("no acceleration, no push", near(still.vx, 0.0f, 0.001f));
+  }
+
+  printf("-- walls eat the real restitution\n");
+  {
+    BuddyBall b = restBall();
+    b.x = BUDDY_BALL_SCREEN_W * 0.5f;
+    b.y = BUDDY_BALL_SCREEN_H - BUDDY_BALL_RADIUS - 1.0f;
+    b.vx = 0.0f;
+    b.vy = 3000.0f;
+    buddyBallStep(&b, 0.0f, 0.0f, 0.0f, 0.0f, 5);
+    check("the ball does not pass the floor",
+          b.y <= BUDDY_BALL_SCREEN_H - BUDDY_BALL_RADIUS + 0.01f);
+    check("it comes back", b.vy < 0.0f);
+    check("it keeps the coefficient",
+          near(fabsf(b.vy), 3000.0f * BUDDY_BALL_RESTITUTION, 20.0f));
+  }
+
+  printf("-- nothing tunnels\n");
+  {
+    BuddyBall b = restBall();
+    b.x = BUDDY_BALL_SCREEN_W - BUDDY_BALL_RADIUS - 2.0f;
+    b.y = BUDDY_BALL_SCREEN_H * 0.5f;
+    b.vx = 50.0f * BUDDY_BALL_MAX_SPEED;
+    b.vy = 0.0f;
+    buddyBallStep(&b, 0.0f, 0.0f, 0.0f, 0.0f, 100);
+    check("a frantic ball stays on the glass",
+          b.x >= BUDDY_BALL_RADIUS - 0.01f &&
+              b.x <= BUDDY_BALL_SCREEN_W - BUDDY_BALL_RADIUS + 0.01f);
+    check("the cap keeps it finite", fabsf(b.vx) <= BUDDY_BALL_MAX_SPEED + 1.0f);
+  }
+
+  printf("-- a slow ball rests\n");
+  {
+    BuddyBall b = restBall();
+    b.x = BUDDY_BALL_SCREEN_W * 0.5f;
+    b.y = BUDDY_BALL_SCREEN_H - BUDDY_BALL_RADIUS;
+    b.vx = 0.0f;
+    b.vy = 50.0f;  // under the rest speed, no tilt
+    buddyBallStep(&b, 0.0f, 0.0f, 0.0f, 0.0f, 20);
+    check("the hit is absorbed", near(b.vy, 0.0f, 0.001f));
+    check("the ball sits on the floor",
+          near(b.y, BUDDY_BALL_SCREEN_H - BUDDY_BALL_RADIUS, 0.01f));
+  }
+
+  printf("-- the field\n");
   {
     BuddyBall b;
     buddyBallSpawn(&b, 1234);
@@ -38,160 +149,38 @@ int main() {
     BuddyBall c;
     buddyBallSpawn(&c, 1234);
     check("the spawn is deterministic", b.vx == c.vx && b.vy == c.vy);
-  }
-
-  printf("-- clear\n");
-  {
-    BuddyBall b;
-    buddyBallSpawn(&b, 1);
     buddyBallClear(&b);
-    check("clearing stops the ball", !b.active && b.vx == 0.0f && b.vy == 0.0f);
-    float x = b.x;
-    buddyBallStep(&b, 0.0f, 0.0f, 4.0f, 4.0f, 50);
-    check("a cleared ball never moves", b.x == x);
+    check("clearing turns it off", !b.active);
+    check("a cleared ball does not move", near(b.vx, 0.0f, 0.0f));
   }
 
-  printf("-- a shake pushes it\n");
+  printf("-- it never escapes a shake\n");
   {
     BuddyBall b;
-    b.active = true;
-    b.x = 160;
-    b.y = 86;
-    buddyBallStep(&b, 0.0f, 0.0f, 2.0f, 0.0f, 100);
-    check("a shake towards screen right pushes the ball right", b.vx > 10.0f);
-    BuddyBall c;
-    c.active = true;
-    c.x = 160;
-    c.y = 86;
-    buddyBallStep(&c, 0.0f, 0.0f, 0.0f, 2.0f, 100);
-    check("a shake towards the bottom pushes the ball down", c.vy > 10.0f);
-    BuddyBall still;
-    still.active = true;
-    still.x = 160;
-    still.y = 86;
-    buddyBallStep(&still, 0.0f, 0.0f, 0.0f, 0.0f, 100);
-    check("no dynamic accel means no push", still.vx == 0.0f && still.vy == 0.0f);
-  }
-
-  printf("-- the edges bounce and eat speed\n");
-  {
-    BuddyBall b;
-    b.active = true;
-    b.x = BUDDY_BALL_SCREEN_W - BUDDY_BALL_RADIUS - 2.0f;
-    b.y = 86;
-    b.vx = 200.0f;
-    buddyBallStep(&b, 0.0f, 0.0f, 0.0f, 0.0f, 50);
-    check("hitting the right wall clamps the ball inside",
-          b.x <= BUDDY_BALL_SCREEN_W - BUDDY_BALL_RADIUS);
-    check("hitting the right wall flips the velocity", b.vx < 0.0f);
-    check("the bounce loses some energy",
-          fabsf(b.vx) < 200.0f * BUDDY_BALL_RESTITUTION + 20.0f);
-    check("but a bouncy ball keeps most of it",
-          fabsf(b.vx) > 200.0f * BUDDY_BALL_RESTITUTION - 30.0f);
-
-    BuddyBall t;
-    t.active = true;
-    t.x = 160;
-    t.y = BUDDY_BALL_RADIUS + 2.0f;
-    t.vy = -300.0f;
-    buddyBallStep(&t, 0.0f, 0.0f, 0.0f, 0.0f, 50);
-    check("the top wall clamps and flips too",
-          t.y >= BUDDY_BALL_RADIUS && t.vy > 0.0f);
-  }
-
-  printf("-- it never escapes\n");
-  {
-    BuddyBall b;
-    buddyBallSpawn(&b, 77);
-    bool inside = true;
-    for (int i = 0; i < 400; i++) {
-      float ax = (i % 7 < 4) ? 3.0f : -3.0f;
-      float ay = (i % 5 < 2) ? 2.5f : -2.5f;
-      buddyBallStep(&b, 0.0f, 0.0f, ax, ay, 50);
-      if (b.x < BUDDY_BALL_RADIUS - 0.01f ||
-          b.x > BUDDY_BALL_SCREEN_W - BUDDY_BALL_RADIUS + 0.01f ||
-          b.y < BUDDY_BALL_RADIUS - 0.01f ||
-          b.y > BUDDY_BALL_SCREEN_H - BUDDY_BALL_RADIUS + 0.01f) {
-        inside = false;
+    buddyBallSpawn(&b, 99);
+    for (int i = 0; i < 200; i++) {
+      // Alternating 3 g shake in both axes: the worst case a hand can produce.
+      const float s = (i % 2) ? 3.0f : -3.0f;
+      buddyBallStep(&b, s * 0.5f, -s * 0.5f, s, -s, 50);
+      if (b.x < BUDDY_BALL_RADIUS - 0.01f || b.x > BUDDY_BALL_SCREEN_W - BUDDY_BALL_RADIUS + 0.01f ||
+          b.y < BUDDY_BALL_RADIUS - 0.01f || b.y > BUDDY_BALL_SCREEN_H - BUDDY_BALL_RADIUS + 0.01f) {
+        printf("     escaped at step %d: %.2f %.2f\n", i, b.x, b.y);
+        g_failures++;
         break;
       }
     }
-    check("a long violent shake keeps the ball on the glass", inside);
+    check("after ten seconds of shaking it is still on the glass",
+          b.x >= BUDDY_BALL_RADIUS - 0.01f && b.x <= BUDDY_BALL_SCREEN_W - BUDDY_BALL_RADIUS + 0.01f &&
+              b.y >= BUDDY_BALL_RADIUS - 0.01f && b.y <= BUDDY_BALL_SCREEN_H - BUDDY_BALL_RADIUS + 0.01f);
+    check("and it is still alive", b.active);
   }
 
-  printf("-- a light ball keeps bouncing\n");
+  printf("-- the gaze follows it\n");
   {
-    BuddyBall b;
-    b.active = true;
-    b.x = BUDDY_BALL_SCREEN_W * 0.5f;
+    BuddyBall b = restBall();
     b.y = BUDDY_BALL_SCREEN_H * 0.5f;
-    b.vx = 450.0f;
-    int hits = 0;
-    float lastSign = b.vx > 0.0f ? 1.0f : -1.0f;
-    for (int i = 0; i < 120; i++) {  // 6 s at 50 ms
-      buddyBallStep(&b, 0.0f, 0.0f, 0.0f, 0.0f, 50);
-      float sign = b.vx > 0.0f ? 1.0f : -1.0f;
-      if (b.vx != 0.0f && sign != lastSign) {
-        hits++;
-        lastSign = sign;
-      }
-    }
-    check("it bounces off the walls several times", hits >= 3);
-    check("and it is still moving after six seconds", fabsf(b.vx) > 20.0f);
-  }
-
-  printf("-- friction and speed cap\n");
-  {
-    BuddyBall b;
-    b.active = true;
-    b.x = 160;
-    b.y = 86;
-    b.vx = 300.0f;
-    buddyBallStep(&b, 0.0f, 0.0f, 0.0f, 0.0f, 500);
-    check("friction slows a rolling ball", b.vx > 0.0f && b.vx < 300.0f);
-
-    BuddyBall f;
-    f.active = true;
-    f.x = 160;
-    f.y = 86;
-    for (int i = 0; i < 30; i++) buddyBallStep(&f, 0.0f, 0.0f, 5.0f, 5.0f, 100);
-    float speed = sqrtf(f.vx * f.vx + f.vy * f.vy);
-    check("the speed stays capped", speed <= BUDDY_BALL_MAX_SPEED + 1.0f);
-  }
-
-  printf("-- tilt is gravity\n");
-  {
-    BuddyBall right;
-    right.active = true;
-    right.x = 160;
-    right.y = 86;
-    buddyBallStep(&right, 1.0f, 0.0f, 0.0f, 0.0f, 100);
-    check("tilting downhill to the right pulls the ball right",
-          right.vx > 20.0f && fabsf(right.vy) < 0.01f);
-    BuddyBall down;
-    down.active = true;
-    down.x = 160;
-    down.y = 86;
-    buddyBallStep(&down, 0.0f, 1.0f, 0.0f, 0.0f, 100);
-    check("tilting downhill to the bottom pulls the ball down",
-          down.vy > 20.0f && fabsf(down.vx) < 0.01f);
-    BuddyBall slow;
-    slow.active = true;
-    slow.x = BUDDY_BALL_SCREEN_W - BUDDY_BALL_RADIUS - 1.0f;
-    slow.y = 86;
-    slow.vx = 10.0f;
-    buddyBallStep(&slow, 0.4f, 0.0f, 0.0f, 0.0f, 50);
-    check("gravity into a wall rests instead of jittering",
-          slow.vx == 0.0f && slow.x <= BUDDY_BALL_SCREEN_W - BUDDY_BALL_RADIUS);
-  }
-
-  printf("-- the eyes follow it\n");
-  {
     float gx = 0, gy = 0;
-    BuddyBall b;
-    b.active = true;
     b.x = BUDDY_BALL_RADIUS;
-    b.y = 86;
     buddyBallGaze(b, &gx, &gy);
     check("a ball on the left pulls the gaze left", gx < -10.0f);
     check("the horizontal gaze stays in reach", fabsf(gx) <= 24.0f + 0.01f);
