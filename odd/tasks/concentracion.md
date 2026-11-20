@@ -60,20 +60,55 @@ tools/run_tests.py` sin placa.
 
 S9. La web nueva — el control de Concentración nace sobre el rediseño de
 `odd/tasks/web-redesign.md` (papel claro, stickers, cards), no sobre la UI vieja:
-en la landing, una card en la franja de juegos/herramientas con los presets, el
-campo libre, el botón de arrancar y el estado en curso.
+en la landing, una card con los presets, el campo libre, el botón de arrancar y el
+estado en curso. La card tiene su propia franja sobre los juegos: es una acción
+de todos los días, no un juego, y comparte el lenguaje de la card violeta (borde
+negro, radio 40, chips) sin pedir prestado su color.
+
+S10. El contrato HTTP, medido en la placa — `POST /api/focus`:
+- sin `minutes` → arranca la sesión default de 25 minutos;
+- `{"minutes": n}` con 1 ≤ n ≤ 180 → arranca; n > 180 se acota a 180;
+- `{"minutes": 0}` → cancela;
+- `{"minutes": <no entero>}` o un negativo → `400` con `minutes tiene que ser un
+  entero` / `minutes no puede ser negativo`, **sin** tocar la sesión en curso.
+
+S11. La banda se gana el fondo — mientras hay sesión, el temporizador dibuja una
+placa negra desde `y=146` y escribe sobre ella. La cara llega a 144 en reposo,
+156 en el marco de sorpresa y 150 con la mirada baja del modo estudioso: en vez
+de correr el número a un rincón ilegible, la placa cubre esos pocos píxeles
+durante la animación. Los tests afirman esa relación, no una estimación.
+
+S12. Un logro no se pierde con el panel dormido — el botón de apagar deja el bead
+en negro; al terminar la sesión se despierta el bead (`rgbWake`) antes de pintar
+el verde. Sólo el LED: el vidrio conserva su sueño.
 
 ## Tasks
 
 | ID | Spec | Route | Commit |
 |----|------|-------|--------|
-| T1 | S1,S2,S4,S8 | mapa del firmware: cómo dibuja `screen_buddy`, dónde vive la fase del bridge, cómo se sirve una ruta pública y qué hace `POST /api/face` | pending |
-| T2 | S8 | `buddy_focus.h` puro + `tools/buddy_focus_test.cpp` (RED primero) | pending |
-| T3 | S1 | ruta pública acotada `POST /api/focus` + whitelist de `admin_auth`/`net` | pending |
-| T4 | S2,S3,S5 | dibujo del temporizador bajo los ojos en `screen_buddy` + animaciones del modo estudioso | pending |
-| T5 | S6 | cierre: animación de logro + LED verde | pending |
-| T6 | S9 | card de Concentración en la landing nueva | pending |
-| T7 | todas | suite host, `panel_http_test.py`, pack, compilación, evidencia de hardware | pending |
+| T1 | S1,S2,S4,S8 | mapa del firmware (exploración delegada, sin cambios) | — |
+| T2 | S8 | `buddy_focus.h` puro + `tools/buddy_focus_test.cpp`, RED observado antes de implementar | 9e845d8 |
+| T3 | S1,S10 | ruta pública acotada `POST /api/focus` + whitelist de `admin_auth`/`net` | b022cb7, 347bab9 |
+| T4 | S2,S3,S5,S11 | dibujo del temporizador bajo los ojos, placa y mirada estudiosa | b022cb7, 347bab9 |
+| T5 | S6,S12 | logro (parpadeo) + capa del LED y despertar del bead | b022cb7, 347bab9 |
+| T6 | S9 | card de Concentración en la landing nueva | b022cb7, 347bab9 |
+| T7 | todas | suite host (33), `panel_http_test.py` en la placa, pack y compilación | 347bab9 |
+
+### Evidencia de hardware (192.168.100.75, COM5, firmware flasheado)
+
+- `panel_http_test.py 192.168.100.75`: `/api/focus POST → 200`; todo el resto de
+  escrituras sigue en 401; `/api/screen POST → 400` con cuerpo vacío.
+- Ciclo real: sesión de 1 min activa → `POST /api/face` (`thinking`, después
+  `happy`) → la cuenta siguió bajando (57204 → 42055 ms) → a los 60 s
+  `finished: true` y después idle.
+- `dump` de consola serie (ASCII del framebuffer): los ojos con la cuenta y la
+  barra en la banda inferior, y "LISTO" en oro en la ventana de logro.
+- Contrato de S10 probado en la placa: `{}` → 25 min; `"45"` → 400; `-5` → 400
+  sin tocar la sesión; `0` → cancelada.
+- **No verificado en el equipo**: el verde del LED (no hay cámara ni forma de
+  leer el pixel desde la placa; la capa y el despertar están testeados y
+  revisados) y un cambio de fase real del bridge (sólo se probaron moods por
+  `/api/face`; el temporizador no tiene ninguna entrada de fase, por diseño).
 
 ## Entrega
 
