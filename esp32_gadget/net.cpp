@@ -199,7 +199,7 @@ static void buildStatusJson(String &out) {
     // Concentración. This is state, not configuration: it is the countdown the
     // public entrance can start anyway, so publishing it on the public status
     // costs nothing and saves the landing a second round trip.
-    const BuddyFocus &focus = buddyFocusShared();
+    const BuddyFocus &focus = buddyFocusView();
     JsonObject f = doc["focus"].to<JsonObject>();
     f["active"] = focus.active;
     f["finished"] = focus.finished;
@@ -573,9 +573,23 @@ static ApiResult apiFace(const String &body) {
 static ApiResult apiFocus(const String &body) {
   JsonDocument doc;
   if (!parseOptionalJson(body, doc)) return apiFail(400, API_BAD_JSON);
-  uint32_t minutes = doc["minutes"] | 0u;
-  if (minutes > BUDDY_FOCUS_MAX_MINUTES) minutes = BUDDY_FOCUS_MAX_MINUTES;
-  buddyFocusRequest((uint16_t)minutes, (uint32_t)millis());
+  // Three different requests, three different answers: no `minutes` at all means
+  // the usual session, zero means cancel, and anything that is not an integer is
+  // a client bug that must not silently stop a session that is already running.
+  uint16_t minutes = BUDDY_FOCUS_DEFAULT_MINUTES;
+  JsonVariant in = doc["minutes"];
+  if (!in.isNull()) {
+    if (!in.is<int>()) return apiFail(400, "minutes tiene que ser un entero");
+    const int value = in.as<int>();
+    if (value < 0) return apiFail(400, "minutes no puede ser negativo");
+    if (value == 0) {
+      buddyFocusRequest(0, (uint32_t)millis());
+      return apiOk();
+    }
+    minutes = (uint16_t)value;
+    if (minutes > BUDDY_FOCUS_MAX_MINUTES) minutes = BUDDY_FOCUS_MAX_MINUTES;
+  }
+  buddyFocusRequest(minutes, (uint32_t)millis());
   return apiOk();
 }
 

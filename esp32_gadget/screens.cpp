@@ -265,6 +265,10 @@ bool screensTick(uint32_t nowMs, uint16_t holdPermille) {
   // running while another screen is visible, and its finish reaches the bead
   // even then (the glass is not the only place it has to say something).
   if (buddyFocusAdvance(nowMs)) {
+    // The dark button puts the bead to sleep, and a sleeping bead paints nothing.
+    // A finished session is news the owner asked to see, so it wakes the bead
+    // (only the bead: the glass keeps its own sleep).
+    rgbWake();
     rgbHold(BUDDY_FOCUS_LED_R, BUDDY_FOCUS_LED_G, BUDDY_FOCUS_LED_B,
             BUDDY_FOCUS_LED_MS);
   }

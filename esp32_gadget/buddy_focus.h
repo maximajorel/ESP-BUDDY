@@ -27,10 +27,13 @@
 #define BUDDY_FOCUS_DONE_MS 6000u
 #define BUDDY_FOCUS_MINUTE_MS 60000u
 
-// Geometry of the band under the eyes, on the 320x172 glass. The eyes' bottom
-// edge is y=144 in the usual face and y=156 in the widest surprise frame; the
-// buddy screen never draws a footer, so everything from 146 down is free. These
-// are numbers, not pixels at risk: the host test checks they fit the glass.
+// Geometry of the band under the eyes, on the 320x172 glass. The face's lowest
+// paint is y=144 at rest and y=156 in the widest surprise frame, so the band does
+// not try to dodge it: while a session runs the timer owns a black plate from
+// BUDDY_FOCUS_PLATE_Y down and draws on it. On a black glass the plate is
+// invisible, except where it trims the bottom of a surprise glow by a few pixels
+// for the length of that animation — cheaper than a number nobody can read.
+#define BUDDY_FOCUS_PLATE_Y 146
 #define BUDDY_FOCUS_BAND_Y 148
 #define BUDDY_FOCUS_BAND_SCALE 2  // 5x7 font at 2x: 14 px tall, 12 px per digit
 #define BUDDY_FOCUS_BAR_Y 166

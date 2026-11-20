@@ -928,18 +928,25 @@ static void drawHud(BuddyPhase phase, BuddyRgb led, bool linkDown,
 // purpose: the number is the clock, not an expression, so no mood the bridge or
 // the web can push may change it, and a phase change cannot blank it.
 static void drawFocusBand(uint32_t nowMs, uint32_t eyeRgb) {
-  const BuddyFocus &f = buddyFocusShared();
+  const BuddyFocus &f = buddyFocusView();
   const bool done = buddyFocusDoneVisible(&f, nowMs);
   if (!f.active && !done) return;
+
+  // The band owns the bottom of the glass while it is up: a black plate first, so
+  // a surprise glow or a dipped eye cannot cut through the number.
+  gfxFillRect(0, BUDDY_FOCUS_PLATE_Y, 320, 172 - BUDDY_FOCUS_PLATE_Y, GFX_BLACK);
 
   char label[BUDDY_FOCUS_LABEL_MAX];
   uint16_t ink = GFX_WHITE;
   uint16_t fill = gfxHex(eyeRgb);
   if (done) {
-    // The achievement: one word, in the glass's gold, on the same band.
+    // The achievement is motion, not a label: the word blinks between white and
+    // gold twice and then settles in gold, with the bar already full.
+    const uint32_t age = nowMs - f.finishedAtMs;
     snprintf(label, sizeof(label), "LISTO");
-    ink = gfxHex(BUDDY_FOCUS_GOLD);
-    fill = ink;
+    ink = (age < 900u && ((age / 150u) % 2u) == 0u) ? GFX_WHITE
+                                                   : gfxHex(BUDDY_FOCUS_GOLD);
+    fill = gfxHex(BUDDY_FOCUS_GOLD);
   } else {
     buddyFocusFormat(buddyFocusRemainingMs(&f, nowMs), label, sizeof(label));
   }
@@ -983,7 +990,7 @@ static void drawFace(BuddyState state, const BuddyPose &pose, uint32_t nowMs,
   // While a session runs, the eyes drop towards the number once every cycle: a
   // glance at the work. Added at draw time, after every pose source, so it can
   // never fight the bridge, the game overlay or the ball for the gaze channel.
-  const float dip = buddyFocusGazeDip(nowMs, buddyFocusShared().active);
+  const float dip = buddyFocusGazeDip(nowMs, buddyFocusView().active);
   const int gazeY = (int)pose.gazeY + (int)(dip + 0.5f);
 
   // Where each eye lands, and how much screen it covers once rotated. The pair

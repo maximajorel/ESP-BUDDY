@@ -344,6 +344,15 @@ static void testRoutes() {
       // The one public write: the screen picker lives outside the login.
       {"POST", "/api/screen", false,
        "choosing what the glass shows needs no session"},
+      // Concentración: the study timer, with the same authority as the picker.
+      {"POST", "/api/focus", false,
+       "the study timer is the one new public write"},
+      {"POST", "/api/focus/", true,
+       "the new public write is compared exactly"},
+      {"POST", "/api/focus?x=1", true,
+       "a query string is not the exact path"},
+      {"GET", "/api/focus", false,
+       "GET is public so the transport can answer 405 instead of 401"},
       {"POST", "/api/screen/", true,
        "the public write is compared exactly"},
       {"POST", "/api/face", false,

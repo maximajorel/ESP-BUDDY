@@ -119,6 +119,9 @@
     now: document.getElementById("focusNow")
   };
   var focusBusy = false;
+  // The last status the device gave us, so a failed or slow send re-renders the
+  // truth instead of guessing that the session is over.
+  var focusLast = null;
 
   function focusRequestedMinutes() {
     var n = parseInt(focusUi.minutes.value, 10);
@@ -127,6 +130,7 @@
   }
 
   function renderFocus(status) {
+    if (status) focusLast = status;
     var f = status && status.focus;
     var active = !!(f && f.active);
     var finished = !!(f && f.finished);
@@ -158,7 +162,10 @@
       })
       .then(function () {
         focusBusy = false;
-        focusUi.start.disabled = false;
+        // The button state comes from the device, never from "the request came
+        // back": a Start that re-enables itself over a live session invites a
+        // second click that would replace it.
+        renderFocus(focusLast);
       });
   }
 

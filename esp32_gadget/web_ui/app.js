@@ -979,10 +979,13 @@
 
     function go(tab) {
       select(tab, false);
-      // replaceState, not a hash assignment: the panel must not scroll, and the
-      // tab already is the visible state.
-      if (window.history && window.history.replaceState) {
-        window.history.replaceState(null, '', '#' + tab.getAttribute('aria-controls'));
+      // One history entry per section, so Back and Forward walk the tabs the way
+      // the hash already addresses them (/admin#spotify). Re-selecting the same
+      // tab must not pile up identical entries.
+      var id = tab.getAttribute('aria-controls');
+      if (window.history && window.history.pushState &&
+          (window.location.hash || '') !== '#' + id) {
+        window.history.pushState(null, '', '#' + id);
       }
     }
 

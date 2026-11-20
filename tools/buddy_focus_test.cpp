@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <cstring>
 
+#include "buddy_face.h"
 #include "buddy_focus.h"
 
 static int g_failures = 0;
@@ -149,7 +150,14 @@ int main() {
 
   printf("-- the band under the eyes\n");
   {
-    check("the digits start under the eyes", BUDDY_FOCUS_BAND_Y >= 146);
+    // The face reaches y=144 at rest, y=156 in the widest surprise frame and
+    // y=150 with the studious dip. The band does not dodge that: its plate starts
+    // at BUDDY_FOCUS_PLATE_Y and covers whatever the eyes paint below it.
+    check("the plate covers the widest surprise eye",
+          BUDDY_FOCUS_PLATE_Y <= 88 + 60 + BUDDY_GLOW_PAD + 2);
+    check("the plate covers a dipped glance at rest",
+          BUDDY_FOCUS_PLATE_Y <= 88 + 48 + BUDDY_GLOW_PAD + 2 + BUDDY_FOCUS_DIP_PX);
+    check("the digits sit on the plate", BUDDY_FOCUS_BAND_Y >= BUDDY_FOCUS_PLATE_Y);
     check("the digits clear the progress bar",
           BUDDY_FOCUS_BAND_Y + 7 * BUDDY_FOCUS_BAND_SCALE <= BUDDY_FOCUS_BAR_Y);
     check("the bar clears the bottom edge",
