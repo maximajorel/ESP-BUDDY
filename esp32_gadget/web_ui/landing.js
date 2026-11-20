@@ -1,77 +1,15 @@
-// The public entrance: the device face, the screen picker and the web games.
+// The public entrance: the screen picker and the web games.
 //
 // Everything here runs in the browser on the device's own access point, so it
 // talks to the same origin and holds no credentials. Reading `/api/status` is
 // public; changing the screen is the one public write (`POST /api/screen`), and
 // nothing else leaves this page.
 //
-// The face reproduces the gesture vocabulary the firmware draws (gaze drift,
-// breathing, lids, hot anger). It does NOT read the device pose: the firmware
-// does not publish it yet, and claiming otherwise would be a lie in the UI.
+// This page does not draw Sofía's face. The eyes live on the glass and only
+// there: the browser can name a mood the firmware knows (`POST /api/face`), and
+// that is the whole relationship between this surface and her face.
 (function () {
   "use strict";
-
-  var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-  // ---------------------------------------------------------------------------
-  // The face
-  // ---------------------------------------------------------------------------
-  function faceMarkup() {
-    function eye(side) {
-      return '<g class="eye-group eye-' + side + '">' +
-        '<rect class="eye-glow" x="-56" y="-62" width="112" height="124" rx="30"/>' +
-        '<rect class="eye-core" x="-40" y="-48" width="80" height="96" rx="30"/>' +
-        '<g class="lid-top"><rect class="lid" x="-40" y="-48" width="80" height="96" rx="30"/></g>' +
-        '<g class="lid-bottom"><rect class="lid" x="-40" y="-48" width="80" height="96" rx="30"/></g>' +
-        '<path class="mark xmark" d="M-24 -24 L24 24 M24 -24 L-24 24"/>' +
-      '</g>';
-    }
-    return '<svg class="face" viewBox="0 0 320 172" role="img" aria-label="Cara de Sofía">' +
-      '<g class="face-root">' +
-        '<g class="breathe">' + eye('l') + eye('r') + '</g>' +
-        '<text class="zzz" x="86" y="-46" font-size="14" aria-hidden="true">z</text>' +
-        '<text class="zzz" x="104" y="-64" font-size="18" aria-hidden="true">z</text>' +
-        '<text class="zzz" x="124" y="-84" font-size="23" aria-hidden="true">z</text>' +
-      '</g></svg>';
-  }
-
-  // Only the entrance has a face. The game is a minimal board: the eyes that
-  // react to it are the device's, and this page does not draw them.
-  var heroHost = document.querySelector('[data-face="hero"]');
-  heroHost.innerHTML = faceMarkup();
-  var hero = heroHost.firstElementChild;
-
-  function mood(name) { hero.dataset.mood = name; }
-
-  // The whole eye group drifts, exactly like the firmware's gaze channel.
-  function gaze(x, y) {
-    hero.style.setProperty("--gaze-x", x + "px");
-    hero.style.setProperty("--gaze-y", y + "px");
-  }
-
-  function blink() {
-    var m = hero.dataset.mood;
-    if (m === "sleepy" || m === "blink") return;
-    hero.dataset.mood = "blink";
-    setTimeout(function () {
-      if (hero.dataset.mood === "blink") hero.dataset.mood = m;
-    }, 120);
-  }
-
-  function drift() {
-    var m = hero.dataset.mood;
-    if (m === "calm" || m === "focus" || m === "bored" || m === "thinking") {
-      gaze(Math.round(Math.random() * 6 - 3), Math.round(Math.random() * 4 - 2));
-    } else if (m === "sleepy" || m === "dead") {
-      gaze(0, 0);
-    }
-    setTimeout(drift, 2400 + Math.random() * 2200);
-  }
-
-  if (!reduceMotion) {
-    setInterval(blink, 5200);
-    drift();
-  }
 
   // ---------------------------------------------------------------------------
   // Device state: what the glass shows and which screens exist
@@ -81,7 +19,6 @@
   var SCREEN_ICONS = ["i-clock", "i-slot", "i-rocket", "i-wifi", "i-music", "i-smile", "i-settings"];
 
   var ui = {
-    nowName: document.getElementById("nowName"),
     dockNow: document.getElementById("dockNow"),
     carousel: document.getElementById("carousel"),
     grid: document.getElementById("screenGrid"),
@@ -147,7 +84,6 @@
     }).join("");
 
     ui.screenCount.textContent = device.order.length + " pantallas";
-    ui.nowName.textContent = screenNameAt(current);
     ui.dockNow.textContent = "Ahora: " + screenNameAt(current);
 
     // Bring the current screen into view without moving the page: the dock is
@@ -165,7 +101,6 @@
       button.setAttribute("aria-pressed", on);
       if (button.getAttribute("role") === "option") button.setAttribute("aria-selected", on);
     });
-    ui.nowName.textContent = screenNameAt(device.current);
     ui.dockNow.textContent = "Ahora: " + screenNameAt(device.current);
   }
 
@@ -197,8 +132,6 @@
     api("POST", "/api/screen", { index: id }).then(function () {
       device.current = id;
       markCurrent();
-      mood("focus");
-      setTimeout(function () { mood("calm"); }, 900);
       setConnected(true);
     }).catch(function (error) {
       setConnected(false, "No pude cambiar la pantalla: " + error.message);

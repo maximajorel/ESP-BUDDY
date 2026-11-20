@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dirección 01 · Cartel de stickers</title>
+<style>
+  :root {
+    --paper: #ffffff; --sky: #dceeff; --gray: #cccccc; --mist: #e9e9e9;
+    --ink: #000000; --blue: #4da2ff; --mint: #55db9c; --lav: #e9ccff;
+    --ember: #fb4903; --sun: #ffd731; --violet: #5c4ade;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--font); -webkit-text-size-adjust: 100%; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+  .marquee { overflow: hidden; background: var(--ink); color: var(--paper); border-bottom: 1px solid var(--ink); }
+  .marquee div { display: flex; gap: 18px; width: max-content; padding: 7px 0; font-size: 11px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; white-space: nowrap; animation: slide 22s linear infinite; }
+  @keyframes slide { to { transform: translateX(-50%); } }
+
+  .hero { position: relative; overflow: hidden; background: var(--sky); padding: 18px 16px 0; }
+  .display {
+    margin: 0; font-size: clamp(72px, 27vw, 118px); font-weight: 900; line-height: 0.8;
+    letter-spacing: -0.045em; text-transform: uppercase;
+  }
+  .tagline { margin: 10px 0 0; font-size: 17px; font-weight: 500; letter-spacing: -0.01em; }
+  .stickers { position: absolute; inset: 0; pointer-events: none; }
+  .sticker { position: absolute; border: 1px solid var(--ink); border-radius: 20px; }
+  .sticker.rocket { right: 18px; top: 24px; width: 62px; height: 62px; background: var(--ember); transform: rotate(9deg); display: grid; place-items: center; }
+  .sticker.coin { left: 12px; top: 96px; width: 44px; height: 44px; background: var(--sun); border-radius: 1600px; transform: rotate(-12deg); }
+  .sticker.wallet { right: 26px; top: 118px; width: 54px; height: 38px; background: var(--violet); transform: rotate(-6deg); }
+  .sticker.rocket svg { width: 34px; height: 34px; fill: none; stroke: var(--ink); stroke-width: 1.6; }
+
+  .statusbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 16px 16px 20px; background: var(--sky); }
+  .pill { display: inline-flex; align-items: center; gap: 7px; padding: 8px 13px; border: 1px solid var(--ink); border-radius: 1600px; background: var(--paper); font-size: 11px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; }
+  .pill .dot { width: 9px; height: 9px; border-radius: 50%; border: 1px solid var(--ink); background: var(--mint); }
+  .now { font-size: 11px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; }
+
+  .band { padding: 20px 16px; border-top: 1px solid var(--ink); }
+  .band.white { background: var(--paper); }
+  .band.gray { background: var(--gray); }
+  .band-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+  .band-head h2 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }
+  .band-head span { font-size: 11px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; }
+
+  .screens { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+  .screens::-webkit-scrollbar { display: none; }
+  .screen {
+    flex: 0 0 116px; display: grid; gap: 8px; justify-items: start; min-height: 108px;
+    padding: 12px; border: 1px solid var(--ink); border-radius: 20px; background: var(--paper);
+    color: var(--ink); text-align: left; font: inherit; cursor: pointer;
+  }
+  .screen:nth-child(2) { transform: rotate(-1.5deg); }
+  .screen:nth-child(3) { transform: rotate(1.2deg); }
+  .screen svg { width: 24px; height: 24px; fill: none; stroke: var(--ink); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  .screen b { margin-top: auto; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; }
+  .screen .num { font-size: 10px; font-variant-numeric: tabular-nums; }
+  .screen[aria-pressed="true"] { background: var(--sun); }
+
+  .game { display: grid; gap: 8px; width: 100%; padding: 18px; border: 1px solid var(--ink); border-radius: 40px; background: var(--violet); color: var(--paper); text-align: left; font: inherit; cursor: pointer; }
+  .game .kicker { font-size: 10px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; }
+  .game h3 { margin: 0; font-size: 40px; font-weight: 900; line-height: 0.85; letter-spacing: -0.045em; }
+  .game p { margin: 0; font-size: 13px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  .chip { padding: 5px 10px; border: 1px solid var(--ink); border-radius: 1600px; background: var(--paper); color: var(--ink); font-size: 10px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; }
+
+  footer { padding: 16px; background: var(--ink); color: var(--paper); font-size: 11px; letter-spacing: 0.032em; }
+</style>
+</head>
+<body>
+  <div class="marquee"><div>
+    <span>SOFÍA · ESP32 GADGET</span><span>◆</span><span>SIN INTERNET</span><span>◆</span><span>SIETE PANTALLAS</span><span>◆</span>
+    <span>SOFÍA · ESP32 GADGET</span><span>◆</span><span>SIN INTERNET</span><span>◆</span><span>SIETE PANTALLAS</span><span>◆</span>
+  </div></div>
+
+  <header class="hero">
+    <div class="stickers" aria-hidden="true">
+      <span class="sticker rocket"><svg viewBox="0 0 24 24"><path d="M12 3c3 2 4.5 5 4.5 9L14 15h-4l-2.5-3C7.5 8 9 5 12 3z"/><path d="M9.5 16.5 7 20l4-1M14.5 16.5 17 20l-4-1"/></svg></span>
+      <span class="sticker coin"></span>
+      <span class="sticker wallet"></span>
+    </div>
+    <h1 class="display">Sofía</h1>
+    <p class="tagline">Elegí qué mira, jugá y mirá el equipo desde acá.</p>
+  </header>
+
+  <div class="statusbar">
+    <span class="pill"><span class="dot"></span>En línea</span>
+    <span class="now">Ahora: Reloj</span>
+  </div>
+
+  <section class="band white" aria-labelledby="pantallas">
+    <div class="band-head"><h2 id="pantallas">Pantallas</h2><span>7 en total</span></div>
+    <div class="screens">
+      <button class="screen" type="button" aria-pressed="true">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        <span class="num">01</span><b>Reloj</b>
+      </button>
+      <button class="screen" type="button" aria-pressed="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg>
+        <span class="num">02</span><b>Tragamonedas</b>
+      </button>
+      <button class="screen" type="button" aria-pressed="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c3 2 4.5 5 4.5 9L14 15h-4l-2.5-3C7.5 8 9 5 12 3z"/></svg>
+        <span class="num">03</span><b>Meteoritos</b>
+      </button>
+      <button class="screen" type="button" aria-pressed="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 8.5a15 15 0 0 1 20 0M5 12a10.5 10.5 0 0 1 14 0"/></svg>
+        <span class="num">04</span><b>Red</b>
+      </button>
+      <button class="screen" type="button" aria-pressed="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V6l10-2v12"/><circle cx="6" cy="18" r="3"/></svg>
+        <span class="num">05</span><b>Música</b>
+      </button>
+    </div>
+  </section>
+
+  <section class="band gray" aria-labelledby="juegos">
+    <div class="band-head"><h2 id="juegos">Juegos</h2></div>
+    <button class="game" type="button">
+      <span class="kicker">1v1 contra Sofía</span>
+      <h3>Ta-te-ti</h3>
+      <p>Elegí dificultad y jugá. Tres niveles, del más blando al que no perdona.</p>
+      <span class="chips"><span class="chip">Fácil</span><span class="chip">Normal</span><span class="chip">Difícil</span></span>
+    </button>
+  </section>
+
+  <footer>Este panel vive dentro del equipo: no necesita internet.</footer>
+</body>
+</html>

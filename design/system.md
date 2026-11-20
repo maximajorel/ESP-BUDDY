@@ -1,33 +1,45 @@
 # ESP32 Gadget design system
 
 Two surfaces, two palettes. The web panel is opened on a phone joined to the
-device's own access point; the glass is a 320x172 strip. They share one palette
-deliberately, so the panel's face mirrors what the board draws.
+device's own access point; the glass is a 320x172 strip. They no longer share a
+palette: the web is paper and ink (the owner's `DESIGN.md` reference), the glass
+stays black with the cyan eyes, because the panel's face was removed and the
+face now lives only on the board.
 
 Every value below was read from a source file; the source is named next to each
 group. Nothing here is invented.
 
 ## 1. Colour — web panel
 
-Source: `esp32_gadget/web_ui/styles.css`, `:root` (lines 6-25).
+Source: `esp32_gadget/web_ui/styles.css`, `:root` (lines 18-51). Reference and
+rationale: `odd/tasks/web-redesign.md` (S1) and the owner's
+`Downloads/DESIGN.md` (Slush).
 
 | Token | Value | Usage |
 | --- | --- | --- |
-| `--bg` | `#0e1015` | Page background |
-| `--card` | `#161a22` | Card surfaces |
-| `--inset` | `#1b212b` | Inset fields, nav item background |
-| `--line` | `#262d3a` | Hairline borders |
-| `--tx` | `#e8ecf4` | Primary text |
-| `--dim` | `#94a0b4` | Secondary text, meta, `.sub` |
-| `--gold` | `#ffd700` | Brand accent, active nav, primary button, `.region-head h2` |
-| `--gold-soft` | `#3a3212` | Accent background behind gold text |
-| `--eye` | `#00b4ff` | The buddy face's owner colour |
-| `--eye-hot` | `#ff3c1e` | Anger / dizziness tint of the eyes |
-| `--ok` | `#4ade80` | Online pill, success |
-| `--bad` | `#f87171` | Error text, offline pill |
+| `--paper` | `#ffffff` | Cards, inputs, pill fills, marquee text |
+| `--sky` | `#dceeff` | Page background, hero and status bar band |
+| `--gray` | `#cccccc` | Secondary section band (games) and stat cells |
+| `--mist` | `#e9e9e9` | Hover fills, secondary buttons, neutral card tint |
+| `--ink` | `#000000` | All text, every 1px outline, filled CTAs, marquee band |
+| `--blue` | `#4da2ff` | Sticker fill only (decorative, never a CTA or link) |
+| `--mint` | `#55db9c` | Sticker fill; success lives on the `.pill.online` fill |
+| `--lav` | `#e9ccff` | Sticker fill, Spotify tile, `.say.buddy` |
+| `--ember` | `#fb4903` | Alert sticker: offline pill, banner, `.btn.danger`, errors |
+| `--sun` | `#ffd731` | Active sticker: current screen, active difficulty, logo |
+| `--violet` | `#5c4ade` | The games card fill and the focus outline |
+| `--ok-ink` | `#0f7a45` | Success text on `--mist` |
+| `--bad-ink` | `#b32b00` | Danger text on `--mist` |
 
-Derived border tints read from the same file: online pill border `#1f3a2a`,
-offline pill border `#3d2226` (lines 105-108).
+Rules from the reference, kept verbatim: no gradients and no `box-shadow`
+anywhere; elevation is colour plus a black outline. Black text on any sticker
+fill; white text only on `--ink` and `--violet`. `--blue` is decorative, never an
+action colour.
+
+Two deliberate deviations, both forced by where this runs (S1b): system font
+stacks instead of the commercial Lateral / Aeonik Pro, and flat SVG stickers
+instead of the 3D ribbons, since the board serves no fonts and stores no raster
+art.
 
 ## 2. Glass palette — the device screen
 
@@ -74,15 +86,20 @@ band is a bug.
 
 ## 4. Typography — web panel
 
-Source: `esp32_gadget/web_ui/styles.css`.
+Source: `esp32_gadget/web_ui/styles.css` (`--font`, `.body`, `.display`, `.nav-item`).
 
 - Family: system stack, `-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, …`.
   No web fonts: the panel is served from the device with no internet.
 - Body: `16px / 1.5`.
-- Scale in use: `10`, `11`, `12`, `14`, `16`, `17`, `18`, `24` px.
-- Weights: `650` for headings and buttons, `700` for the small uppercase labels,
-  regular elsewhere.
-- Letter spacing: `0.2px` on the top bar title, `-0.2px` on `h2`.
+- Display: weight `900`, `line-height` `0.8`, `letter-spacing` `-0.05em`,
+  uppercase, `clamp(72px, 27vw, 118px)` for the landing wordmark. This is the
+  crushed-display gesture of the reference, done with weight and tracking instead
+  of a display face.
+- Section titles: `clamp(30px, 8vw, 40px)`, weight `900`, `-0.04em`.
+- Card titles: `17px` / `15px`, weight `700`, `-0.01em`.
+- Labels, tab strip, chips, pills: `10–12px`, weight `700`, uppercase,
+  `letter-spacing: 0.032em`.
+- `--mono` (`ui-monospace…`) only for numbers that must not shift.
 
 The glass has no proportional text: labels use the built-in 5x7 bitmap font at
 `scale` 1, 2 or 3 (`gfxText`, `font5x7.h`). The face itself never shows text.
@@ -91,30 +108,44 @@ The glass has no proportional text: labels use the built-in 5x7 bitmap font at
 
 Source: `esp32_gadget/web_ui/styles.css`.
 
-- Radius: `2`, `10`, `11`, `12`, `16` (`--radius`), `999` (pills), `50%` (dots).
-- Padding: `7px 12px` (pills), `10px 16px` (buttons), `10px 11px` / `10px 12px`
-  (nav items), `12px 16px` (top bar), `18px 14px 28px` (layout container),
-  `20px 16px 8px` (region), `2px 10px` (badge).
-- Gaps: `4`, `7`, `12`, `14`, `24`, `30` px.
+- Radius: `--r-in` `16` (inputs, tiles, stats), `--r-card` `20` (cards),
+  `--r-lg` `40` (hero game card), `--r-pill` `1600` (tabs, buttons, chips,
+  pills, dots). Nothing below `16`.
+- Padding: `16px` (cards), `14px` (top bar, tab strip), `10–13px` (buttons and
+  pills), `18px` (hero), `16px 14px 40px` (admin main), `16px 16px 40px`
+  (launcher).
+- Gaps: `6`, `8`, `10`, `12`, `14` px.
 - Touch target: `--tap: 44px`.
-- Elevation: no `box-shadow` anywhere; hierarchy comes from the `--line` border
-  and the `--card` / `--inset` surface steps. Keep it that way.
+- Page width: `--page: 1080px` for the admin, `720px` for the centred landing at
+  `>=620px`.
+- Elevation: no `box-shadow` anywhere; hierarchy comes from the 1px `--ink`
+  outline and the `--paper` / `--mist` / `--sky` surface steps.
 
 ## 6. Component rules
 
-- Pills (`.pill`) are `12px` text, weight `650`, radius `999`, `7px 12px`, with a
-  `50%` dot; `.online` uses `--ok`, `.offline` uses `--bad`.
-- Cards are `--card` on `--bg` with a `1px` `--line` border and `--radius`.
-- The active nav item is gold text on `--gold-soft` with a `--gold` border.
-- Focus is always visible: `:focus-visible` uses the accent, never `outline:none`
-  alone.
+- Pills (`.pill`, `.live`) are `10px` uppercase weight `700`, radius `1600`,
+  `1px` `--ink` border, `--paper` fill, with a bordered dot. `.online`/`.live`
+  fill `--mint`, `.offline` fills `--ember`; the dot goes white in both.
+- Cards (`.card`) are `--paper` with a `1px` `--ink` border and `--r-card`.
+  Tints are opt-in (`.tint-lav`, `.tint-mist`, `.tint-sky`), never automatic.
+- The admin navigation is a single `role="tablist"` strip: one pill per
+  section, `--paper` normally, `--ink` fill with `--paper` text when active.
+  Roving tabindex, Arrow/Home/End, and the hash is the active section.
+- Buttons (`.btn`) are `--ink` fill with `--paper` text, or `.ghost` (`--paper`
+  fill, `--ink` text). Never `--blue`. Danger is `--ember` with `--ink` text.
+- Focus is always visible: `:focus-visible` gets a `2px --violet` outline with a
+  `2px` offset; `--violet` is the only outline colour.
+- The landing has no face. Its hero is the display wordmark plus three flat SVG
+  stickers, and the only continuous motion is the black marquee.
 - The face on the glass: eyes only. Solid squircle, owner colour, three glow
   layers, expressions only from lids, gaze, rotation, grow, hot tint, breath and
   blink. No brows, no mouth, no text, no images.
 
 ## 7. Motion
 
-- Panel: CSS transitions only, `scroll-behavior: smooth`.
+- Panel: the marquee loops continuously (`26s` linear, duplicated track);
+  everything else is short CSS transitions. `scroll-behavior: smooth` on `html`.
 - Glass: everything is a pure function of `millis()`; no timers, no `delay`.
   Blinks and saccades are a deterministic hash of the clock, not a metronome.
-- Any new artboard must respect `prefers-reduced-motion`.
+- Any new artboard must respect `prefers-reduced-motion`; the stylesheet stops
+  the marquee and every transition under it.

@@ -1,0 +1,11 @@
+{
+  "title": "Rediseño de la web del ESP32 Gadget",
+  "brief": "Landing pública, panel admin y login en el lenguaje de DESIGN.md (Slush: papel pastel, bordes negros tipo sticker, tipografía display aplastada) con los ojos fuera de la web y el admin en cards tipo pestañas.",
+  "feature": "odd/tasks/web-redesign.md",
+  "artboards": [
+    { "file": "01-cartel.html", "title": "Cartel de stickers", "tradeoff": "Lo más fiel a la referencia y lo más escaneable en un teléfono; la marquesina cuesta un poco de alto útil.", "width": 390, "height": 844 },
+    { "file": "02-escritorio.html", "title": "Escritorio de control", "tradeoff": "Más utilitario y rápido de leer; pierde el aire de cartel y el gesto display de la referencia.", "width": 390, "height": 844 },
+    { "file": "03-colcha.html", "title": "Colcha de stickers", "tradeoff": "Máxima personalidad y todo a la vista sin scroll lateral; la rotación baja la legibilidad de los nombres largos.", "width": 390, "height": 844 },
+    { "file": "04-admin-pestanas.html", "title": "Admin en pestañas", "tradeoff": "Una sola tira de pestañas y una sección por vez: deja de haber scroll infinito, pero se ve menos de un vistazo.", "width": 1024, "height": 768 }
+  ]
+}

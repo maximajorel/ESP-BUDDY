@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0e1015">
+<meta name="theme-color" content="#dceeff">
 <title>ESP32 Gadget</title>
-<link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNyIgZmlsbD0iIzExMTMxYSIvPjxwYXRoIGQ9Ik0xNiA0IEwyOCAxNiBMMTYgMjggTDQgMTYgWiIgZmlsbD0iI2ZmZDcwMCIvPjwvc3ZnPg==">
+<link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNyIgZmlsbD0iI2ZmZmZmZiIgc3Ryb2tlPSIjMDAwIi8+PHBhdGggZD0iTTE2IDQgTDI4IDE2IEwxNiAyOCBMNCAxNiBaIiBmaWxsPSIjMDAwIi8+PC9zdmc+">
 <link rel="stylesheet" href="/styles.css">
 </head>
 <body class="landing-body">
@@ -31,23 +31,34 @@
   <symbol id="i-display" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></symbol>
 </defs></svg>
 
+<!-- The only continuous motion in the system, straight from the reference. -->
+<div class="marquee" aria-hidden="true">
+  <div class="marquee-track">
+    <span>Sofía · ESP32 Gadget</span><span>◆</span><span>Sin internet</span><span>◆</span><span>Siete pantallas</span><span>◆</span>
+    <span>Sofía · ESP32 Gadget</span><span>◆</span><span>Sin internet</span><span>◆</span><span>Siete pantallas</span><span>◆</span>
+  </div>
+</div>
+
 <main class="landing" id="contenido">
 
-  <!-- The device face, reproduced by the browser. It mirrors the gestures the
-       glass draws (gaze, lids, breathing); it does not read the firmware pose. -->
-  <section class="stage" aria-label="La cara de Sofía">
-    <div class="stage-face" data-face="hero" data-mood="calm"></div>
-    <div class="stage-glass"></div>
-    <div class="stage-hud">
-      <button class="menu-btn" id="menuBtn" type="button" aria-expanded="false" aria-controls="launcher" aria-label="Abrir menú">
-        <svg aria-hidden="true"><use href="#i-apps"/></svg>
-      </button>
+  <!-- The eyes live on the glass, not here: this page is a control surface. -->
+  <header class="hero">
+    <div class="stickers" aria-hidden="true">
+      <span class="sticker a"><svg viewBox="0 0 24 24"><path d="M12 3c3 2 4.5 5 4.5 9L14 15h-4l-2.5-3C7.5 8 9 5 12 3z"/><path d="M9.5 16.5 7 20l4-1M14.5 16.5 17 20l-4-1"/></svg></span>
+      <span class="sticker b"></span>
+      <span class="sticker c"></span>
     </div>
-    <div class="stage-foot">
-      <h1 id="nowName">Sofía</h1>
-      <span class="live" id="connPill"><span class="dot" aria-hidden="true"></span><span id="connText">Conectando…</span></span>
-    </div>
-  </section>
+    <p class="hero-kicker">El equipo de siete pantallas</p>
+    <h1 class="display">Sofía</h1>
+    <p class="tagline">Elegí qué mira, jugá y mandá el equipo desde acá.</p>
+  </header>
+
+  <div class="statusbar">
+    <span class="live" id="connPill"><span class="dot" aria-hidden="true"></span><span id="connText">Conectando…</span></span>
+    <button class="menu-btn" id="menuBtn" type="button" aria-expanded="false" aria-controls="launcher" aria-label="Abrir menú">
+      <svg aria-hidden="true"><use href="#i-apps"/></svg>
+    </button>
+  </div>
 
   <section class="dock" aria-labelledby="screensTitle">
     <div class="dock-head">
@@ -67,9 +78,9 @@
       <h3>Ta-te-ti</h3>
       <p>Elegí dificultad y jugá. Tres niveles, del más blando al que no perdona.</p>
       <span class="chips">
-        <span class="chip">Fácil · se distrae</span>
-        <span class="chip">Normal · juega en serio</span>
-        <span class="chip">Difícil · no perdona</span>
+        <span class="chip">Fácil</span>
+        <span class="chip">Normal</span>
+        <span class="chip">Difícil</span>
       </span>
     </button>
   </section>
@@ -102,7 +113,6 @@
             <b>Juegos</b>
             <small>Ta-te-ti · lo que se juega en la web</small>
           </span>
-          <span class="chev" aria-hidden="true">›</span>
         </button>
         <a class="launch" href="/admin#spotify">
           <svg aria-hidden="true"><use href="#i-music"/></svg>

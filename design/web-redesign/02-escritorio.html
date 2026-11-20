@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dirección 02 · Escritorio de control</title>
+<style>
+  :root {
+    --paper: #ffffff; --sky: #dceeff; --gray: #cccccc; --mist: #e9e9e9;
+    --ink: #000000; --blue: #4da2ff; --mint: #55db9c; --lav: #e9ccff;
+    --ember: #fb4903; --sun: #ffd731; --violet: #5c4ade;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--font); }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+
+  .bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; background: var(--ink); color: var(--paper); }
+  .bar .brand { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; }
+  .bar .badge { width: 22px; height: 22px; border-radius: 1600px; border: 1px solid var(--paper); display: grid; place-items: center; font-size: 11px; }
+  .bar .live { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px solid var(--paper); border-radius: 1600px; font-size: 10px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; }
+  .bar .live i { width: 8px; height: 8px; border-radius: 50%; background: var(--mint); }
+
+  .intro { padding: 22px 16px 16px; background: var(--paper); }
+  .intro h1 { margin: 0; font-size: clamp(44px, 15vw, 62px); font-weight: 900; line-height: 0.82; letter-spacing: -0.045em; }
+  .intro p { margin: 10px 0 0; max-width: 34ch; font-size: 14px; line-height: 1.45; }
+  .intro .actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+  .btn { padding: 11px 16px; border: 1px solid var(--ink); border-radius: 1600px; font-size: 12px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; background: var(--paper); color: var(--ink); font-family: inherit; cursor: pointer; }
+  .btn.solid { background: var(--ink); color: var(--paper); }
+
+  .band { padding: 18px 16px; border-top: 1px solid var(--ink); }
+  .band.sky { background: var(--sky); }
+  .band.gray { background: var(--gray); }
+  .band h2 { margin: 0 0 12px; font-size: 11px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .tile { display: grid; gap: 6px; padding: 14px; border: 1px solid var(--ink); border-radius: 20px; background: var(--paper); font: inherit; color: inherit; text-align: left; cursor: pointer; }
+  .tile b { font-size: 13px; letter-spacing: -0.01em; }
+  .tile small { font-size: 11px; opacity: 0.75; }
+  .tile svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  .tile.on { background: var(--sun); }
+  .tile.b1 { background: var(--lav); } .tile.b2 { background: var(--mint); } .tile.b3 { background: var(--blue); }
+
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 16px; border: 1px solid var(--ink); border-radius: 20px; background: var(--paper); }
+  .row h3 { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -0.03em; line-height: 1; }
+  .row p { margin: 4px 0 0; font-size: 12px; max-width: 24ch; }
+  .row .tag { flex: 0 0 auto; width: 46px; height: 46px; border-radius: 1600px; border: 1px solid var(--ink); background: var(--violet); display: grid; place-items: center; color: var(--paper); font-weight: 800; }
+
+  footer { padding: 14px 16px 24px; font-size: 11px; letter-spacing: 0.02em; }
+</style>
+</head>
+<body>
+  <div class="bar">
+    <span class="brand"><span class="badge">◆</span>ESP32 Gadget</span>
+    <span class="live"><i></i>En línea</span>
+  </div>
+
+  <header class="intro">
+    <h1>¿Qué ve<br>Sofía?</h1>
+    <p>Siete pantallas en un solo botón. Elegí la de ahora y mirá el resto cuando quieras.</p>
+    <div class="actions">
+      <button class="btn solid" type="button">Abrir menú</button>
+      <button class="btn" type="button">Jugar</button>
+    </div>
+  </header>
+
+  <section class="band sky" aria-labelledby="s1">
+    <h2 id="s1">Ahora en pantalla · Reloj</h2>
+    <div class="grid">
+      <button class="tile on" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><b>Reloj</b><small>La hora del equipo</small></button>
+      <button class="tile b1" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg><b>Tragamonedas</b><small>Un toque tira</small></button>
+      <button class="tile b2" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c3 2 4.5 5 4.5 9L14 15h-4l-2.5-3C7.5 8 9 5 12 3z"/></svg><b>Meteoritos</b><small>Esquivá y sumá</small></button>
+      <button class="tile b3" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 8.5a15 15 0 0 1 20 0M5 12a10.5 10.5 0 0 1 14 0"/></svg><b>Red</b><small>Señal y paquetes</small></button>
+    </div>
+  </section>
+
+  <section class="band gray" aria-labelledby="s2">
+    <h2 id="s2">Juegos</h2>
+    <div class="row">
+      <div>
+        <h3>Ta-te-ti</h3>
+        <p>Tres niveles. En difícil no perdona.</p>
+      </div>
+      <span class="tag" aria-hidden="true">◯</span>
+    </div>
+  </section>
+
+  <footer>Este panel vive dentro del equipo: no necesita internet.</footer>
+</body>
+</html>

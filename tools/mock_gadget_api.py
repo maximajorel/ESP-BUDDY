@@ -40,7 +40,7 @@ STATE = {
     "psramFree": 8151240,
     "screen": 0,
     "order": [0, 1, 2, 3, 4, 5],
-    "names": ["RELOJ", "TRAGAMONEDAS", "METEORITOS", "RED", "MUSICA", "SOFIA"],
+    "names": ["RELOJ", "TRAGAMONEDAS", "METEORITOS", "RED", "MUSICA", "SOFIA", "CONFIG"],
     "imuOk": True,
     "sta": {"configured": True, "connected": False, "ssid": "VICTORWIFI",
             "ip": "-", "rssi": 0, "state": "failed", "wifiStatusCode": 6,

@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#11131a">
+<meta name="theme-color" content="#ffffff">
 <title>ESP32 Gadget · Administración</title>
-<link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNyIgZmlsbD0iIzExMTMxYSIvPjxwYXRoIGQ9Ik0xNiA0IEwyOCAxNiBMMTYgMjggTDQgMTYgWiIgZmlsbD0iI2ZmZDcwMCIvPjwvc3ZnPg==">
+<link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNyIgZmlsbD0iI2ZmZmZmZiIgc3Ryb2tlPSIjMDAwIi8+PHBhdGggZD0iTTE2IDQgTDI4IDE2IEwxNiAyOCBMNCAxNiBaIiBmaWxsPSIjMDAwIi8+PC9zdmc+">
 <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -31,9 +31,6 @@
 </defs></svg>
 
 <header class="topbar">
-  <button class="nav-toggle" id="navToggle" type="button" aria-label="Abrir menú" aria-controls="nav" aria-expanded="false">
-    <span></span><span></span><span></span>
-  </button>
   <div class="brand">
     <span class="logo">◆</span>
     <div>
@@ -52,38 +49,23 @@
 
 <div class="shell">
 
-  <nav class="sidenav" id="nav" aria-label="Secciones del panel">
-    <div class="nav-head">
-      <p class="nav-title">Menú</p>
-      <button class="nav-close" id="navClose" type="button" aria-label="Cerrar menú">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
-      </button>
-    </div>
-    <div class="nav-group">
-      <p class="nav-label">Uso diario</p>
-      <a class="nav-item" href="#aplicaciones"><svg class="nav-ico" aria-hidden="true"><use href="#i-apps"/></svg><span>Aplicaciones</span></a>
-      <a class="nav-item" href="#pantalla"><svg class="nav-ico" aria-hidden="true"><use href="#i-display"/></svg><span>Pantalla</span></a>
-      <a class="nav-item" href="#luz"><svg class="nav-ico" aria-hidden="true"><use href="#i-light"/></svg><span>Luz RGB</span></a>
-      <a class="nav-item" href="#juegos"><svg class="nav-ico" aria-hidden="true"><use href="#i-game"/></svg><span>Juegos</span></a>
-      <a class="nav-item" href="#spotify"><svg class="nav-ico" aria-hidden="true"><use href="#i-music"/></svg><span>Música</span></a>
-    </div>
-    <div class="nav-group">
-      <p class="nav-label">Integraciones</p>
-      <a class="nav-item" href="#integraciones"><svg class="nav-ico" aria-hidden="true"><use href="#i-plug"/></svg><span>Integraciones</span></a>
-    </div>
-    <div class="nav-group">
-      <p class="nav-label">Conectividad</p>
-      <a class="nav-item" href="#red"><svg class="nav-ico" aria-hidden="true"><use href="#i-wifi"/></svg><span>Red</span></a>
-      <a class="nav-item" href="#sofia"><svg class="nav-ico" aria-hidden="true"><use href="#i-smile"/></svg><span>Sofía</span></a>
-    </div>
-    <div class="nav-group">
-      <p class="nav-label">Sistema</p>
-      <a class="nav-item" href="#sistema"><svg class="nav-ico" aria-hidden="true"><use href="#i-settings"/></svg><span>Sistema</span></a>
-      <a class="nav-item" href="#cuenta"><svg class="nav-ico" aria-hidden="true"><use href="#i-lock"/></svg><span>Cuenta</span></a>
-    </div>
+  <!-- One tab per section. The ids are the ones the old sidebar used, so
+       /admin#spotify and every in-page link keep working. -->
+  <nav class="tabs" id="nav" role="tablist" aria-label="Secciones del panel">
+    <button class="nav-item" id="tab-aplicaciones" type="button" role="tab" aria-selected="true" aria-controls="aplicaciones" tabindex="0"><svg class="nav-ico" aria-hidden="true"><use href="#i-apps"/></svg><span>Aplicaciones</span></button>
+    <button class="nav-item" id="tab-pantalla" type="button" role="tab" aria-selected="false" aria-controls="pantalla" tabindex="-1"><svg class="nav-ico" aria-hidden="true"><use href="#i-display"/></svg><span>Pantalla</span></button>
+    <button class="nav-item" id="tab-luz" type="button" role="tab" aria-selected="false" aria-controls="luz" tabindex="-1"><svg class="nav-ico" aria-hidden="true"><use href="#i-light"/></svg><span>Luz RGB</span></button>
+    <button class="nav-item" id="tab-juegos" type="button" role="tab" aria-selected="false" aria-controls="juegos" tabindex="-1"><svg class="nav-ico" aria-hidden="true"><use href="#i-game"/></svg><span>Juegos</span></button>
+    <button class="nav-item" id="tab-spotify" type="button" role="tab" aria-selected="false" aria-controls="spotify" tabindex="-1"><svg class="nav-ico" aria-hidden="true"><use href="#i-music"/></svg><span>Música</span></button>
+    <span class="tab-sep" aria-hidden="true"></span>
+    <button class="nav-item" id="tab-integraciones" type="button" role="tab" aria-selected="false" aria-controls="integraciones" tabindex="-1"><svg class="nav-ico" aria-hidden="true"><use href="#i-plug"/></svg><span>Integraciones</span></button>
+    <span class="tab-sep" aria-hidden="true"></span>
+    <button class="nav-item" id="tab-red" type="button" role="tab" aria-selected="false" aria-controls="red" tabindex="-1"><svg class="nav-ico" aria-hidden="true"><use href="#i-wifi"/></svg><span>Red</span></button>
+    <button class="nav-item" id="tab-sofia" type="button" role="tab" aria-selected="false" aria-controls="sofia" tabindex="-1"><svg class="nav-ico" aria-hidden="true"><use href="#i-smile"/></svg><span>Sofía</span></button>
+    <span class="tab-sep" aria-hidden="true"></span>
+    <button class="nav-item" id="tab-sistema" type="button" role="tab" aria-selected="false" aria-controls="sistema" tabindex="-1"><svg class="nav-ico" aria-hidden="true"><use href="#i-settings"/></svg><span>Sistema</span></button>
+    <button class="nav-item" id="tab-cuenta" type="button" role="tab" aria-selected="false" aria-controls="cuenta" tabindex="-1"><svg class="nav-ico" aria-hidden="true"><use href="#i-lock"/></svg><span>Cuenta</span></button>
   </nav>
-
-  <div class="nav-backdrop" id="navBackdrop"></div>
 
   <main id="contenido" tabindex="-1">
 
@@ -97,7 +79,7 @@
     </div>
 
     <!-- ── Aplicaciones: la acción principal del panel ─────────────────── -->
-    <div class="region" id="aplicaciones">
+    <div class="region" id="aplicaciones" role="tabpanel" aria-labelledby="tab-aplicaciones" tabindex="0">
       <div class="region-head">
         <p class="eyebrow">Uso diario</p>
         <h2>Aplicaciones</h2>
@@ -163,7 +145,7 @@
     </div>
 
     <!-- ── Pantalla ─────────────────────────────────────────────────────── -->
-    <div class="region" id="pantalla">
+    <div class="region" id="pantalla" role="tabpanel" aria-labelledby="tab-pantalla" tabindex="0" hidden>
       <div class="region-head">
         <p class="eyebrow">Uso diario</p>
         <h2>Pantalla</h2>
@@ -223,7 +205,7 @@
     </div>
 
     <!-- ── Luz RGB ──────────────────────────────────────────────────────── -->
-    <div class="region" id="luz">
+    <div class="region" id="luz" role="tabpanel" aria-labelledby="tab-luz" tabindex="0" hidden>
       <div class="region-head">
         <p class="eyebrow">Uso diario</p>
         <h2>Luz RGB</h2>
@@ -262,7 +244,7 @@
     </div>
 
     <!-- ── Juegos ───────────────────────────────────────────────────────── -->
-    <div class="region" id="juegos">
+    <div class="region" id="juegos" role="tabpanel" aria-labelledby="tab-juegos" tabindex="0" hidden>
       <div class="region-head">
         <p class="eyebrow">Uso diario</p>
         <h2>Juegos</h2>
@@ -300,7 +282,7 @@
     </div>
 
     <!-- ── Música (Spotify) ─────────────────────────────────────────────── -->
-    <div class="region" id="spotify">
+    <div class="region" id="spotify" role="tabpanel" aria-labelledby="tab-spotify" tabindex="0" hidden>
       <div class="region-head">
         <p class="eyebrow">Uso diario</p>
         <h2>Música</h2>
@@ -327,7 +309,7 @@
     </div>
 
     <!-- ── Integraciones: todo lo que habla con algo de afuera ──────────── -->
-    <div class="region" id="integraciones">
+    <div class="region" id="integraciones" role="tabpanel" aria-labelledby="tab-integraciones" tabindex="0" hidden>
       <div class="region-head">
         <p class="eyebrow">Integraciones</p>
         <h2>Integraciones</h2>
@@ -474,7 +456,7 @@
     </div>
 
     <!-- ── Red ──────────────────────────────────────────────────────────── -->
-    <div class="region" id="red">
+    <div class="region" id="red" role="tabpanel" aria-labelledby="tab-red" tabindex="0" hidden>
       <div class="region-head">
         <p class="eyebrow">Conectividad</p>
         <h2>Red</h2>
@@ -524,7 +506,7 @@
     </div>
 
     <!-- ── Sofía ────────────────────────────────────────────────────────── -->
-    <div class="region" id="sofia">
+    <div class="region" id="sofia" role="tabpanel" aria-labelledby="tab-sofia" tabindex="0" hidden>
       <div class="region-head">
         <p class="eyebrow">Conectividad</p>
         <h2>Sofía (buddy)</h2>
@@ -578,7 +560,7 @@
     </div>
 
     <!-- ── Sistema: estado y mantenimiento al final ─────────────────────── -->
-    <div class="region" id="sistema">
+    <div class="region" id="sistema" role="tabpanel" aria-labelledby="tab-sistema" tabindex="0" hidden>
       <div class="region-head">
         <p class="eyebrow">Sistema</p>
         <h2>Sistema</h2>
@@ -622,7 +604,7 @@
     </div>
 
     <!-- ── Cuenta: con qué se entra al panel ───────────────────────────── -->
-    <div class="region" id="cuenta">
+    <div class="region" id="cuenta" role="tabpanel" aria-labelledby="tab-cuenta" tabindex="0" hidden>
       <div class="region-head">
         <p class="eyebrow">Acceso</p>
         <h2>Cuenta</h2>

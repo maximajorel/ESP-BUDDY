@@ -1,223 +1,146 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ESP32 Gadget — design system</title>
+<title>ESP32 Gadget · sistema de diseño</title>
 <style>
   :root {
-    --bg: #0e1015;
-    --card: #161a22;
-    --inset: #1b212b;
-    --line: #262d3a;
-    --tx: #e8ecf4;
-    --dim: #94a0b4;
-    --gold: #ffd700;
-    --gold-soft: #3a3212;
-    --eye: #00b4ff;
-    --eye-hot: #ff3c1e;
-    --ok: #4ade80;
-    --bad: #f87171;
-    --radius: 16px;
-    --tap: 44px;
+    --paper: #ffffff; --sky: #dceeff; --gray: #cccccc; --mist: #e9e9e9;
+    --ink: #000000; --blue: #4da2ff; --mint: #55db9c; --lav: #e9ccff;
+    --ember: #fb4903; --sun: #ffd731; --violet: #5c4ade;
+    --ok-ink: #0f7a45; --bad-ink: #b32b00;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --line: 1px solid var(--ink);
+    --r-in: 16px; --r-card: 20px; --r-lg: 40px; --r-pill: 1600px;
   }
   * { box-sizing: border-box; }
-  html { color-scheme: dark; }
-  body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--tx);
-    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  }
-  main { max-width: 1280px; margin: 0 auto; padding: 40px 32px 72px; }
-  header.top { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
-  h1 { margin: 0; font-size: 32px; letter-spacing: -0.4px; }
-  .sub { margin: 6px 0 0; color: var(--dim); font-size: 14px; max-width: 62ch; }
-  .stamp { font-size: 11px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; color: var(--gold); border: 1px solid var(--gold-soft); background: var(--gold-soft); border-radius: 999px; padding: 7px 12px; }
-  h2 { margin: 44px 0 4px; font-size: 24px; letter-spacing: -0.2px; }
-  .lead { margin: 0 0 18px; color: var(--dim); font-size: 14px; }
-  .grid { display: grid; gap: 14px; }
-  .cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  .cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; }
-  .swatch { display: flex; flex-direction: column; gap: 8px; }
-  .chip { height: 54px; border-radius: 11px; border: 1px solid var(--line); }
-  .mono { font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--dim); }
-  .name { font-size: 13px; font-weight: 650; }
-  .use { font-size: 12px; color: var(--dim); }
-  .typerow { display: flex; align-items: baseline; gap: 16px; padding: 8px 0; border-bottom: 1px dashed var(--line); }
-  .typerow:last-child { border-bottom: 0; }
-  .typerow .mono { min-width: 120px; }
-  .bars { display: flex; align-items: flex-end; gap: 10px; height: 90px; }
-  .bar { background: var(--gold-soft); border: 1px solid var(--gold); border-radius: 4px 4px 0 0; }
-  .radius-demo { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-  .rd { width: 62px; height: 62px; background: var(--inset); border: 1px solid var(--line); display: grid; place-items: center; font-size: 11px; color: var(--dim); font-weight: 700; }
-  .pillrow { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
-  .pill { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 650; padding: 7px 12px; border-radius: 999px; border: 1px solid var(--line); color: var(--dim); }
-  .pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); }
-  .pill.online { color: var(--ok); border-color: #1f3a2a; }
-  .pill.online .dot { background: var(--ok); }
-  .pill.offline { color: var(--bad); border-color: #3d2226; }
-  .pill.offline .dot { background: var(--bad); }
-  button.primary { font: inherit; font-weight: 650; background: var(--gold); color: #0e1015; border: 0; border-radius: 10px; padding: 10px 16px; min-height: var(--tap); cursor: pointer; }
-  button.ghost { font: inherit; background: var(--inset); color: var(--tx); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; min-height: var(--tap); cursor: pointer; }
-  button.primary:focus-visible, button.ghost:focus-visible, a:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
-  .navitem { display: flex; align-items: center; gap: 7px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); color: var(--dim); font-size: 14px; }
-  .navitem.active { color: var(--gold); border-color: var(--gold); background: var(--gold-soft); }
-  .tokens { display: grid; grid-template-columns: 110px 1fr; gap: 2px 14px; font: 12px/1.7 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--dim); }
-  .tokens b { color: var(--tx); font-weight: 650; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-  .glass-wrap { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
-  .glass { width: 320px; height: 172px; background: #000; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; flex: 0 0 auto; }
-  .note { font-size: 12px; color: var(--dim); margin: 0; }
-  .rule { height: 1px; background: var(--line); margin: 28px 0 0; }
+  body { margin: 0; padding: 28px 32px 60px; background: var(--sky); color: var(--ink); font: 16px/1.5 var(--font); }
+  h1 { margin: 0; font-size: 56px; font-weight: 900; line-height: 0.82; letter-spacing: -0.05em; text-transform: uppercase; }
+  .lede { margin: 10px 0 24px; max-width: 70ch; font-size: 14px; }
+  h2 { margin: 30px 0 12px; font-size: 10px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; }
+  .sw { width: 150px; border: var(--line); border-radius: var(--r-in); background: var(--paper); overflow: hidden; }
+  .sw i { display: block; height: 64px; border-bottom: var(--line); }
+  .sw b { display: block; padding: 8px 10px 0; font-size: 11px; }
+  .sw code { display: block; padding: 0 10px 8px; font-family: var(--mono); font-size: 10px; }
+
+  .type div { display: flex; align-items: baseline; gap: 14px; padding: 8px 0; border-bottom: 1px solid rgba(0,0,0,.16); }
+  .type span { flex: 0 0 150px; font-family: var(--mono); font-size: 11px; }
+  .display { font-size: 92px; font-weight: 900; line-height: 0.8; letter-spacing: -0.05em; text-transform: uppercase; }
+  .sect { font-size: 34px; font-weight: 900; line-height: 0.9; letter-spacing: -0.04em; }
+  .card-t { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
+  .label { font-size: 11px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; }
+  .body { font-size: 16px; }
+
+  .card { padding: 16px; border: var(--line); border-radius: var(--r-card); background: var(--paper); }
+  .card.tint-lav { background: var(--lav); }
+  .card.tint-mist { background: var(--mist); }
+  .pill { display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border: var(--line); border-radius: var(--r-pill); background: var(--paper); font-size: 10px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; }
+  .pill .dot { width: 8px; height: 8px; border: var(--line); border-radius: 50%; background: var(--sun); }
+  .pill.online { background: var(--mint); }
+  .pill.online .dot, .pill.offline .dot { background: var(--paper); }
+  .pill.offline { background: var(--ember); }
+  .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 16px; border: var(--line); border-radius: var(--r-pill); background: var(--ink); color: var(--paper); font-size: 12px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; font-family: inherit; }
+  .btn.ghost { background: var(--paper); color: var(--ink); }
+  .btn.danger { background: var(--ember); color: var(--ink); }
+  .tabs { display: flex; gap: 8px; padding: 10px 14px; border: var(--line); border-radius: var(--r-card); background: var(--paper); overflow-x: auto; }
+  .tab { flex: 0 0 auto; padding: 8px 13px; border: var(--line); border-radius: var(--r-pill); background: var(--paper); font-size: 11px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; }
+  .tab.on { background: var(--ink); color: var(--paper); }
+  .inputs { display: flex; gap: 10px; flex-wrap: wrap; }
+  input { min-height: 44px; padding: 10px 13px; border: var(--line); border-radius: var(--r-in); background: var(--paper); font: inherit; font-size: 15px; }
+  .radii { display: flex; gap: 10px; flex-wrap: wrap; }
+  .radii div { width: 92px; height: 92px; display: grid; place-items: end center; padding-bottom: 6px; border: var(--line); background: var(--paper); font-family: var(--mono); font-size: 10px; }
+  .focus-demo:focus-visible, .focus-demo { outline: 2px solid var(--violet); outline-offset: 2px; }
+  .note { margin: 8px 0 0; max-width: 80ch; font-size: 12px; }
 </style>
 </head>
 <body>
-<main>
-  <header class="top">
-    <div>
-      <h1>ESP32 Gadget — design system</h1>
-      <p class="sub">One palette, two surfaces: the web panel served from the board, and the
-        320x172 glass where Sofía's face lives. Every value below comes from
-        <span class="mono">web_ui/styles.css</span>, <span class="mono">buddy_face.h</span>,
-        <span class="mono">screen_buddy.cpp</span> and <span class="mono">display.h</span>.</p>
-    </div>
-    <span class="stamp">Synced from source</span>
-  </header>
+<h1>Sistema · Esp32 Gadget</h1>
+<p class="lede">Papel claro, tinta negra, bordes de 1px y la paleta sticker completa. Sin gradientes, sin sombras, sin fuentes externas: el panel vive adentro del equipo y no tiene internet. Los valores salen de <code>esp32_gadget/web_ui/styles.css</code>.</p>
 
-  <h2>Colour — web panel</h2>
-  <p class="lead">Source: <span class="mono">esp32_gadget/web_ui/styles.css</span>, <span class="mono">:root</span>.</p>
-  <div class="grid cols-4">
-    <div class="card swatch"><span class="chip" style="background:#0e1015"></span><span class="name">--bg</span><span class="mono">#0e1015</span><span class="use">Page background</span></div>
-    <div class="card swatch"><span class="chip" style="background:#161a22"></span><span class="name">--card</span><span class="mono">#161a22</span><span class="use">Card surfaces</span></div>
-    <div class="card swatch"><span class="chip" style="background:#1b212b"></span><span class="name">--inset</span><span class="mono">#1b212b</span><span class="use">Inset fields, nav cells</span></div>
-    <div class="card swatch"><span class="chip" style="background:#262d3a"></span><span class="name">--line</span><span class="mono">#262d3a</span><span class="use">Hairline borders</span></div>
-    <div class="card swatch"><span class="chip" style="background:#e8ecf4"></span><span class="name">--tx</span><span class="mono">#e8ecf4</span><span class="use">Primary text</span></div>
-    <div class="card swatch"><span class="chip" style="background:#94a0b4"></span><span class="name">--dim</span><span class="mono">#94a0b4</span><span class="use">Secondary text</span></div>
-    <div class="card swatch"><span class="chip" style="background:#ffd700"></span><span class="name">--gold</span><span class="mono">#ffd700</span><span class="use">Brand accent, primary action</span></div>
-    <div class="card swatch"><span class="chip" style="background:#3a3212"></span><span class="name">--gold-soft</span><span class="mono">#3a3212</span><span class="use">Accent background</span></div>
-    <div class="card swatch"><span class="chip" style="background:#00b4ff"></span><span class="name">--eye</span><span class="mono">#00b4ff</span><span class="use">Face owner colour</span></div>
-    <div class="card swatch"><span class="chip" style="background:#ff3c1e"></span><span class="name">--eye-hot</span><span class="mono">#ff3c1e</span><span class="use">Anger / dizziness</span></div>
-    <div class="card swatch"><span class="chip" style="background:#4ade80"></span><span class="name">--ok</span><span class="mono">#4ade80</span><span class="use">Online, success</span></div>
-    <div class="card swatch"><span class="chip" style="background:#f87171"></span><span class="name">--bad</span><span class="mono">#f87171</span><span class="use">Offline, error</span></div>
-  </div>
+<h2>Color</h2>
+<div class="row">
+  <div class="sw"><i style="background:#ffffff"></i><b>paper</b><code>#ffffff</code></div>
+  <div class="sw"><i style="background:#dceeff"></i><b>sky</b><code>#dceeff</code></div>
+  <div class="sw"><i style="background:#cccccc"></i><b>gray</b><code>#cccccc</code></div>
+  <div class="sw"><i style="background:#e9e9e9"></i><b>mist</b><code>#e9e9e9</code></div>
+  <div class="sw"><i style="background:#000000"></i><b>ink</b><code>#000000</code></div>
+  <div class="sw"><i style="background:#4da2ff"></i><b>blue</b><code>#4da2ff</code></div>
+  <div class="sw"><i style="background:#55db9c"></i><b>mint</b><code>#55db9c</code></div>
+  <div class="sw"><i style="background:#e9ccff"></i><b>lav</b><code>#e9ccff</code></div>
+  <div class="sw"><i style="background:#fb4903"></i><b>ember</b><code>#fb4903</code></div>
+  <div class="sw"><i style="background:#ffd731"></i><b>sun</b><code>#ffd731</code></div>
+  <div class="sw"><i style="background:#5c4ade"></i><b>violet</b><code>#5c4ade</code></div>
+</div>
+<p class="note">Texto negro sobre cualquier sticker; texto blanco solo sobre <code>ink</code> y <code>violet</code>. <code>blue</code> es decorativo: nunca botón ni link.</p>
 
-  <h2>Glass — the 320x172 face</h2>
-  <p class="lead">Sources: <span class="mono">buddy_face.h</span>, <span class="mono">screen_buddy.cpp</span>, <span class="mono">gfx.h</span>.</p>
-  <div class="glass-wrap">
-    <div class="glass" aria-label="The glass: two cyan squircle eyes with a three-layer glow on black">
-      <svg viewBox="0 0 320 172" width="320" height="172" role="img" aria-label="Two solid cyan squircle eyes on black, each with a three-layer glow">
-        <rect width="320" height="172" fill="#000000"></rect>
-        <g>
-          <rect x="45" y="28" width="120" height="120" rx="36" fill="#033247"></rect>
-          <rect x="47" y="30" width="116" height="116" rx="34" fill="#06283a"></rect>
-          <rect x="49" y="32" width="112" height="112" rx="32" fill="#00304a"></rect>
-          <rect x="57" y="40" width="96" height="96" rx="36.5" fill="#00b4ff"></rect>
-        </g>
-        <g>
-          <rect x="155" y="28" width="120" height="120" rx="36" fill="#033247"></rect>
-          <rect x="157" y="30" width="116" height="116" rx="34" fill="#06283a"></rect>
-          <rect x="159" y="32" width="112" height="112" rx="32" fill="#00304a"></rect>
-          <rect x="167" y="40" width="96" height="96" rx="36.5" fill="#00b4ff"></rect>
-        </g>
-      </svg>
-    </div>
-    <div class="tokens">
-      <b>Glass canvas</b><span>320 x 172 css px (display.h)</span>
-      <b>Panel native</b><span>172 x 320, column offset 34</span>
-      <b>Eye centres</b><span>x = 105 / 215, y = 88</span>
-      <b>Half-extent</b><span>48 x 48 default (BuddyPose rx/ry)</span>
-      <b>Corner ratio</b><span>0.38 of the short half-axis</span>
-      <b>Glow</b><span>3 layers: shade 7 @ pad 6, 17 @ pad 4, 32 @ pad 2</span>
-      <b>Glow pad</b><span>6 px</span>
-      <b>Blink bar</b><span>4 px half-extent</span>
-      <b>Easing</b><span>100 ms time constant</span>
-      <b>Face rate</b><span>20 fps (50 ms tick)</span>
-      <b>Black</b><span>#000000 — the only background the glass has</span>
-      <b>White</b><span>#ffffff — splash title, AP name</span>
-      <b>Gold</b><span>#ffd700 — splash second line</span>
-      <b>Grey</b><span>#8a8a8a / #7a8ca0 / #333333 — splash meta and rule</span>
+<h2>Tipografía</h2>
+<div class="type">
+  <div><span>display 900 / 0.8</span><b class="display">Sofía</b></div>
+  <div><span>section 900 / 0.9</span><b class="sect">Concentración</b></div>
+  <div><span>card title 700</span><b class="card-t">Qué se ve ahora</b></div>
+  <div><span>label 700 / 0.032em</span><b class="label">Uso diario</b></div>
+  <div><span>body 16 / 1.5</span><span class="body" style="flex:1;font-family:var(--font);font-size:16px">Elegí qué mira, jugá y mandá el equipo desde acá.</span></div>
+</div>
+<p class="note">El efecto display aplastado se hace con peso 900, tracking −0.05em y caja alta; no hay fuente display disponible en el equipo.</p>
+
+<h2>Radios y foco</h2>
+<div class="radii">
+  <div style="border-radius:16px">r-in 16</div>
+  <div style="border-radius:20px">r-card 20</div>
+  <div style="border-radius:40px">r-lg 40</div>
+  <div style="border-radius:1600px">pill</div>
+  <div class="focus-demo" style="border-radius:16px;outline-offset:2px">foco violeta</div>
+</div>
+
+<h2>Componentes</h2>
+<div class="row">
+  <div class="card" style="width:320px">
+    <b class="card-t">Card</b>
+    <p class="note">Superficie blanca, borde negro de 1px, radio 20. La elevación es color + borde.</p>
+    <div class="row" style="margin-top:10px">
+      <span class="pill online"><span class="dot"></span>En línea</span>
+      <span class="pill offline"><span class="dot"></span>Sin conexión</span>
+      <span class="pill"><span class="dot"></span>Conectando</span>
     </div>
   </div>
-
-  <h2>Typography — web panel</h2>
-  <p class="lead">System stack only; the panel has no internet, so no web fonts.</p>
-  <div class="card">
-    <div class="typerow"><span class="mono">10 / 700</span><span style="font-size:10px;font-weight:700;letter-spacing:0.6px">NAV GROUP LABEL</span></div>
-    <div class="typerow"><span class="mono">11 / 700</span><span style="font-size:11px;font-weight:700">SMALL LABEL</span></div>
-    <div class="typerow"><span class="mono">12 / 400</span><span style="font-size:12px;color:#94a0b4">Meta and secondary lines</span></div>
-    <div class="typerow"><span class="mono">14 / 400</span><span style="font-size:14px">Body in cards and navigation</span></div>
-    <div class="typerow"><span class="mono">16 / 1.5</span><span>Base body text</span></div>
-    <div class="typerow"><span class="mono">17 / 400</span><span style="font-size:17px">Card heading</span></div>
-    <div class="typerow"><span class="mono">18 / 650</span><span style="font-size:18px;font-weight:650">Section title</span></div>
-    <div class="typerow"><span class="mono">24 / 400</span><span style="font-size:24px;letter-spacing:-0.2px">Region heading</span></div>
+  <div class="card tint-lav" style="width:260px">
+    <b class="card-t">Card con tinte</b>
+    <p class="note">Lavanda para música y para la voz de Sofía en el juego.</p>
   </div>
-
-  <h2>Spacing, radius, elevation</h2>
-  <p class="lead">Gaps 4 / 7 / 12 / 14 / 24 / 30 px. Touch target 44 px. No shadows anywhere: hierarchy is border plus surface step.</p>
-  <div class="grid cols-3">
-    <div class="card">
-      <div class="bars">
-        <div class="bar" style="width:10px;height:4px"></div>
-        <div class="bar" style="width:12px;height:7px"></div>
-        <div class="bar" style="width:18px;height:12px"></div>
-        <div class="bar" style="width:20px;height:14px"></div>
-        <div class="bar" style="width:26px;height:24px"></div>
-        <div class="bar" style="width:30px;height:30px"></div>
-      </div>
-      <p class="note" style="margin-top:12px">4 · 7 · 12 · 14 · 24 · 30 px</p>
-    </div>
-    <div class="card">
-      <div class="radius-demo">
-        <div class="rd" style="border-radius:2px">2</div>
-        <div class="rd" style="border-radius:10px">10</div>
-        <div class="rd" style="border-radius:11px">11</div>
-        <div class="rd" style="border-radius:12px">12</div>
-        <div class="rd" style="border-radius:16px">16</div>
-        <div class="rd" style="border-radius:999px">999</div>
-      </div>
-      <p class="note" style="margin-top:12px">Radius scale in use; 16 px is <span class="mono">--radius</span>.</p>
-    </div>
-    <div class="card">
-      <div class="tokens" style="grid-template-columns:120px 1fr">
-        <b>--tap</b><span>44 px minimum target</span>
-        <b>Shadow</b><span>none, by design</span>
-        <b>Focus</b><span>2 px accent outline, 2 px offset</span>
-        <b>Motion</b><span>CSS transitions only</span>
-      </div>
-    </div>
+  <div class="card tint-mist" style="width:260px">
+    <b class="card-t">Card neutra</b>
+    <p class="note">Gris claro para datos y mantenimiento.</p>
   </div>
+</div>
 
-  <h2>Components</h2>
-  <p class="lead">The rules the panel reuses; the face on the glass follows them too.</p>
-  <div class="grid cols-3">
-    <div class="card">
-      <p class="note" style="margin-bottom:10px">Status pill: 12 px / 650, radius 999, dot at 50%.</p>
-      <div class="pillrow">
-        <span class="pill online"><span class="dot"></span>Online</span>
-        <span class="pill offline"><span class="dot"></span>Offline</span>
-        <span class="pill"><span class="dot"></span>Unknown</span>
-      </div>
-    </div>
-    <div class="card">
-      <p class="note" style="margin-bottom:10px">Actions: gold primary, inset ghost. Both 44 px tall.</p>
-      <div class="pillrow">
-        <button class="primary">Save</button>
-        <button class="ghost">Reset</button>
-      </div>
-    </div>
-    <div class="card">
-      <p class="note" style="margin-bottom:10px">Navigation: active is gold on gold-soft.</p>
-      <div style="display:grid;gap:7px">
-        <div class="navitem active">Sofía</div>
-        <div class="navitem">Reloj</div>
-      </div>
-    </div>
-  </div>
+<div class="row" style="margin-top:12px">
+  <button class="btn" type="button">Acción principal</button>
+  <button class="btn ghost" type="button">Secundaria</button>
+  <button class="btn danger" type="button">Zona peligrosa</button>
+  <div class="inputs"><input placeholder="Campo de texto"></div>
+</div>
 
-  <div class="rule"></div>
-  <p class="note" style="margin-top:18px">Face rule that no artboard may break: solid squircle eyes only, expressions from lids, gaze,
-    rotation, grow, hot tint, breath and blink. No brows, no mouth, no text, no images on the glass.</p>
-</main>
+<h2>Admin: una tira de pestañas</h2>
+<div class="tabs" role="tablist" aria-label="Ejemplo de pestañas">
+  <span class="tab on" role="tab" aria-selected="true">Aplicaciones</span>
+  <span class="tab" role="tab" aria-selected="false">Pantalla</span>
+  <span class="tab" role="tab" aria-selected="false">Luz RGB</span>
+  <span class="tab" role="tab" aria-selected="false">Juegos</span>
+  <span class="tab" role="tab" aria-selected="false">Música</span>
+  <span class="tab" role="tab" aria-selected="false">Red</span>
+  <span class="tab" role="tab" aria-selected="false">Sofía</span>
+  <span class="tab" role="tab" aria-selected="false">Sistema</span>
+  <span class="tab" role="tab" aria-selected="false">Cuenta</span>
+</div>
+<p class="note">Roving tabindex, flechas ←/→, Home/End, y el hash es la sección activa: <code>/admin#spotify</code> sigue entrando a Música.</p>
+
+<h2>Vidrio del equipo (sin cambios)</h2>
+<div class="card" style="width:340px;background:#000;color:#fff;border-color:#000">
+  <b class="card-t" style="color:#fff">320 × 172</b>
+  <p class="note" style="color:#c9c9c9">Fondo negro, ojos <code style="color:#00b4ff">#00b4ff</code>, brillo en tres capas y <code style="color:#ff3c1e">#ff3c1e</code> para el calor. El rediseño es solo de la web.</p>
+</div>
 </body>
 </html>

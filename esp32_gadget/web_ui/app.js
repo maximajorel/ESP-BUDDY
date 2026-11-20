@@ -932,107 +932,86 @@
     }, { threshold: 0.05 }).observe(card);
   }
 
-  // --- navigation -----------------------------------------------------------
+  // --- tabs -----------------------------------------------------------------
 
-  // One menu, two layouts. The active item follows the region crossing the
-  // middle of the viewport, so the sidebar always answers "where am I?".
-  function wireNav() {
+  // The panel is ten sections behind one tab strip. The tablist owns the roving
+  // tabindex and the hash is the source of truth, so /admin#spotify, an in-page
+  // link and the browser's back button all land on the same section.
+  function wireTabs() {
     var nav = $('nav');
-    var links = Array.prototype.slice.call(document.querySelectorAll('.nav-item'));
-    if (!nav || !links.length) return;
+    var tabs = Array.prototype.slice.call(document.querySelectorAll('[role="tab"]'));
+    if (!nav || !tabs.length) return;
 
-    var targets = links.map(function (link) {
-      return document.querySelector(link.getAttribute('href'));
-    });
+    function panelOf(tab) {
+      return document.getElementById(tab.getAttribute('aria-controls'));
+    }
 
-    function keepLinkVisible(link) {
-      // Only the phone rail scrolls sideways; on a laptop every item is shown.
+    function keepVisible(tab) {
+      // On a phone the strip scrolls sideways; on a laptop every tab is shown.
       if (nav.scrollWidth <= nav.clientWidth + 4) return;
-      var left = link.offsetLeft;
-      var right = left + link.offsetWidth;
+      var left = tab.offsetLeft;
+      var right = left + tab.offsetWidth;
       if (left < nav.scrollLeft + 8) nav.scrollLeft = Math.max(0, left - 12);
       else if (right > nav.scrollLeft + nav.clientWidth - 8) {
         nav.scrollLeft = right - nav.clientWidth + 12;
       }
     }
 
-    function activate(link) {
-      links.forEach(function (item) {
-        var on = item === link;
+    function select(tab, focus) {
+      tabs.forEach(function (item) {
+        var on = item === tab;
+        item.setAttribute('aria-selected', on ? 'true' : 'false');
+        item.tabIndex = on ? 0 : -1;
         item.classList.toggle('active', on);
-        if (on) item.setAttribute('aria-current', 'true');
-        else item.removeAttribute('aria-current');
+        var panel = panelOf(item);
+        if (panel) panel.hidden = !on;
       });
-      keepLinkVisible(link);
+      keepVisible(tab);
+      if (focus) tab.focus();
     }
 
-    // --- mobile hamburger drawer ------------------------------------------
-    var toggle = $('navToggle');
-    var close = $('navClose');
-    var backdrop = $('navBackdrop');
+    function tabFor(id) {
+      for (var i = 0; i < tabs.length; i++) {
+        if (tabs[i].getAttribute('aria-controls') === id) return tabs[i];
+      }
+      return null;
+    }
 
-    function setOpen(open) {
-      document.body.classList.toggle('nav-open', open);
-      if (toggle) toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-      if (open && links[0]) {
-        // The drawer is still hidden when the class flips, so focus on the next
-        // tick, once the element is focusable again.
-        setTimeout(function () { links[0].focus(); }, 60);
+    function go(tab) {
+      select(tab, false);
+      // replaceState, not a hash assignment: the panel must not scroll, and the
+      // tab already is the visible state.
+      if (window.history && window.history.replaceState) {
+        window.history.replaceState(null, '', '#' + tab.getAttribute('aria-controls'));
       }
     }
 
-    if (toggle) {
-      toggle.addEventListener('click', function () {
-        setOpen(!document.body.classList.contains('nav-open'));
-      });
-    }
-    if (close) {
-      close.addEventListener('click', function () {
-        setOpen(false);
-        if (toggle) toggle.focus();
-      });
-    }
-    if (backdrop) {
-      backdrop.addEventListener('click', function () { setOpen(false); });
-    }
-    document.addEventListener('keydown', function (event) {
-      if (event.key === 'Escape' && document.body.classList.contains('nav-open')) {
-        setOpen(false);
-        if (toggle) toggle.focus();
-      }
-    });
-    // A rotation or resize to the sidebar layout must not leave the page locked.
-    if (window.matchMedia) {
-      var desktop = window.matchMedia('(min-width: 980px)');
-      var onChange = function () { if (desktop.matches) setOpen(false); };
-      if (desktop.addEventListener) desktop.addEventListener('change', onChange);
-      else if (desktop.addListener) desktop.addListener(onChange);
-    }
-
-    if (typeof IntersectionObserver !== 'undefined') {
-      var observer = new IntersectionObserver(function (entries) {
-        entries.forEach(function (entry) {
-          if (!entry.isIntersecting) return;
-          var index = targets.indexOf(entry.target);
-          if (index >= 0) activate(links[index]);
-        });
-      }, { rootMargin: '-45% 0px -50% 0px', threshold: 0 });
-      targets.forEach(function (target) { if (target) observer.observe(target); });
-    }
-
-    links.forEach(function (link) {
-      link.addEventListener('click', function () {
-        activate(link);
-        setOpen(false);
+    tabs.forEach(function (tab) {
+      tab.addEventListener('click', function () { go(tab); });
+      tab.addEventListener('keydown', function (event) {
+        var index = tabs.indexOf(tab);
+        var next = null;
+        if (event.key === 'ArrowRight') next = tabs[(index + 1) % tabs.length];
+        else if (event.key === 'ArrowLeft') next = tabs[(index - 1 + tabs.length) % tabs.length];
+        else if (event.key === 'Home') next = tabs[0];
+        else if (event.key === 'End') next = tabs[tabs.length - 1];
+        if (!next) return;
+        event.preventDefault();
+        go(next);
+        next.focus();
       });
     });
 
-    // A #hash link on load should start on that menu item, not on the first one.
-    var initial = null;
-    for (var i = 0; i < links.length; i++) {
-      if (links[i].getAttribute('href') === window.location.hash) initial = links[i];
-    }
-    activate(initial || links[0]);
+    // The default-credentials banner links to #cuenta, and back/forward change
+    // the hash without firing a click.
+    window.addEventListener('hashchange', function () {
+      var id = (window.location.hash || '').replace(/^#/, '');
+      var tab = id ? tabFor(id) : null;
+      if (tab) select(tab, false);
+    });
+
+    var id = (window.location.hash || '').replace(/^#/, '');
+    select((id && tabFor(id)) || tabs[0], false);
   }
 
   // --- wiring ---------------------------------------------------------------
@@ -1615,7 +1594,7 @@
 
   function init() {
     if (!$('toast')) return;
-    wireNav();
+    wireTabs();
     wire();
     loadSession();
     refresh();

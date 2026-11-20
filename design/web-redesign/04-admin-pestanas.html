@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin · secciones en pestañas</title>
+<style>
+  :root {
+    --paper: #ffffff; --sky: #dceeff; --gray: #cccccc; --mist: #e9e9e9;
+    --ink: #000000; --blue: #4da2ff; --mint: #55db9c; --lav: #e9ccff;
+    --ember: #fb4903; --sun: #ffd731; --violet: #5c4ade;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--sky); color: var(--ink); font-family: var(--font); }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+
+  .topbar { display: flex; align-items: center; gap: 14px; padding: 12px 20px; background: var(--paper); border-bottom: 1px solid var(--ink); }
+  .logo { width: 34px; height: 34px; border-radius: 1600px; border: 1px solid var(--ink); background: var(--sun); display: grid; place-items: center; font-size: 15px; font-weight: 900; }
+  .brand h1 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+  .brand p { margin: 0; font-size: 11px; }
+  .topbar .spacer { flex: 1; }
+  .pill { display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border: 1px solid var(--ink); border-radius: 1600px; background: var(--paper); font-size: 10px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; }
+  .pill i { width: 8px; height: 8px; border-radius: 50%; background: var(--mint); border: 1px solid var(--ink); }
+  .who { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; }
+
+  .tabs { display: flex; gap: 8px; padding: 12px 20px; overflow-x: auto; background: var(--paper); border-bottom: 1px solid var(--ink); scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { flex: 0 0 auto; padding: 9px 14px; border: 1px solid var(--ink); border-radius: 1600px; background: var(--paper); color: var(--ink); font: inherit; font-size: 11px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; cursor: pointer; }
+  .tab[aria-selected="true"] { background: var(--ink); color: var(--paper); }
+  .tab:focus-visible { outline: 2px solid var(--violet); outline-offset: 2px; }
+  .sep { flex: 0 0 auto; width: 1px; align-self: stretch; margin: 2px 4px; background: var(--ink); opacity: 0.25; }
+
+  main { padding: 20px; max-width: 1080px; }
+  .region-head { margin-bottom: 14px; }
+  .eyebrow { margin: 0; font-size: 10px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; }
+  .region-head h2 { margin: 2px 0 0; font-size: 34px; font-weight: 900; letter-spacing: -0.035em; line-height: 0.9; }
+  .lead { margin: 8px 0 0; font-size: 13px; max-width: 60ch; }
+  .now { display: inline-block; padding: 3px 9px; border: 1px solid var(--ink); border-radius: 1600px; background: var(--sun); font-size: 10px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; }
+
+  .card { padding: 18px; border: 1px solid var(--ink); border-radius: 20px; background: var(--paper); }
+  .card + .card { margin-top: 12px; }
+  .card h3 { margin: 0 0 4px; font-size: 15px; letter-spacing: -0.01em; }
+  .hint { margin: 0 0 14px; font-size: 12px; opacity: 0.7; }
+
+  .screens { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .tile { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--ink); border-radius: 16px; background: var(--paper); font: inherit; color: inherit; text-align: left; cursor: pointer; }
+  .tile svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  .tile b { font-size: 11px; letter-spacing: 0.032em; text-transform: uppercase; }
+  .tile small { font-size: 10px; opacity: 0.7; }
+  .tile.on { background: var(--sun); }
+  .tile.on::after { content: "Ahora"; justify-self: start; padding: 2px 7px; border: 1px solid var(--ink); border-radius: 1600px; background: var(--paper); font-size: 9px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat { padding: 12px; border: 1px solid var(--ink); border-radius: 16px; background: var(--mist); }
+  .stat .k { font-size: 10px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; }
+  .stat .v { font-size: 20px; font-weight: 900; letter-spacing: -0.03em; }
+  .btn { padding: 10px 15px; border: 1px solid var(--ink); border-radius: 1600px; background: var(--paper); color: var(--ink); font: inherit; font-size: 11px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; cursor: pointer; }
+  .btn.solid { background: var(--ink); color: var(--paper); }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <span class="logo">◆</span>
+  <div class="brand"><h1>ESP32 Gadget</h1><p>Administración</p></div>
+  <span class="spacer"></span>
+  <span class="pill"><i></i>En línea</span>
+  <span class="who">maxi <button class="btn" type="button">Salir</button></span>
+</header>
+
+<nav class="tabs" role="tablist" aria-label="Secciones del panel">
+  <button class="tab" role="tab" aria-selected="true" type="button">Aplicaciones</button>
+  <button class="tab" role="tab" aria-selected="false" type="button">Pantalla</button>
+  <button class="tab" role="tab" aria-selected="false" type="button">Luz RGB</button>
+  <button class="tab" role="tab" aria-selected="false" type="button">Juegos</button>
+  <button class="tab" role="tab" aria-selected="false" type="button">Música</button>
+  <span class="sep" aria-hidden="true"></span>
+  <button class="tab" role="tab" aria-selected="false" type="button">Integraciones</button>
+  <span class="sep" aria-hidden="true"></span>
+  <button class="tab" role="tab" aria-selected="false" type="button">Red</button>
+  <button class="tab" role="tab" aria-selected="false" type="button">Sofía</button>
+  <span class="sep" aria-hidden="true"></span>
+  <button class="tab" role="tab" aria-selected="false" type="button">Sistema</button>
+  <button class="tab" role="tab" aria-selected="false" type="button">Cuenta</button>
+</nav>
+
+<main>
+  <div class="region-head">
+    <p class="eyebrow">Uso diario</p>
+    <h2>Aplicaciones</h2>
+    <p class="lead">Elegí qué se ve en la pantalla del equipo. <span class="now">Ahora: Reloj</span></p>
+  </div>
+
+  <section class="card">
+    <h3>Qué se ve ahora</h3>
+    <p class="hint">Un toque elige la pantalla y la manda al vidrio.</p>
+    <div class="screens">
+      <button class="tile on" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><b>Reloj</b><small>La hora</small></button>
+      <button class="tile" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg><b>Slot</b><small>Un toque tira</small></button>
+      <button class="tile" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c3 2 4.5 5 4.5 9L14 15h-4l-2.5-3C7.5 8 9 5 12 3z"/></svg><b>Meteoritos</b><small>Esquivá</small></button>
+      <button class="tile" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 8.5a15 15 0 0 1 20 0"/></svg><b>Red</b><small>Señal</small></button>
+      <button class="tile" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V6l10-2v12"/><circle cx="6" cy="18" r="3"/></svg><b>Música</b><small>Spotify</small></button>
+      <button class="tile" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2.5 4 2.5 4-2.5 4-2.5"/></svg><b>Sofía</b><small>La cara</small></button>
+      <button class="tile" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg><b>Config</b><small>Brillo y giro</small></button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h3>Estado rápido</h3>
+    <div class="grid2">
+      <div class="stat"><div class="k">IP</div><div class="v">192.168.4.1</div></div>
+      <div class="stat"><div class="k">Uptime</div><div class="v">2 h 14 m</div></div>
+    </div>
+    <p class="hint" style="margin:12px 0 0">El registro completo vive en Sistema.</p>
+    <button class="btn solid" type="button">Ir a Sistema</button>
+  </section>
+</main>
+</body>
+</html>
