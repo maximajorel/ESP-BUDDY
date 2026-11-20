@@ -13,6 +13,7 @@
 #include "rgb.h"
 #include "rotation.h"
 #include "buddy_face.h"
+#include "buddy_focus_state.h"
 #include "buddy_calendar.h"
 #include "buddy_url.h"
 #include "screen_buddy.h"
@@ -193,6 +194,18 @@ static void buildStatusJson(String &out) {
     for (uint8_t i = 0; i < SCREEN_COUNT; i++) arr.add(screenName(i));
   }
   doc["imuOk"] = g_imuOk;
+
+  {
+    // Concentración. This is state, not configuration: it is the countdown the
+    // public entrance can start anyway, so publishing it on the public status
+    // costs nothing and saves the landing a second round trip.
+    const BuddyFocus &focus = buddyFocusShared();
+    JsonObject f = doc["focus"].to<JsonObject>();
+    f["active"] = focus.active;
+    f["finished"] = focus.finished;
+    f["minutes"] = (uint16_t)(focus.durationMs / BUDDY_FOCUS_MINUTE_MS);
+    f["remainingMs"] = buddyFocusRemainingMs(&focus, (uint32_t)millis());
+  }
 
   JsonObject sta = doc["sta"].to<JsonObject>();
   sta["configured"] = st.staConfigured;
@@ -549,6 +562,20 @@ static ApiResult apiFace(const String &body) {
   const char *mood = doc["mood"] | "";
   uint32_t holdMs = doc["ms"] | 0u;
   buddyGameFaceMood(mood, holdMs);
+  return apiOk();
+}
+
+// Concentración: the public entrance starts a study countdown on the SOFIA
+// screen with no session, the same authority it already has to choose the
+// screen. This handler only writes a deadline against millis(); it never draws,
+// never switches screens and never takes the buddy lock, so a slow client cannot
+// hold the face loop. Zero minutes cancels, above the maximum clamps.
+static ApiResult apiFocus(const String &body) {
+  JsonDocument doc;
+  if (!parseOptionalJson(body, doc)) return apiFail(400, API_BAD_JSON);
+  uint32_t minutes = doc["minutes"] | 0u;
+  if (minutes > BUDDY_FOCUS_MAX_MINUTES) minutes = BUDDY_FOCUS_MAX_MINUTES;
+  buddyFocusRequest((uint16_t)minutes, (uint32_t)millis());
   return apiOk();
 }
 
@@ -953,6 +980,7 @@ static const char *const POST_PATHS[] = {
     "/api/wifi",           "/api/wifi/forget", "/api/time",
     "/api/ap",             "/api/settings",    "/api/screen",
     "/api/face",
+    "/api/focus",
     "/api/press",          "/api/scores/reset", "/api/steer/reset",
     "/api/steer/swap",     "/api/restart",     "/api/factory",
     "/api/spotify/config", "/api/spotify/url", "/api/spotify/code",
@@ -1031,6 +1059,7 @@ ApiResult netHandleApi(const char *method, const char *path, const String &body)
   if (!strcmp(path, "/api/settings")) return apiSettings(body);
   if (!strcmp(path, "/api/screen")) return apiScreen(body);
   if (!strcmp(path, "/api/face")) return apiFace(body);
+  if (!strcmp(path, "/api/focus")) return apiFocus(body);
   if (!strcmp(path, "/api/press")) return apiPress(body);
   if (!strcmp(path, "/api/scores/reset")) {
     settingsMutable().gameHighScore = 0;

@@ -47,6 +47,9 @@ POST_ROUTES = [
     ("/api/ap", {}),
     ("/api/settings", {}),
     ("/api/screen", {}),
+    # Public like /api/screen: the study countdown carries no credentials.
+    ("/api/focus", {"minutes": 25}),
+    ("/api/face", {"mood": "focus", "ms": 1500}),
     ("/api/screens/order", {}),
     ("/api/screens/names", {}),
     ("/api/panel/colors", {}),

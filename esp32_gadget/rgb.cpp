@@ -2,6 +2,8 @@
 
 #include <Adafruit_NeoPixel.h>
 
+#include "rgb_hold.h"
+
 // Channel order: this bead is wired RGB, not the GRB most WS2812 parts use.
 // With NEO_GRB a red request lit it green, so the order is pinned here.
 static Adafruit_NeoPixel s_pixel(1, RGB_PIN, NEO_RGB + NEO_KHZ800);
@@ -19,6 +21,9 @@ static bool s_pulsing = false;
 static uint32_t s_pulseStart = 0;
 static uint32_t s_pulseMs = 0;
 static uint8_t s_pulseR = 0, s_pulseG = 0, s_pulseB = 0;
+
+// Steady acknowledgement colour, above the buddy's per-loop base colour.
+static RgbHold s_hold;
 static bool s_sleeping = false;
 
 // Casino palette: the golds and crimsons of a felt table and a jackpot lamp.
@@ -112,7 +117,11 @@ void rgbPulse(uint8_t r, uint8_t g, uint8_t b, uint32_t durationMs) {
   s_pulseB = b;
 }
 
-bool rgbBusy() { return s_celebrating || s_pulsing; }
+bool rgbBusy() { return s_celebrating || s_pulsing || s_hold.active; }
+
+void rgbHold(uint8_t r, uint8_t g, uint8_t b, uint32_t durationMs) {
+  rgbHoldStart(&s_hold, millis(), r, g, b, durationMs);
+}
 
 void rgbTick() {
   uint32_t now = millis();
@@ -132,6 +141,13 @@ void rgbTick() {
            (uint8_t)((uint16_t)b * env / 255));
       return;
     }
+  }
+
+  // A hold is steady and outranks the pulse on purpose: an acknowledgement must
+  // not be mistaken for feedback that fades away.
+  if (rgbHoldStep(&s_hold, now)) {
+    show(s_hold.r, s_hold.g, s_hold.b);
+    return;
   }
 
   if (s_pulsing) {

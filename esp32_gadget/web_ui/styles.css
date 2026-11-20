@@ -821,6 +821,36 @@ input:disabled, select:disabled { background: var(--mist); opacity: 0.75; }
   cursor: pointer;
 }
 
+/* --- concentration ------------------------------------------------------- */
+/* The card is the same family as the games cover: a big sticker on a band, with
+   the controls inside. The countdown itself lives on the glass; this page only
+   starts it and reads its state back, so it never runs a second clock. */
+.focus-band { padding: 20px 16px; background: var(--sky); border-bottom: var(--line); }
+.focus-band .section-head { margin-bottom: 12px; }
+.focus-card {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: var(--line);
+  border-radius: var(--r-lg);
+  background: var(--mint);
+}
+.focus-lead { margin: 0; max-width: 34ch; font-size: 13px; }
+.focus-card .chips { margin: 0; }
+.focus-card .chip { cursor: pointer; background: var(--paper); color: var(--ink); }
+.focus-card .chip[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.focus-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.focus-field {
+  display: grid;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.032em;
+  text-transform: uppercase;
+}
+.focus-field input { width: 96px; }
+.focus-now { margin: 0; font-size: 12px; font-weight: 700; }
+
 /* --- games --------------------------------------------------------------- */
 .games { padding: 20px 16px 8px; background: var(--gray); border-bottom: var(--line); }
 .section-head {

@@ -256,6 +256,7 @@ bool adminIsPublicWrite(const char *method, const char *path) {
   if (strcmp(method, "POST") != 0) return false;
   // What the glass shows, and the face the web game makes it react with: both
   // are cosmetic, reversible and carry no credentials.
+  if (!strcmp(path, "/api/focus")) return true;
   return !strcmp(path, "/api/screen") || !strcmp(path, "/api/face");
 }
 

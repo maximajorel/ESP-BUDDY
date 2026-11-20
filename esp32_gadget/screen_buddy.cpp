@@ -9,6 +9,7 @@
 #include "buddy_badge.h"
 #include "buddy_ball.h"
 #include "buddy_face.h"
+#include "buddy_focus_state.h"
 #include "buddy_http.h"
 #include "buddy_imu.h"
 #include "buddy_event.h"
@@ -923,9 +924,43 @@ static void drawHud(BuddyPhase phase, BuddyRgb led, bool linkDown,
   }
 }
 
+// Concentración, drawn on the band under the eyes. Kept out of the pose on
+// purpose: the number is the clock, not an expression, so no mood the bridge or
+// the web can push may change it, and a phase change cannot blank it.
+static void drawFocusBand(uint32_t nowMs, uint32_t eyeRgb) {
+  const BuddyFocus &f = buddyFocusShared();
+  const bool done = buddyFocusDoneVisible(&f, nowMs);
+  if (!f.active && !done) return;
+
+  char label[BUDDY_FOCUS_LABEL_MAX];
+  uint16_t ink = GFX_WHITE;
+  uint16_t fill = gfxHex(eyeRgb);
+  if (done) {
+    // The achievement: one word, in the glass's gold, on the same band.
+    snprintf(label, sizeof(label), "LISTO");
+    ink = gfxHex(BUDDY_FOCUS_GOLD);
+    fill = ink;
+  } else {
+    buddyFocusFormat(buddyFocusRemainingMs(&f, nowMs), label, sizeof(label));
+  }
+  gfxTextCentered(BUDDY_FOCUS_BAND_Y, BUDDY_FOCUS_BAND_SCALE, label, ink);
+
+  // A progress mark under the number: the outline wears the eye colour at low
+  // energy so it belongs to the face, and the study fills it as time passes.
+  const int barX = (320 - BUDDY_FOCUS_BAR_W) / 2;
+  gfxRect(barX, BUDDY_FOCUS_BAR_Y, BUDDY_FOCUS_BAR_W, BUDDY_FOCUS_BAR_H,
+          gfxHex(buddyEyeScale(eyeRgb, 45)));
+  const int inner = BUDDY_FOCUS_BAR_W - 2;
+  const int filled = done ? inner
+                          : inner * (int)buddyFocusProgress(&f, nowMs) / 255;
+  if (filled > 0) {
+    gfxFillRect(barX + 1, BUDDY_FOCUS_BAR_Y + 1, filled,
+                BUDDY_FOCUS_BAR_H - 2, fill);
+  }
+}
+
 static void drawFace(BuddyState state, const BuddyPose &pose, uint32_t nowMs,
                      bool poke, bool ballVisible) {
-  (void)nowMs;
   gfxClear(GFX_BLACK);
 
   const int cx[2] = {105, 215};
@@ -945,6 +980,11 @@ static void drawFace(BuddyState state, const BuddyPose &pose, uint32_t nowMs,
   uint16_t color = gfxHex(eyeRgb);
   uint16_t glowInner = gfxHex(buddyEyeScale(eyeRgb, BUDDY_GLOW_SHADE_INNER));
   int bob = (int)pose.bob;
+  // While a session runs, the eyes drop towards the number once every cycle: a
+  // glance at the work. Added at draw time, after every pose source, so it can
+  // never fight the bridge, the game overlay or the ball for the gaze channel.
+  const float dip = buddyFocusGazeDip(nowMs, buddyFocusShared().active);
+  const int gazeY = (int)pose.gazeY + (int)(dip + 0.5f);
 
   // Where each eye lands, and how much screen it covers once rotated. The pair
   // is pushed apart when the surprise widens them or a tilt eats the gap; the
@@ -1011,7 +1051,7 @@ static void drawFace(BuddyState state, const BuddyPose &pose, uint32_t nowMs,
     // Solid eyes, no pupils: life comes from the gaze and the lids. The error
     // face adds a per-eye offset so the eyes point at each other.
     int x = eyeX[i];
-    int y = cy + bob + (int)pose.gazeY;
+    int y = cy + bob + gazeY;
     if (happy) {
       // Joy comes from the lower eyelid, never from a brow or an extra line
       // above/below the eye: the squircle keeps its top shape and the bottom
@@ -1072,6 +1112,8 @@ static void drawFace(BuddyState state, const BuddyPose &pose, uint32_t nowMs,
   if (s_zzz) drawZzz(nowMs, eyeRgb);
   if (s_bug.active) drawBug(s_bug, nowMs);
   if (ballVisible) drawBall(s_ball);
+  // Last, so the bug, the ball and the sleeping letters cannot cover the number.
+  drawFocusBand(nowMs, eyeRgb);
 }
 
 // One sensor sample into the reaction machine. The live path and the debug pin

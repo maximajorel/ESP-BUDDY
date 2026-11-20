@@ -27,6 +27,33 @@
 #define BUDDY_FOCUS_DONE_MS 6000u
 #define BUDDY_FOCUS_MINUTE_MS 60000u
 
+// Geometry of the band under the eyes, on the 320x172 glass. The eyes' bottom
+// edge is y=144 in the usual face and y=156 in the widest surprise frame; the
+// buddy screen never draws a footer, so everything from 146 down is free. These
+// are numbers, not pixels at risk: the host test checks they fit the glass.
+#define BUDDY_FOCUS_BAND_Y 148
+#define BUDDY_FOCUS_BAND_SCALE 2  // 5x7 font at 2x: 14 px tall, 12 px per digit
+#define BUDDY_FOCUS_BAR_Y 166
+#define BUDDY_FOCUS_BAR_H 5
+#define BUDDY_FOCUS_BAR_W 120
+#define BUDDY_FOCUS_LABEL_MAX 8
+
+// The achievement colour: the glass's gold, the same one the splash uses.
+#define BUDDY_FOCUS_GOLD 0xFFD700
+
+// The bead at the end of a session. Not pure green: a touch of blue keeps it
+// legible next to the eyes' cyan instead of reading as an alarm.
+#define BUDDY_FOCUS_LED_R 0
+#define BUDDY_FOCUS_LED_G 200
+#define BUDDY_FOCUS_LED_B 60
+#define BUDDY_FOCUS_LED_MS 2500u
+
+// How the eyes behave while a session runs: once every period they drop towards
+// the number and come back. Slow and regular, so it reads as studying.
+#define BUDDY_FOCUS_DIP_PX 6
+#define BUDDY_FOCUS_DIP_PERIOD_MS 9000u
+#define BUDDY_FOCUS_DIP_START_MS 6000u
+
 struct BuddyFocus {
   bool active = false;    // a countdown is running
   bool finished = false;  // the achievement is on screen
@@ -106,4 +133,19 @@ static inline void buddyFocusFormat(uint32_t remainingMs, char *out, size_t cap)
   const uint32_t minutes = totalSec / 60u;
   const uint32_t seconds = totalSec % 60u;
   snprintf(out, cap, "%02u:%02u", (unsigned)minutes, (unsigned)seconds);
+}
+
+// How far the eyes drop towards the number, in pixels. Zero for most of the
+// cycle, then a smooth triangle down and back: a glance at the work, not a
+// twitch. Wrap-safe because it is a modulo of the clock.
+static inline float buddyFocusGazeDip(uint32_t nowMs, bool studying) {
+  if (!studying) return 0.0f;
+  const uint32_t phase = nowMs % BUDDY_FOCUS_DIP_PERIOD_MS;
+  if (phase < BUDDY_FOCUS_DIP_START_MS) return 0.0f;
+  const uint32_t span = BUDDY_FOCUS_DIP_PERIOD_MS - BUDDY_FOCUS_DIP_START_MS;
+  const uint32_t t = phase - BUDDY_FOCUS_DIP_START_MS;
+  const float half = (float)span * 0.5f;
+  const float k = (float)t < half ? (float)t / half
+                                  : 1.0f - ((float)t - half) / half;
+  return (float)BUDDY_FOCUS_DIP_PX * k;
 }

@@ -1,6 +1,8 @@
 #include "screens.h"
 #include "theme.h"
 
+#include "buddy_focus_state.h"
+
 #include "rgb.h"
 #include "rotation.h"
 #include "screen_buddy.h"
@@ -238,8 +240,10 @@ static void maybeSleep(uint32_t nowMs) {
   if (timeout.seconds == 0) return;
   if (!screenSleepIncluded(timeout.mask, s_current)) return;
   if ((s_current == SCREEN_GAME && gameWantsScreenOn()) ||
-      (s_current == SCREEN_SETTINGS && configWizardActive())) {
-    // Running, or measuring a calibration: the owner is busy, not idle.
+      (s_current == SCREEN_SETTINGS && configWizardActive()) ||
+      buddyFocusHoldsScreenOn(nowMs)) {
+    // Running, measuring a calibration, or studying: the owner is busy, not
+    // idle.
     s_lastActivity = nowMs;
     return;
   }
@@ -256,6 +260,14 @@ static void maybeSleep(uint32_t nowMs) {
 
 bool screensTick(uint32_t nowMs, uint16_t holdPermille) {
   bool changed = false;
+
+  // Concentración runs on the clock, not on the face: the countdown keeps
+  // running while another screen is visible, and its finish reaches the bead
+  // even then (the glass is not the only place it has to say something).
+  if (buddyFocusAdvance(nowMs)) {
+    rgbHold(BUDDY_FOCUS_LED_R, BUDDY_FOCUS_LED_G, BUDDY_FOCUS_LED_B,
+            BUDDY_FOCUS_LED_MS);
+  }
 
   // A game in progress owns the board's tilt: the player is steering with it, so
   // the image must not follow the sensor while that is true. Same predicate the

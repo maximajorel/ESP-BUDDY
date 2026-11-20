@@ -75,6 +75,17 @@ campo libre, el botón de arrancar y el estado en curso.
 | T6 | S9 | card de Concentración en la landing nueva | pending |
 | T7 | todas | suite host, `panel_http_test.py`, pack, compilación, evidencia de hardware | pending |
 
+## Entrega
+
+- Tramos de revisión: (1) `buddy_focus.h` + `tools/buddy_focus_test.cpp`
+  (`9e845d8`), el reloj puro; (2) `1ad8aa0`, la ruta pública, el dibujo bajo los
+  ojos, la capa del LED, el avance por loop y la card de la landing.
+- `esp32_gadget/web_assets.h` es generado (`pack_web.py`) y va en el corte, como
+  en el resto del repo: sus miles de líneas de array C no son superficie de
+  review.
+- Rama `feat/concentracion`, apilada sobre `feat/web-redesign` porque la UI de la
+  card nace sobre el rediseño. Publicar, PR y merge son decisión del dueño.
+
 ## Log
 
 L1 (verbatim, del mensaje del dueño): "2.- Sin necesidad de iniciar sesion,

@@ -33,6 +33,11 @@ void rgbCelebrate(uint32_t durationMs);
 // Brief highlight over the base colour, for example a red hit flash.
 void rgbPulse(uint8_t r, uint8_t g, uint8_t b, uint32_t durationMs);
 
+// A steady colour that outranks the base colour until it expires. Unlike a pulse
+// it does not fade and, unlike a celebration, it does not strobe: this is an
+// acknowledgement (the study session that just finished), not a light show.
+void rgbHold(uint8_t r, uint8_t g, uint8_t b, uint32_t durationMs);
+
 // Drives animated layers. Call once per loop.
 void rgbTick();
 

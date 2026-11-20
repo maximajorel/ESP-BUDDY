@@ -132,8 +132,7 @@ int main() {
           strcmp(buf, "01:00") == 0);
   }
 
-  printf("-- the millis wrap\n");
-  {
+  printf("-- the millis wrap\n");  {
     BuddyFocus f;
     buddyFocusClear(&f);
     uint32_t start = 0xFFFFFF00u;  // 256 ms before millis() wraps
@@ -146,6 +145,36 @@ int main() {
           buddyFocusRemainingMs(&f, start + 60000u) == 0);
     buddyFocusTick(&f, start + 60000u);
     check("it finishes after the wrap", f.finished);
+  }
+
+  printf("-- the band under the eyes\n");
+  {
+    check("the digits start under the eyes", BUDDY_FOCUS_BAND_Y >= 146);
+    check("the digits clear the progress bar",
+          BUDDY_FOCUS_BAND_Y + 7 * BUDDY_FOCUS_BAND_SCALE <= BUDDY_FOCUS_BAR_Y);
+    check("the bar clears the bottom edge",
+          BUDDY_FOCUS_BAR_Y + BUDDY_FOCUS_BAR_H <= 172);
+    check("the bar fits the width", BUDDY_FOCUS_BAR_W <= 320);
+    char label[BUDDY_FOCUS_LABEL_MAX];
+    buddyFocusFormat(180u * 60000u, label, sizeof(label));
+    check("the widest label fits the buffer", strlen(label) < BUDDY_FOCUS_LABEL_MAX);
+  }
+
+  printf("-- the studious glance\n");
+  {
+    check("no glance while nothing runs", buddyFocusGazeDip(6200, false) == 0.0f);
+    check("the eyes are level most of the cycle",
+          buddyFocusGazeDip(1000, true) == 0.0f);
+    check("the glance starts at zero",
+          buddyFocusGazeDip(BUDDY_FOCUS_DIP_START_MS, true) == 0.0f);
+    check("the glance reaches the dip at the middle",
+          buddyFocusGazeDip(BUDDY_FOCUS_DIP_START_MS + 1500, true) ==
+              (float)BUDDY_FOCUS_DIP_PX);
+    check("the glance comes back before the cycle ends",
+          buddyFocusGazeDip(BUDDY_FOCUS_DIP_PERIOD_MS - 1, true) <= 0.01f);
+    check("the glance never exceeds the dip",
+          buddyFocusGazeDip(BUDDY_FOCUS_DIP_START_MS + 1600, true) <=
+              (float)BUDDY_FOCUS_DIP_PX);
   }
 
   if (g_failures) {

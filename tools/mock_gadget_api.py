@@ -14,6 +14,7 @@ can prove what the panel actually sent, not just that it looked right.
 import json
 import os
 import sys
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "esp32_gadget", "web_ui")
@@ -114,6 +115,24 @@ def log_request(entry):
         handle.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
 
+def focus_payload():
+    """The study countdown as the firmware reports it: state, not a local clock."""
+    f = STATE.get("focus") or {}
+    minutes = f.get("minutes") or 0
+    started = f.get("startedMs")
+    if not minutes or started is None:
+        return {"active": False, "finished": False, "minutes": minutes, "remainingMs": 0}
+    elapsed = int(time.time() * 1000) - started
+    total = minutes * 60000
+    left = max(0, total - elapsed)
+    return {
+        "active": left > 0,
+        "finished": left == 0 and elapsed < total + 6000,
+        "minutes": minutes,
+        "remainingMs": left,
+    }
+
+
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
@@ -154,7 +173,9 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path = self.path.split("?")[0]
         if path == "/api/status":
-            self._json(200, STATE)
+            payload = dict(STATE)
+            payload["focus"] = focus_payload()
+            self._json(200, payload)
             return
         if path == "/api/scan":
             self._json(200, {"ok": True, "networks": NETWORKS})
@@ -244,6 +265,17 @@ class Handler(BaseHTTPRequestHandler):
             self._json(200, {"ok": True})
             return
 
+        if path == "/api/focus":
+            minutes = body.get("minutes")
+            if not isinstance(minutes, int) or minutes < 0:
+                minutes = 0
+            minutes = min(minutes, 180)
+            STATE["focus"] = {
+                "minutes": minutes,
+                "startedMs": int(time.time() * 1000) if minutes else None,
+            }
+            self._json(200, {"ok": True})
+            return
         if path == "/api/face":
             mood = str(body.get("mood") or "")
             hold = body.get("ms") or 0

@@ -104,6 +104,77 @@
     ui.dockNow.textContent = "Ahora: " + screenNameAt(device.current);
   }
 
+  // ---------------------------------------------------------------------------
+  // Concentración: start the countdown and read its state back
+  // ---------------------------------------------------------------------------
+  // The timer lives on the glass and counts from the board's clock. This page
+  // starts it, cancels it and reports what the device says; it never counts on
+  // its own, because a second clock in the browser would drift and lie about the
+  // number the owner is actually watching.
+  var focusUi = {
+    minutes: document.getElementById("focusMinutes"),
+    start: document.getElementById("focusStart"),
+    stop: document.getElementById("focusStop"),
+    state: document.getElementById("focusState"),
+    now: document.getElementById("focusNow")
+  };
+  var focusBusy = false;
+
+  function focusRequestedMinutes() {
+    var n = parseInt(focusUi.minutes.value, 10);
+    if (!isFinite(n) || n < 1) n = 25;
+    return n > 180 ? 180 : n;
+  }
+
+  function renderFocus(status) {
+    var f = status && status.focus;
+    var active = !!(f && f.active);
+    var finished = !!(f && f.finished);
+    focusUi.state.textContent = finished ? "Terminado" : (active ? "En curso" : "Apagada");
+    if (active && f.remainingMs > 0) {
+      var mins = Math.ceil(f.remainingMs / 60000);
+      focusUi.now.textContent = "Sofía está concentrada: quedan " + mins +
+        " min en su pantalla.";
+      focusUi.now.hidden = false;
+    } else if (finished) {
+      focusUi.now.textContent = "Sesión completa. Sofía te espera despierta.";
+      focusUi.now.hidden = false;
+    } else {
+      focusUi.now.hidden = true;
+    }
+    focusUi.stop.hidden = !active;
+    focusUi.start.disabled = active || focusBusy;
+  }
+
+  function sendFocus(minutes) {
+    if (focusBusy) return;
+    focusBusy = true;
+    focusUi.start.disabled = true;
+    api("POST", "/api/focus", { minutes: minutes })
+      .then(function () { return api("GET", "/api/status"); })
+      .then(renderFocus)
+      .catch(function (error) {
+        setConnected(false, "No pude arrancar la concentración: " + error.message);
+      })
+      .then(function () {
+        focusBusy = false;
+        focusUi.start.disabled = false;
+      });
+  }
+
+  focusUi.start.addEventListener("click", function () {
+    sendFocus(focusRequestedMinutes());
+  });
+  focusUi.stop.addEventListener("click", function () { sendFocus(0); });
+  document.querySelectorAll("[data-focus-min]").forEach(function (chip) {
+    chip.addEventListener("click", function () {
+      focusUi.minutes.value = chip.dataset.focusMin;
+      document.querySelectorAll("[data-focus-min]").forEach(function (other) {
+        other.setAttribute("aria-pressed", other === chip ? "true" : "false");
+      });
+    });
+  });
+
   function loadStatus() {
     return api("GET", "/api/status").then(function (status) {
       device.order = (status.order || []).slice();
@@ -111,6 +182,7 @@
       device.current = typeof status.screen === "number" ? status.screen : 0;
       device.loaded = true;
       setConnected(true);
+      renderFocus(status);
       renderScreens();
     }).catch(function () {
       device.loaded = false;
@@ -180,6 +252,7 @@
     if (document.hidden || busy || document.body.classList.contains("game-open")) return;
     if (!device.loaded) { loadStatus(); return; }
     api("GET", "/api/status").then(function (status) {
+      renderFocus(status);
       if (typeof status.screen !== "number" || status.screen === device.current) return;
       device.current = status.screen;
       markCurrent();
