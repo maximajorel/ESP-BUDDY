@@ -793,27 +793,29 @@ static const char *calendarKindName(CalendarStatusKind kind) {
   return "ready";
 }
 
-static void fillCalendarJson(JsonDocument &doc) {
-  const CalendarStatusInfo c = calendarStatusInfo();
+// El struct se recibe por referencia a propósito: ArduinoJson guarda punteros a
+// los `char[]`, no copias, así que tiene que seguir vivo hasta serializar. Un
+// `c` local acá adentro producía bytes basura en el panel (verificado en placa).
+static void fillCalendarJson(JsonDocument &doc, const CalendarStatusInfo &c) {
   doc["ok"] = true;
   doc["kind"] = calendarKindName(c.kind);
   doc["configured"] = c.configured;
   doc["authorized"] = c.authorized;
   doc["pending"] = c.pending;
   doc["syncing"] = c.syncing;
-  doc["userCode"] = c.userCode;
-  doc["verificationUrl"] = c.verificationUrl;
+  doc["userCode"] = String(c.userCode);
+  doc["verificationUrl"] = String(c.verificationUrl);
   doc["pendingSecondsLeft"] = c.pendingSecondsLeft;
-  doc["selectedId"] = c.selectedId;
-  doc["selectedName"] = c.selectedName;
+  doc["selectedId"] = String(c.selectedId);
+  doc["selectedName"] = String(c.selectedName);
   doc["fallbackLeadMin"] = c.fallbackLeadMin;
   doc["graceMin"] = c.graceMin;
-  doc["lastError"] = c.lastError;
+  doc["lastError"] = String(c.lastError);
   doc["lastSyncMs"] = c.lastSyncMs;
   doc["calendarCount"] = c.calendarCount;
   doc["eventCount"] = c.eventCount;
   doc["hasNext"] = c.hasNext;
-  doc["nextSummary"] = c.nextSummary;
+  doc["nextSummary"] = String(c.nextSummary);
   doc["nextInMin"] = c.nextMsToStart / 60000;
   doc["nextStarted"] = c.nextMsToStart <= 0;
   doc["nextLeadMin"] = c.nextLeadMin;
@@ -828,7 +830,10 @@ static void fillCalendarJson(JsonDocument &doc) {
 static ApiResult apiCalendarStatus() {
   ApiResult r;
   JsonDocument doc;
-  fillCalendarJson(doc);
+  // The struct lives here, in the same scope as `serializeJson`, so every string
+  // ArduinoJson points at is still valid when the body is written.
+  const CalendarStatusInfo c = calendarStatusInfo();
+  fillCalendarJson(doc, c);
   serializeJson(doc, r.body);
   return r;
 }
@@ -840,8 +845,10 @@ static ApiResult apiCalendarCalendars() {
   CalendarInfo info;
   for (size_t i = 0; calendarCalendarAt(i, &info); i++) {
     JsonObject item = items.add<JsonObject>();
-    item["id"] = info.id;
-    item["name"] = info.name;
+    // Copia explícita: si se guardara el puntero, los tres calendarios
+    // apuntarían al último que escribió `info`.
+    item["id"] = String(info.id);
+    item["name"] = String(info.name);
     item["primary"] = info.primary;
   }
   serializeJson(doc, r.body);
