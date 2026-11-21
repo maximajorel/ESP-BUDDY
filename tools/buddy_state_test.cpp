@@ -86,6 +86,19 @@ int main() {
   buddyLabelClean("ok", out, 2);
   checkText("a tiny buffer truncates safely", out, "o");
 
+  printf("-- the calendar may take the face only when nothing more urgent is on\n");
+  checkInt("idle yields", buddyStateYieldsToCalendar(BUDDY_IDLE), 1);
+  checkInt("done yields", buddyStateYieldsToCalendar(BUDDY_DONE), 1);
+  checkInt("asleep yields", buddyStateYieldsToCalendar(BUDDY_ASLEEP), 1);
+  checkInt("offline yields (the event is local)",
+           buddyStateYieldsToCalendar(BUDDY_OFFLINE), 1);
+  checkInt("unconfigured yields", buddyStateYieldsToCalendar(BUDDY_UNCONFIGURED), 1);
+  checkInt("upcoming yields to itself", buddyStateYieldsToCalendar(BUDDY_UPCOMING), 1);
+  checkInt("thinking keeps the glass", buddyStateYieldsToCalendar(BUDDY_THINKING), 0);
+  checkInt("tool keeps the glass", buddyStateYieldsToCalendar(BUDDY_TOOL), 0);
+  checkInt("waiting keeps the glass", buddyStateYieldsToCalendar(BUDDY_WAITING), 0);
+  checkInt("error keeps the glass", buddyStateYieldsToCalendar(BUDDY_ERROR), 0);
+
   printf("\n%s (%d failures)\n", g_failures == 0 ? "PASSED" : "FAILED",
          g_failures);
   return g_failures == 0 ? 0 : 1;

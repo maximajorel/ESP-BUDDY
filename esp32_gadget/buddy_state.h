@@ -73,6 +73,28 @@ static inline const char *buddyStateWireName(BuddyState state) {
   return "offline";
 }
 
+// Whether the local calendar may take the face from this state. Sofía working is
+// not the clock: `thinking`, `tool`, `waiting` and `error` keep the glass. Idle,
+// done, asleep, offline and unconfigured have nothing more urgent to say, and
+// `upcoming` is the calendar's own state (the bridge may also send it).
+static inline bool buddyStateYieldsToCalendar(BuddyState state) {
+  switch (state) {
+    case BUDDY_IDLE:
+    case BUDDY_DONE:
+    case BUDDY_ASLEEP:
+    case BUDDY_OFFLINE:
+    case BUDDY_UNCONFIGURED:
+    case BUDDY_UPCOMING:
+      return true;
+    case BUDDY_THINKING:
+    case BUDDY_TOOL:
+    case BUDDY_WAITING:
+    case BUDDY_ERROR:
+      break;
+  }
+  return false;
+}
+
 // Trims outer spaces, turns control bytes into spaces (they have no glyph and
 // would punch holes in the label), and cuts at BUDDY_LABEL_MAX or the buffer.
 // Always NUL-terminates and returns the length written.

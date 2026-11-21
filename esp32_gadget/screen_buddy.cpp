@@ -609,27 +609,6 @@ void buddySetBall(bool on) {
   s_dirty = true;
 }
 
-// Which states the calendar may interrupt. The face belongs to the calendar when
-// nothing more urgent is happening; a run thinking, using a tool or asking for an
-// answer keeps the glass, because that is Sofía working, not the clock.
-static bool calendarMayOwnFace(BuddyState state) {
-  switch (state) {
-    case BUDDY_IDLE:
-    case BUDDY_DONE:
-    case BUDDY_ASLEEP:
-    case BUDDY_UNCONFIGURED:
-    case BUDDY_OFFLINE:
-    case BUDDY_UPCOMING:
-      return true;
-    case BUDDY_THINKING:
-    case BUDDY_TOOL:
-    case BUDDY_WAITING:
-    case BUDDY_ERROR:
-      break;
-  }
-  return false;
-}
-
 void buddyGetView(BuddyView *out) {
   if (!out) return;
   memset(out, 0, sizeof(*out));
@@ -677,7 +656,7 @@ void buddyGetView(BuddyView *out) {
   // the HUD, the bead and the panel agree. It never overrides a state that is
   // asking for attention.
   const CalendarReaction cal = calendarReactionNow();
-  if (cal.active && calendarMayOwnFace(out->state)) {
+  if (cal.active && buddyStateYieldsToCalendar(out->state)) {
     out->calendarActive = true;
     out->calendarMsToStart = cal.msToStart;
     out->calendarIntensity = cal.intensity;
