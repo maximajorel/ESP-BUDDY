@@ -1,4 +1,8 @@
-// PKCE (RFC 7636) pieces and SHA-256, for the Spotify authorization code flow.
+// PKCE (RFC 7636) pieces for the Spotify authorization code flow.
+//
+// The digest those pieces need is not here: SHA-256 has two consumers in this
+// firmware and `sha256.h` owns it. This file keeps only what the PKCE flow itself
+// defines — the challenge encoding, the verifier rule and the code extraction.
 //
 // No Arduino and no mbedtls includes: the firmware and
 // `tools/spotify_core_test.cpp` compile this same file, so the challenge the
@@ -36,8 +40,8 @@ enum SpotifyCodeResult {
 SpotifyCodeResult spotifyExtractCode(const char *input, char *out,
                                     size_t outCap);
 
-// SHA-256 (FIPS 180-4), used for the S256 challenge.
-void spotifySha256(const uint8_t *data, size_t len, uint8_t out[32]);
+// SHA-256 (FIPS 180-4) lives in `sha256.h`; the S256 challenge below is
+// BASE64URL of that digest.
 
 // RFC 7636: 43..128 characters of the unreserved set.
 bool spotifyPkceVerifierValid(const char *verifier);

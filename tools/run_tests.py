@@ -35,9 +35,10 @@ TOOLS = ROOT / "tools"
 # Tests that need more than `-I esp32_gadget <test>.cpp`. Keep this table next to
 # the code it describes; a new test either needs nothing or appears here.
 COMPANION_SOURCES = {
-    "admin_auth_test": ["admin_auth.cpp", "spotify_pkce.cpp"],
+    "admin_auth_test": ["admin_auth.cpp", "sha256.cpp"],
+    "sha256_test": ["sha256.cpp"],
     "text_fold_test": ["text_fold.cpp"],
-    "spotify_core_test": ["spotify_parse.cpp", "spotify_pkce.cpp"],
+    "spotify_core_test": ["spotify_parse.cpp", "spotify_pkce.cpp", "sha256.cpp"],
     "calendar_core_test": ["calendar_parse.cpp", "calendar_auth_parse.cpp"],
 }
 

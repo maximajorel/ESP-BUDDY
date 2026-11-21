@@ -2,7 +2,7 @@
 
 #include <string.h>
 
-#include "spotify_pkce.h"
+#include "sha256.h"
 
 // --- hashing ----------------------------------------------------------------
 
@@ -25,11 +25,11 @@ void adminHashDerive(const uint8_t salt[ADMIN_SALT_LEN], const char *user,
   memcpy(seed + len, pass, passLen);
   len += passLen;
 
-  spotifySha256(seed, len, out);
+  sha256(seed, len, out);
   uint8_t previous[ADMIN_HASH_LEN];
   memcpy(previous, out, ADMIN_HASH_LEN);
   for (uint32_t round = 1; round < ADMIN_HASH_ROUNDS; round++) {
-    spotifySha256(previous, ADMIN_HASH_LEN, out);
+    sha256(previous, ADMIN_HASH_LEN, out);
     memcpy(previous, out, ADMIN_HASH_LEN);
   }
 

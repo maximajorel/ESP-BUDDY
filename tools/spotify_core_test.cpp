@@ -15,6 +15,7 @@
 #include <cstring>
 
 #include "spotify_parse.h"
+#include "sha256.h"
 #include "spotify_pkce.h"
 
 static int g_failures = 0;
@@ -80,7 +81,7 @@ static const char *EPISODE_JSON =
 // Hex rendering of a digest, so the known-answer vectors are readable.
 static void sha256Hex(const char *input, char *out, size_t outCap) {
   uint8_t digest[32];
-  spotifySha256((const uint8_t *)input, strlen(input), digest);
+  sha256((const uint8_t *)input, strlen(input), digest);
   static const char HEX[] = "0123456789abcdef";
   size_t o = 0;
   for (size_t i = 0; i < 32 && o + 2 < outCap; i++) {
