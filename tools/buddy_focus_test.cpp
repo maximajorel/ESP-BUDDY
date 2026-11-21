@@ -216,6 +216,53 @@ int main() {
     check("the widest label fits the buffer", strlen(label) < BUDDY_FOCUS_LABEL_MAX);
   }
 
+  printf("-- the timer's own glances\n");
+  {
+    // Under five minutes the eyes visit the number twice as often.
+    check("with plenty of time the glance is slow",
+          buddyFocusDipPeriodMs(BUDDY_FOCUS_LAST_FIVE_MS + 1u) ==
+              BUDDY_FOCUS_DIP_PERIOD_MS);
+    check("under five minutes the glance comes twice as often",
+          buddyFocusDipPeriodMs(BUDDY_FOCUS_LAST_FIVE_MS) ==
+              BUDDY_FOCUS_QUICK_DIP_PERIOD_MS);
+    check("the quick glance is faster than the slow one",
+          BUDDY_FOCUS_QUICK_DIP_PERIOD_MS < BUDDY_FOCUS_DIP_PERIOD_MS);
+
+    // The last minute is a 900 ms window of the countdown, not a flag.
+    check("the final window opens at the last minute",
+          buddyFocusFinalMoment(BUDDY_FOCUS_FINAL_MS));
+    check("the final window is still open just inside it",
+          buddyFocusFinalMoment(BUDDY_FOCUS_FINAL_MS - 400u));
+    check("the final window is closed once the 900 ms passed",
+          !buddyFocusFinalMoment(BUDDY_FOCUS_FINAL_MS - BUDDY_FOCUS_FINAL_WINDOW_MS));
+    check("the final window never opens before the last minute",
+          !buddyFocusFinalMoment(BUDDY_FOCUS_FINAL_MS + 1u));
+    check("nothing final while the timer is not running",
+          !buddyFocusFinalMoment(0u));
+
+    // Two blinks 300 ms apart inside that window: "falta poco".
+    int blinks = 0;
+    for (uint32_t in = 0; in < BUDDY_FOCUS_FINAL_WINDOW_MS; in += 10u) {
+      if (buddyFocusFinalBlink(BUDDY_FOCUS_FINAL_MS - in)) blinks++;
+    }
+    check("the last minute blinks twice", blinks == 26);
+    check("the blink starts with the window", buddyFocusFinalBlink(BUDDY_FOCUS_FINAL_MS));
+    check("there is a gap between the two blinks",
+          !buddyFocusFinalBlink(BUDDY_FOCUS_FINAL_MS - 200u));
+    check("the second blink comes at 300 ms",
+          buddyFocusFinalBlink(BUDDY_FOCUS_FINAL_MS - 300u));
+    check("no blink outside the window",
+          !buddyFocusFinalBlink(BUDDY_FOCUS_FINAL_MS + 1000u));
+
+    // The eyes keep the full face's silhouette: the small pair is not detached.
+    const int compactGap = (BUDDY_FOCUS_EYE_CX - BUDDY_FOCUS_EYE_RX) * 2;
+    const int fullGap = (215 - 105) - 2 * 48;
+    check("the small pair keeps the full face's gap",
+          compactGap >= fullGap - 6 && compactGap <= fullGap + 6);
+    check("the segment stroke leaves room inside the digit",
+          BUDDY_FOCUS_DIGIT_THICK * 3 < BUDDY_FOCUS_DIGIT_H);
+  }
+
   printf("-- the studious glance\n");
   {
     check("no glance while nothing runs", buddyFocusGazeDip(6200, false) == 0.0f);

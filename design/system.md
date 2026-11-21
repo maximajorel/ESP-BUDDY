@@ -96,21 +96,24 @@ arithmetic.
 
 | Token | Value | Usage |
 | --- | --- | --- |
-| `BUDDY_FOCUS_EYE_CY` / `_CX` | `34` / `±55` from centre | small eye centres (full-size face: `88` / `±55`) |
-| `BUDDY_FOCUS_EYE_RX` / `_RY` | `22 x 12` | small eye half extents (full-size default `48 x 48`) |
+| `BUDDY_FOCUS_EYE_CY` / `_CX` | `34` / `±22` from centre | small eye centres; the pair keeps the full face's 14 px gap (12 px here) |
+| `BUDDY_FOCUS_EYE_RX` / `_RY` | `16 x 12` | small eye half extents (full-size default `48 x 48`) |
 | `BUDDY_FOCUS_EYE_SLACK_X` / `_Y` | `10` / `4` px | how far gaze, bob or a nod may push a small eye |
 | `BUDDY_FOCUS_BAR_Y` / `_H` / `_W` | `56` / `5` / `200` | slim progress mark between the eyes and the number |
 | `BUDDY_FOCUS_PLATE_Y` | `64` | black plate under the eyes; the number never shares a pixel with the face |
 | `BUDDY_FOCUS_BAND_Y` | `66` | top of the digits |
-| `BUDDY_FOCUS_DIGIT_W` / `_H` | `64 x 100` | one seven-segment digit; 58% of the 172 px height |
-| `BUDDY_FOCUS_DIGIT_THICK` | `10` | segment stroke, same as the clock screen |
-| `BUDDY_FOCUS_COLON_W` / gaps | `18`; `6` digit, `12` colon | four digits plus colon = `310` of `320` px |
+| `BUDDY_FOCUS_DIGIT_W` / `_H` | `68 x 104` | one seven-segment digit; 60% of the 172 px height |
+| `BUDDY_FOCUS_DIGIT_THICK` | `13` | segment stroke; heavier than the clock screen's `10` |
+| `BUDDY_FOCUS_COLON_W` / gaps | `18`; `5` digit, `8` colon | four digits plus colon = `316` of `320` px |
 | `BUDDY_FOCUS_DONE_SCALE` | `6` | the achievement word (`LISTO`) in the 5x7 font |
+| `BUDDY_FOCUS_LAST_FIVE_MS` | `300000` | under five minutes the glance at the number doubles its rhythm (`4500` ms instead of `9000`) |
+| `BUDDY_FOCUS_FINAL_WINDOW_MS` | `900` | the last-minute window: two blinks 300 ms apart and a look up at the owner |
 
 Rules: while the timer is up, the eyes' gaze and bob are clamped, and the ball,
 the bug and the sleeping letters are not drawn — anything that could cover the
-number steps aside. The digits are white on black; unlit segments are not drawn
-(the clock screen's rule), and the progress mark wears the owner's eye colour.
+number steps aside. The digits and the progress mark both wear `eyeRgb`, the
+colour the eyes resolved for this frame (owner colour, dim without a bridge, hot
+when angry); unlit segments are not drawn, which is the clock screen's rule.
 
 Rule: lids are black bands cut out of the eye plus its glow, and a band must
 always cover the rotated extent plus the glow pad. A tinted sliver outside the

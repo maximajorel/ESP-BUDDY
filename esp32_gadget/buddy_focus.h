@@ -38,16 +38,16 @@
 // small in the upper band and the timer owns the lower two thirds. Nothing here
 // may overlap: the checks in `tools/buddy_focus_test.cpp` pin the arithmetic.
 //
-//   y  0..54   small eyes (cy 34, half height 12)
+//   y  0..52   small eyes (cy 34, half height 12), 12 px apart like the full face
 //   y 56..61   slim progress mark, under the eyes
-//   y 64..172  black plate: four 64x104 digits plus a colon
+//   y 64..172  black plate: four 68x104 digits plus a colon
 
 // The eye pair while a session runs: half the normal size, centred above the
 // number. `BUDDY_FOCUS_EYE_CX` is the offset from the glass centre, so the pair
 // keeps the same gap the full-size face has.
 #define BUDDY_FOCUS_EYE_CY 34
-#define BUDDY_FOCUS_EYE_CX 55
-#define BUDDY_FOCUS_EYE_RX 22
+#define BUDDY_FOCUS_EYE_CX 22
+#define BUDDY_FOCUS_EYE_RX 16
 #define BUDDY_FOCUS_EYE_RY 12
 // How far the gaze and the bob may push a small eye: past this the eye (and its
 // glow) would cross into the progress mark.
@@ -56,12 +56,12 @@
 
 #define BUDDY_FOCUS_PLATE_Y 64
 #define BUDDY_FOCUS_BAND_Y 66
-#define BUDDY_FOCUS_DIGIT_W 64
-#define BUDDY_FOCUS_DIGIT_H 100
-#define BUDDY_FOCUS_DIGIT_THICK 10
-#define BUDDY_FOCUS_DIGIT_GAP 6
+#define BUDDY_FOCUS_DIGIT_W 68
+#define BUDDY_FOCUS_DIGIT_H 104
+#define BUDDY_FOCUS_DIGIT_THICK 13
+#define BUDDY_FOCUS_DIGIT_GAP 5
 #define BUDDY_FOCUS_COLON_W 18
-#define BUDDY_FOCUS_COLON_GAP 12
+#define BUDDY_FOCUS_COLON_GAP 8
 // Four digits, two digit gaps, the colon and its two gaps: 310 px of 320.
 #define BUDDY_FOCUS_DIGIT_TOTAL_W                            \
   (BUDDY_FOCUS_DIGIT_W * 4 + BUDDY_FOCUS_DIGIT_GAP * 2 +     \
@@ -90,6 +90,19 @@
 #define BUDDY_FOCUS_DIP_PX 4
 #define BUDDY_FOCUS_DIP_PERIOD_MS 9000u
 #define BUDDY_FOCUS_DIP_START_MS 6000u
+
+// Under five minutes the glance at the number comes twice as often, which is the
+// only thing the glass does differently until the block is nearly over.
+#define BUDDY_FOCUS_LAST_FIVE_MS 300000u
+#define BUDDY_FOCUS_QUICK_DIP_PERIOD_MS 4500u
+
+// The last minute: one 900 ms window where the face blinks twice and looks up at
+// the owner instead of at the number. It is a window of the countdown, not a
+// flag, so it cannot be missed and it cannot repeat.
+#define BUDDY_FOCUS_FINAL_MS 60000u
+#define BUDDY_FOCUS_FINAL_WINDOW_MS 900u
+#define BUDDY_FOCUS_FINAL_GAZE_X (-10.0f)
+#define BUDDY_FOCUS_FINAL_GAZE_Y (-5.0f)
 
 struct BuddyFocus {
   bool active = false;    // a countdown is running
@@ -192,17 +205,51 @@ static inline bool buddyFocusCompact(const BuddyFocus *f, uint32_t nowMs) {
   return f->active || buddyFocusDoneVisible(f, nowMs);
 }
 
+// How often the eyes visit the number. Under five minutes the visit comes twice
+// as often: the block is nearly over and the clock is worth a look.
+static inline uint32_t buddyFocusDipPeriodMs(uint32_t remainingMs) {
+  if (remainingMs > 0u && remainingMs <= BUDDY_FOCUS_LAST_FIVE_MS) {
+    return BUDDY_FOCUS_QUICK_DIP_PERIOD_MS;
+  }
+  return BUDDY_FOCUS_DIP_PERIOD_MS;
+}
+
+// True inside the 900 ms window that starts when the countdown crosses its last
+// minute. Pure: it is a function of how much is left, so no flag has to be kept
+// and a frozen frame cannot lose it.
+static inline bool buddyFocusFinalMoment(uint32_t remainingMs) {
+  return remainingMs <= BUDDY_FOCUS_FINAL_MS &&
+         remainingMs + BUDDY_FOCUS_FINAL_WINDOW_MS > BUDDY_FOCUS_FINAL_MS;
+}
+
+// The two blinks inside that window, 300 ms apart: "falta poco".
+static inline bool buddyFocusFinalBlink(uint32_t remainingMs) {
+  if (!buddyFocusFinalMoment(remainingMs)) return false;
+  const uint32_t in = BUDDY_FOCUS_FINAL_MS - remainingMs;
+  return in < 130u || (in >= 300u && in < 430u);
+}
+
 // How far the eyes drop towards the number, in pixels. Zero for most of the
 // cycle, then a smooth triangle down and back: a glance at the work, not a
 // twitch. Wrap-safe because it is a modulo of the clock.
-static inline float buddyFocusGazeDip(uint32_t nowMs, bool studying) {
-  if (!studying) return 0.0f;
-  const uint32_t phase = nowMs % BUDDY_FOCUS_DIP_PERIOD_MS;
-  if (phase < BUDDY_FOCUS_DIP_START_MS) return 0.0f;
-  const uint32_t span = BUDDY_FOCUS_DIP_PERIOD_MS - BUDDY_FOCUS_DIP_START_MS;
-  const uint32_t t = phase - BUDDY_FOCUS_DIP_START_MS;
+static inline float buddyFocusGazeDipFor(uint32_t nowMs, uint32_t remainingMs) {
+  const uint32_t period = buddyFocusDipPeriodMs(remainingMs);
+  const uint32_t phase = nowMs % period;
+  const uint32_t start = period > BUDDY_FOCUS_DIP_START_MS
+                             ? BUDDY_FOCUS_DIP_START_MS
+                             : period / 2u;
+  if (phase < start) return 0.0f;
+  const uint32_t span = period - start;
+  const uint32_t t = phase - start;
   const float half = (float)span * 0.5f;
   const float k = (float)t < half ? (float)t / half
                                   : 1.0f - ((float)t - half) / half;
   return (float)BUDDY_FOCUS_DIP_PX * k;
+}
+
+// The two-argument form the renderer and the tests already use: no session, no
+// dip; a session with plenty of time left, the slow rhythm.
+static inline float buddyFocusGazeDip(uint32_t nowMs, bool studying) {
+  if (!studying) return 0.0f;
+  return buddyFocusGazeDipFor(nowMs, BUDDY_FOCUS_LAST_FIVE_MS + 1u);
 }

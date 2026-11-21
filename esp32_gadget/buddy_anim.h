@@ -538,6 +538,86 @@ static inline void buddyIdleApply(const BuddyIdleEvent &e, uint32_t nowMs,
   }
 }
 
+// --- quiet-time gestures -----------------------------------------------------
+//
+// Two gestures are not one more piece of business in the random idle pool: they
+// are about how long the face has been quiet. A stretch after four minutes of
+// nothing, and a look up at the owner every 45-105 s. Both are pure functions of
+// the idle age and the seed, so neither needs state and both are testable.
+//
+// They never take the glass while an idle event is already playing: the bug, the
+// wink or the yawn are the surprise, and these two are the background hum.
+#define BUDDY_STRETCH_PERIOD_MS 240000u  // at most one every four minutes
+#define BUDDY_STRETCH_MS 1400u
+#define BUDDY_OWNER_EPOCH_MS 75000u      // one look per 75 s slot
+#define BUDDY_OWNER_SPREAD_MS 30000u     // it lands in the first 30 s of the slot
+#define BUDDY_OWNER_MS 1100u
+
+// The stretch: once every four minutes of quiet, and only after the first four.
+static inline bool buddyStretchAt(uint32_t ageMs) {
+  if (ageMs < BUDDY_STRETCH_PERIOD_MS) return false;
+  return (ageMs % BUDDY_STRETCH_PERIOD_MS) < BUDDY_STRETCH_MS;
+}
+
+struct BuddyOwnerLook {
+  bool active = false;
+  float t = 0.0f;  // 0..1 through the look
+};
+
+// The look up at the owner: one per 75 s slot, landing in the slot's first 30 s,
+// so two looks are never closer than 45 s and never further than 105 s.
+static inline BuddyOwnerLook buddyOwnerLookAt(uint32_t ageMs, uint32_t seed) {
+  BuddyOwnerLook look;
+  const uint32_t epoch = ageMs / BUDDY_OWNER_EPOCH_MS;
+  const uint32_t base = epoch * BUDDY_OWNER_EPOCH_MS;
+  const uint32_t h = buddyHash32(seed ^ (epoch * 0x7F4A7C15u));
+  const uint32_t start = base + (h % BUDDY_OWNER_SPREAD_MS);
+  if ((int32_t)(ageMs - start) < 0) return look;
+  const uint32_t in = ageMs - start;
+  if (in >= BUDDY_OWNER_MS) return look;
+  look.active = true;
+  look.t = (float)in / (float)BUDDY_OWNER_MS;
+  return look;
+}
+
+// Paint both quiet gestures onto an idle pose. `ageMs` is how long the face has
+// been idle, which is exactly the "nothing has happened for a while" the design
+// asks for; the caller only calls this while idle.
+static inline void buddyQuietGestures(uint32_t ageMs, uint32_t seed,
+                                      BuddyPose *p) {
+  if (!p) return;
+  const float PI_F = 3.14159265f;
+  BuddyOwnerLook look = buddyOwnerLookAt(ageMs, seed);
+  if (look.active) {
+    const float pulse = sinf(look.t * PI_F);  // fades in and out, no pop
+    p->gazeX -= 16.0f * pulse;
+    p->gazeY -= 5.0f * pulse;
+    // The eye opens a little: paying attention, not staring.
+    const float lid = 0.08f * pulse;
+    if (p->lid < lid) p->lid = lid;
+    p->rx = 48 + (int)lroundf(2.0f * pulse);
+  }
+  if (buddyStretchAt(ageMs)) {
+    // Rise fast, hold, come back. The stretch is the one gesture that reads as
+    // the body moving, so it needs a plateau: a plain sine reads as a bounce.
+    const uint32_t in = ageMs % BUDDY_STRETCH_PERIOD_MS;
+    const float t = (float)in / (float)BUDDY_STRETCH_MS;
+    float k;
+    if (t < 0.25f) {
+      k = t / 0.25f;
+    } else if (t > 0.75f) {
+      k = (1.0f - t) / 0.25f;
+    } else {
+      k = 1.0f;
+    }
+    if (k < 0.0f) k = 0.0f;
+    if (k > 1.0f) k = 1.0f;
+    p->gazeY -= 8.0f * k;
+    p->lid = 0.38f * k;
+    p->rx = 48 - (int)lroundf(3.0f * k);
+  }
+}
+
 struct BuddyBug {
   bool active = false;
   uint32_t eventId = 0;  // the epoch, so the renderer can cancel this one
@@ -888,6 +968,11 @@ static inline BuddyPose buddyPose(BuddyState state, uint32_t ageMs,
     p.gazeX += sc.x + gl.x;
     p.gazeY += sc.y + breath * 0.35f;
     p.bob = breath * 1.0f;
+    // The quiet gestures ride on top of the idle life, unless an idle event is
+    // already playing.
+    if (!buddyIdleEventAt(nowMs, seed).active) {
+      buddyQuietGestures(ageMs, seed, &p);
+    }
   }
 
   if (state == BUDDY_ASLEEP) {

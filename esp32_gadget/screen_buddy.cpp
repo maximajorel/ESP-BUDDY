@@ -929,10 +929,12 @@ static void drawHud(BuddyPhase phase, BuddyRgb led, bool linkDown,
 // the web can push may change it, and a phase change cannot blank it.
 //
 // While a session is up the timer is the biggest thing on the glass: four
-// seven-segment digits in white, a slim progress mark in the face's own colour
-// under the small eyes, and a black plate behind the number. The digits reuse
-// `gfxSegmentDigit`, the same renderer as the clock screen, so there is one
-// seven-segment definition in the firmware.
+// seven-segment digits, a slim progress mark under the small eyes and a black
+// plate behind the number. The number and the mark both wear `eyeRgb`, the colour
+// the eyes already resolved for this frame (owner colour, dim without a bridge,
+// hot when the face is angry), so the timer belongs to the face instead of
+// being a white widget. The digits reuse `gfxSegmentDigit`, the same renderer as
+// the clock screen: one seven-segment definition in the firmware.
 static void drawFocusBand(uint32_t nowMs, uint32_t eyeRgb) {
   const BuddyFocus &f = buddyFocusView();
   const bool done = buddyFocusDoneVisible(&f, nowMs);
@@ -986,10 +988,10 @@ static void drawFocusBand(uint32_t nowMs, uint32_t eyeRgb) {
     const char digit = label[i < 2 ? i : i + 1];
     gfxSegmentDigit(xs[i], BUDDY_FOCUS_BAND_Y, BUDDY_FOCUS_DIGIT_W,
                     BUDDY_FOCUS_DIGIT_H, BUDDY_FOCUS_DIGIT_THICK, digit,
-                    GFX_WHITE, GFX_BLACK);
+                    gfxHex(eyeRgb), GFX_BLACK);
   }
   gfxSegmentColon(xColon, BUDDY_FOCUS_BAND_Y, BUDDY_FOCUS_COLON_W,
-                  BUDDY_FOCUS_DIGIT_H, BUDDY_FOCUS_DIGIT_THICK, GFX_WHITE);
+                  BUDDY_FOCUS_DIGIT_H, BUDDY_FOCUS_DIGIT_THICK, gfxHex(eyeRgb));
 }
 
 static void drawFace(BuddyState state, const BuddyPose &pose, uint32_t nowMs,
@@ -1022,13 +1024,21 @@ static void drawFace(BuddyState state, const BuddyPose &pose, uint32_t nowMs,
   // While a session runs, the eyes drop towards the number once every cycle: a
   // glance at the work. Added at draw time, after every pose source, so it can
   // never fight the bridge, the game overlay or the ball for the gaze channel.
-  const float dip = buddyFocusGazeDip(nowMs, buddyFocusView().active);
-  const int gazeY = (int)pose.gazeY + (int)(dip + 0.5f);
+  // Under five minutes the visit comes twice as often, and in the last minute
+  // the face looks up at the owner and blinks twice instead: "falta poco".
+  const uint32_t focusLeft = focus.active ? buddyFocusRemainingMs(&focus, nowMs) : 0u;
+  const float dip = focus.active ? buddyFocusGazeDipFor(nowMs, focusLeft) : 0.0f;
+  const bool finalMoment = focus.active && buddyFocusFinalMoment(focusLeft);
+  const bool finalBlink = focus.active && buddyFocusFinalBlink(focusLeft);
+  const float finalGazeX = finalMoment ? BUDDY_FOCUS_FINAL_GAZE_X : 0.0f;
+  const int gazeY =
+      (int)pose.gazeY + (int)(dip + 0.5f) +
+      (finalMoment ? (int)BUDDY_FOCUS_FINAL_GAZE_Y : 0);
 
   // Where each eye lands, and how much screen it covers once rotated. The pair
   // is pushed apart when the surprise widens them or a tilt eats the gap; the
   // owner should never see the two eyes (or their glow) merge into one blob.
-  bool shut = pose.blink || pose.closed;
+  bool shut = pose.blink || pose.closed || finalBlink;
   int eyeX[2];
   int eyeRx[2];
   int eyeExtentX[2];
@@ -1066,7 +1076,7 @@ static void drawFace(BuddyState state, const BuddyPose &pose, uint32_t nowMs,
     eyeRx[i] = (int)lroundf((float)baseRx * widen * turnScale);
     // The whole pair also slides a couple of pixels the way the head turns.
     float turnX = 5.0f * turn;
-    eyeX[i] = cx[i] + (int)(pose.gazeX + lead + turnX +
+    eyeX[i] = cx[i] + (int)(pose.gazeX + lead + turnX + finalGazeX +
                             (i == 0 ? pose.eyeGazeL : pose.eyeGazeR));
     eyeDeg[i] = pose.rot + pose.tilt + (i == 0 ? pose.rotL : pose.rotR);
     eyeExtentX[i] = (int)ceilf(

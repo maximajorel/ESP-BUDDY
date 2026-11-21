@@ -681,6 +681,73 @@ int main() {
     }
   }
 
+  // --- the two quiet-time gestures -----------------------------------------
+  //
+  // They are not one more piece of business in the random idle pool: they are
+  // about how long the face has been quiet. A stretch after four minutes of
+  // nothing, and a look up at the owner every 45-105 s. Both are pure functions
+  // of the idle age and the seed, so they can be pinned here.
+  printf("\n-- quiet-time gestures\n");
+  {
+    check("no stretch during the first four minutes",
+          !buddyStretchAt(BUDDY_STRETCH_PERIOD_MS - 1));
+    check("the stretch starts at four minutes",
+          buddyStretchAt(BUDDY_STRETCH_PERIOD_MS));
+    check("the stretch lasts its documented window",
+          buddyStretchAt(BUDDY_STRETCH_PERIOD_MS + BUDDY_STRETCH_MS - 1));
+    check("the stretch ends after its window",
+          !buddyStretchAt(BUDDY_STRETCH_PERIOD_MS + BUDDY_STRETCH_MS));
+    check("the stretch comes back in the next period",
+          buddyStretchAt(2 * BUDDY_STRETCH_PERIOD_MS + 10));
+    check("the stretch is at most once every four minutes",
+          BUDDY_STRETCH_PERIOD_MS >= 240000u);
+
+    // One glance per epoch, always inside the first part of it, and never two
+    // glances closer than the floor the design promises.
+    int glances = 0;
+    bool wasActive = false;
+    uint32_t lastEnd = 0;
+    bool wellBehaved = true;
+    for (uint32_t age = 0; age < 12u * BUDDY_OWNER_EPOCH_MS; age += 10u) {
+      BuddyOwnerLook look = buddyOwnerLookAt(age, 0xA5A5u);
+      if (look.active && !wasActive) {
+        glances++;
+        const uint32_t offset = age % BUDDY_OWNER_EPOCH_MS;
+        if (offset >= BUDDY_OWNER_SPREAD_MS) wellBehaved = false;
+        if (lastEnd && age - lastEnd < 45000u) wellBehaved = false;
+      }
+      if (look.active) lastEnd = age + 10u;
+      wasActive = look.active;
+    }
+    check("one look at the owner per epoch", glances == 12);
+    check("every look starts early in its own epoch and never crowds the last one",
+          wellBehaved);
+
+    // The pose side: a quiet gesture must move the eyes without fighting the
+    // idle life underneath.
+    BuddyPose p;
+    buddyQuietGestures(1000u, 7u, &p);
+    check("no stretch, no look: the pose is untouched",
+          p.gazeX == 0.0f && p.gazeY == 0.0f && p.lid == 0.0f);
+    p = BuddyPose();
+    buddyQuietGestures(BUDDY_STRETCH_PERIOD_MS + 700u, 7u, &p);
+    check("the stretch lifts the gaze", p.gazeY < -4.0f);
+    check("the stretch drops the lids", p.lid > 0.3f);
+    check("the stretch narrows the eyes", p.rx < 48);
+
+    // Drive a real owner look through the pose and check where it looks.
+    uint32_t lookAge = 0;
+    for (uint32_t age = 0; age < BUDDY_OWNER_EPOCH_MS; age += 10u) {
+      BuddyOwnerLook l = buddyOwnerLookAt(age, 0xA5A5u);
+      if (l.active && l.t > 0.4f && l.t < 0.6f) { lookAge = age; break; }
+    }
+    p = BuddyPose();
+    buddyQuietGestures(lookAge, 0xA5A5u, &p);
+    check("a look at the owner goes up and to the left",
+          p.gazeX < -8.0f && p.gazeY < -3.0f);
+    check("a look at the owner opens the eye a little", p.rx > 48);
+  }
+
   printf("\n%s (%d failures)\n", g_failures == 0 ? "PASSED" : "FAILED",
          g_failures);
   return g_failures == 0 ? 0 : 1;
