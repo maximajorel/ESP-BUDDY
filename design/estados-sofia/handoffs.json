@@ -3,13 +3,13 @@
   "chosen": "01-idle-compania.html",
   "handoffs": {
     "01-idle-compania.html": {
-      "status": "in_progress",
+      "status": "implemented",
       "queued": false,
       "sentAt": "2026-11-21T00:52:47.458Z",
       "startedAt": "2026-11-21T00:53:00.403Z",
-      "implementedAt": null,
+      "implementedAt": "2026-11-21T00:56:29.167Z",
       "feature": "odd/tasks/estados-sofia.md",
-      "note": "Implementando: reacciones de idle (estiramiento, busca al dueño, chequeo del reloj) + proporción y color del temporizador."
+      "note": "Implementado en de6acb1: gestos de quietud en buddy_anim.h, reloj del temporizador y proporción/color nuevos. 33 tests de host + compilación OK; sin flashear."
     }
   }
 }
