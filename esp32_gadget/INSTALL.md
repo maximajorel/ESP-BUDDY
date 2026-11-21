@@ -550,6 +550,11 @@ eventos que sí usan los del calendario pero el calendario no declara ninguno).
 
 ### 11.1 Preparar Google Cloud (una sola vez)
 
+> **No hay "API key" que copiar.** Para leer un calendario privado Google no usa
+> API keys: usa credenciales OAuth. En este flujo son el **Client ID** y el
+> **Client secret** que salen del paso 4. Si buscás una API key, estás en la
+> pantalla equivocada.
+
 Todo se hace con tu cuenta de Google y es gratis.
 
 1. Entrá a [console.cloud.google.com/projectcreate](https://console.cloud.google.com/projectcreate)

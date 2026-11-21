@@ -412,7 +412,7 @@
           <li>En <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Credenciales</a> → <strong>Crear credenciales</strong> → <strong>ID de cliente de OAuth</strong> → tipo de aplicación <strong>TVs and Limited Input devices</strong> (TV y dispositivos de entrada limitada). Copiá el <strong>Client ID</strong> y el <strong>Client secret</strong>.</li>
           <li>Pegalos acá abajo y tocá <strong>Guardar</strong>. Después <strong>Conectar con Google</strong>, abrí el enlace, escribí el código y aprobá. Volvé a este panel: la lista de calendarios aparece sola.</li>
         </ol>
-        <p class="hint inline">El equipo no necesita una URL pública ni el bridge. El permiso es de sólo lectura: el equipo no puede crear, editar ni borrar eventos.</p>
+        <p class="hint inline">No busques una <em>API key</em>: para leer un calendario privado Google usa credenciales OAuth, que son justamente el <strong>Client ID</strong> y el <strong>Client secret</strong> de estos pasos. El equipo no necesita una URL pública ni el bridge, y el permiso es de sólo lectura: no puede crear, editar ni borrar eventos.</p>
 
         <form id="calForm" class="form">
           <label>Client ID <span class="tag">vacío = dejar el que está</span>

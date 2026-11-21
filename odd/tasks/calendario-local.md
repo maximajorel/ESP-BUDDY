@@ -181,3 +181,21 @@ L4 — verificación en la placa (21-nov, autorizada por el dueño), COM5:
 - **Lo único que falta** es la conexión con la cuenta real del dueño: requiere su
   Client ID/secret y aprobar el código en Google. Eso no lo puede hacer el
   agente; el panel ya muestra el paso a paso.
+
+L5 — cierre de verificación (21-nov):
+
+- La regla de prioridad salió del `screen_buddy.cpp` a
+  `buddyStateYieldsToCalendar()` (puro, `buddy_state.h`) y se fijó en
+  `tools/buddy_state_test.cpp`: idle/done/asleep/offline/unconfigured/upcoming
+  ceden la cara; thinking/tool/waiting/error no.
+- Con la URL del bridge apuntando a `http://127.0.0.1:1`, `calendar fake 20 30`
+  siguió publicando `state:"upcoming"`, `phase:"event"`, `led:[170,80,255]` y el
+  LED violeta (`rgb 136,64,204`): la reacción no consulta al bridge. La URL se
+  restauró a `https://buddy.maximajorel.com.ar` en la misma sonda.
+- Reflasheo final de la rama y verificación corta: `calendar fake 20 30` →
+  `early 33`, `fake off` → `none`. La placa quedó sin credenciales de prueba
+  (`forget`).
+- Se aclaró en el panel y en `INSTALL.md` que este flujo usa credenciales OAuth
+  y no una "API key", que es la confusión que el pedido original dejaba abierta.
+- Sigue pendiente lo único que no puede hacer el agente: autorizar la cuenta real
+  del dueño con su Client ID/secret.
