@@ -197,5 +197,14 @@ L5 — cierre de verificación (21-nov):
   (`forget`).
 - Se aclaró en el panel y en `INSTALL.md` que este flujo usa credenciales OAuth
   y no una "API key", que es la confusión que el pedido original dejaba abierta.
+- Compilación y flasheo finales de la rama: 1 555 750 B (49%) de flash y 70 468 B
+  (21%) de RAM, `Hash of data verified`. El panel servido por la placa se
+  verificó por HTTP: contiene la tarjeta nueva, los pasos del cliente *TVs and
+  Limited Input devices* y la aclaración de OAuth; `GET /api/calendar` responde
+  `unconfigured` con cadenas vacías y sin sesión responde `401`.
+- El navegador headless del MCP sigue sin arrancar (`Network.enable` /
+  protocolo agotado), así que la tarjeta no tiene captura visual; sí se
+  ejercitaron por HTTP el flujo completo contra el mock y los endpoints reales
+  de la placa.
 - Sigue pendiente lo único que no puede hacer el agente: autorizar la cuenta real
   del dueño con su Client ID/secret.
