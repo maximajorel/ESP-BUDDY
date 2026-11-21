@@ -89,6 +89,74 @@ PLAYING_TRACK = {"title": "Never Gonna Give You Up",
                  "durationMs": 213573}
 
 
+CALENDAR = {
+    "clientId": "", "secret": False, "authorized": False, "pending": False,
+    "pendingSince": 0.0, "userCode": "", "selectedId": "", "selectedName": "",
+    "fallbackLeadMin": 10, "graceMin": 5, "lastError": "",
+    "calendars": [
+        {"id": "primary", "name": "maxi@example.com", "primary": True},
+        {"id": "trabajo@group.calendar.google.com", "name": "Trabajo",
+         "primary": False},
+        {"id": "familia@group.calendar.google.com", "name": "Familia",
+         "primary": False},
+    ],
+}
+
+
+def calendar_payload():
+    # El mock aprueba solo después de unos segundos, para poder mirar el flujo
+    # completo en el navegador sin una cuenta de Google real.
+    if CALENDAR["pending"] and time.time() - CALENDAR["pendingSince"] > 4:
+        CALENDAR["pending"] = False
+        CALENDAR["authorized"] = True
+        CALENDAR["userCode"] = ""
+    if not CALENDAR["clientId"]:
+        kind = "unconfigured"
+    elif CALENDAR["pending"]:
+        kind = "auth_pending"
+    elif not CALENDAR["authorized"]:
+        kind = "needs_auth"
+    else:
+        kind = "ready"
+    selected = CALENDAR["selectedId"] or "primary"
+    name = CALENDAR["selectedName"] or (
+        "maxi@example.com" if selected == "primary" else selected)
+    next_summary = "Dentista"
+    in_min = 20
+    lead = 30
+    started = False
+    phase = "early"
+    intensity = 33
+    return {
+        "ok": True, "kind": kind,
+        "configured": bool(CALENDAR["clientId"]),
+        "authorized": CALENDAR["authorized"],
+        "pending": CALENDAR["pending"],
+        "syncing": False,
+        "userCode": CALENDAR["userCode"],
+        "verificationUrl": "https://www.google.com/device",
+        "pendingSecondsLeft": 1790 if CALENDAR["pending"] else 0,
+        "selectedId": selected, "selectedName": name,
+        "fallbackLeadMin": CALENDAR["fallbackLeadMin"],
+        "graceMin": CALENDAR["graceMin"],
+        "lastError": CALENDAR["lastError"],
+        "lastSyncMs": 12000 if CALENDAR["authorized"] else 0,
+        "calendarCount": len(CALENDAR["calendars"]) if CALENDAR["authorized"] else 0,
+        "eventCount": 3 if CALENDAR["authorized"] else 0,
+        "hasNext": bool(CALENDAR["authorized"]),
+        "nextSummary": next_summary if CALENDAR["authorized"] else "",
+        "nextInMin": in_min if CALENDAR["authorized"] else 0,
+        "nextStarted": started if CALENDAR["authorized"] else False,
+        "nextLeadMin": lead if CALENDAR["authorized"] else -1,
+        "reaction": {
+            "active": bool(CALENDAR["authorized"]),
+            "phase": phase if CALENDAR["authorized"] else "none",
+            "intensity": intensity if CALENDAR["authorized"] else 0,
+            "msToStart": in_min * 60000 if CALENDAR["authorized"] else 0,
+        },
+    }
+
+
 def spotify_payload():
     if not SPOTIFY["clientId"]:
         auth = 0
@@ -184,6 +252,16 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == "/api/spotify":
             self._json(200, spotify_payload())
+            return
+        if path in ("/api/calendar", "/api/calendar/calendars"):
+            # En el firmware el calendario pide sesión incluso para leer.
+            if not self._authed():
+                self._unauthorized()
+                return
+            if path == "/api/calendar":
+                self._json(200, calendar_payload())
+            else:
+                self._json(200, {"items": CALENDAR["calendars"]})
             return
         if path == "/api/session":
             payload = {"ok": True, "authenticated": self._authed()}
@@ -443,6 +521,71 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/scores/reset":
             STATE["scores"] = {"game": 0, "slot": 0}
             self._json(200, {"ok": True})
+            return
+
+        if path == "/api/calendar/config":
+            client = (body.get("clientId") or "").strip()
+            secret = (body.get("clientSecret") or "").strip()
+            if client and len(client) < 8:
+                self._fail(400, "Client ID invalido (8 a 120 caracteres sin espacios)")
+                return
+            if secret and len(secret) < 8:
+                self._fail(400, "Client secret invalido (8 a 120 caracteres sin espacios)")
+                return
+            changed = bool(client) or bool(secret)
+            if client:
+                CALENDAR["clientId"] = client
+            if secret:
+                CALENDAR["secret"] = True
+            if "fallbackLeadMin" in body:
+                CALENDAR["fallbackLeadMin"] = int(body["fallbackLeadMin"])
+            if "graceMin" in body:
+                CALENDAR["graceMin"] = int(body["graceMin"])
+            if changed:
+                CALENDAR["authorized"] = False
+                CALENDAR["pending"] = False
+            self._json(200, calendar_payload())
+            return
+
+        if path == "/api/calendar/connect":
+            if not CALENDAR["clientId"]:
+                self._fail(409, "Guarda el Client ID y el secret primero")
+                return
+            CALENDAR["pending"] = True
+            CALENDAR["pendingSince"] = time.time()
+            CALENDAR["userCode"] = "ABCD-EFGH"
+            self._json(200, calendar_payload())
+            return
+
+        if path == "/api/calendar/cancel":
+            CALENDAR["pending"] = False
+            CALENDAR["userCode"] = ""
+            self._json(200, calendar_payload())
+            return
+
+        if path == "/api/calendar/select":
+            calendar_id = (body.get("calendarId") or "").strip()
+            if not calendar_id:
+                self._fail(400, "Falta el calendario")
+                return
+            CALENDAR["selectedId"] = calendar_id
+            CALENDAR["selectedName"] = (body.get("name") or "").strip() or calendar_id
+            self._json(200, calendar_payload())
+            return
+
+        if path == "/api/calendar/refresh":
+            if not CALENDAR["authorized"]:
+                self._fail(409, "Falta conectar Google")
+                return
+            self._json(200, {"ok": True})
+            return
+
+        if path == "/api/calendar/forget":
+            CALENDAR.update({"clientId": "", "secret": False, "authorized": False,
+                             "pending": False, "userCode": "", "selectedId": "",
+                             "selectedName": "", "lastError": "",
+                             "fallbackLeadMin": 10, "graceMin": 5})
+            self._json(200, calendar_payload())
             return
 
         if path == "/api/spotify/config":

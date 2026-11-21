@@ -25,7 +25,8 @@ import time
 import urllib.error
 import urllib.request
 
-GET_ROUTES = ["/api/status", "/api/spotify", "/api/session"]
+GET_ROUTES = ["/api/status", "/api/spotify", "/api/session",
+              "/api/calendar", "/api/calendar/calendars"]
 
 # Not asserted with the others. A WiFi scan blocks the WebServer for ~7 s and the
 # open socket is dropped before it answers (measured: HTTP 000 at 7.3 s, and the
@@ -57,6 +58,12 @@ POST_ROUTES = [
     ("/api/spotify/url", {}),
     ("/api/spotify/code", {}),
     ("/api/spotify/forget", {}),
+    ("/api/calendar/config", {}),
+    ("/api/calendar/connect", {}),
+    ("/api/calendar/cancel", {}),
+    ("/api/calendar/select", {}),
+    ("/api/calendar/refresh", {}),
+    ("/api/calendar/forget", {}),
 ]
 
 # Left out because they mutate state a test should not destroy, or because they

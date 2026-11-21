@@ -1186,3 +1186,19 @@ main + footer p, body > footer p { margin: 0 0 4px; }
   }
   .marquee-track { animation: none; }
 }
+
+/* El código del device flow de Google: se lee desde el otro lado del cuarto y
+   se copia a mano en el teléfono, así que va grande y espaciado. */
+.cal-code {
+  font-family: var(--mono);
+  font-size: 2rem;
+  letter-spacing: 0.18em;
+  font-weight: 700;
+  color: var(--ink);
+  background: var(--sky);
+  border: var(--line);
+  border-radius: var(--r-in);
+  padding: 10px 18px;
+  display: inline-block;
+  margin: 6px 0 4px;
+}

@@ -477,14 +477,6 @@
       buddyLink.title = buddy.linkDetail || '';
     }
     if (buddy.url) setValue('buddyUrl', buddy.url);
-    // El panel del calendario vive en el BRIDGE, no en la placa: es el único que
-    // tiene las credenciales de Google. La placa solo arma el atajo con la URL
-    // que ya tiene guardada, así el dueño no la tipea dos veces.
-    var calLink = $('buddyCalendarLink');
-    if (calLink) {
-      calLink.href = buddy.url ? buddy.url.replace(/\/+$/, '') + '/calendar_page' : '#';
-      calLink.title = buddy.url ? calLink.href : 'Configurá primero la URL del bridge';
-    }
     if (buddy.eyeColor) setValue('buddyEyeColor', buddy.eyeColor);
 
     // Sofía owns the bead while her bridge is configured: buddyLedTick repaints her
@@ -824,42 +816,63 @@
 
   // --- calendario -----------------------------------------------------------
   //
-  // El calendario no vive en la placa: el equipo le pregunta al bridge, que es el
-  // único que habla con Google. Por eso va a su propio ritmo (15 s y sólo con la
-  // sección a la vista) en vez de sumarse al poll de 2 s del panel: cada vuelta
-  // es un viaje a otro proceso y, del otro lado, a Google.
-  var CALENDAR_POLL_MS = 15000;
+  // La placa habla con Google por su cuenta: esta tarjeta sólo muestra su estado
+  // y le pasa las dos credenciales. Nada de esto viaja al bridge, y los títulos
+  // de los eventos no salen del equipo salvo a este panel con sesión.
+  var CALENDAR_POLL_MS = 5000;
   var calTimer = 0;
   var calInFlight = false;
+  var calListed = false;
+  var calListCount = -1;
+
+  var CAL_PHASE = {
+    early: 'se viene', near: 'falta poco', starting: 'ya casi', ongoing: 'empezó'
+  };
 
   function calendarState(cal) {
-    if (!cal.reachable) {
-      return { cls: 'bad', text: 'Sin respuesta del bridge' };
+    if (cal.kind === 'ready') {
+      return cal.lastError
+        ? { cls: 'warn', text: 'Conectado con un aviso' }
+        : { cls: 'ok', text: 'Conectado' };
     }
-    if (!cal.configured) return { cls: 'warn', text: 'Falta autorizar' };
-    return { cls: 'ok', text: cal.active ? 'Evento en curso' : 'Conectado' };
+    if (cal.kind === 'auth_pending') {
+      return { cls: 'warn', text: 'Esperando que apruebes en Google' };
+    }
+    if (cal.kind === 'needs_auth') {
+      return { cls: 'warn', text: 'Falta conectar Google' };
+    }
+    return { cls: 'warn', text: 'Falta configurar' };
+  }
+
+  function calendarWhen(cal) {
+    if (cal.reaction && cal.reaction.active) {
+      return CAL_PHASE[cal.reaction.phase] || 'cerca';
+    }
+    if (!cal.hasNext) return 'sin eventos a la vista';
+    if (cal.nextStarted) return 'empezó hace ' + Math.abs(cal.nextInMin) + ' min';
+    if (cal.nextInMin > 0) return 'en ' + cal.nextInMin + ' min';
+    return 'en menos de un minuto';
   }
 
   function calendarHint(cal) {
-    if (!cal.reachable) {
-      return 'El equipo no pudo leer el calendario del bridge' +
-        (cal.bridgeStatus ? ' (respondió ' + cal.bridgeStatus + ')' : '') +
-        '. Revisá la tarjeta de Hermes, que es la que tiene la URL y los tokens.';
+    if (cal.kind === 'unconfigured') {
+      return 'Seguí los pasos de arriba, guardá el Client ID y el secret, y tocá ' +
+        'Conectar con Google.';
     }
-    var missing = [];
-    if (!cal.hasClientId) missing.push('Client ID');
-    if (!cal.hasClientSecret) missing.push('secreto');
-    if (!cal.hasRefreshToken) missing.push('autorización de Google');
-    if (!cal.hasAskToken) {
-      return 'Falta el token de administración en la tarjeta de Hermes: sin él el ' +
-        'equipo puede mirar el calendario pero no guardar cambios.';
+    if (cal.kind === 'needs_auth') {
+      return 'Las credenciales están guardadas. Tocá Conectar con Google y aprobá ' +
+        'el permiso: el equipo se entera solo y no hay que copiar ningún token.';
     }
-    if (missing.length) return 'Falta ' + missing.join(', ') + '.';
-    var next = cal.hasNext
-      ? 'Próximo: ' + cal.nextSummary + (cal.nextInMin > 0
-        ? ' en ' + cal.nextInMin + ' min.' : '.')
-      : 'Sin eventos a la vista.';
-    return 'Listo. ' + next;
+    if (cal.kind === 'auth_pending') {
+      return 'Abrí el enlace, escribí el código y aprobá. Cuando termines, esta ' +
+        'tarjeta cambia sola.';
+    }
+    if (cal.lastError) return 'Aviso del equipo: ' + cal.lastError;
+    if (!cal.hasNext) return 'Conectado. No hay eventos a la vista.';
+    var lead = cal.nextLeadMin < 0
+      ? 'ese evento no tiene recordatorio, así que no mueve la cara'
+      : 'recordatorio ' + cal.nextLeadMin + ' min antes';
+    return 'Próximo: ' + cal.nextSummary + ', ' + calendarWhen(cal) + ' · ' + lead + '.';
   }
 
   function renderCalendar(cal) {
@@ -868,26 +881,72 @@
     if (box) box.className = 'sp-state ' + state.cls;
     setText('calState', state.text);
     setText('calStateHint', calendarHint(cal));
-    var creds = cal.configured ? 'Completas' : 'Incompletas';
-    if (!cal.configured && cal.reachable) {
-      var got = 0;
-      if (cal.hasClientId) got += 1;
-      if (cal.hasClientSecret) got += 1;
-      if (cal.hasRefreshToken) got += 1;
-      creds = got + ' de 3';
-    }
-    setText('calCreds', creds);
-    setText('calId', cal.calendarId || '—');
+
+    setText('calCreds', cal.configured
+      ? (cal.authorized ? 'Autorizadas' : 'Sin autorizar')
+      : 'Sin configurar');
+    setText('calId', cal.selectedName || cal.selectedId || '—');
     setText('calNext', cal.hasNext
-      ? (cal.nextInMin > 0 ? 'en ' + cal.nextInMin + ' min · ' : '') + cal.nextSummary
+      ? (cal.nextStarted ? 'empezó · ' : (cal.nextInMin > 0 ? 'en ' + cal.nextInMin + ' min · ' : '')) +
+        cal.nextSummary
       : '—');
-    setText('calLead', cal.leadMin + ' min antes · ' + cal.graceMin + ' min después');
-    if (cal.oauthRedirect) setText('calRedirect', cal.oauthRedirect);
-    // El formulario muestra lo que el bridge ya tiene; los secretos nunca vuelven,
-    // así que esos campos quedan vacíos y vacío significa "no lo toques".
-    if (!isEditing($('calCalendarId'))) setValue('calCalendarId', cal.calendarId || '');
-    if (!isEditing($('calLeadMin'))) setValue('calLeadMin', String(cal.leadMin));
-    if (!isEditing($('calGraceMin'))) setValue('calGraceMin', String(cal.graceMin));
+    setText('calLead', cal.reaction && cal.reaction.active
+      ? 'La cara está reaccionando (' + (CAL_PHASE[cal.reaction.phase] || '') + ')'
+      : 'Por defecto ' + cal.fallbackLeadMin + ' min · gracia ' + cal.graceMin + ' min');
+
+    if (!isEditing($('calFallbackLead'))) {
+      setValue('calFallbackLead', String(cal.fallbackLeadMin));
+    }
+    if (!isEditing($('calGrace'))) setValue('calGrace', String(cal.graceMin));
+
+    var connect = $('calConnect');
+    if (connect) connect.disabled = !cal.configured || cal.pending;
+
+    var auth = $('calAuthBox');
+    if (auth) auth.hidden = !cal.pending;
+    if (cal.pending) {
+      setText('calUserCode', cal.userCode || '—');
+      var link = $('calAuthLink');
+      if (link && cal.verificationUrl) link.href = cal.verificationUrl;
+      setText('calAuthTimer', cal.pendingSecondsLeft > 0
+        ? 'El código vence en ' + cal.pendingSecondsLeft + ' s.'
+        : 'El código venció: pedí uno nuevo.');
+    }
+
+    var picker = $('calPicker');
+    if (picker) picker.hidden = !cal.authorized;
+    // La lista se pide cuando cambia la cantidad de calendarios (o la primera
+    // vez): no tiene sentido bajarla cada cinco segundos.
+    if (cal.authorized && (!calListed || calListCount !== cal.calendarCount)) {
+      calListed = true;
+      calListCount = cal.calendarCount;
+      loadCalendars(cal.selectedId);
+    }
+  }
+
+  function loadCalendars(selectedId) {
+    api('GET', '/api/calendar/calendars').then(function (answer) {
+      var select = $('calSelect');
+      if (!select) return;
+      var items = (answer.items || []).slice();
+      items.sort(function (a, b) {
+        return (b.primary ? 1 : 0) - (a.primary ? 1 : 0);
+      });
+      select.innerHTML = '';
+      items.forEach(function (item) {
+        var option = document.createElement('option');
+        option.value = item.id;
+        option.textContent = item.name + (item.primary ? ' (principal)' : '');
+        if (item.id === selectedId) option.selected = true;
+        select.appendChild(option);
+      });
+      if (!items.length) {
+        var empty = document.createElement('option');
+        empty.value = '';
+        empty.textContent = 'Todavía no hay calendarios';
+        select.appendChild(empty);
+      }
+    }, function () { /* la próxima vuelta del poll lo reintenta */ });
   }
 
   function refreshCalendar() {
@@ -1238,72 +1297,73 @@
 
     // --- integraciones: Google Calendar -------------------------------------
     //
-    // Nada de esto toca Google: el panel manda los datos al equipo, el equipo los
-    // reenvía al bridge con el token de administración y el bridge es el que
-    // guarda y habla con Google. Si un campo va vacío, no viaja: el bridge
-    // conserva lo que tenía.
+    // Todo esto es de la placa: guarda las credenciales, pide el código del
+    // device flow y elige el calendario. El bridge no participa.
     if ($('calForm')) {
       $('calForm').addEventListener('submit', function (event) {
         event.preventDefault();
         var body = {};
-        [['calClientId', 'clientId'], ['calClientSecret', 'clientSecret'],
-         ['calCalendarId', 'calendarId']].forEach(function (pair) {
-          var field = $(pair[0]);
-          var value = field ? field.value.trim() : '';
-          if (value) body[pair[1]] = value;
-        });
-        var lead = $('calLeadMin') ? $('calLeadMin').value.trim() : '';
-        if (lead !== '') body.leadMin = Number(lead);
-        var grace = $('calGraceMin') ? $('calGraceMin').value.trim() : '';
+        [['calClientId', 'clientId'], ['calClientSecret', 'clientSecret']]
+          .forEach(function (pair) {
+            var field = $(pair[0]);
+            var value = field ? field.value.trim() : '';
+            if (value) body[pair[1]] = value;
+          });
+        var lead = $('calFallbackLead') ? $('calFallbackLead').value.trim() : '';
+        if (lead !== '') body.fallbackLeadMin = Number(lead);
+        var grace = $('calGrace') ? $('calGrace').value.trim() : '';
         if (grace !== '') body.graceMin = Number(grace);
         if (!Object.keys(body).length) {
           toast('No hay nada nuevo para guardar', 'err');
           return;
         }
         submit(event.target.querySelector('button[type="submit"]'),
-          '/api/calendar/save', body, 'Calendario guardado').then(function (ok) {
+          '/api/calendar/config', body, 'Credenciales guardadas').then(function (ok) {
           if (!ok) return;
           if ($('calClientSecret')) $('calClientSecret').value = '';
+          calListed = false;
           refreshCalendar();
         });
       });
     }
-    if ($('calManualForm')) {
-      $('calManualForm').addEventListener('submit', function (event) {
-        event.preventDefault();
-        var refresh = $('calRefreshToken') ? $('calRefreshToken').value.trim() : '';
-        if (!refresh) { toast('Pegá un refresh token', 'err'); return; }
-        submit(event.target.querySelector('button[type="submit"]'),
-          '/api/calendar/save', { refreshToken: refresh },
-          'Refresh token guardado').then(function (ok) {
-          if (!ok) return;
-          $('calRefreshToken').value = '';
-          refreshCalendar();
+    if ($('calConnect')) {
+      $('calConnect').addEventListener('click', function (event) {
+        submit(event.target, '/api/calendar/connect', {},
+          'Código pedido: aprobalo en Google').then(function (ok) {
+          if (ok) refreshCalendar();
         });
       });
     }
-    if ($('calOAuthBtn')) {
-      $('calOAuthBtn').addEventListener('click', function (event) {
-        var body = {};
-        var id = $('calClientId') ? $('calClientId').value.trim() : '';
-        var secret = $('calClientSecret') ? $('calClientSecret').value.trim() : '';
-        if (id) body.clientId = id;
-        if (secret) body.clientSecret = secret;
-        // La pestaña se abre en el mismo click, antes de esperar al bridge: si se
-        // abriera al volver la respuesta, el navegador la tomaría por un popup no
-        // pedido y la bloquearía.
-        var tab = window.open('', '_blank');
-        busy(event.target, 'Pidiendo…', function () {
-          return api('POST', '/api/calendar/oauth', body);
-        }).then(function (answer) {
-          if (tab) tab.location.href = answer.url;
-          var link = $('calAuthLink');
-          if (link) { link.href = answer.url; link.textContent = answer.url; }
-          if ($('calAuthBox')) $('calAuthBox').hidden = false;
-          toast('Aprobá el permiso en la pestaña de Google', 'ok');
-        }, function (error) {
-          if (tab) tab.close();
-          toast(error.message, 'err');
+    if ($('calCancel')) {
+      $('calCancel').addEventListener('click', function (event) {
+        submit(event.target, '/api/calendar/cancel', {},
+          'Conexión cancelada').then(function (ok) {
+          if (ok) refreshCalendar();
+        });
+      });
+    }
+    if ($('calSelectSave')) {
+      $('calSelectSave').addEventListener('click', function (event) {
+        var select = $('calSelect');
+        if (!select || !select.value) {
+          toast('Elegí un calendario', 'err');
+          return;
+        }
+        var label = select.options[select.selectedIndex].textContent || '';
+        // El sufijo es de la UI, no del nombre real del calendario de Google.
+        label = label.replace(/ \(principal\)$/, '');
+        submit(event.target, '/api/calendar/select',
+          { calendarId: select.value, name: label },
+          'Calendario guardado').then(function (ok) {
+          if (ok) refreshCalendar();
+        });
+      });
+    }
+    if ($('calRefresh')) {
+      $('calRefresh').addEventListener('click', function (event) {
+        submit(event.target, '/api/calendar/refresh', {},
+          'Actualizando el calendario').then(function (ok) {
+          if (ok) refreshCalendar();
         });
       });
     }
@@ -1311,7 +1371,9 @@
       $('calForget').addEventListener('click', function (event) {
         submit(event.target, '/api/calendar/forget', {},
           'Credenciales de Google olvidadas').then(function (ok) {
-          if (ok) refreshCalendar();
+          if (!ok) return;
+          calListed = false;
+          refreshCalendar();
         });
       });
     }

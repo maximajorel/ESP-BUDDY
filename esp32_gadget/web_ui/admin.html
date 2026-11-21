@@ -382,7 +382,7 @@
           <label>Token de administración <span class="tag">vacío = no cambiarlo</span>
             <input id="buddyAskToken" name="askToken" type="password" autocomplete="off" maxlength="64" placeholder="••••••••">
           </label>
-          <p class="hint inline">El panel guarda la URL y los dos tokens; la clave de Hermes no pasa por el equipo. El de administración es el que habilita escribir en el bridge: sin él el panel puede mirar el calendario pero no guardarlo. Ejemplos: <span class="mono">http://192.168.100.64:8787</span> en tu LAN, o <span class="mono">https://bridge.tu-dominio.com</span> con un túnel. Con <span class="mono">https://</span> el equipo valida el certificado solo: no hay que subir nada.</p>
+          <p class="hint inline">El panel guarda la URL y los dos tokens; la clave de Hermes no pasa por el equipo. El de administración es el que habilita escribir en el bridge: sin él el panel no puede pedirle cosas a Sofía ni cambiar el estado del lado del bridge. Ejemplos: <span class="mono">http://192.168.100.64:8787</span> en tu LAN, o <span class="mono">https://bridge.tu-dominio.com</span> con un túnel. Con <span class="mono">https://</span> el equipo valida el certificado solo: no hay que subir nada.</p>
           <div class="actions">
             <button class="btn" type="submit">Guardar</button>
             <button class="btn ghost" id="buddyForget" type="button">Olvidar token</button>
@@ -392,7 +392,7 @@
 
       <section class="card" id="intCalendar">
         <h3>Google Calendar</h3>
-        <p class="hint inline">Cuando se viene un evento, la cara de Sofía pasa a modo alerta y muestra el título. El que habla con Google es el bridge: este equipo le pasa la configuración y después lee el estado.</p>
+        <p class="hint inline">La placa habla con Google por su cuenta: no necesita el bridge. Cuando se viene un evento, los ojos cambian según el recordatorio que tenga <em>ese</em> evento en tu calendario, y la luz se pone violeta.</p>
 
         <div class="sp-state" id="calStateBox"><span class="dot"></span><span id="calState">Consultando…</span></div>
         <p class="hint" id="calStateHint">—</p>
@@ -401,16 +401,18 @@
           <div class="stat"><span class="k">Credenciales</span><span class="v" id="calCreds">—</span></div>
           <div class="stat"><span class="k">Calendario</span><span class="v mono" id="calId">—</span></div>
           <div class="stat"><span class="k">Próximo evento</span><span class="v" id="calNext">—</span></div>
-          <div class="stat"><span class="k">Aviso previo</span><span class="v" id="calLead">—</span></div>
+          <div class="stat"><span class="k">Aviso del evento</span><span class="v" id="calLead">—</span></div>
         </div>
 
-        <h3>Conectar con Google</h3>
+        <h3>Preparar Google (una sola vez)</h3>
         <ol class="steps">
-          <li>Entrá a <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">console.cloud.google.com</a>, habilitá la <strong>Google Calendar API</strong> y creá un ID de cliente OAuth de tipo <em>Aplicación web</em>.</li>
-          <li>En <em>URIs de redireccionamiento autorizados</em> pegá exactamente esta dirección, copiada tal cual y sin barra final: <span class="mono" id="calRedirect">https://buddy.maximajorel.com.ar/calendar/oauth/callback</span></li>
-          <li>Pegá acá el Client ID y el secreto, tocá <strong>Guardar</strong> y después <strong>Conectar Google</strong>. Se pide permiso sólo para leer el calendario.</li>
+          <li>Entrá a <a href="https://console.cloud.google.com/projectcreate" target="_blank" rel="noopener">Google Cloud</a> y creá un proyecto (o usá uno que ya tengas). Es gratis.</li>
+          <li>Abrí <a href="https://console.cloud.google.com/apis/library/calendar-json.googleapis.com" target="_blank" rel="noopener">Google Calendar API</a> y tocá <strong>Habilitar</strong>.</li>
+          <li>En <a href="https://console.cloud.google.com/apis/credentials/consent" target="_blank" rel="noopener">Pantalla de consentimiento OAuth</a> elegí <strong>Externo</strong>, poné un nombre (por ejemplo <em>Sofía</em>) y tu correo. En <strong>Permisos</strong> agregá <span class="mono">https://www.googleapis.com/auth/calendar.readonly</span>. Agregá tu cuenta como <strong>usuario de prueba</strong> y tocá <strong>Publicar app</strong>: si queda en <em>Prueba</em>, Google vence el permiso a los 7 días.</li>
+          <li>En <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Credenciales</a> → <strong>Crear credenciales</strong> → <strong>ID de cliente de OAuth</strong> → tipo de aplicación <strong>TVs and Limited Input devices</strong> (TV y dispositivos de entrada limitada). Copiá el <strong>Client ID</strong> y el <strong>Client secret</strong>.</li>
+          <li>Pegalos acá abajo y tocá <strong>Guardar</strong>. Después <strong>Conectar con Google</strong>, abrí el enlace, escribí el código y aprobá. Volvé a este panel: la lista de calendarios aparece sola.</li>
         </ol>
-        <p class="hint inline">Esa dirección la informa el propio bridge: si el panel muestra otra, usá la que muestra.</p>
+        <p class="hint inline">El equipo no necesita una URL pública ni el bridge. El permiso es de sólo lectura: el equipo no puede crear, editar ni borrar eventos.</p>
 
         <form id="calForm" class="form">
           <label>Client ID <span class="tag">vacío = dejar el que está</span>
@@ -419,39 +421,41 @@
           <label>Client secret <span class="tag">vacío = dejar el que está</span>
             <input id="calClientSecret" type="password" autocomplete="off" maxlength="120" placeholder="••••••••">
           </label>
-          <label>Calendario <span class="tag">primary = el principal de tu cuenta</span>
-            <input id="calCalendarId" autocomplete="off" spellcheck="false" maxlength="48" placeholder="primary">
+          <label>Aviso si el evento no define recordatorio
+            <input id="calFallbackLead" type="number" min="1" max="720" step="1" placeholder="10">
           </label>
-          <label>Avisar cuántos minutos antes
-            <input id="calLeadMin" type="number" min="1" max="720" step="5" placeholder="60">
-          </label>
-          <label>Cuánto sigue visible una vez que empezó
-            <input id="calGraceMin" type="number" min="0" max="120" step="1" placeholder="5">
+          <label>Cuánto sigue la cara una vez que empezó
+            <input id="calGrace" type="number" min="0" max="120" step="1" placeholder="5">
           </label>
           <div class="actions">
             <button class="btn" type="submit">Guardar</button>
-            <button class="btn ghost" id="calOAuthBtn" type="button">Conectar Google</button>
+            <button class="btn ghost" id="calConnect" type="button">Conectar con Google</button>
             <button class="btn ghost" id="calForget" type="button">Olvidar credenciales</button>
           </div>
         </form>
 
         <div class="authbox" id="calAuthBox" hidden>
-          <p class="hint inline">Abrí este enlace y aprobá el permiso. Google vuelve solo al bridge y te muestra "Calendario conectado"; después volvé a este panel.</p>
-          <a class="link mono" id="calAuthLink" href="#" target="_blank" rel="noopener"></a>
+          <p class="hint inline">Abrí <a id="calAuthLink" href="https://www.google.com/device" target="_blank" rel="noopener">google.com/device</a> en cualquier teléfono o computadora y escribí este código:</p>
+          <p class="cal-code" id="calUserCode">—</p>
+          <p class="hint" id="calAuthTimer">—</p>
+          <div class="actions">
+            <button class="btn ghost" id="calCancel" type="button">Cancelar</button>
+          </div>
         </div>
 
-        <details class="fold">
-          <summary>Cargar el refresh token a mano</summary>
-          <p class="hint">Si ya tenés un refresh token, pegalo acá en vez de pasar por el botón. El bridge lo guarda igual y estos campos siguen existiendo como respaldo del botón.</p>
-          <form id="calManualForm" class="form">
-            <label>Refresh token
-              <input id="calRefreshToken" type="password" autocomplete="off" maxlength="200" placeholder="1//0g...">
+        <div id="calPicker" hidden>
+          <h3>¿Qué calendario?</h3>
+          <p class="hint inline">Estos son los calendarios de tu cuenta de Google. Elegí uno y guardá: los eventos de ese calendario son los que mueven la cara.</p>
+          <div class="form">
+            <label>Calendario
+              <select id="calSelect"></select>
             </label>
             <div class="actions">
-              <button class="btn" type="submit">Guardar refresh token</button>
+              <button class="btn" id="calSelectSave" type="button">Guardar calendario</button>
+              <button class="btn ghost" id="calRefresh" type="button">Actualizar ahora</button>
             </div>
-          </form>
-        </details>
+          </div>
+        </div>
       </section>
     </div>
 
@@ -543,10 +547,7 @@
         <p class="hint">Se guarda en el equipo y sobrevive a un reinicio. El enojo y el mareo lo tiñen un momento y después vuelve a tu color; la luz RGB sigue el estado del bridge.</p>
 
         <h3>Calendario</h3>
-        <p class="hint inline">Los eventos vienen de Google Calendar. Se configura en <a href="#integraciones">Integraciones</a>; acá abajo, el atajo al panel del bridge por si querés verlo del lado de allá.</p>
-        <div class="actions">
-          <a class="btn ghost" id="buddyCalendarLink" href="#" target="_blank" rel="noopener">Abrir el panel del bridge</a>
-        </div>
+        <p class="hint inline">Los eventos los baja la placa directo de Google Calendar. Se configuran en <a href="#integraciones">Integraciones → Google Calendar</a>; cuando falta poco para un evento, los ojos cambian solos.</p>
 
         <form id="buddyAskForm" class="form">
           <label>Pedirle algo a Sofía <span class="tag">se ve en la cara</span>
