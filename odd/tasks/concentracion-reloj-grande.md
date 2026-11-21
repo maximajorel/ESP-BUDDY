@@ -88,3 +88,9 @@ L4 — verificación de la etapa:
 - Hardware pendiente: la placa está en COM5 pero el flasheo pide autorización
   explícita (regla de `.agents/skills/esp32-gadget-flash`). Sin flashear, para
   esta etapa.
+
+L5 — corte de la unidad de trabajo: el código, los tests, la web y este
+documento quedaron en `fb642ff` (≈365 líneas propias sin contar
+`web_assets.h`, que es generado). La slice de la rama `feat/concentracion`
+acumula 8 commits desde `origin/main` por las etapas anteriores; esta etapa no
+agrega más que ese commit.
