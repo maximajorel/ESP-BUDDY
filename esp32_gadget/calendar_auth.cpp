@@ -1,0 +1,319 @@
+#include "calendar_auth.h"
+
+#include <ArduinoJson.h>
+#include <string.h>
+
+#include "calendar_forms.h"
+#include "calendar_http.h"
+#include "calendar_store.h"
+
+namespace {
+
+constexpr size_t kFormBytes = 2600;
+constexpr size_t kTokenBodyBytes = 4096;
+constexpr uint32_t kDefaultExpiresInSec = 3600;
+// Refresh a little before the hour is up, so a request never leaves with a token
+// that expires while it is in flight.
+constexpr uint32_t kRefreshMarginMs = 30000;
+
+SemaphoreHandle_t s_lock = nullptr;
+CalendarFlow s_flow;
+char s_deviceCode[CALENDAR_DEVICE_CODE_MAX + 1];
+uint32_t s_lastPollMs = 0;
+char s_access[CALENDAR_TOKEN_MAX + 1];
+uint32_t s_accessExpiresAtMs = 0;
+
+class Guard {
+ public:
+  Guard() {
+    if (s_lock) xSemaphoreTake(s_lock, portMAX_DELAY);
+  }
+  ~Guard() {
+    if (s_lock) xSemaphoreGive(s_lock);
+  }
+  Guard(const Guard &) = delete;
+  Guard &operator=(const Guard &) = delete;
+};
+
+void copyErr(char *err, size_t cap, const char *text) {
+  if (!err || cap == 0) return;
+  snprintf(err, cap, "%s", text ? text : "");
+}
+
+void storeAccess(const char *token, long expiresInSec) {
+  snprintf(s_access, sizeof(s_access), "%s", token ? token : "");
+  s_accessExpiresAtMs = millis() + (uint32_t)expiresInSec * 1000u;
+}
+
+void clearFlow() {
+  memset(&s_flow, 0, sizeof(s_flow));
+  s_deviceCode[0] = '\0';
+  s_lastPollMs = 0;
+}
+
+// Google answers errors as {"error": "...", "error_description": "..."}. The
+// description is a human sentence in English; the panel shows the mapped
+// Spanish sentence instead of leaking Google's wording into the UI.
+void describeGoogleError(JsonDocument &doc, const char *fallback, char *err,
+                         size_t cap) {
+  const char *description = doc["error_description"] | "";
+  copyErr(err, cap, *description ? description : fallback);
+}
+
+}  // namespace
+
+void calendarAuthBegin() {
+  if (!s_lock) s_lock = xSemaphoreCreateMutex();
+  clearFlow();
+  s_access[0] = '\0';
+  s_accessExpiresAtMs = 0;
+}
+
+bool calendarAuthStartFlow(char *err, size_t errCap) {
+  Guard guard;
+  if (err && errCap) err[0] = '\0';
+  clearFlow();
+  if (!calendarStoreConfigured()) {
+    copyErr(err, errCap, "Guarda el Client ID y el secret primero");
+    return false;
+  }
+
+  char form[kFormBytes];
+  if (!calendarDeviceCodeForm(calendarStoreClientId(), form, sizeof(form))) {
+    copyErr(err, errCap, "Las credenciales no entran en el pedido");
+    return false;
+  }
+
+  CalendarHttpResult res;
+  if (!calendarHttpPostForm(CALENDAR_OAUTH_HOST, CALENDAR_DEVICE_CODE_PATH,
+                            String(form), kTokenBodyBytes, &res)) {
+    copyErr(err, errCap, "No pude iniciar la conexion con Google");
+    return false;
+  }
+  if (res.status != 200) {
+    JsonDocument doc;
+    if (deserializeJson(doc, res.body) == DeserializationError::Ok) {
+      describeGoogleError(doc, "Google rechazo el pedido", err, errCap);
+    } else {
+      copyErr(err, errCap, "Google rechazo el pedido");
+    }
+    return false;
+  }
+
+  JsonDocument doc;
+  if (deserializeJson(doc, res.body) != DeserializationError::Ok) {
+    copyErr(err, errCap, "Respuesta de Google ilegible");
+    return false;
+  }
+  const char *deviceCode = doc["device_code"] | "";
+  const char *userCode = doc["user_code"] | "";
+  if (!*deviceCode || !*userCode) {
+    copyErr(err, errCap, "Google no devolvio el codigo de dispositivo");
+    return false;
+  }
+
+  snprintf(s_deviceCode, sizeof(s_deviceCode), "%s", deviceCode);
+  snprintf(s_flow.userCode, sizeof(s_flow.userCode), "%s", userCode);
+  const char *url = doc["verification_url"] | "";
+  snprintf(s_flow.verificationUrl, sizeof(s_flow.verificationUrl), "%s",
+           *url ? url : "https://www.google.com/device");
+  int interval = doc["interval"] | 5;
+  if (interval < 1) interval = 1;
+  if (interval > 60) interval = 60;
+  s_flow.intervalSec = interval;
+  long expiresIn = doc["expires_in"] | 1800;
+  if (expiresIn < 60) expiresIn = 60;
+  if (expiresIn > 3600) expiresIn = 3600;
+  s_flow.expiresAtMs = millis() + (uint32_t)expiresIn * 1000u;
+  s_flow.pending = true;
+  s_lastPollMs = millis();
+  return true;
+}
+
+void calendarAuthCancelFlow() {
+  Guard guard;
+  clearFlow();
+}
+
+bool calendarAuthFlowPending() {
+  Guard guard;
+  return s_flow.pending;
+}
+
+void calendarAuthFlowCopy(CalendarFlow *out) {
+  if (!out) return;
+  Guard guard;
+  *out = s_flow;
+}
+
+bool calendarAuthPollFlow(bool *authorized, char *err, size_t errCap) {
+  if (authorized) *authorized = false;
+  if (err && errCap) err[0] = '\0';
+  Guard guard;
+  if (!s_flow.pending) return false;
+
+  const uint32_t now = millis();
+  if (now >= s_flow.expiresAtMs) {
+    clearFlow();
+    copyErr(err, errCap, "El codigo vencio, pedi uno nuevo");
+    return false;
+  }
+  if (s_lastPollMs && now - s_lastPollMs < (uint32_t)s_flow.intervalSec * 1000u) {
+    return false;
+  }
+  s_lastPollMs = now;
+
+  char form[kFormBytes];
+  if (!calendarTokenFormDevice(calendarStoreClientId(),
+                               calendarStoreClientSecret(), s_deviceCode, form,
+                               sizeof(form))) {
+    clearFlow();
+    copyErr(err, errCap, "Las credenciales no entran en el pedido");
+    return false;
+  }
+
+  CalendarHttpResult res;
+  if (!calendarHttpPostForm(CALENDAR_OAUTH_HOST, CALENDAR_TOKEN_PATH,
+                            String(form), kTokenBodyBytes, &res)) {
+    copyErr(err, errCap, "No pude consultar a Google");
+    return false;
+  }
+
+  JsonDocument doc;
+  const bool parsed =
+      deserializeJson(doc, res.body) == DeserializationError::Ok;
+
+  if (res.status == 200 && parsed) {
+    const char *access = doc["access_token"] | "";
+    const char *refresh = doc["refresh_token"] | "";
+    if (!*access) {
+      clearFlow();
+      copyErr(err, errCap, "Google no devolvio el access token");
+      return false;
+    }
+    if (!*refresh) {
+      // Without it the board would ask for the code again every hour. Better to
+      // stop now, while the owner is still in front of the panel.
+      clearFlow();
+      copyErr(err, errCap, "Google no devolvio el refresh token, proba de nuevo");
+      return false;
+    }
+    if (!calendarStoreSetRefreshToken(refresh)) {
+      clearFlow();
+      copyErr(err, errCap, "El refresh token no se pudo guardar");
+      return false;
+    }
+    long expiresIn = doc["expires_in"] | (long)kDefaultExpiresInSec;
+    if (expiresIn <= 0) expiresIn = kDefaultExpiresInSec;
+    storeAccess(access, expiresIn);
+    clearFlow();
+    if (authorized) *authorized = true;
+    return true;
+  }
+
+  const char *error = parsed ? (doc["error"] | "") : "";
+  if (strcmp(error, "authorization_pending") == 0) {
+    return false;  // the owner has not approved yet; this is not an error
+  }
+  if (strcmp(error, "slow_down") == 0) {
+    s_flow.intervalSec += 5;
+    if (s_flow.intervalSec > 60) s_flow.intervalSec = 60;
+    return false;
+  }
+  if (strcmp(error, "access_denied") == 0) {
+    clearFlow();
+    copyErr(err, errCap, "Cancelaste el permiso en Google");
+    return false;
+  }
+  if (strcmp(error, "expired_token") == 0) {
+    clearFlow();
+    copyErr(err, errCap, "El codigo vencio, pedi uno nuevo");
+    return false;
+  }
+  clearFlow();
+  if (parsed) {
+    describeGoogleError(doc, "Google rechazo la autorizacion", err, errCap);
+  } else {
+    copyErr(err, errCap, "Google rechazo la autorizacion");
+  }
+  return false;
+}
+
+bool calendarAuthEnsureAccessToken(bool force, char *err, size_t errCap) {
+  if (err && errCap) err[0] = '\0';
+  Guard guard;
+  const uint32_t now = millis();
+  if (!force && s_access[0] &&
+      (int32_t)(s_accessExpiresAtMs - kRefreshMarginMs - now) > 0) {
+    return true;
+  }
+  s_access[0] = '\0';
+  if (!calendarStoreAuthorized()) {
+    copyErr(err, errCap, "Falta conectar Google");
+    return false;
+  }
+
+  char form[kFormBytes];
+  if (!calendarTokenFormRefresh(calendarStoreClientId(),
+                                calendarStoreClientSecret(),
+                                calendarStoreRefreshToken(), form,
+                                sizeof(form))) {
+    copyErr(err, errCap, "Las credenciales no entran en el pedido");
+    return false;
+  }
+
+  CalendarHttpResult res;
+  if (!calendarHttpPostForm(CALENDAR_OAUTH_HOST, CALENDAR_TOKEN_PATH,
+                            String(form), kTokenBodyBytes, &res)) {
+    copyErr(err, errCap, "No pude consultar a Google");
+    return false;
+  }
+
+  JsonDocument doc;
+  const bool parsed =
+      deserializeJson(doc, res.body) == DeserializationError::Ok;
+  if (res.status == 200 && parsed) {
+    const char *access = doc["access_token"] | "";
+    if (!*access) {
+      copyErr(err, errCap, "Google no devolvio el access token");
+      return false;
+    }
+    long expiresIn = doc["expires_in"] | (long)kDefaultExpiresInSec;
+    if (expiresIn <= 0) expiresIn = kDefaultExpiresInSec;
+    storeAccess(access, expiresIn);
+    const char *rotated = doc["refresh_token"] | "";
+    if (*rotated) calendarStoreSetRefreshToken(rotated);
+    return true;
+  }
+
+  const char *error = parsed ? (doc["error"] | "") : "";
+  if (strcmp(error, "invalid_grant") == 0) {
+    calendarStoreForgetToken();
+    copyErr(err, errCap, "El permiso vencio o lo revocaste; conecta Google de nuevo");
+    return false;
+  }
+  if (parsed) {
+    describeGoogleError(doc, "Google no renovo el permiso", err, errCap);
+  } else {
+    copyErr(err, errCap, "Google no renovo el permiso");
+  }
+  return false;
+}
+
+const char *calendarAuthAccessToken() {
+  Guard guard;
+  return s_access;
+}
+
+long calendarAuthSecondsLeft() {
+  Guard guard;
+  if (!s_access[0]) return 0;
+  const int32_t delta = (int32_t)(s_accessExpiresAtMs - millis());
+  return delta > 0 ? delta / 1000 : 0;
+}
+
+void calendarAuthResetAccess() {
+  Guard guard;
+  s_access[0] = '\0';
+  s_accessExpiresAtMs = 0;
+}
