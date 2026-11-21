@@ -9,6 +9,11 @@ face now lives only on the board.
 Every value below was read from a source file; the source is named next to each
 group. Nothing here is invented.
 
+Sources: `esp32_gadget/web_ui/styles.css` is the stylesheet the firmware ships
+(`web_assets.h` is packed from `web_ui/`). `_legacy/web_ui/styles.css` is the
+retired single-page copy: it is not a source of truth and nothing here comes
+from it. The glass values come from the firmware headers, named per group.
+
 ## 1. Colour — web panel
 
 Source: `esp32_gadget/web_ui/styles.css`, `:root` (lines 18-51). Reference and
@@ -80,6 +85,33 @@ Dim face (no bridge): `buddyEyeScale(colour, 32)` (`buddy_face.h`).
 | Pose easing | `100 ms` time constant | `buddy_face.h` `BUDDY_EASE_TAU_MS` |
 | Face frame rate | `20 fps` (one state poll per 50 ms tick) | `screen_buddy.cpp` |
 
+### El vidrio mientras hay Concentración
+
+Sources: `esp32_gadget/buddy_focus.h` (all constants), `esp32_gadget/screen_buddy.cpp`
+(`drawFace` in compact mode, `drawFocusBand`).
+
+While a session runs, the timer owns the glass and the face shrinks into the top
+band. Nothing below may overlap; `tools/buddy_focus_test.cpp` pins the
+arithmetic.
+
+| Token | Value | Usage |
+| --- | --- | --- |
+| `BUDDY_FOCUS_EYE_CY` / `_CX` | `34` / `±55` from centre | small eye centres (full-size face: `88` / `±55`) |
+| `BUDDY_FOCUS_EYE_RX` / `_RY` | `22 x 12` | small eye half extents (full-size default `48 x 48`) |
+| `BUDDY_FOCUS_EYE_SLACK_X` / `_Y` | `10` / `4` px | how far gaze, bob or a nod may push a small eye |
+| `BUDDY_FOCUS_BAR_Y` / `_H` / `_W` | `56` / `5` / `200` | slim progress mark between the eyes and the number |
+| `BUDDY_FOCUS_PLATE_Y` | `64` | black plate under the eyes; the number never shares a pixel with the face |
+| `BUDDY_FOCUS_BAND_Y` | `66` | top of the digits |
+| `BUDDY_FOCUS_DIGIT_W` / `_H` | `64 x 100` | one seven-segment digit; 58% of the 172 px height |
+| `BUDDY_FOCUS_DIGIT_THICK` | `10` | segment stroke, same as the clock screen |
+| `BUDDY_FOCUS_COLON_W` / gaps | `18`; `6` digit, `12` colon | four digits plus colon = `310` of `320` px |
+| `BUDDY_FOCUS_DONE_SCALE` | `6` | the achievement word (`LISTO`) in the 5x7 font |
+
+Rules: while the timer is up, the eyes' gaze and bob are clamped, and the ball,
+the bug and the sleeping letters are not drawn — anything that could cover the
+number steps aside. The digits are white on black; unlit segments are not drawn
+(the clock screen's rule), and the progress mark wears the owner's eye colour.
+
 Rule: lids are black bands cut out of the eye plus its glow, and a band must
 always cover the rotated extent plus the glow pad. A tinted sliver outside the
 band is a bug.
@@ -103,6 +135,10 @@ Source: `esp32_gadget/web_ui/styles.css` (`--font`, `.body`, `.display`, `.nav-i
 
 The glass has no proportional text: labels use the built-in 5x7 bitmap font at
 `scale` 1, 2 or 3 (`gfxText`, `font5x7.h`). The face itself never shows text.
+The one exception is the study timer: its number is seven-segment, `64 x 100`
+digits with a `10` px stroke, using the same `gfxSegmentDigit` renderer as the
+clock screen (`screen_clock.cpp`). A countdown never renders in the 5x7 font:
+at that size nobody reads it from across the room.
 
 ## 5. Spacing, radius, elevation — web panel
 
@@ -123,6 +159,10 @@ Source: `esp32_gadget/web_ui/styles.css`.
 
 ## 6. Component rules
 
+Sources: `esp32_gadget/web_ui/styles.css` (`:root` and the component blocks),
+`esp32_gadget/web_ui/index.html` and `admin.html` for the markup each class
+serves.
+
 - Pills (`.pill`, `.live`) are `10px` uppercase weight `700`, radius `1600`,
   `1px` `--ink` border, `--paper` fill, with a bordered dot. `.online`/`.live`
   fill `--mint`, `.offline` fills `--ember`; the dot goes white in both.
@@ -137,6 +177,13 @@ Source: `esp32_gadget/web_ui/styles.css`.
   `2px` offset; `--violet` is the only outline colour.
 - The landing has no face. Its hero is the display wordmark plus three flat SVG
   stickers, and the only continuous motion is the black marquee.
+- The concentration card (`.focus-band` > `.focus-card`, `styles.css:824-853`) is
+  a `--mint` sticker, `--r-lg` radius, `18px` padding, `14px` gap, sitting on a
+  `--sky` band. Inside: `.chips` of durations (active chip `--ink` fill), a
+  `.focus-row` with the number fields (`.focus-field`: `10px` uppercase label,
+  `--r-in` input, `96px` wide) plus the two `.btn`s, and `.focus-now`
+  (`12px` weight `700`) reporting the countdown in `mm:ss`. The page never runs
+  its own clock: it starts a session and reads the device's state back.
 - The face on the glass: eyes only. Solid squircle, owner colour, three glow
   layers, expressions only from lids, gaze, rotation, grow, hot tint, breath and
   blink. No brows, no mouth, no text, no images.

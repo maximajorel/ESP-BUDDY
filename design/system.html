@@ -54,6 +54,27 @@
   .radii div { width: 92px; height: 92px; display: grid; place-items: end center; padding-bottom: 6px; border: var(--line); background: var(--paper); font-family: var(--mono); font-size: 10px; }
   .focus-demo:focus-visible, .focus-demo { outline: 2px solid var(--violet); outline-offset: 2px; }
   .note { margin: 8px 0 0; max-width: 80ch; font-size: 12px; }
+
+  /* Concentration card — copied from styles.css:824-853, not re-authored. */
+  .focus-band { padding: 20px 16px; background: var(--sky); border: var(--line); border-radius: var(--r-card); }
+  .focus-card { display: grid; gap: 14px; padding: 18px; border: var(--line); border-radius: var(--r-lg); background: var(--mint); }
+  .focus-lead { margin: 0; max-width: 34ch; font-size: 13px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; }
+  .chip { padding: 5px 10px; border: var(--line); border-radius: var(--r-pill); background: var(--paper); color: var(--ink); font-size: 10px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; font-family: inherit; cursor: pointer; }
+  .chip[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+  .focus-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .focus-field { display: grid; gap: 4px; font-size: 10px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; }
+  .focus-field input { width: 96px; }
+  .focus-now { margin: 0; font-size: 12px; font-weight: 700; }
+
+  /* Glass concentration frame: the real geometry, 1:1 so the maths is visible. */
+  .glass { position: relative; width: 320px; height: 172px; background: var(--ink); border: var(--line); border-radius: 10px; overflow: hidden; }
+  .glass .eye { position: absolute; top: 22px; width: 44px; height: 24px; border: 3px solid #003951; border-radius: 9px; background: #00b4ff; }
+  .glass .bar { position: absolute; left: 60px; top: 56px; width: 200px; height: 5px; border: 1px solid #00b4ff; }
+  .glass .bar i { display: block; width: 72px; height: 3px; background: #00b4ff; }
+  .glass .digits { position: absolute; left: 5px; top: 66px; width: 310px; height: 100px; display: flex; align-items: center; justify-content: space-between; color: var(--paper); font-family: var(--mono); font-size: 74px; font-weight: 700; }
+  .glass .digits b { display: block; width: 64px; height: 100px; line-height: 100px; text-align: center; }
+  .glass .digits span { display: block; width: 18px; height: 100px; line-height: 100px; text-align: center; }
 </style>
 </head>
 <body>
@@ -123,6 +144,45 @@
   <div class="inputs"><input placeholder="Campo de texto"></div>
 </div>
 
+<h2>Concentración: la tarjeta de la landing</h2>
+<div class="focus-band" style="max-width:520px">
+  <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:12px">
+    <h3 style="margin:0;font-size:24px;font-weight:900;letter-spacing:-0.03em">Concentración</h3>
+    <span class="label">En curso</span>
+  </div>
+  <div class="focus-card">
+    <p class="focus-lead">Sofía estudia con vos: el tiempo queda grande en su pantalla, debajo de los ojos.</p>
+    <div class="chips" role="group" aria-label="Duración">
+      <button class="chip" type="button" aria-pressed="false">15 min</button>
+      <button class="chip" type="button" aria-pressed="true">25 min</button>
+      <button class="chip" type="button" aria-pressed="false">45 min</button>
+      <button class="chip" type="button" aria-pressed="false">60 min</button>
+    </div>
+    <div class="focus-row">
+      <label class="focus-field" for="sysFocusMin">Minutos<input id="sysFocusMin" type="number" value="25" min="0" max="99"></label>
+      <label class="focus-field" for="sysFocusSec">Segundos<input id="sysFocusSec" type="number" value="0" min="0" max="59"></label>
+      <button class="btn" type="button">Arrancar</button>
+      <button class="btn ghost" type="button">Cancelar</button>
+    </div>
+    <p class="focus-now">Sofía está concentrada: quedan 24:38 en su pantalla.</p>
+  </div>
+</div>
+<p class="note">Sticker <code>mint</code> con radio <code>r-lg</code> sobre banda <code>sky</code>, padding 18 y gap 14. La página arranca la sesión y lee el estado del equipo: nunca corre su propio reloj.</p>
+
+<h2>Vidrio del equipo · con Concentración</h2>
+<div class="row">
+  <div class="glass">
+    <i class="eye" style="left:83px"></i>
+    <i class="eye" style="left:193px"></i>
+    <span class="bar"><i></i></span>
+    <div class="digits"><b>2</b><b>5</b><span>:</span><b>0</b><b>0</b></div>
+  </div>
+  <div style="max-width:420px">
+    <p class="note" style="margin-top:0">Geometría real de <code>buddy_focus.h</code>: ojos chicos en <code>y 22–46</code> (cy 34, mitad de tamaño), barra de progreso en <code>y 56–61</code> de <code>200 x 5</code>, placa negra desde <code>y 64</code> y cuatro dígitos de <code>64 x 100</code> en <code>y 66–166</code>. El número ocupa el 58% del alto.</p>
+    <p class="note">Dígitos siete-segmentos blancos con trazo de <code>10</code> px, el mismo renderer del reloj. Segmentos apagados en negro. La barra lleva el color de los ojos del dueño.</p>
+  </div>
+</div>
+
 <h2>Admin: una tira de pestañas</h2>
 <div class="tabs" role="tablist" aria-label="Ejemplo de pestañas">
   <span class="tab on" role="tab" aria-selected="true">Aplicaciones</span>
@@ -137,10 +197,10 @@
 </div>
 <p class="note">Roving tabindex, flechas ←/→, Home/End, y el hash es la sección activa: <code>/admin#spotify</code> sigue entrando a Música.</p>
 
-<h2>Vidrio del equipo (sin cambios)</h2>
+<h2>Vidrio del equipo · el resto de las pantallas</h2>
 <div class="card" style="width:340px;background:#000;color:#fff;border-color:#000">
   <b class="card-t" style="color:#fff">320 × 172</b>
-  <p class="note" style="color:#c9c9c9">Fondo negro, ojos <code style="color:#00b4ff">#00b4ff</code>, brillo en tres capas y <code style="color:#ff3c1e">#ff3c1e</code> para el calor. El rediseño es solo de la web.</p>
+  <p class="note" style="color:#8a8a8a">Fondo negro, ojos <code style="color:#00b4ff">#00b4ff</code>, brillo en tres capas y <code style="color:#ff3c1e">#ff3c1e</code> para el calor. El rediseño es solo de la web.</p>
 </div>
 </body>
 </html>
