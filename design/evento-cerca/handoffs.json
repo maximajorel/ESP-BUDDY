@@ -3,13 +3,13 @@
   "chosen": "01-mitad-limpia.html",
   "handoffs": {
     "01-mitad-limpia.html": {
-      "status": "in_progress",
+      "status": "implemented",
       "queued": false,
       "sentAt": "2026-11-21T20:49:20.430Z",
       "startedAt": "2026-11-21T20:54:24.211Z",
-      "implementedAt": null,
+      "implementedAt": "2026-11-21T20:59:24.568Z",
       "feature": "odd/tasks/calendario-local.md",
-      "note": "Implementando la pantalla partida en screen_buddy: ojos 24–30 px a la izquierda, ficha tipográfica a la derecha, descarte por toque y cierre por fin de ventana."
+      "note": "Implementada en el firmware y verificada en la placa: split x=160, ojos vivos 24–30 px, ficha tipográfica, descarte por un toque con startEpoch y rearme con otro evento; cierre automático al pasar start+grace. 35 pruebas de host y flash verificado."
     }
   }
 }
