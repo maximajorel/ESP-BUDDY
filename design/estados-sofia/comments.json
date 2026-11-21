@@ -11,6 +11,17 @@
       "status": "resolved",
       "sentAt": "2026-11-21T00:27:13.081Z",
       "resolvedAt": "2026-11-21T00:27:44.569Z"
+    },
+    {
+      "id": "6cmb0s1q",
+      "file": "01-idle-compania.html",
+      "selector": "#strip > figure:nth-of-type(6) > canvas",
+      "excerpt": "",
+      "comment": "Ahi quedaron despegados los ojos? Horizontalmente puede ser? quedo raro jajajaaj",
+      "createdAt": "2026-11-21T00:28:21.529Z",
+      "status": "resolved",
+      "sentAt": "2026-11-21T00:28:21.566Z",
+      "resolvedAt": "2026-11-21T00:28:33.388Z"
     }
   ]
 }
