@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "comments": [
+    {
+      "id": "ec7tredk",
+      "file": "01-idle-compania.html",
+      "selector": "#strip > figure:nth-of-type(6) > canvas",
+      "excerpt": "",
+      "comment": "Te hago un comentario sobre el reloj, mejor laburemos sobre esto, el numero tiene que estar en negrita y mas grande, los ojos mas chico y con espacio. De hecho los ojos tal vez solo tenga que ocupar tres digitos de ancho, centrado me explico?",
+      "createdAt": "2026-11-21T00:27:13.038Z",
+      "status": "resolved",
+      "sentAt": "2026-11-21T00:27:13.081Z",
+      "resolvedAt": "2026-11-21T00:27:44.569Z"
+    }
+  ]
+}

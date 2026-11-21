@@ -111,6 +111,7 @@
         <li><b>Estiramiento</b> (3.4–6.2 s): los ojos suben 8 px y el párpado baja a 0.38 durante 1.2 s. Es el gesto de alguien que estaba quieto y se acomoda, no un bostezo.</li>
         <li><b>Busca al dueño</b> (6.2–9.0 s): mirada 16 px a la izquierda y 5 arriba, con el ojo un 4% más abierto y el párpado en 0.08. Dura 1.1 s: es un vistazo, no una llamada.</li>
         <li><b>Con reloj</b>: si hay Concentración, cuando al bloque le quedan 5 minutos la mirada baja al número 220 ms y vuelve; a falta de 1 minuto, doble parpadeo y el vistazo al dueño. Nunca cambia de tamaño los ojos: el reloj manda.</li>
+        <li><b>Proporción nueva</b> (la del frame 6): el número crece y engorda — la propuesta es 68×104 con trazo 13, en negrita — y los ojos bajan a 32×24, centrados y separados 128 px, de modo que la pareja ocupa el ancho de <b>tres dígitos</b> (192 px) y el número manda. Con el número más grande, los ojos no compiten: quedan chicos arriba y con aire alrededor.</li>
       </ul>
     </div>
     <div class="card">
@@ -141,7 +142,7 @@
   "use strict";
   var EYE = "#00b4ff", HOT = "#ff3c1e", GOLD = "#ffd700", MINT = "#55db9c";
   var NUM = ["gx", "gy", "rx", "ry", "lid", "lidL", "lidR", "bottom", "rot", "hot", "energy"];
-  var DEF = { gx: 0, gy: 0, rx: 48, ry: 48, lid: 0, lidL: 0, lidR: 0, bottom: 0, rot: 0, hot: 0, energy: 1, small: false, digits: null, hud: null };
+  var DEF = { gx: 0, gy: 0, rx: 48, ry: 48, lid: 0, lidL: 0, lidR: 0, bottom: 0, rot: 0, hot: 0, energy: 1, small: false, digits: null, hud: null, eox: 55, dsize: 74 };
   var DUR = 12000;
 
   function P(o) { return Object.assign({}, DEF, o); }
@@ -228,7 +229,8 @@
     ctx.fillRect(0, 0, W, H);
     var cy = p.small ? 34 : 88;
     var col = mix(EYE, p.hot);
-    var xs = [105, 215];
+    var eox = p.eox || 55;
+    var xs = [160 - eox, 160 + eox];
     for (var i = 0; i < 2; i++) {
       var x = xs[i] + p.gx, y = cy + p.gy;
       var pads = [[10, 0.10], [7, 0.16], [4, 0.22]];
@@ -261,11 +263,18 @@
       ctx.restore();
     }
     if (p.digits) {
-      ctx.fillStyle = "#fff";
-      ctx.font = "700 74px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+      // Bolder and bigger than the shipped number: the stroke behind the fill is
+      // how this artboard says "trazo grueso" without a seven-segment renderer.
+      var ds = p.dsize || 74;
+      ctx.font = "700 " + ds + "px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(p.digits, 160, 116);
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = Math.max(2, ds * 0.07);
+      ctx.lineJoin = "round";
+      ctx.strokeText(p.digits, 160, 172 - ds * 0.42);
+      ctx.fillStyle = "#fff";
+      ctx.fillText(p.digits, 160, 172 - ds * 0.42);
     }
     if (p.hud) drawHud(ctx, p.hud);
   }
@@ -361,9 +370,9 @@
     fig.tabIndex = 0;
     var c = document.createElement("canvas");
     c.width = 320; c.height = 172;
-    draw(c.getContext("2d"), P({ small: true, digits: "04:12", gy: 2, lid: 0.06 }), 1, 320, 172);
+    draw(c.getContext("2d"), P({ small: true, digits: "04:12", gy: 2, lid: 0.06, rx: 16, ry: 12, eox: 80, dsize: 96 }), 1, 320, 172);
     var cap = document.createElement("figcaption");
-    cap.innerHTML = "<b>con reloj</b><br>queda poco: mira el número";
+    cap.innerHTML = "<b>con reloj</b><br>ojos 32×24 a 128 px · número 96 px";
     fig.appendChild(c);
     fig.appendChild(cap);
     strip.appendChild(fig);
