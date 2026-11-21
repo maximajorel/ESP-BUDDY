@@ -46,6 +46,7 @@ COMPANION_SOURCES = {
 # by a script that runs the real generator. Names here show up in --filter too.
 PYTHON_CHECKS = {
     "admin_seed_test": TOOLS / "admin_seed_test.py",
+    "calendar_acceptance_test": TOOLS / "calendar_acceptance_test.py",
 }
 
 # Tests that include ArduinoJson headers.

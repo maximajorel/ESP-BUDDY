@@ -246,3 +246,14 @@ L7 — seguros contra el incidente y verificador de aceptación (21-nov):
 - `calendarStatusInfo` deja de arrastrar el último error cuando no hay
   credenciales: después de olvidar, el panel no muestra un fallo de una
   configuración que ya no existe.
+
+L8 — el verificador de aceptación también se verifica (21-nov):
+
+- `tools/calendar_acceptance_test.py` fija el criterio de `check_status` sin red:
+  ventana consistente, reacción que no coincide (dentro y fuera), evento en
+  curso, bordes ambiguos por el minuto truncado, bytes basura, `userCode` sin
+  flujo pendiente, calendario sin elegir, fase desconocida, intensidad fuera de
+  rango y `ongoing` con tiempo al inicio positivo.
+- Registrado en `PYTHON_CHECKS` de `tools/run_tests.py`: la suite pasa a **35**.
+- La placa sigue sin configurar porque el dueño todavía no reconectó; el
+  verificador devuelve `NO CONFIGURADO` con salida 2, que es lo correcto.
