@@ -536,7 +536,94 @@ La carátula se decodifica en el equipo, así que además de *Adafruit NeoPixel*
 arduino-cli lib install JPEGDEC
 ```
 
-## 11. Consola serie (referencia rápida)
+## 11. Conectar Google Calendar (opcional)
+
+La pantalla **Sofía** reacciona cuando se viene un evento del calendario: los ojos
+se abren y miran el reloj cada vez más seguido, el título aparece arriba y la luz
+se pone violeta. **El equipo habla con Google por su cuenta**: no necesita el
+bridge, ni una URL pública, ni que dejes una computadora prendida.
+
+El aviso previo es el **recordatorio que tiene ese evento** en tu calendario. Si
+el evento usa los recordatorios por defecto del calendario, se usan esos; si no
+tiene ninguno, no mueve la cara (el panel tiene un aviso de respaldo para los
+eventos que sí usan los del calendario pero el calendario no declara ninguno).
+
+### 11.1 Preparar Google Cloud (una sola vez)
+
+Todo se hace con tu cuenta de Google y es gratis.
+
+1. Entrá a [console.cloud.google.com/projectcreate](https://console.cloud.google.com/projectcreate)
+   y creá un proyecto. El nombre da igual (por ejemplo `sofia-calendar`).
+2. Abrí [Google Calendar API](https://console.cloud.google.com/apis/library/calendar-json.googleapis.com)
+   y tocá **Habilitar**.
+3. Entrá a [Pantalla de consentimiento OAuth](https://console.cloud.google.com/apis/credentials/consent):
+   - Tipo de usuario: **Externo** → **Crear**.
+   - Nombre de la app: `Sofía` (o lo que quieras), correo de asistencia y de
+     contacto: el tuyo.
+   - En **Permisos** agregá `https://www.googleapis.com/auth/calendar.readonly`.
+   - En **Usuarios de prueba** agregá tu propia cuenta de Google.
+   - Al final, tocá **Publicar app**. Si queda en *Prueba*, Google vence el
+     permiso a los 7 días y vas a tener que reconectar. Publicada no vence, aunque
+     la app no esté verificada: para uso personal alcanza con aceptar el aviso.
+4. Entrá a [Credenciales](https://console.cloud.google.com/apis/credentials) →
+   **Crear credenciales** → **ID de cliente de OAuth**.
+   - Tipo de aplicación: **TVs and Limited Input devices** (TV y dispositivos de
+     entrada limitada). Es el único tipo que permite el flujo por código que usa
+     este firmware.
+   - Copiá el **Client ID** y el **Client secret**.
+
+> No uses el tipo *Aplicación web* ni *Aplicación de escritorio*: piden una URL de
+> redirección que la placa no tiene. El tipo se elige al crear el cliente y no se
+> puede cambiar después.
+
+### 11.2 Conectar desde el panel
+
+1. En el panel, **Integraciones → Google Calendar**, pegá el **Client ID** y el
+   **Client secret** y tocá **Guardar**.
+2. Tocá **Conectar con Google**. El panel muestra un **código** (por ejemplo
+   `ABCD-EFGH`) y el enlace [google.com/device](https://www.google.com/device).
+3. Abrí ese enlace en el teléfono o la computadora, iniciá sesión con la misma
+   cuenta de Google del paso 11.1, escribí el código y tocá **Permitir**.
+4. Volvé al panel. En unos segundos la tarjeta cambia a **Conectado** y aparece
+   **¿Qué calendario?** con todos los calendarios de tu cuenta.
+5. Elegí el calendario (el principal está primero) y tocá **Guardar calendario**.
+
+Listo. El equipo consulta Google cada 15 minutos y guarda el permiso; no hay que
+volver a autorizar salvo que lo revoques o que la app quede en *Prueba*.
+
+### 11.3 Cómo se mueve la cara
+
+| Lo que pasa | Lo que se ve |
+|---|---|
+| Falta el aviso (más tiempo que el recordatorio) | cara normal |
+| Empieza la ventana del recordatorio | mira al rincón del reloj, ojos algo más abiertos |
+| Queda poco | los ojos se abren más y la cara se inclina hacia el reloj |
+| Últimos minutos | ojos bien abiertos y un temblor mínimo |
+| El evento empezó | ojos grandes, doble parpadeo y el título arriba, durante la **gracia** configurada (5 min por defecto) |
+
+La luz trasera se pone violeta mientras dura la reacción. Un estado de Hermes que
+pide atención (`PENSANDO`, `TRABAJANDO`, `ESPERANDO`, `ERROR`) no se pisa: cuando
+Sofía está haciendo algo, la cara es suya. Un recordatorio de más de 24 horas se
+toma como 24 horas, para que la cara no quede alerta durante días.
+
+### 11.4 Si algo no anda
+
+| Lo que dice el panel | Qué significa |
+|---|---|
+| **Falta configurar** | No hay Client ID o secret guardados. Paso 11.2. |
+| **Falta conectar Google** | Están las credenciales pero falta aprobar el permiso. Tocá **Conectar con Google**. |
+| **Esperando que apruebes en Google** | El código está vigente; abrí el enlace y escribilo. Vence a los 30 minutos. |
+| `invalid_client` | El Client ID y el secret no son del mismo cliente, o el cliente es de otro proyecto. Copialos de nuevo. |
+| `access_denied` | Rechazaste el permiso en Google. Tocá **Conectar con Google** otra vez. |
+| `invalid_grant` / "El permiso venció" | Lo revocaste, cambiaste la contraseña de Google o la app estaba en *Prueba* y pasaron 7 días. Reconectá. |
+| `Google devolvio 403` | La **Google Calendar API** no está habilitada en ese proyecto. Paso 11.1.2. |
+| **Sin hora sincronizada** | El equipo no llegó a internet o a NTP. Revisá la tarjeta **Red**: la ventana de la reacción es aritmética sobre la hora real. |
+| No aparece ningún calendario | Tocá **Actualizar ahora**; si sigue vacío, revisá que el permiso incluya `calendar.readonly`. |
+
+El comando `calendar` de la consola serie muestra el mismo estado, el próximo
+evento y la reacción actual; `calendar refresh` fuerza una consulta.
+
+## 12. Consola serie (referencia rápida)
 
 El firmware trae una consola pensada para verificar el equipo sin depender del
 panel web. Abrí el monitor serie a **115200** baudios y escribí `help`.
@@ -582,7 +669,7 @@ panel web. Abrí el monitor serie a **115200** baudios y escribí `help`.
 | `spotify forget [all]` | Borra el permiso (o también el Client ID con `all`). |
 | `reboot` | Reinicia. |
 
-## 12. Problemas comunes
+## 13. Problemas comunes
 
 **El monitor serie no muestra nada.**
 `USB CDC On Boot` tiene que estar en **Enabled**. Además, el firmware descarta las
@@ -677,7 +764,7 @@ Faltó volver a correr `tools\pack_web.py` antes de compilar (ver paso 4).
 
 ---
 
-## 13. Volver al firmware original
+## 14. Volver al firmware original
 
 El equipo no se puede "brickear": el bootloader de ROM y el botón BOOT siempre
 permiten volver a flashear. Para dejar la placa como vino, descargá el firmware de

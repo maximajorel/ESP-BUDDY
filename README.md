@@ -13,6 +13,9 @@ servido por el propio equipo.
 
 Pantallas: **Reloj**, **Tragamonedas**, **Meteoritos**, **Red**, **Música**
 (Spotify), **Sofía** (buddy companion) y **Config** (brillo, rotación y bloqueo).
+La cara de Sofía también reacciona a **Google Calendar** por su cuenta: el equipo
+guarda las credenciales, elige el calendario desde el panel y se mueve según el
+recordatorio del próximo evento, sin depender del bridge.
 Un toque corto interactúa con la pantalla actual; mantener un segundo abre el
 menú de pantallas, cuyo orden y nombres se editan desde el panel web.
 

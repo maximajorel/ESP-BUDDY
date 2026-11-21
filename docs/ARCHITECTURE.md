@@ -29,6 +29,7 @@ esp32_gadget.ino        boot, botón, loop
 ├── net.*               WiFi AP+STA, NTP, API HTTP y panel web
 │   └── net_ap_policy.h cuándo emite el AP (puro, test en host)
 ├── spotify_*.*         OAuth PKCE, consulta, parser y carátula
+├── calendar_*.*        Google Calendar: device flow, consulta, parser y reacción
 ├── buddy_http.*        transporte del bridge: HTTP en la LAN, HTTPS validado
 ├── rotation.*          política de rotación aplicada al panel
 ├── imu.*, rgb.*        sensores y LED
@@ -43,8 +44,9 @@ De arriba hacia abajo, nunca al revés:
    `game_difficulty.h`, `game_hits.h`, `config_value.h`, `screen_name.h`,
    `screen_order.h`, `steer_solve.h`, `tap_window.h`, `text_fold.cpp`,
    `buddy_face.h`, `buddy_anim.h`, `buddy_imu.h`, `buddy_url.h`, `buddy_link.h`,
-   `admin_auth.*`, `ui_color.h` y los `spotify_parse/pkce`. Son la parte que se
-   puede probar en la compu.
+   `admin_auth.*`, `ui_color.h`, `calendar_time.h`, `calendar_plan.h`,
+   `calendar_forms.h`, `calendar_parse.*` y los `spotify_parse/pkce`. Son la
+   parte que se puede probar en la compu.
 2. **Estado** — `settings.*` es el único dueño de NVS.
 3. **Servicios** — `net.*`, `spotify*.*`, `imu.*`, `rgb.*`, `rotation.*`.
 4. **Presentación** — `gfx.*`, `display.*`, `screens.*`, `screen_*`, `console.*`.
@@ -94,7 +96,11 @@ Las credenciales se guardan como sal + SHA-256 iterado, calculado por
 | `net.*` | Red, servidor HTTP y handlers de la API; aplica la sesión a cada request | Formatear texto de pantalla |
 | `rotation.*` | Aplicar modo/bloqueo y compensar ejes | Decidir gestos de pantalla |
 | `rgb.*` | Color, intensidad, efectos y dormir/prender del LED | Decidir qué color mostrar |
-| `buddy_led.*` | La luz trasera como semáforo de Sofía mientras su bridge esté configurado | Dibujar en el panel |
+| `buddy_led.*` | La luz trasera como semáforo de Sofía mientras su bridge esté configurado, o del calendario cuando no hay bridge | Dibujar en el panel |
+| `calendar.*` | Estado del calendario, tarea de consulta y la reacción que lee la cara | Hablar HTTP directo (eso es `calendar_http`) ni formatear el panel |
+| `calendar_auth.*` | Device flow de Google y token de acceso en RAM | Tocar NVS (eso es `calendar_store`) |
+| `calendar_http.*` | Transporte HTTPS propio del calendario, con su cliente TLS y su mutex | Conocer eventos ni credenciales |
+| `calendar_store.*` | Credenciales y preferencias del calendario en su propio namespace | Validar reglas de la cara |
 | `gfx.*` / `display.*` | Primitivas de dibujo y envío al panel | Conocer pantallas |
 
 ### Quién manda en el LED trasero
@@ -129,6 +135,19 @@ límite del backend; esta tabla es la referencia para no inventar una nueva:
 | `stLat`..`stValid` | Calibración de ejes del juego | `settings.cpp` |
 | `bdUrl` / `bdTok` | Bridge de Sofía: `http://ip:puerto` en la LAN o `https://host` público | `settings.cpp` |
 | `client_id` / `refresh` | Credenciales de Spotify | `spotify_store.cpp` |
+| `cid` / `csec` / `rt` | Client ID, secret y refresh token de Google Calendar | `calendar_store.cpp` |
+| `sel` / `selName` | Calendario elegido y su nombre para el panel | `calendar_store.cpp` |
+| `fbLead` / `grace` | Aviso de respaldo y gracia de la reacción | `calendar_store.cpp` |
+
+### El calendario y la cara
+
+Google Calendar no pasa por el bridge: `calendar.*` tiene su tarea, su cliente
+TLS y su mutex, y guarda las credenciales en NVS. La cara no espera a la red:
+`buddyGetView()` aplica la reacción calculada por `calendar_plan.h` sobre el
+snapshot del bridge, y sólo cuando el estado no pide atención (`thinking`, `tool`,
+`waiting`, `error`). Así el HUD, el LED, el panel y `/api/status` leen la misma
+respuesta. Leer o escribir el calendario pide sesión aunque sea un `GET`: los
+títulos de los eventos son privados.
 
 Regla: un valor nuevo va a su propia clave cuando el blob `cfg` ya está en uso,
 porque el blob se migra por tamaño y agregarle campos obliga a versionarlo. Un

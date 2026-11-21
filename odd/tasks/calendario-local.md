@@ -71,18 +71,18 @@ Google) vive en `.h`/`.cpp` sin `Arduino.h` y se fija en
 
 | Task | Specs | Ruta | Commit |
 | --- | --- | --- | --- |
-| T1: documento y trackeo de la etapa | — | inline | — |
-| T2: modelo y lógica pura con pruebas (RFC 3339, parseo, recordatorio, ventana, fases) | S6, S8 | inline | — |
-| T3: credenciales en NVS con validación y claves propias | S1, S2 | inline | — |
-| T4: transporte HTTPS propio y device flow con refresco de token | S3, S8 | inline | — |
-| T5: tarea de consulta, snapshot y comando de consola | S1, S4 | inline | — |
-| T6: reacción de la cara (`BUDDY_UPCOMING`) y luz violeta | S6, S7 | inline | — |
-| T7: endpoints del panel y protección de sesión | S2, S7 | inline | — |
-| T8: tarjeta del panel con conectar, selector de calendario e instrucciones | S2, S3, S4, S5 | inline | — |
-| T9: `INSTALL.md`, `README.md` y `ARCHITECTURE.md` | S5 | inline | — |
-| T10: sacar el proxy de calendario del bridge | S1 | inline | — |
-| T11: pruebas de host, compilación del firmware y panel empaquetado | S8 | inline | — |
-| T12: verificación en la placa | S6 | hardware | — |
+| T1: documento y trackeo de la etapa | — | inline | `1004573` |
+| T2: modelo y lógica pura con pruebas (RFC 3339, parseo, recordatorio, ventana, fases) | S6, S8 | inline | `1004573` |
+| T3: credenciales en NVS con validación y claves propias | S1, S2 | inline | `5109fce` |
+| T4: transporte HTTPS propio y device flow con refresco de token | S3, S8 | inline | `5109fce` |
+| T5: tarea de consulta, snapshot y comando de consola | S1, S4 | inline | `50ffb51` |
+| T6: reacción de la cara (`BUDDY_UPCOMING`) y luz violeta | S6, S7 | inline | `50ffb51` |
+| T7: endpoints del panel y protección de sesión | S2, S7 | inline | `50ffb51` |
+| T8: tarjeta del panel con conectar, selector de calendario e instrucciones | S2, S3, S4, S5 | inline | `e01d201` |
+| T9: `INSTALL.md`, `README.md` y `ARCHITECTURE.md` | S5 | inline | docs |
+| T10: sacar el proxy de calendario del bridge | S1 | inline | `50ffb51` |
+| T11: pruebas de host, compilación del firmware y panel empaquetado | S8 | inline | `50ffb51`, `e01d201` |
+| T12: verificación en la placa | S6 | hardware | pendiente de autorización |
 
 ## Log
 
@@ -106,3 +106,47 @@ L2 — estado inicial verificado (21-nov): `buddy_calendar.{h,cpp}` sólo proxea
 existe en el enum y en el wire pero `buddyPose()` no tiene su `case` (cae en la
 cara de idle) y `drawHud()` no dibuja el evento. La rama base `feat/concentracion`
 tiene 33 pruebas de host en verde.
+
+L3 — implementación (21-nov), con las pruebas y la compilación como evidencia:
+
+- **Puro y probado en host**: `calendar_model.h`, `calendar_time.h`,
+  `calendar_plan.h`, `calendar_forms.h`, `calendar_parse.*` y
+  `tools/calendar_core_test.cpp` (79 chequeos: RFC 3339 con offset, fecha local
+  de todo el día, recordatorio del evento vs. default del calendario vs. sin
+  recordatorio, tope de 24 h, elección del evento, fases e intensidad, formas
+  OAuth y query de eventos). `python3 tools/run_tests.py` → **34 passed**.
+- **Credenciales y red**: `calendar_store.*` (namespace `calendar`, claves
+  `cid`/`csec`/`rt`/`sel`/`selName`/`fbLead`/`grace`), `calendar_http.*` (cliente
+  TLS propio, mutex propio, cuerpo limitado) y `calendar_auth.*` (device flow,
+  refresco, errores en frases para el panel; el access token vive en RAM).
+- **Servicio**: `calendar.*` tiene su tarea (12 KB, core 1), consulta la lista y
+  el próximo día de eventos cada 15 min (cada 2 min hasta el primer éxito), y
+  publica un snapshot bajo mutex. `calendarReactionNow()` no toca la red.
+- **Cara**: `buddyGetView()` aplica la reacción local sobre el snapshot (estado
+  `UPCOMING`, etiqueta con el título, fase `EVENT` y violeta) sólo si el bridge
+  no está en `thinking`/`tool`/`waiting`/`error`; `buddyUpcomingPose()` escala
+  con el tiempo y `drawUpcomingTitle()` escribe el título arriba. `buddy_led`
+  late violeta aunque no haya bridge. Pruebas nuevas en `buddy_anim_test`.
+- **Panel**: tarjeta nueva con los pasos de Google Cloud (API, consentimiento
+  publicado, cliente *TVs and Limited Input devices*), formulario de credenciales
+  (vacío = no tocar), código grande del device flow con enlace y cuenta
+  regresiva, selector `<select>` con los calendarios reales y botones de
+  actualizar/olvidar. `GET /api/calendar*` ahora pide sesión.
+- **Rutas**: `/api/calendar` (estado + reacción), `/api/calendar/calendars`,
+  `/api/calendar/config`, `/api/calendar/connect`, `/api/calendar/cancel`,
+  `/api/calendar/select`, `/api/calendar/refresh`, `/api/calendar/forget`.
+  `buddy_calendar.*` (proxy al bridge) se eliminó.
+- **Consola**: `calendar` y `calendar refresh`.
+- **Compilación**: `arduino-cli` con el FQBN de `INSTALL.md` §3 → **OK**,
+  1 554 278 B de flash (49%) y 70 468 B de RAM (21%), 257 212 B libres.
+- **Panel ejercitado contra `tools/mock_gadget_api.py`** por HTTP: sin sesión
+  `GET /api/calendar` → 401; login → `unconfigured`; configurar → `needs_auth`;
+  conectar → `auth_pending` con `ABCD-EFGH`; aprobación simulada → `ready` con 3
+  calendarios; elegir Trabajo → `selectedName=Trabajo`, `reaction.phase=early`;
+  olvidar → `unconfigured`. Los IDs que usa `app.js` existen todos en
+  `admin.html` y `node --check` pasa. El navegador headless del MCP no arrancó
+  esta sesión (timeout del protocolo): no hay captura visual.
+- **Pendiente honesto**: verificación en la placa (T12) y la conexión real con
+  la cuenta de Google del dueño. Ambas necesitan autorización/flash explícita.
+- Nota: el hook de commit cuenta líneas desde `origin/main` en una rama
+  encadenada y reporta ~22k; las rebanadas reales son 1 061 / 705 / 1 006 / docs.
