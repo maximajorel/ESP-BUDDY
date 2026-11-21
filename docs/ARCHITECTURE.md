@@ -47,6 +47,13 @@ De arriba hacia abajo, nunca al revés:
    `admin_auth.*`, `ui_color.h`, `calendar_time.h`, `calendar_plan.h`,
    `calendar_forms.h`, `calendar_parse.*` y los `spotify_parse/pkce`. Son la
    parte que se puede probar en la compu.
+
+   También viven acá las **utilidades que no son de nadie en particular**:
+   `sha256.*` y `url_codec.*`. No son de Spotify ni de Google: las usa más de un
+   módulo, así que tienen su propio archivo puro y su propia prueba. Una utilidad
+   que aparece dentro de un módulo de feature obliga a los demás a incluir ese
+   módulo para algo que no tiene nada que ver, y así fue como las credenciales
+   del panel terminaron dependiendo de Spotify para poder hashear.
 2. **Estado** — `settings.*` es el único dueño de NVS.
 3. **Servicios** — `net.*`, `spotify*.*`, `imu.*`, `rgb.*`, `rotation.*`.
 4. **Presentación** — `gfx.*`, `display.*`, `screens.*`, `screen_*`, `console.*`.
@@ -102,6 +109,8 @@ Las credenciales se guardan como sal + SHA-256 iterado, calculado por
 | `calendar_http.*` | Transporte HTTPS propio del calendario, con su cliente TLS y su mutex | Conocer eventos ni credenciales |
 | `calendar_store.*` | Credenciales y preferencias del calendario en su propio namespace | Validar reglas de la cara |
 | `gfx.*` / `display.*` | Primitivas de dibujo y envío al panel | Conocer pantallas |
+| `sha256.*` | El digest FIPS 180-4 que piden PKCE y la contraseña del panel | Saber quién lo llama ni para qué |
+| `url_codec.*` | Percent-encoding RFC 3986 para query y cuerpo de formulario | Construir un pedido HTTP ni conocer un host |
 
 ### Quién manda en el LED trasero
 
@@ -167,8 +176,11 @@ valor que otro módulo escribe no se duplica en `Settings`.
   JSON, nunca solo un string.
 - **Sin números mágicos repetidos.** Un umbral o color que aparece dos veces en
   el mismo archivo se nombra en el `.h` del módulo.
-- **Los límites se validan en un solo lugar.** El rango de brillo vive en
-  `settings.*`; la pantalla y la API lo consumen, no lo reimplementan.
+- **Los límites se validan en un solo lugar.** El rango de brillo de la pantalla
+  vive en `config_value.h` (`CFG_LCD_MIN/MAX` y `cfgClampLcd`); `settings.*` y la
+  API lo consumen, no lo reimplementan. Un segundo rango escrito a mano en el
+  transporte hacía que un pedido de 200% se aceptara y terminara en 100% sin que
+  nadie se enterara.
 - **El stack se pide donde se gasta.** `build_opt.h` sube el stack del lazo a
   16 KB porque el panel corre ahí y un pedido a Sofía por HTTPS hace el handshake
   TLS en esa tarea: con los 8 KB que da el core por defecto el desborde cae en el
@@ -214,16 +226,21 @@ valor que otro módulo escribe no se duplica en `Settings`.
 2. Escribí `tools/<regla>_test.cpp` primero y mirá el rojo.
 3. Si necesita fuentes acompañantes, agregala a `COMPANION_SOURCES` en
    `tools/run_tests.py`.
+4. Si la regla la necesitan dos módulos distintos, no la dejes adentro de uno de
+   ellos: va a su propio archivo puro con su propia prueba. `sha256.*` y
+   `url_codec.*` existen justamente porque la segunda feature que los necesitó
+   iba a terminar incluyendo el módulo de la primera.
 
 ## Verificación
 
 | Nivel | Qué corre | Comando |
 | --- | --- | --- |
-| Host | Lógica pura y panel empaquetado | `python tools/run_tests.py` |
-| Compilación | Firmware completo con el FQBN real | ver INSTALL.md §3 |
-| Consola | Comandos, `dump`, `api` en proceso | `python tools/gadget_probe.py` |
-| Navegador | Panel sin placa | `python tools/mock_gadget_api.py` |
-| Hardware | Gesto físico, pantalla, LED | manual |
+| Host | Lógica pura y panel empaquetado | `make test` (o `python3 tools/run_tests.py`) |
+| Host (CI) | Lo mismo, en cada push y cada PR | `.github/workflows/tests.yml` |
+| Compilación | Firmware completo con el FQBN real | `make build` |
+| Consola | Comandos, `dump`, `api` en proceso | `python3 tools/gadget_probe.py` |
+| Navegador | Panel sin placa | `python3 tools/mock_gadget_api.py` |
+| Hardware | Gesto físico, pantalla, LED | `make flash PORT=COM5` y verificar a mano |
 
 El panel no tiene MISO, así que no se puede leer la pantalla por software: la
 verificación honesta es `dump`, que escribe el framebuffer en ASCII.

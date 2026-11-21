@@ -13,7 +13,8 @@
 #              BUILD_DIR='C:/Users/me/workspace/esp32/.build-make'
 #
 # The targets that only need Python or g++ (test, pack, verify-assets, seed)
-# take plain relative paths and work anywhere.
+# take plain relative paths and work anywhere. On a native Windows shell the
+# interpreter is usually `python`, not `python3`: pass PYTHON=python.
 
 PYTHON ?= python3
 ARDUINO_CLI ?= arduino-cli

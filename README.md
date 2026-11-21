@@ -39,8 +39,9 @@ está en INSTALL.md §3. Si te equivocás con la PSRAM, el equipo no arranca.
 ## Pruebas
 
 ```bash
-python tools/run_tests.py            # todas las pruebas de host + el panel empaquetado
-python tools/run_tests.py --verbose
+make test                            # host suite + web asset round trip
+make test PYTHON=python             # en Windows nativo
+python3 tools/run_tests.py --verbose # equivalente, con la salida de cada test
 ```
 
 El firmware tiene lógica pura a propósito (políticas, parsers, geometría) para
@@ -48,6 +49,21 @@ poder probarla en la compu sin la placa. La suite compila cada
 `tools/*_test.cpp` con g++ y verifica que `web_assets.h` coincida con
 `web_ui/`. Requiere un compilador C++17; el test de Spotify además necesita
 ArduinoJson (el runner lo busca solo y lo informa como *skipped* si falta).
+
+La corre el CI en cada push y cada PR (`.github/workflows/tests.yml`), así que
+no depende de que alguien se acuerde.
+
+## Compilar y flashear
+
+```bash
+make build                 # verifica los assets y compila el firmware
+make flash PORT=COM5       # compila y sube a la placa
+make pack                  # reempaqueta el panel si tocaste web_ui/
+```
+
+El FQBN de INSTALL.md §3 y el resto de las opciones de placa ya están en el
+`Makefile`. En WSL, si el único `arduino-cli` es el de Windows, mirá el
+encabezado del `Makefile`: se le pasan rutas de Windows por parámetro.
 
 La compilación del firmware completo se hace con `arduino-cli` y el FQBN de
 INSTALL.md §3. El nivel de verificación de hardware es manual: el panel no tiene
@@ -62,6 +78,8 @@ MISO, así que la única forma honesta de ver la pantalla sin cámara es el coma
 ├── docs/               arquitectura y convenciones
 ├── odd/tasks/          especificación y bitácora de cada funcionalidad
 ├── .agents/skills/     skill de este proyecto: compilar, flashear y verificar
+├── .github/workflows/  CI: la suite de host en cada push y cada PR
+├── Makefile            test, build, flash, pack
 └── _legacy/            prototipos viejos y demos (solo referencia)
 ```
 

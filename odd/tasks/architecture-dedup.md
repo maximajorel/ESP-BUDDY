@@ -31,14 +31,20 @@ god, mock compartido) queda para una feature posterior.
 | T2 | S1, S5 | inline | `refactor(crypto): ...` | Extraer `sha256.{h,cpp}`; `admin_auth` deja de depender de `spotify_pkce` |
 | T3 | S1, S4, S5 | inline | `refactor(codec): ...` | Extraer `url_codec.{h,cpp}`; borrar `spotifyUrlEncode` y `calendarUrlEncode` |
 | T4 | S1, S4, S5 | inline | `refactor(settings): ...` | `cfgClampLcd` en `config_value.h` como único dueño del rango; sacar el 0..255 de `net.cpp` |
-| T5 | S1 | inline | `refactor(net): ...` | Helper `apiBody` para el boilerplate de parseo de los handlers |
+| T5 | — | — | — | **descartada**, ver L5 |
 | T6 | S2 | inline | `docs: ...` | Actualizar `ARCHITECTURE.md` (módulos nuevos, regla de límites, verificación) y `README.md` |
 
 ## Evidencia
 
 - Línea base de host: `python3 tools/run_tests.py` → **35 passed**.
-- Línea base de firmware: `arduino-cli compile` con el FQBN de INSTALL.md §3
-  (arduino-cli 1.6.0, core esp32 3.3.12) → ver tarea T1.
+- Host después de T1..T4: **37 passed** (dos pruebas nuevas: `sha256_test` y
+  `url_codec_test`).
+- Prueba diferencial de `urlEncode` contra las dos implementaciones viejas:
+  idéntico en cada byte 1..255 (capacidades 1..5) y en catorce cadenas
+  representativas para toda capacidad entre 1 y 3n+2.
+- Firmware: `arduino-cli 1.6.0` + core `esp32:esp32 3.3.12` con el FQBN de
+  INSTALL.md §3. Línea base antes de tocar código: exit 0, 49% flash, 22% RAM.
+- `verify_assets.py`: 0 problemas.
 
 ## Log
 
@@ -52,3 +58,17 @@ god, mock compartido) queda para una feature posterior.
   (`/mnt/c/Program Files/Arduino CLI/arduino-cli.exe`, 1.6.0) con el core
   `esp32:esp32 3.3.12` instalado, así que la compilación del firmware es
   verificable en esta máquina.
+- **L4** Corte de slice en 486 líneas (T1+T2) sobre `refactor/architecture-dedup`.
+  La entrega es la rama con commits por unidad; el PR y su tamaño quedan a
+  decisión del dueño.
+- **L5** T5 (`apiBody` para los 26 pares de parseo de `net.cpp`) se descarta. El
+  par son dos líneas; colapsarlo a una no arregla el problema real —26 handlers de
+  cinco dominios en el mismo archivo— y mete 26 ediciones sin prueba posible en un
+  archivo de 1696 líneas que no se compila en el host. Ese código se reescribe
+  cuando `net.cpp` se parta por dominio (P4 del informe), donde el helper sale
+  gratis y sobre una estructura ya sana. Reversible: si el dueño lo quiere ahora,
+  se hace.
+- **L6** Corte de slice en 767 líneas (T3).
+- **L7** Verificación de T2/T3/T4: una sola compilación limpia del firmware con el
+  FQBN real después de las tres unidades, más la suite de host y la prueba
+  diferencial del códec.
