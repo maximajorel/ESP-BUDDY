@@ -1,0 +1,28 @@
+# Calendario: la pantalla partida del evento y el gesto de descarte.
+#
+# `calendar fake` inyecta un evento sintético (no persiste) para probar el vidrio
+# sin cuenta de Google. Lo que se verifica:
+#   1. la reacción activa publica `state:"upcoming"` y `phase:"event"`,
+#   2. la mitad izquierda conserva los ojos y la derecha muestra la ficha,
+#   3. un toque corto descarta la pantalla y el estado vuelve a `idle`,
+#   4. un evento con otro `startEpoch` vuelve a armar la pantalla,
+#   5. `fake off` devuelve la cara al bridge.
+# La espera de 6 s es obligatoria: un toque durante el despertar de arranque lo
+# salta en vez de descartar el evento (screensShortPress lo consume primero).
+boot 4
+sleep 6000
+screen 5
+sleep 500
+calendar fake 20 30
+sleep 800
+api GET /api/status
+press
+sleep 900
+api GET /api/status
+calendar fake 2 30
+sleep 800
+api GET /api/status
+dump 4
+calendar fake off
+sleep 500
+api GET /api/status

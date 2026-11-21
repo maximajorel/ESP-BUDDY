@@ -11,6 +11,52 @@
 
 #include "calendar_model.h"
 
+// Splits a (already ASCII-folded) summary into at most two lines of `maxChars`.
+// Words are kept whole when they fit; a word longer than the line is cut. Used
+// by the split frame's title, where two lines at scale 2 is all the room there
+// is. Returns the number of lines written (0, 1 or 2).
+static inline int calendarWrapTwoLines(const char *text, int maxChars,
+                                       char *line1, size_t cap1, char *line2,
+                                       size_t cap2) {
+  if (!line1 || cap1 == 0 || maxChars <= 0) return 0;
+  line1[0] = '\0';
+  if (line2 && cap2) line2[0] = '\0';
+  if (!text) return 0;
+  const char *p = text;
+  while (*p == ' ') p++;
+  if (!*p) return 0;
+
+  size_t n = 0;
+  while (*p) {
+    const char *word = p;
+    while (*p && *p != ' ') p++;
+    size_t len = (size_t)(p - word);
+    size_t need = (n ? 1u : 0u) + len;
+    if (n + need > (size_t)maxChars) {
+      if (n == 0) {
+        // A single word wider than the line: hard cut, the rest goes to line 2.
+        size_t take = len < (size_t)maxChars ? len : (size_t)maxChars;
+        for (size_t i = 0; i < take && n + 1 < cap1; i++) line1[n++] = word[i];
+        p = word + take;
+      } else {
+        // Put the word back: it belongs to the second line.
+        p = word;
+      }
+      break;
+    }
+    if (n) line1[n++] = ' ';
+    for (size_t i = 0; i < len && n + 1 < cap1; i++) line1[n++] = word[i];
+    while (*p == ' ') p++;
+  }
+  line1[n] = '\0';
+
+  size_t m = 0;
+  while (*p == ' ') p++;
+  while (*p && m + 1 < cap2 && m < (size_t)maxChars) line2[m++] = *p++;
+  if (line2 && cap2) line2[m] = '\0';
+  return (line2 && line2[0]) ? 2 : (n ? 1 : 0);
+}
+
 static inline const char *calendarPhaseName(CalendarPhase phase) {
   switch (phase) {
     case CALENDAR_PHASE_EARLY: return "early";
@@ -102,5 +148,7 @@ static inline void calendarPickReaction(const CalendarEvent *events, size_t coun
   out->intensity = intensity;
   out->msToStart = msToStart;
   out->leadMin = best->leadMin;
+  out->startEpoch = best->startEpoch;
   snprintf(out->summary, sizeof(out->summary), "%s", best->summary);
+  snprintf(out->location, sizeof(out->location), "%s", best->location);
 }

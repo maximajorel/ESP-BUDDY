@@ -156,3 +156,22 @@ static inline bool calendarRfc3339FromEpoch(int64_t epoch, char *out,
   snprintf(out, cap, "%04d-%02u-%02uT%02d:%02d:%02dZ", y, m, d, h, mi, s);
   return true;
 }
+
+// Local wall-clock `HH:MM` for an event start, using the owner's fixed offset.
+// The split frame shows the time the event says in the calendar, not a
+// countdown: that is what the panel and the phone show too.
+static inline bool calendarFormatClock(int64_t epoch, int tzOffsetHours,
+                                       char *out, size_t cap) {
+  if (!out || cap < 6) return false;
+  int64_t local = epoch + (int64_t)tzOffsetHours * 3600;
+  int64_t days = local / 86400;
+  int64_t rest = local % 86400;
+  if (rest < 0) {
+    rest += 86400;
+    days -= 1;
+  }
+  const int h = (int)(rest / 3600);
+  const int mi = (int)((rest % 3600) / 60);
+  snprintf(out, cap, "%02d:%02d", h, mi);
+  return true;
+}

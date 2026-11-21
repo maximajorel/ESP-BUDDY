@@ -117,7 +117,7 @@ static inline bool calendarEventsPath(const char *calendarId,
       out, cap,
       "/calendar/v3/calendars/%s/events?timeMin=%s&timeMax=%s"
       "&singleEvents=true&orderBy=startTime&maxResults=%d"
-      "&fields=items(id,status,summary,start,end,reminders)",
+      "&fields=items(id,status,summary,location,start,end,reminders)",
       id, from, to, CALENDAR_MAX_EVENTS);
   return n > 0 && (size_t)n < cap;
 }

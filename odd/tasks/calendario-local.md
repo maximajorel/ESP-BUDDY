@@ -83,6 +83,7 @@ Google) vive en `.h`/`.cpp` sin `Arduino.h` y se fija en
 | T10: sacar el proxy de calendario del bridge | S1 | inline | `50ffb51` |
 | T11: pruebas de host, compilación del firmware y panel empaquetado | S8 | inline | `50ffb51`, `e01d201` |
 | T12: verificación en la placa | S6 | hardware | `803586c`, `3a7b968` |
+| T13: pantalla partida del evento (handoff de `design/evento-cerca/01-mitad-limpia.html`) | S6 | inline | en curso |
 
 ## Log
 
@@ -257,3 +258,38 @@ L8 — el verificador de aceptación también se verifica (21-nov):
 - Registrado en `PYTHON_CHECKS` de `tools/run_tests.py`: la suite pasa a **35**.
 - La placa sigue sin configurar porque el dueño todavía no reconectó; el
   verificador devuelve `NO CONFIGURADO` con salida 2, que es lo correcto.
+
+L9 — diseño de la pantalla de evento (21-nov): `design/evento-cerca/` con tres
+direcciones de la partición pedida (ojos a la izquierda, detalles a la derecha) y
+el gesto de descarte:
+
+- `01-mitad-limpia.html` (tipográfica: hora escala 3, título escala 2, línea
+  violeta de ventana al pie).
+- `02-bloque-hora.html` (reloj: hora en siete segmentos, tarjeta con borde y
+  botón LISTO, barra de ventana en el corte).
+- `03-ticket-y-ventana.html` (progreso: franja superior de 3 px, cinco ticks bajo
+  los ojos y ticket de 1 px).
+
+Contrato de interacción para implementar: un toque corto mientras esta vista es
+dueña del vidrio la descarta en el acto (no espera la ventana del doble toque) y
+se recuerda por `startEpoch` para que la misma instancia no vuelva a abrirse; un
+evento distinto rearma; al pasar `start + grace` se cierra sola y no hace falta
+tocar nada. Ninguna dirección está implementada todavía.
+
+L10 — handoff del artboard `design/evento-cerca/01-mitad-limpia.html` ("Mitad
+limpia · tipográfica") al firmware. La dirección elegida por el dueño:
+
+- Vidrio partido en `x=160`: ojos vivos a la izquierda (mismos ojos, mismo color,
+  la fase los abre de 24×24 a 30×34) y ficha a la derecha.
+- Ficha: `PROXIMAMENTE` (5×7 escala 1, violeta), hora del evento desde
+  `startEpoch` + zona horaria (escala 3), `EN N MIN`/`AHORA` (oro), regla de 1 px,
+  título en dos líneas de 10 caracteres (escala 2), ubicación del evento,
+  `AVISO N MIN`, nombre del calendario elegido y la línea de ventana consumida.
+- Sin aviso de toque, por pedido del dueño en el comentario `w3lohnsj`.
+- Gesto: un toque corto descarta la pantalla en el acto (antes de la ventana del
+  doble toque) recordando el `startEpoch`; un evento distinto rearma; al cerrar
+  `start + grace` la cara vuelve sola. Fuera de esta pantalla el botón no cambia.
+- Datos nuevos: `CalendarEvent.location`, `CalendarReaction.startEpoch` y
+  `.location`, `BuddyView.calendarStartEpoch/calendarLeadMin/calendarLocation`,
+  `calendarSelectedName()`, `calendarFormatClock()` y `calendarWrapTwoLines()`
+  (estos dos últimos puros y con pruebas).

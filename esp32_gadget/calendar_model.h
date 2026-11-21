@@ -17,6 +17,7 @@
 #define CALENDAR_VERIFY_URL_MAX 96
 #define CALENDAR_NAME_MAX 64
 #define CALENDAR_SUMMARY_MAX 96
+#define CALENDAR_LOCATION_MAX 96
 
 // One page of Google's list is plenty for a personal account, and a fixed array
 // keeps the selector out of the heap.
@@ -38,6 +39,7 @@ struct CalendarInfo {
 
 struct CalendarEvent {
   char summary[CALENDAR_SUMMARY_MAX];
+  char location[CALENDAR_LOCATION_MAX];
   int64_t startEpoch;  // UTC seconds
   int64_t endEpoch;    // UTC seconds; for an all-day event, the next midnight
   // The reminder that opens the window, already resolved. -1 means this event
@@ -61,5 +63,7 @@ struct CalendarReaction {
   int32_t msToStart;  // negative once the event started
   int leadMin;
   int graceMin;
+  int64_t startEpoch;  // for the clock in the split frame
   char summary[CALENDAR_SUMMARY_MAX];
+  char location[CALENDAR_LOCATION_MAX];
 };

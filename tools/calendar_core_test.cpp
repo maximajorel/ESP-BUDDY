@@ -113,6 +113,7 @@ static void testCalendarList() {
 static const char *kEvents = R"({
   "items": [
     {"summary": "Dentista", "status": "confirmed",
+     "location": "Av. Belgrano 245",
      "start": {"dateTime": "2026-11-21T15:00:00-03:00"},
      "end": {"dateTime": "2026-11-21T16:00:00-03:00"},
      "reminders": {"useDefault": false,
@@ -140,6 +141,8 @@ static void testEvents() {
   checkInt("first start", events[0].startEpoch, kDentistStart);
   checkInt("first end", events[0].endEpoch, kDentistEnd);
   checkInt("the nearest override wins", events[0].leadMin, 30);
+  checkText("the location travels with the event", events[0].location,
+            "Av. Belgrano 245");
   checkInt("it is not all day", events[0].allDay, false);
   checkText("all-day summary", events[1].summary, "Cumple de Ana");
   checkInt("all-day start is local midnight", events[1].startEpoch, kHolidayStart);
@@ -184,6 +187,7 @@ static void testReaction() {
   CalendarEvent events[3];
   events[0] = makeEvent("Sin aviso", kDentistStart + 600, kDentistStart + 1200, -1);
   events[1] = makeEvent("Dentista", kDentistStart, kDentistEnd, 30);
+  snprintf(events[1].location, sizeof(events[1].location), "Av. Belgrano 245");
   events[2] = makeEvent("Otro", kDentistStart + 7200, kDentistStart + 10800, 60);
 
   CalendarReaction r;
@@ -196,6 +200,8 @@ static void testReaction() {
   calendarPickReaction(events, 3, kDentistStart - 20 * 60, 5, &r);
   checkInt("inside the lead window", r.active, true);
   checkText("the dentist wins", r.summary, "Dentista");
+  checkInt("  the start epoch comes along", r.startEpoch, kDentistStart);
+  checkText("  and the location", r.location, "Av. Belgrano 245");
   checkInt("  ms to start", r.msToStart, 20 * 60 * 1000);
   checkInt("  intensity is a third", r.intensity, 33);
   checkText("  early phase", calendarPhaseName(r.phase), "early");
@@ -306,7 +312,7 @@ static void testForms() {
   }
   const char *wanted[] = {"singleEvents=true", "orderBy=startTime",
                           "maxResults=12",
-                          "fields=items(id,status,summary,start,end,reminders)",
+                          "fields=items(id,status,summary,location,start,end,reminders)",
                           "timeMin=", "timeMax="};
   for (size_t i = 0; i < sizeof(wanted) / sizeof(wanted[0]); i++) {
     if (!strstr(path, wanted[i])) {
@@ -316,6 +322,30 @@ static void testForms() {
       printf("ok   events path contains %s\n", wanted[i]);
     }
   }
+
+  printf("-- the event's own clock, in the owner's offset\n");
+  checkInt("15:00 at -03", calendarFormatClock(kDentistStart, -3, buf, sizeof(buf)),
+           true);
+  checkText("  the value", buf, "15:00");
+  calendarFormatClock(kDentistStart, 0, buf, sizeof(buf));
+  checkText("the same instant in UTC", buf, "18:00");
+
+  printf("-- the title wraps to two lines\n");
+  char l1[32], l2[32];
+  checkInt("one line", calendarWrapTwoLines("Dentista", 10, l1, sizeof(l1), l2,
+                                            sizeof(l2)), 1);
+  checkText("  the line", l1, "Dentista");
+  checkText("  no second line", l2, "");
+  checkInt("two lines", calendarWrapTwoLines("Turno con la Dra. Paz", 10, l1,
+                                             sizeof(l1), l2, sizeof(l2)), 2);
+  checkText("  the first", l1, "Turno con");
+  checkText("  the second", l2, "la Dra. Pa");
+  checkInt("a word wider than the line is cut", calendarWrapTwoLines(
+               "Supercalifragilistico", 10, l1, sizeof(l1), l2, sizeof(l2)), 2);
+  checkText("  the cut", l1, "Supercalif");
+  checkText("  the rest on the second line", l2, "ragilistic");
+  checkInt("empty text", calendarWrapTwoLines("", 10, l1, sizeof(l1), l2,
+                                              sizeof(l2)), 0);
 
   printf("-- an RFC 3339 builder for the query window\n");
   checkInt("the dentist's instant",

@@ -11,6 +11,8 @@
 #include "buddy_face.h"
 #include "buddy_focus_state.h"
 #include "calendar.h"
+#include "calendar_plan.h"
+#include "calendar_time.h"
 #include "text_fold.h"
 #include "buddy_http.h"
 #include "buddy_imu.h"
@@ -145,6 +147,9 @@ static bool s_ballPrimed = false;
 #define BUDDY_TAP_DOUBLE_MS 600
 
 static TapWindow s_tap = {false, 0};
+// The event instance the owner already read, by start epoch. 32 bits covers any
+// epoch the board will see and is atomic on the ESP32; 0 means nothing read.
+static volatile uint32_t s_calendarDismissedStart = 0;
 
 static void publish(BuddyState state, const char *label, int active,
                     bool online, bool configured, uint32_t stateAgeMs = 0,
@@ -579,6 +584,17 @@ void buddyPinFace(BuddyState state, uint32_t ageMs, uint32_t holdMs) {
 }
 
 void buddyShortPress() {
+  // While the calendar frame owns the glass, the press means "read". It is
+  // consumed here, before the double-tap window, so the screen goes away in the
+  // same frame; the start epoch keeps the same event from reopening.
+  const CalendarReaction cal = calendarReactionNow();
+  if (cal.active && buddyStateYieldsToCalendar(snapshotState()) &&
+      (uint32_t)cal.startEpoch != s_calendarDismissedStart) {
+    s_calendarDismissedStart = (uint32_t)cal.startEpoch;
+    tapWindowReset(s_tap);
+    s_dirty = true;
+    return;
+  }
   // The first tap boops at once (waiting out the window made the face feel
   // dead), and a second tap inside the window turns the first into the toggle.
   // The boop already played, which is fine: she is happy you are playing. The
@@ -656,10 +672,16 @@ void buddyGetView(BuddyView *out) {
   // the HUD, the bead and the panel agree. It never overrides a state that is
   // asking for attention.
   const CalendarReaction cal = calendarReactionNow();
-  if (cal.active && buddyStateYieldsToCalendar(out->state)) {
+  const bool calRead =
+      cal.active && (uint32_t)cal.startEpoch == s_calendarDismissedStart;
+  if (cal.active && !calRead && buddyStateYieldsToCalendar(out->state)) {
     out->calendarActive = true;
     out->calendarMsToStart = cal.msToStart;
     out->calendarIntensity = cal.intensity;
+    out->calendarStartEpoch = cal.startEpoch;
+    out->calendarLeadMin = cal.leadMin;
+    snprintf(out->calendarLocation, sizeof(out->calendarLocation), "%s",
+             cal.location);
     out->state = BUDDY_UPCOMING;
     const size_t labelLen = strnlen(cal.summary, sizeof(out->label) - 1);
     memcpy(out->label, cal.summary, labelLen);
@@ -962,19 +984,6 @@ static void hudEvent(uint32_t nowMs) {
   gfxCircle(HUD_CX, HUD_CY, 8, gfxColor(70, 40, 110));
 }
 
-// The event's title, small and at the top edge: the face has no mouth and the
-// corner belongs to the HUD, so the name travels in the one free line. Folded to
-// the panel's ASCII font and cut by measured width, never by guessing.
-static void drawUpcomingTitle(const char *text) {
-  if (!text || !*text) return;
-  char folded[CALENDAR_SUMMARY_MAX * 2];
-  textFoldAscii(text, folded, sizeof(folded));
-  size_t n = strlen(folded);
-  while (n > 0 && gfxTextWidth(1, folded) > 285) folded[--n] = '\0';
-  if (n == 0) return;
-  gfxText(8, 2, 1, folded, gfxColor(200, 160, 255));
-}
-
 // Concentración, drawn on the band under the eyes. Kept out of the pose on
 // purpose: the number is the clock, not an expression, so no mood the bridge or
 // the web can push may change it, and a phase change cannot blank it.
@@ -1235,6 +1244,95 @@ static void drawFace(BuddyState state, const BuddyPose &pose, uint32_t nowMs,
   if (ballVisible && !timerUp) drawBall(s_ball);
   // Last, so the bug, the ball and the sleeping letters cannot cover the number.
   drawFocusBand(nowMs, eyeRgb);
+}
+
+// The calendar's frame: the glass split at x=160. The face keeps the left half
+// alive (same eyes, same colour, the phase opens them) and the right half is the
+// practical detail the owner needs once: when, what, how much warning, and how
+// much of the window is gone. No press hint: the gesture is documented, not a
+// label competing with the event.
+static void drawCalendarFrame(const BuddyView &view, const BuddyPose &pose,
+                              uint32_t nowMs) {
+  gfxClear(GFX_BLACK);
+  const uint16_t violet = gfxColor(0xAA, 0x50, 0xFF);
+  const uint16_t gold = gfxColor(0xFF, 0xD7, 0x00);
+  const uint16_t grey = gfxColor(0x8A, 0x8A, 0x8A);
+  const uint16_t bluegrey = gfxColor(0x7A, 0x8C, 0xA0);
+  const uint16_t rule = gfxColor(0x33, 0x33, 0x33);
+
+  const int level = view.calendarIntensity > 100 ? 100 : view.calendarIntensity;
+  const bool started = view.calendarMsToStart <= 0;
+  const int rx = started ? 30 : 24 + level * 4 / 100;  // 24..28
+  const int ry = started ? 34 : 24 + level * 8 / 100;  // 24..32
+  int gx = 3 + level / 30;
+  int gy = 1 - level / 40;
+  if (pose.tremble > 0.01f) gx += (int)buddyTremble(nowMs, s_seed, 11u, 1.2f);
+  const bool blink = pose.blink || buddyBlinkAt(nowMs, s_seed);
+  const int bob = (int)pose.bob;
+  const int cx[2] = {42, 118};
+
+  const uint32_t owner = settingsGetBuddyEyeColor();
+  uint32_t eyeRgb = pose.dim ? buddyEyeDim(owner) : buddyEyeHot(owner, pose.hot);
+  const int energy = buddyGlowPercent(pose.glow);
+  if (energy < 100) eyeRgb = buddyEyeScale(eyeRgb, energy);
+  const uint16_t color = gfxHex(eyeRgb);
+  const uint16_t inner = gfxHex(buddyEyeScale(eyeRgb, BUDDY_GLOW_SHADE_INNER));
+
+  for (int i = 0; i < 2; i++) {
+    const int x = cx[i] + gx;
+    const int y = 88 + bob + gy;
+    drawEyeGlow(x, y, rx, ry, 0, eyeRgb);
+    if (blink) {
+      gfxFillSquircleRotAA(x, y, rx, 4, 0, color, inner);
+    } else {
+      gfxFillSquircleRotAA(x, y, rx, ry, 0, color, inner);
+    }
+  }
+
+  gfxFillRect(159, 10, 1, 152, rule);
+
+  char clock[8];
+  calendarFormatClock(view.calendarStartEpoch, settingsGet().tzOffsetHours, clock,
+                      sizeof(clock));
+  gfxText(176, 12, 1, "PROXIMAMENTE", violet);
+  gfxText(176, 26, 3, clock, GFX_WHITE);
+
+  char when[24];
+  if (started) {
+    snprintf(when, sizeof(when), "AHORA");
+  } else {
+    snprintf(when, sizeof(when), "EN %ld MIN",
+             (long)((view.calendarMsToStart + 59999L) / 60000L));
+  }
+  gfxText(176, 52, 1, when, gold);
+  gfxFillRect(176, 66, 128, 1, rule);
+
+  char folded[CALENDAR_SUMMARY_MAX * 2];
+  char line1[32];
+  char line2[32];
+  textFoldAscii(view.label, folded, sizeof(folded));
+  calendarWrapTwoLines(folded, 10, line1, sizeof(line1), line2, sizeof(line2));
+  gfxText(176, 76, 2, line1, GFX_WHITE);
+  if (line2[0]) gfxText(176, 92, 2, line2, GFX_WHITE);
+
+  if (view.calendarLocation[0]) {
+    textFoldAscii(view.calendarLocation, folded, sizeof(folded));
+    folded[20] = '\0';
+    gfxText(176, 112, 1, folded, grey);
+  }
+
+  char aviso[24];
+  snprintf(aviso, sizeof(aviso), "AVISO %d MIN", view.calendarLeadMin);
+  gfxText(176, 126, 1, aviso, bluegrey);
+
+  char name[64];
+  calendarSelectedName(name, sizeof(name));
+  textFoldAscii(name, folded, sizeof(folded));
+  folded[20] = '\0';
+  gfxText(176, 140, 1, folded, rule);
+
+  gfxFillRect(176, 169, 128, 2, rule);
+  gfxFillRect(176, 169, 128 * level / 100, 2, violet);
 }
 
 // One sensor sample into the reaction machine. The live path and the debug pin
@@ -1586,12 +1684,17 @@ bool buddyTick(uint32_t nowMs) {
     eased.rot += buddyTremble(nowMs, s_seed, 37u, 2.2f);
   }
 
-  drawFace(shown, eased, nowMs, poke, ballVisible);
-  if (!linkDown) hudTrack(view.phase, nowMs);
-  drawHud(view.phase,
-          view.ledValid ? view.led : buddyPhaseDefaultLed(view.phase), linkDown,
-          nowMs);
-  if (view.calendarActive) drawUpcomingTitle(view.label);
+  if (view.calendarActive && shown == BUDDY_UPCOMING) {
+    // The event owns the glass: no HUD, no timer band, no idle toys. The eyes
+    // and the event details are the whole screen, as the chosen direction asks.
+    drawCalendarFrame(view, eased, nowMs);
+  } else {
+    drawFace(shown, eased, nowMs, poke, ballVisible);
+    if (!linkDown) hudTrack(view.phase, nowMs);
+    drawHud(view.phase,
+            view.ledValid ? view.led : buddyPhaseDefaultLed(view.phase),
+            linkDown, nowMs);
+  }
   s_drawnRevision = view.revision;
   s_lastDraw = nowMs;
   s_dirty = false;

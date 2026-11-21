@@ -287,6 +287,14 @@ bool calendarCalendarAt(size_t index, CalendarInfo *out) {
   return ok;
 }
 
+void calendarSelectedName(char *out, size_t cap) {
+  if (!out || cap == 0) return;
+  lock();
+  snprintf(out, cap, "%s", calendarStoreSelectedName());
+  unlock();
+  if (!out[0]) snprintf(out, cap, "PRINCIPAL");
+}
+
 CalendarReaction calendarReactionNow() {
   CalendarReaction r;
   memset(&r, 0, sizeof(r));

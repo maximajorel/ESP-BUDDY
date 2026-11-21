@@ -127,6 +127,7 @@ size_t calendarParseEvents(const char *json, CalendarEvent *out, size_t cap,
     CalendarEvent &event = out[n];
     memset(&event, 0, sizeof(event));
     copyField(event.summary, sizeof(event.summary), entry["summary"] | "");
+    copyField(event.location, sizeof(event.location), entry["location"] | "");
     event.startEpoch = startEpoch;
     event.endEpoch = endEpoch;
     int lead = leadForEvent(entry["reminders"].as<JsonObjectConst>(),

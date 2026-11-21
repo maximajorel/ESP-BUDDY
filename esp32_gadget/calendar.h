@@ -54,6 +54,10 @@ CalendarStatusInfo calendarStatusInfo();
 // Copies one calendar of the list. Returns false past the end.
 bool calendarCalendarAt(size_t index, CalendarInfo *out);
 
+// The selected calendar's display name, for the split frame's footer. Empty
+// selection reports "PRINCIPAL" so the line never reads as a missing label.
+void calendarSelectedName(char *out, size_t cap);
+
 // The face's question: does an event own the glass right now? Cheap, no network,
 // and it reads the stored events under the lock. Inactive when the clock is not
 // synchronized, because the window is arithmetic on real time.

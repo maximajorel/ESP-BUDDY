@@ -12,6 +12,7 @@
 #include "buddy_link.h"
 #include "buddy_phase.h"
 #include "buddy_state.h"
+#include "calendar_model.h"
 
 void buddyBegin();
 void buddyEnter();
@@ -45,6 +46,9 @@ struct BuddyView {
   bool calendarActive;
   int32_t calendarMsToStart;  // negative once the event started
   uint8_t calendarIntensity;  // 0..100 of the lead window consumed
+  int64_t calendarStartEpoch;   // the event's clock, for the split frame
+  int calendarLeadMin;          // the reminder that opened the window
+  char calendarLocation[CALENDAR_LOCATION_MAX + 1];
   BuddyState state;
   char label[BUDDY_LABEL_MAX + 1];
   int active;
