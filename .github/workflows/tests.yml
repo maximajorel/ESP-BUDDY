@@ -1,0 +1,39 @@
+# The host suite is the repo's safety net: every pure rule in esp32_gadget/ has a
+# tools/*_test.cpp, and web_assets.h is checked against web_ui/ byte for byte.
+# Running it on every push is what keeps "the test still passes" from depending on
+# someone remembering to run it.
+#
+# The firmware compile is deliberately not part of this workflow: it needs the
+# esp32 core (~2 GB) and the exact FQBN from INSTALL.md §3. Until a board-matrix
+# job exists, `make build` stays the local/CI-manual gate for the firmware.
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  host:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Two tests (spotify_core, calendar_core) parse real JSON and need the
+      # headers the Arduino IDE would provide. Pinned to the version the project
+      # is developed against so the suite never silently skips them.
+      - name: Fetch ArduinoJson headers
+        run: git clone --depth 1 --branch v7.4.3 https://github.com/bblanchon/ArduinoJson "$RUNNER_TEMP/ArduinoJson"
+
+      - name: Host suite
+        env:
+          ARDUINOJSON_DIR: ${{ runner.temp }}/ArduinoJson/src
+        run: python tools/run_tests.py --verbose
