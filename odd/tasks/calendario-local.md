@@ -231,3 +231,18 @@ L6 — parser OAuth puro + evidencia real + incidente de configuración (21-nov)
   Lección: no usar el formulario de credenciales de un equipo ya configurado como
   conejillo de indias; la prueba de error de Google se hace con una placa sin
   configuración o después de un `forget` explícito y avisado.
+
+L7 — seguros contra el incidente y verificador de aceptación (21-nov):
+
+- El panel ahora pide confirmación antes de dos acciones destructivas: cambiar el
+  Client ID/secret con una cuenta ya autorizada (eso invalida el grant) y tocar
+  "Olvidar credenciales" (borra credenciales, permiso y calendario elegido).
+- `tools/calendar_acceptance.py` lee la API real (401 sin sesión incluido),
+  comprueba que `kind=ready`, que el calendario elegido esté en la lista de
+  Google, que no haya bytes basura (el defecto de ArduinoJson), y que la
+  reacción publicada coincida con `nextInMin`/`nextLeadMin`/`grace`. Sale 0/1/2.
+  Contra la placa actual (sin configurar) devuelve `NO CONFIGURADO` y 2, que es
+  el resultado honesto.
+- `calendarStatusInfo` deja de arrastrar el último error cuando no hay
+  credenciales: después de olvidar, el panel no muestra un fallo de una
+  configuración que ya no existe.

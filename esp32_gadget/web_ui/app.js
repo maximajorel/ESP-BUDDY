@@ -824,6 +824,9 @@
   var calInFlight = false;
   var calListed = false;
   var calListCount = -1;
+  // Ultimo estado recibido. Lo usa el formulario para avisar antes de romper una
+  // conexion que ya funciona: cambiar las credenciales invalida el permiso.
+  var calLast = null;
 
   var CAL_PHASE = {
     early: 'se viene', near: 'falta poco', starting: 'ya casi', ongoing: 'empezó'
@@ -876,6 +879,7 @@
   }
 
   function renderCalendar(cal) {
+    calLast = cal;
     var state = calendarState(cal);
     var box = $('calStateBox');
     if (box) box.className = 'sp-state ' + state.cls;
@@ -1317,6 +1321,16 @@
           toast('No hay nada nuevo para guardar', 'err');
           return;
         }
+        // Cambiar el par de credenciales invalida el permiso que ya existe (un
+        // refresh token pertenece al cliente que lo emitio). El aviso evita
+        // desconectar una cuenta sin querer; el formulario de al lado no lo dice.
+        if (calLast && calLast.authorized &&
+            (body.clientId || body.clientSecret) &&
+            !confirm('Si cambiás el Client ID o el secreto, la cuenta de Google ' +
+                     'conectada se desconecta y hay que aprobar el permiso otra ' +
+                     'vez. ¿Seguir?')) {
+          return;
+        }
         submit(event.target.querySelector('button[type="submit"]'),
           '/api/calendar/config', body, 'Credenciales guardadas').then(function (ok) {
           if (!ok) return;
@@ -1369,6 +1383,11 @@
     }
     if ($('calForget')) {
       $('calForget').addEventListener('click', function (event) {
+        if (!confirm('Se borran el Client ID, el secreto, el permiso y el ' +
+                     'calendario elegido. Para volver a usarlo hay que configurar ' +
+                     'todo otra vez. ¿Seguir?')) {
+          return;
+        }
         submit(event.target, '/api/calendar/forget', {},
           'Credenciales de Google olvidadas').then(function (ok) {
           if (!ok) return;

@@ -628,6 +628,18 @@ toma como 24 horas, para que la cara no quede alerta durante días.
 El comando `calendar` de la consola serie muestra el mismo estado, el próximo
 evento y la reacción actual; `calendar refresh` fuerza una consulta.
 
+Desde la compu, con la placa en tu WiFi, hay un verificador de aceptación que lee
+la API como lo haría el panel y comprueba que la reacción coincida con el
+recordatorio del próximo evento:
+
+```bash
+python tools/calendar_acceptance.py 192.168.100.75
+# --wait 600  espera hasta 10 minutos a que se abra una ventana de reacción
+```
+
+Sale `0` si el permiso, el calendario elegido y la reacción están bien; `2` si
+todavía falta configurar; `1` si algo no coincide (y dice qué).
+
 ## 12. Consola serie (referencia rápida)
 
 El firmware trae una consola pensada para verificar el equipo sin depender del

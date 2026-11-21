@@ -245,7 +245,10 @@ CalendarStatusInfo calendarStatusInfo() {
            calendarStoreSelectedName());
   info.fallbackLeadMin = calendarStoreFallbackLeadMin();
   info.graceMin = calendarStoreGraceMin();
-  snprintf(info.lastError, sizeof(info.lastError), "%s", s_lastError);
+  // Sin credenciales no hay error que mostrar: el ultimo fallo pertenece a una
+  // configuracion que ya no existe y solo confunde el paso a paso.
+  snprintf(info.lastError, sizeof(info.lastError), "%s",
+           info.configured ? s_lastError : "");
   info.lastSyncMs = s_lastSyncMs;
   info.syncing = s_syncing;
   info.calendarCount = s_calendarCount;
