@@ -115,6 +115,25 @@ int main() {
   checkInt("60 stays 60", cfgClamp(60, 5, 100), 60);
   checkInt("level 300 clamps to 255", cfgClamp(300, 0, 255), 255);
 
+  printf("-- the LCD percent, clamped for every caller of the API\n");
+  // The panel, the CONFIG screen and the serial console all reach brightness
+  // through settings, and the transport in front of them used to clamp to a
+  // 0..255 range that exists nowhere else. A single named rule removes the third
+  // range; these are the values that used to arrive.
+  checkInt("a normal percent passes through", cfgClampLcd(50), 50);
+  checkInt("the floor is the floor", cfgClampLcd(CFG_LCD_MIN), CFG_LCD_MIN);
+  checkInt("the ceiling is the ceiling", cfgClampLcd(CFG_LCD_MAX), CFG_LCD_MAX);
+  checkInt("zero, which the old 0..255 clamp allowed, becomes the floor",
+           cfgClampLcd(0), CFG_LCD_MIN);
+  checkInt("a negative value becomes the floor", cfgClampLcd(-3), CFG_LCD_MIN);
+  checkInt("a byte-scale value is repaired to the ceiling", cfgClampLcd(200),
+           CFG_LCD_MAX);
+  checkInt("255 is repaired to the ceiling", cfgClampLcd(255), CFG_LCD_MAX);
+  checkInt("an int outside any of those ranges is repaired too",
+           cfgClampLcd(1000000), CFG_LCD_MAX);
+  checkInt("the most negative int is repaired too", cfgClampLcd(-1000000),
+           CFG_LCD_MIN);
+
   printf("\n%s (%d failures)\n", g_failures == 0 ? "PASSED" : "FAILED",
          g_failures);
   return g_failures == 0 ? 0 : 1;

@@ -29,6 +29,17 @@ static inline uint8_t cfgClamp(int value, uint8_t min, uint8_t max) {
   return (uint8_t)value;
 }
 
+// The LCD percent, from any caller. The panel's slider, the CONFIG screen and the
+// serial console all reach brightness through storage, and the HTTP transport in
+// front of them used to clamp to a 0..255 range that exists nowhere else in the
+// firmware: `settingsSetLcdBrightness` then clamped again to 5..100. Two ranges
+// for one value is how a request for 200% silently became 100% while the code
+// read as if it were valid. This is the only clamp that decides what a percent
+// is, and it takes an int so a caller never has to cast first.
+static inline uint8_t cfgClampLcd(int percent) {
+  return cfgClamp(percent, CFG_LCD_MIN, CFG_LCD_MAX);
+}
+
 // Next value in one step up. A value outside the range (a corrupt store, a
 // firmware that shipped a different scale) is repaired to the nearest legal end
 // rather than stepped, so a single press always brings it back into the range the

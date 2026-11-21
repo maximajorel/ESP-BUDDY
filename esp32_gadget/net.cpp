@@ -7,6 +7,7 @@
 #include <time.h>
 
 #include "admin_auth.h"
+#include "config_value.h"
 #include "console.h"
 #include "display.h"
 #include "net_ap_policy.h"
@@ -385,14 +386,12 @@ static ApiResult apiSettings(const String &body) {
   bool tzChanged = false;
 
   if (doc["brightness"].is<int>()) {
-    // The floor and the ceiling live in settings, so the panel and the CONFIG
-    // screen cannot disagree about the range. A value that is not a byte yet
-    // (a negative or an obviously out-of-scale number) is clamped before the
-    // cast, because casting first would wrap it into range.
+    // The range lives in config_value.h and nowhere else. This handler used to
+    // clamp to 0..255 first — a scale the firmware does not have — and then
+    // settings clamped again to 5..100, so a request for 200 became 100 while
+    // the code read as if 200 had been accepted.
     int value = doc["brightness"];
-    if (value < 0) value = 0;
-    if (value > 255) value = 255;
-    settingsSetLcdBrightness((uint8_t)value);
+    settingsSetLcdBrightness(cfgClampLcd(value));
     displaySetBacklight(cfg.brightness);
   }
   if (doc["tz"].is<int>()) {

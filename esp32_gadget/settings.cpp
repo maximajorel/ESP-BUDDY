@@ -176,7 +176,7 @@ bool settingsSetRgbLevel(uint8_t level) {
 }
 
 bool settingsSetLcdBrightness(uint8_t percent) {
-  uint8_t value = cfgClamp((int)percent, CFG_LCD_MIN, CFG_LCD_MAX);
+  uint8_t value = cfgClampLcd((int)percent);
   if (s_settings.brightness == value) return true;
   s_settings.brightness = value;
   return settingsSave();
