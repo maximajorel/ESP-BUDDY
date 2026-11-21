@@ -38,7 +38,7 @@ COMPANION_SOURCES = {
     "admin_auth_test": ["admin_auth.cpp", "spotify_pkce.cpp"],
     "text_fold_test": ["text_fold.cpp"],
     "spotify_core_test": ["spotify_parse.cpp", "spotify_pkce.cpp"],
-    "calendar_core_test": ["calendar_parse.cpp"],
+    "calendar_core_test": ["calendar_parse.cpp", "calendar_auth_parse.cpp"],
 }
 
 # Checks written as scripts rather than firmware tests. The `.env` build step is

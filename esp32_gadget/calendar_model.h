@@ -9,6 +9,12 @@
 #include <stdint.h>
 
 #define CALENDAR_ID_MAX 128
+// Protocol limits, shared by the pure OAuth response parser and the store so the
+// two cannot disagree about how much a token can be.
+#define CALENDAR_TOKEN_MAX 511
+#define CALENDAR_DEVICE_CODE_MAX 256
+#define CALENDAR_USER_CODE_MAX 16
+#define CALENDAR_VERIFY_URL_MAX 96
 #define CALENDAR_NAME_MAX 64
 #define CALENDAR_SUMMARY_MAX 96
 

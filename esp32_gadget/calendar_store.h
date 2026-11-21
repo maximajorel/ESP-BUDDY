@@ -13,7 +13,6 @@
 
 #define CALENDAR_CLIENT_ID_MAX 120
 #define CALENDAR_CLIENT_SECRET_MAX 120
-#define CALENDAR_TOKEN_MAX 511
 
 // The panel's fallback reminder for events whose calendar declares no default.
 #define CALENDAR_FALLBACK_LEAD_DEFAULT 10

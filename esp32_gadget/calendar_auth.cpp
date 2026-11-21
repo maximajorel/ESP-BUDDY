@@ -3,6 +3,7 @@
 #include <ArduinoJson.h>
 #include <string.h>
 
+#include "calendar_auth_parse.h"
 #include "calendar_forms.h"
 #include "calendar_http.h"
 #include "calendar_store.h"
@@ -11,7 +12,6 @@ namespace {
 
 constexpr size_t kFormBytes = 2600;
 constexpr size_t kTokenBodyBytes = 4096;
-constexpr uint32_t kDefaultExpiresInSec = 3600;
 // Refresh a little before the hour is up, so a request never leaves with a token
 // that expires while it is in flight.
 constexpr uint32_t kRefreshMarginMs = 30000;
@@ -51,15 +51,6 @@ void clearFlow() {
   s_lastPollMs = 0;
 }
 
-// Google answers errors as {"error": "...", "error_description": "..."}. The
-// description is a human sentence in English; the panel shows the mapped
-// Spanish sentence instead of leaking Google's wording into the UI.
-void describeGoogleError(JsonDocument &doc, const char *fallback, char *err,
-                         size_t cap) {
-  const char *description = doc["error_description"] | "";
-  copyErr(err, cap, *description ? description : fallback);
-}
-
 }  // namespace
 
 void calendarAuthBegin() {
@@ -90,41 +81,37 @@ bool calendarAuthStartFlow(char *err, size_t errCap) {
     copyErr(err, errCap, "No pude iniciar la conexion con Google");
     return false;
   }
+  // The device-code answer is classified by the same pure parser that reads a
+  // token answer: the panel gets one Spanish sentence and no raw body.
+  JsonDocument doc;
+  const bool parsed =
+      deserializeJson(doc, res.body) == DeserializationError::Ok;
   if (res.status != 200) {
-    JsonDocument doc;
-    if (deserializeJson(doc, res.body) == DeserializationError::Ok) {
-      describeGoogleError(doc, "Google rechazo el pedido", err, errCap);
-    } else {
-      copyErr(err, errCap, "Google rechazo el pedido");
-    }
+    CalendarOAuthResponse mapped;
+    calendarParseTokenResponse(parsed, doc.as<JsonVariantConst>(), res.status,
+                               &mapped);
+    copyErr(err, errCap,
+            mapped.error[0] ? mapped.error : "Google rechazo el pedido");
     return false;
   }
-
-  JsonDocument doc;
-  if (deserializeJson(doc, res.body) != DeserializationError::Ok) {
+  if (!parsed) {
     copyErr(err, errCap, "Respuesta de Google ilegible");
     return false;
   }
-  const char *deviceCode = doc["device_code"] | "";
-  const char *userCode = doc["user_code"] | "";
-  if (!*deviceCode || !*userCode) {
+
+  CalendarDeviceCode code;
+  calendarParseDeviceCodeResponse(doc.as<JsonVariantConst>(), &code);
+  if (!code.deviceCode[0] || !code.userCode[0]) {
     copyErr(err, errCap, "Google no devolvio el codigo de dispositivo");
     return false;
   }
 
-  snprintf(s_deviceCode, sizeof(s_deviceCode), "%s", deviceCode);
-  snprintf(s_flow.userCode, sizeof(s_flow.userCode), "%s", userCode);
-  const char *url = doc["verification_url"] | "";
+  snprintf(s_deviceCode, sizeof(s_deviceCode), "%s", code.deviceCode);
+  snprintf(s_flow.userCode, sizeof(s_flow.userCode), "%s", code.userCode);
   snprintf(s_flow.verificationUrl, sizeof(s_flow.verificationUrl), "%s",
-           *url ? url : "https://www.google.com/device");
-  int interval = doc["interval"] | 5;
-  if (interval < 1) interval = 1;
-  if (interval > 60) interval = 60;
-  s_flow.intervalSec = interval;
-  long expiresIn = doc["expires_in"] | 1800;
-  if (expiresIn < 60) expiresIn = 60;
-  if (expiresIn > 3600) expiresIn = 3600;
-  s_flow.expiresAtMs = millis() + (uint32_t)expiresIn * 1000u;
+           code.verificationUrl);
+  s_flow.intervalSec = code.intervalSec;
+  s_flow.expiresAtMs = millis() + (uint32_t)code.expiresInSec * 1000u;
   s_flow.pending = true;
   s_lastPollMs = millis();
   return true;
@@ -182,61 +169,40 @@ bool calendarAuthPollFlow(bool *authorized, char *err, size_t errCap) {
   JsonDocument doc;
   const bool parsed =
       deserializeJson(doc, res.body) == DeserializationError::Ok;
+  CalendarOAuthResponse answer;
+  calendarParseTokenResponse(parsed, doc.as<JsonVariantConst>(), res.status,
+                             &answer);
 
-  if (res.status == 200 && parsed) {
-    const char *access = doc["access_token"] | "";
-    const char *refresh = doc["refresh_token"] | "";
-    if (!*access) {
+  switch (answer.outcome) {
+    case CALENDAR_OAUTH_AUTHORIZED:
+      if (!answer.refreshToken[0]) {
+        // Without it the board would ask for the code again every hour. Stop now,
+        // while the owner is still in front of the panel.
+        clearFlow();
+        copyErr(err, errCap,
+                "Google no devolvio el refresh token, proba de nuevo");
+        return false;
+      }
+      if (!calendarStoreSetRefreshToken(answer.refreshToken)) {
+        clearFlow();
+        copyErr(err, errCap, "El refresh token no se pudo guardar");
+        return false;
+      }
+      storeAccess(answer.accessToken, answer.expiresInSec);
       clearFlow();
-      copyErr(err, errCap, "Google no devolvio el access token");
+      if (authorized) *authorized = true;
+      return true;
+    case CALENDAR_OAUTH_PENDING:
+      return false;  // the owner has not approved yet; this is not an error
+    case CALENDAR_OAUTH_SLOW_DOWN:
+      s_flow.intervalSec += 5;
+      if (s_flow.intervalSec > 60) s_flow.intervalSec = 60;
       return false;
-    }
-    if (!*refresh) {
-      // Without it the board would ask for the code again every hour. Better to
-      // stop now, while the owner is still in front of the panel.
+    default:
       clearFlow();
-      copyErr(err, errCap, "Google no devolvio el refresh token, proba de nuevo");
+      copyErr(err, errCap, answer.error);
       return false;
-    }
-    if (!calendarStoreSetRefreshToken(refresh)) {
-      clearFlow();
-      copyErr(err, errCap, "El refresh token no se pudo guardar");
-      return false;
-    }
-    long expiresIn = doc["expires_in"] | (long)kDefaultExpiresInSec;
-    if (expiresIn <= 0) expiresIn = kDefaultExpiresInSec;
-    storeAccess(access, expiresIn);
-    clearFlow();
-    if (authorized) *authorized = true;
-    return true;
   }
-
-  const char *error = parsed ? (doc["error"] | "") : "";
-  if (strcmp(error, "authorization_pending") == 0) {
-    return false;  // the owner has not approved yet; this is not an error
-  }
-  if (strcmp(error, "slow_down") == 0) {
-    s_flow.intervalSec += 5;
-    if (s_flow.intervalSec > 60) s_flow.intervalSec = 60;
-    return false;
-  }
-  if (strcmp(error, "access_denied") == 0) {
-    clearFlow();
-    copyErr(err, errCap, "Cancelaste el permiso en Google");
-    return false;
-  }
-  if (strcmp(error, "expired_token") == 0) {
-    clearFlow();
-    copyErr(err, errCap, "El codigo vencio, pedi uno nuevo");
-    return false;
-  }
-  clearFlow();
-  if (parsed) {
-    describeGoogleError(doc, "Google rechazo la autorizacion", err, errCap);
-  } else {
-    copyErr(err, errCap, "Google rechazo la autorizacion");
-  }
-  return false;
 }
 
 bool calendarAuthEnsureAccessToken(bool force, char *err, size_t errCap) {
@@ -272,31 +238,25 @@ bool calendarAuthEnsureAccessToken(bool force, char *err, size_t errCap) {
   JsonDocument doc;
   const bool parsed =
       deserializeJson(doc, res.body) == DeserializationError::Ok;
-  if (res.status == 200 && parsed) {
-    const char *access = doc["access_token"] | "";
-    if (!*access) {
-      copyErr(err, errCap, "Google no devolvio el access token");
-      return false;
+  CalendarOAuthResponse answer;
+  calendarParseTokenResponse(parsed, doc.as<JsonVariantConst>(), res.status,
+                             &answer);
+  if (answer.outcome == CALENDAR_OAUTH_AUTHORIZED) {
+    storeAccess(answer.accessToken, answer.expiresInSec);
+    // Google usually does not rotate the refresh token; keep the new one when it
+    // does, so a rotation never leaves the old one stored.
+    if (answer.refreshToken[0]) {
+      calendarStoreSetRefreshToken(answer.refreshToken);
     }
-    long expiresIn = doc["expires_in"] | (long)kDefaultExpiresInSec;
-    if (expiresIn <= 0) expiresIn = kDefaultExpiresInSec;
-    storeAccess(access, expiresIn);
-    const char *rotated = doc["refresh_token"] | "";
-    if (*rotated) calendarStoreSetRefreshToken(rotated);
     return true;
   }
-
-  const char *error = parsed ? (doc["error"] | "") : "";
-  if (strcmp(error, "invalid_grant") == 0) {
+  if (answer.outcome == CALENDAR_OAUTH_INVALID_GRANT) {
     calendarStoreForgetToken();
-    copyErr(err, errCap, "El permiso vencio o lo revocaste; conecta Google de nuevo");
+    copyErr(err, errCap, answer.error);
     return false;
   }
-  if (parsed) {
-    describeGoogleError(doc, "Google no renovo el permiso", err, errCap);
-  } else {
-    copyErr(err, errCap, "Google no renovo el permiso");
-  }
+  copyErr(err, errCap,
+          answer.error[0] ? answer.error : "Google no renovo el permiso");
   return false;
 }
 

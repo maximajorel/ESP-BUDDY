@@ -208,3 +208,26 @@ L5 — cierre de verificación (21-nov):
   de la placa.
 - Sigue pendiente lo único que no puede hacer el agente: autorizar la cuenta real
   del dueño con su Client ID/secret.
+
+L6 — parser OAuth puro + evidencia real + incidente de configuración (21-nov):
+
+- El manejo de las respuestas OAuth salió de `calendar_auth.cpp` a
+  `calendar_auth_parse.h/.cpp` (puro, ArduinoJson): éxito con o sin refresh
+  rotado, `authorization_pending`, `slow_down`, `access_denied`,
+  `expired_token`, `invalid_grant`, error desconocido con descripción y cuerpo
+  no-JSON. `tools/calendar_core_test.cpp` lo fija (28 chequeos nuevos) y
+  `calendar_auth.cpp` quedó solo con transporte y almacenamiento. Suite: 34.
+- **La conexión real del dueño funcionó**: al consultar la placa después de este
+  flasheo, `GET /api/calendar` respondió `kind:"ready"` con
+  `selectedId:"maximomajorel@gmail.com"`, o sea el refresh token estaba guardado,
+  el device flow había terminado y el calendario principal estaba elegido. Es la
+  verificación de punta a punta que faltaba.
+- **Incidente**: en la misma tanda de verificación, el agente mandó
+  `POST /api/calendar/config` con un Client ID/secret falsos para probar el error
+  de Google. Ese endpoint, correctamente, invalida el grant al cambiar las
+  credenciales; el `forget` posterior terminó de borrar el calendario elegido.
+  La configuración real del dueño se perdió y hay que rehacerla desde el panel
+  con el Client ID/secret del cliente OAuth que ya existe en Google Cloud.
+  Lección: no usar el formulario de credenciales de un equipo ya configurado como
+  conejillo de indias; la prueba de error de Google se hace con una placa sin
+  configuración o después de un `forget` explícito y avisado.

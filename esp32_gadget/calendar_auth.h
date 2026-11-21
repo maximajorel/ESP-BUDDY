@@ -13,9 +13,7 @@
 
 #include <Arduino.h>
 
-#define CALENDAR_DEVICE_CODE_MAX 256
-#define CALENDAR_USER_CODE_MAX 16
-#define CALENDAR_VERIFY_URL_MAX 96
+#include "calendar_model.h"
 
 struct CalendarFlow {
   bool pending;

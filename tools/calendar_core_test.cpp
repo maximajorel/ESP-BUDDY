@@ -16,6 +16,7 @@
 #include <cstdio>
 #include <cstring>
 
+#include "calendar_auth_parse.h"
 #include "calendar_forms.h"
 #include "calendar_model.h"
 #include "calendar_parse.h"
@@ -325,6 +326,118 @@ static void testForms() {
   checkInt("  and back", roundTrip, kDentistStart);
 }
 
+static void testOAuthResponses() {
+  printf("-- Google's OAuth answers, classified without a network\n");
+  JsonDocument doc;
+  CalendarDeviceCode code;
+
+  deserializeJson(doc, R"({"device_code":"dev-1","user_code":"ABCD-EFGH",
+    "verification_url":"https://www.google.com/device","expires_in":1800,
+    "interval":5})");
+  calendarParseDeviceCodeResponse(doc.as<JsonVariantConst>(), &code);
+  checkText("device code", code.deviceCode, "dev-1");
+  checkText("user code", code.userCode, "ABCD-EFGH");
+  checkText("verification url", code.verificationUrl,
+            "https://www.google.com/device");
+  checkInt("interval", code.intervalSec, 5);
+  checkInt("expiry", code.expiresInSec, 1800);
+
+  doc.clear();
+  deserializeJson(doc, R"({"device_code":"dev","user_code":"X",
+    "interval":0,"expires_in":10})");
+  calendarParseDeviceCodeResponse(doc.as<JsonVariantConst>(), &code);
+  checkInt("a zero interval becomes one second", code.intervalSec, 1);
+  checkInt("a short expiry is clamped up", code.expiresInSec, 60);
+  checkText("a missing url falls back to google.com/device",
+            code.verificationUrl, "https://www.google.com/device");
+
+  doc.clear();
+  deserializeJson(doc, R"({"user_code":"X","interval":300,"expires_in":99999})");
+  calendarParseDeviceCodeResponse(doc.as<JsonVariantConst>(), &code);
+  checkText("no device code means no flow", code.deviceCode, "");
+  checkInt("a long interval is clamped", code.intervalSec, 60);
+  checkInt("a long expiry is clamped", code.expiresInSec, 3600);
+
+  CalendarOAuthResponse r;
+  doc.clear();
+  deserializeJson(doc, R"({"access_token":"ya29.token","expires_in":3599,
+    "refresh_token":"1//refresh"})");
+  calendarParseTokenResponse(true, doc.as<JsonVariantConst>(), 200, &r);
+  checkInt("success is authorized", r.outcome == CALENDAR_OAUTH_AUTHORIZED, true);
+  checkText("  access token", r.accessToken, "ya29.token");
+  checkText("  refresh token", r.refreshToken, "1//refresh");
+  checkInt("  lifetime", r.expiresInSec, 3599);
+  checkText("  no error sentence", r.error, "");
+
+  doc.clear();
+  deserializeJson(doc, R"({"access_token":"ya29.token"})");
+  calendarParseTokenResponse(true, doc.as<JsonVariantConst>(), 200, &r);
+  checkInt("a refresh exchange may omit the refresh token",
+           r.outcome == CALENDAR_OAUTH_AUTHORIZED, true);
+  checkInt("  the default lifetime applies", r.expiresInSec, 3600);
+  checkText("  refresh stays empty", r.refreshToken, "");
+
+  doc.clear();
+  deserializeJson(doc, R"({"expires_in":3599})");
+  calendarParseTokenResponse(true, doc.as<JsonVariantConst>(), 200, &r);
+  checkInt("a 200 without an access token is an error",
+           r.outcome == CALENDAR_OAUTH_ERROR, true);
+  checkText("  and says so", r.error, "Google no devolvio el access token");
+
+  doc.clear();
+  deserializeJson(doc, R"({"error":"authorization_pending"})");
+  calendarParseTokenResponse(true, doc.as<JsonVariantConst>(), 400, &r);
+  checkInt("pending keeps polling", r.outcome == CALENDAR_OAUTH_PENDING, true);
+  checkText("  with no error for the panel", r.error, "");
+
+  doc.clear();
+  deserializeJson(doc, R"({"error":"slow_down"})");
+  calendarParseTokenResponse(true, doc.as<JsonVariantConst>(), 400, &r);
+  checkInt("slow_down keeps polling slower",
+           r.outcome == CALENDAR_OAUTH_SLOW_DOWN, true);
+
+  doc.clear();
+  deserializeJson(doc, R"({"error":"access_denied"})");
+  calendarParseTokenResponse(true, doc.as<JsonVariantConst>(), 403, &r);
+  checkInt("a denial is terminal", r.outcome == CALENDAR_OAUTH_DENIED, true);
+  checkText("  the sentence", r.error, "Cancelaste el permiso en Google");
+
+  doc.clear();
+  deserializeJson(doc, R"({"error":"expired_token"})");
+  calendarParseTokenResponse(true, doc.as<JsonVariantConst>(), 400, &r);
+  checkInt("an expired code is terminal", r.outcome == CALENDAR_OAUTH_EXPIRED, true);
+  checkText("  the sentence", r.error, "El codigo vencio, pedi uno nuevo");
+
+  doc.clear();
+  deserializeJson(doc, R"({"error":"invalid_grant"})");
+  calendarParseTokenResponse(true, doc.as<JsonVariantConst>(), 400, &r);
+  checkInt("a dead refresh token is its own outcome",
+           r.outcome == CALENDAR_OAUTH_INVALID_GRANT, true);
+  checkText("  the sentence", r.error,
+            "El permiso vencio o lo revocaste; conecta Google de nuevo");
+
+  doc.clear();
+  deserializeJson(doc, R"({"error":"invalid_client",
+    "error_description":"The OAuth client was not found."})");
+  calendarParseTokenResponse(true, doc.as<JsonVariantConst>(), 401, &r);
+  checkInt("an unknown error stays an error",
+           r.outcome == CALENDAR_OAUTH_ERROR, true);
+  checkText("  Google's description is shown", r.error,
+            "The OAuth client was not found.");
+
+  doc.clear();
+  deserializeJson(doc, R"({"error":"invalid_client"})");
+  calendarParseTokenResponse(true, doc.as<JsonVariantConst>(), 401, &r);
+  checkText("  without a description, the fallback", r.error,
+            "Google rechazo la autorizacion");
+
+  calendarParseTokenResponse(false, doc.as<JsonVariantConst>(), 502, &r);
+  checkInt("a non-JSON body is unreadable",
+           r.outcome == CALENDAR_OAUTH_UNREADABLE, true);
+  checkText("  with an actionable sentence", r.error,
+            "Google rechazo la autorizacion");
+}
+
 int main() {
   testRfc3339();
   testCalendarList();
@@ -332,6 +445,7 @@ int main() {
   testReaction();
   testAllDayAndPriority();
   testForms();
+  testOAuthResponses();
   printf("\n%s\n", g_failures ? "FAILED" : "all calendar checks passed");
   return g_failures ? 1 : 0;
 }
