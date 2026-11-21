@@ -105,3 +105,37 @@ Verificación de ese handoff:
 - `arduino-cli compile` con el FQBN de `INSTALL.md` §3 → 1535550 B de flash (48%)
   y 55884 B de RAM (17%). Compila.
 - Hardware pendiente: no se flasheó (pide autorización explícita).
+
+L5 — verificación en hardware del handoff (placa en COM5, firmware flasheado,
+"Hash of data verified", secuencia `tools/probes/concentracion_reloj.txt`):
+
+- `POST /api/focus {"seconds":65}` → `HTTP 200`, y `GET /api/status` publica
+  `focus: {active:true, seconds:65, minutes:1, remainingMs:61422}`. Son 65
+  segundos, no 65 minutos.
+- `POST /api/focus {"minutes":1,"seconds":30}` → `HTTP 400 manda minutes o
+  seconds, no los dos`.
+- `POST /api/focus {"seconds":0}` → `HTTP 200` y el estado vuelve a
+  `active:false, seconds:0`.
+- `dump 4` con la pantalla SOFIA y el bloque en curso muestra la geometría nueva
+  (cada carácter son 4 px):
+
+```
+                                 .........  .........
+                                ..+++++++.. .+++++++.
+                                .+++++++++. .+++++++++.        <- ojos chicos, y 34
+                                ..+++++++.. .+++++++.
+               ..................................................  <- barra, y 56..61
+ +++++++++++++++++                           +++++++++++++++++ +++++++++++++++++
+ +++++++++++++++++               +++         +++++++++++++++++ +++++++++++++++++   <- dígitos 68x104
+ +++           +++               +++         +++          ++++               +++       desde y 66
+```
+
+Los dos ojos ocupan 9–10 columnas cada uno (≈36–40 px con el halo), con una
+columna de aire entre ellos, y la barra arranca en la columna 15 (x≈60) con 50
+columnas (≈200 px). Los dígitos ocupan de la columna 1 a la 75 (x≈4..300) y de la
+fila 17 a la 43 (y≈68..172), o sea el número es el 60% del alto.
+
+Lo que esta evidencia **no** cubre: el color del número (el `dump` es
+monocromo: no distingue `eyeRgb` de blanco) y los gestos estocásticos de idle
+(una ventana de 1.1 s cada 45–105 s no se caza por consola; los fija
+`tools/buddy_anim_test.cpp` en la compu).

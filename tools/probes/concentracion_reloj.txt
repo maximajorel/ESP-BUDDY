@@ -1,0 +1,23 @@
+# Concentración: segundos desde la web, reloj grande y número del color de los ojos.
+#
+# La pantalla no tiene MISO, así que la única prueba honesta del vidrio es `dump`,
+# que escribe el framebuffer en ASCII. Lo que se verifica acá:
+#   1. arranque sano (banner, estado),
+#   2. `POST /api/focus {"seconds":65}` arranca un bloque de 01:05 (no 65 minutos),
+#   3. `GET /api/status` publica `focus.seconds`,
+#   4. mandar `minutes` y `seconds` juntos es 400,
+#   5. `seconds:0` cancela.
+# La ventana del último minuto (900 ms) no se puede medir por consola: cada comando
+# tarda ~1.5 s. Eso lo fija `tools/buddy_focus_test.cpp` en la compu.
+boot 4
+status
+screen 5
+sleep 800
+api POST /api/focus {"seconds":65}
+sleep 800
+dump 4
+api GET /api/status
+api POST /api/focus {"minutes":1,"seconds":30}
+api POST /api/focus {"seconds":0}
+sleep 400
+api GET /api/status
