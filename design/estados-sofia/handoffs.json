@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "chosen": "01-idle-compania.html",
+  "handoffs": {
+    "01-idle-compania.html": {
+      "status": "in_progress",
+      "queued": false,
+      "sentAt": "2026-11-21T00:52:47.458Z",
+      "startedAt": "2026-11-21T00:53:00.403Z",
+      "implementedAt": null,
+      "feature": "odd/tasks/estados-sofia.md",
+      "note": "Implementando: reacciones de idle (estiramiento, busca al dueño, chequeo del reloj) + proporción y color del temporizador."
+    }
+  }
+}
