@@ -83,7 +83,7 @@ Google) vive en `.h`/`.cpp` sin `Arduino.h` y se fija en
 | T10: sacar el proxy de calendario del bridge | S1 | inline | `50ffb51` |
 | T11: pruebas de host, compilación del firmware y panel empaquetado | S8 | inline | `50ffb51`, `e01d201` |
 | T12: verificación en la placa | S6 | hardware | `803586c`, `3a7b968` |
-| T13: pantalla partida del evento (handoff de `design/evento-cerca/01-mitad-limpia.html`) | S6 | inline | en curso |
+| T13: pantalla partida del evento (handoff de `design/evento-cerca/01-mitad-limpia.html`) | S6 | inline | `13f531a` |
 
 ## Log
 
@@ -293,3 +293,32 @@ limpia · tipográfica") al firmware. La dirección elegida por el dueño:
   `.location`, `BuddyView.calendarStartEpoch/calendarLeadMin/calendarLocation`,
   `calendarSelectedName()`, `calendarFormatClock()` y `calendarWrapTwoLines()`
   (estos dos últimos puros y con pruebas).
+
+L11 — implementación y verificación de la pantalla partida (21-nov):
+
+- Dirección A implementada en `screen_buddy.cpp` (`drawCalendarFrame`): ojos a
+  `x=42/118`, radio 24..30 según fase y `y=88`; regla en `x=159`; ficha con
+  `PROXIMAMENTE`, hora desde `startEpoch` + zona horaria, `EN N MIN`/`AHORA`,
+  título en dos líneas, ubicación, `AVISO N MIN`, calendario elegido y la ventana
+  consumida. Sin aviso de toque.
+- El toque corto se consume antes de la ventana del doble toque
+  (`buddyShortPress` consulta `calendarReactionNow()` y guarda
+  `s_calendarDismissedStart`); un evento con otro `startEpoch` rearma. Mientras
+  el evento es dueño del vidrio no se dibujan HUD, banda de Concentración, bicho,
+  pelotita ni letras de sueño.
+- Pruebas de host nuevas: `calendarFormatClock`, `calendarWrapTwoLines`,
+  `location` del evento y de la reacción, `startEpoch` en la reacción. Suite:
+  **35 passed**. Compilación y flasheo con `Hash of data verified`.
+- Evidencia en placa (sonda `tools/probes/calendario_pantalla.txt`):
+  - `calendar fake 20 30` → `upcoming`/`event`; `dump 2` muestra la ficha a la
+    derecha (PROXIMAMENTE, hora, EN 20 MIN, título en dos líneas, AVISO 30 MIN,
+    PRINCIPAL, línea de ventana) y los dos ojos dentro de la mitad izquierda.
+  - `press` → `state:"idle"` (la pantalla se descartó).
+  - `calendar fake 2 30` (otro `startEpoch`) → `upcoming` de nuevo (rearma).
+  - `calendar fake off` → `idle`.
+- Detalle de la sonda: el primer `press` debe esperar ~6 s al despertar de
+  arranque; un toque durante la wake la salta en vez de descartar el evento. La
+  sonda lo documenta y espera.
+- Artboard ajustado para que el firmware y el spec coincidan: centros 42/118,
+  radios 24..30/24..34 y la palabra `PROXIMAMENTE`. `design/system.md` suma
+  `glass-event #aa50ff`.
