@@ -82,7 +82,7 @@ Google) vive en `.h`/`.cpp` sin `Arduino.h` y se fija en
 | T9: `INSTALL.md`, `README.md` y `ARCHITECTURE.md` | S5 | inline | docs |
 | T10: sacar el proxy de calendario del bridge | S1 | inline | `50ffb51` |
 | T11: pruebas de host, compilación del firmware y panel empaquetado | S8 | inline | `50ffb51`, `e01d201` |
-| T12: verificación en la placa | S6 | hardware | pendiente de autorización |
+| T12: verificación en la placa | S6 | hardware | `803586c`, `3a7b968` |
 
 ## Log
 
@@ -150,3 +150,34 @@ L3 — implementación (21-nov), con las pruebas y la compilación como evidenci
   la cuenta de Google del dueño. Ambas necesitan autorización/flash explícita.
 - Nota: el hook de commit cuenta líneas desde `origin/main` en una rama
   encadenada y reporta ~22k; las rebanadas reales son 1 061 / 705 / 1 006 / docs.
+
+L4 — verificación en la placa (21-nov, autorizada por el dueño), COM5:
+
+- `arduino-cli upload` → `Hash of data verified`. Firmware de la última prueba:
+  1 555 104 B escritos; compilación 1 554 962 B (49%) y 70 468 B de RAM (21%).
+- Sonda `tools/probes/calendario_local.txt` con `calendar fake`, que inyecta un
+  evento sintético por consola (no persiste, mismo modelo que `buddyface`):
+  - 20 min antes, aviso 30 → `reaccion: early (activa) intensidad=33 ms=1200000`.
+  - 2 min antes → `starting`, `intensidad=93`, `ms=120000`.
+  - evento empezado (-1 min) → `ongoing`, `intensidad=100`, `ms=-60000`.
+  - `calendar fake off` → `reaccion: none` y el bridge vuelve a mandar
+    (`state: idle`, `label: aca estoy`, LED cyan).
+  - `/api/status` durante la reacción: `state:"upcoming"`,
+    `label:"Evento de prueba"`, `phase:"event"`, `led:[170,80,255]`, y el `dump 4`
+    muestra el título arriba y los ojos más abiertos. Todo esto con el bridge
+    conectado y **sin credenciales de Google**: el calendario no depende de él.
+- Google real (sin cuenta): `GET /api/calendar` sin sesión → `401`. Con un client
+  falso guardado desde el panel, `POST /api/calendar/connect` → `502` con el
+  error real de Google `"The OAuth client was not found."`: el TLS del equipo
+  llega a `oauth2.googleapis.com` y el pedido del device flow tiene la forma que
+  Google espera. Después `POST /api/calendar/forget` deja el equipo limpio.
+- Defecto encontrado y corregido en esa misma verificación: ArduinoJson guarda
+  punteros a los `char[]`, y `apiCalendarStatus()` serializaba después de que el
+  struct local saliera de alcance, así que el panel recibía bytes basura en
+  `userCode`, `verificationUrl`, `selectedId`, `selectedName`, `lastError` y
+  `nextSummary`. Se pasó el struct por referencia hasta `serializeJson` y se
+  copiaron los `id/name` de la lista (`803586c`), se reflasheó y la respuesta
+  quedó limpia (cadenas vacías, `kind: needs_auth`, `lastError` correcto).
+- **Lo único que falta** es la conexión con la cuenta real del dueño: requiere su
+  Client ID/secret y aprobar el código en Google. Eso no lo puede hacer el
+  agente; el panel ya muestra el paso a paso.
