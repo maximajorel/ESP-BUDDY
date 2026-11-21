@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sofía · estados 01 · idle, compañía de escritorio</title>
+<style>
+  :root {
+    --bg: #0e1015; --card: #161a22; --inset: #1b212b; --line: #262d3a;
+    --tx: #e8ecf4; --dim: #94a0b4; --accent: #00b4ff; --accent-soft: #0b2b38;
+    --eye: #00b4ff; --hot: #ff3c1e; --gold: #ffd700; --ok: #4ade80;
+    --radius: 16px; --tap: 44px;
+  }
+  * { box-sizing: border-box; }
+  html { color-scheme: dark; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg); color: var(--tx);
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display: flex; justify-content: center;
+  }
+  .stage { width: 1000px; padding: 34px 40px 48px; display: flex; flex-direction: column; gap: 20px; }
+  header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
+  h1 { margin: 0; font-size: 26px; letter-spacing: -0.3px; }
+  .sub { margin: 6px 0 0; color: var(--dim); font-size: 14px; max-width: 62ch; }
+  .badge {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase;
+    color: var(--accent); background: var(--accent-soft); border: 1px solid var(--accent-soft);
+    border-radius: 999px; padding: 7px 12px; white-space: nowrap;
+  }
+  .device {
+    position: relative; align-self: center; padding: 24px; border: 1px solid var(--line);
+    border-radius: 24px; background: #070a0d;
+  }
+  .device canvas { display: block; width: 640px; height: 344px; image-rendering: pixelated; border-radius: 6px; }
+  .device .edge { position: absolute; inset: 24px; border: 1px solid #12303c; border-radius: 6px; pointer-events: none; }
+  .controls { display: flex; align-items: center; gap: 14px; }
+  .controls button {
+    font: inherit; font-weight: 650; background: var(--accent); color: #06121a; border: 0;
+    border-radius: 10px; padding: 10px 16px; min-height: var(--tap); cursor: pointer; width: 118px;
+  }
+  .controls input[type=range] { flex: 1; accent-color: var(--accent); min-height: var(--tap); }
+  .controls button:focus-visible, .controls input[type=range]:focus-visible,
+  .strip figure:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+  .clock {
+    font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color: var(--dim); min-width: 160px; text-align: right;
+  }
+  .clock b { color: var(--tx); font-weight: 650; }
+  .track { display: flex; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); }
+  .seg {
+    padding: 9px 10px; font-size: 12px; color: var(--dim); background: var(--inset);
+    border-right: 1px solid var(--line); white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis; transition: background 160ms linear, color 160ms linear;
+  }
+  .seg:last-child { border-right: 0; }
+  .seg.on { background: var(--accent-soft); color: var(--accent); font-weight: 650; }
+  .strip { display: flex; gap: 12px; flex-wrap: wrap; }
+  .strip figure { margin: 0; width: 176px; }
+  .strip canvas { display: block; width: 176px; height: 95px; border: 1px solid var(--line); border-radius: 8px; image-rendering: pixelated; background: #000; }
+  .strip figcaption { margin-top: 6px; font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--dim); }
+  .strip figcaption b { color: var(--tx); font-weight: 600; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; }
+  .card h2 { margin: 0 0 8px; font-size: 15px; letter-spacing: 0.2px; }
+  .card p, .card li { font-size: 13px; color: var(--dim); margin: 0 0 6px; }
+  .card ul { margin: 0; padding-left: 18px; }
+  .card b { color: var(--tx); font-weight: 600; }
+  code { font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--tx); }
+  .tradeoff { border-left: 2px solid var(--accent); padding-left: 12px; color: var(--dim); font-size: 13px; margin: 0; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--dim); }
+  .key { display: inline-flex; align-items: center; gap: 6px; }
+  .key i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+</style>
+</head>
+<body>
+<main class="stage">
+  <header>
+    <div>
+      <h1>Idle · compañía de escritorio</h1>
+      <p class="sub">La cara quieta no es un protector de pantalla. Mientras nadie le habla, Sofía hace tres cosas nuevas: mira el reloj cuando queda poco, se estira si estuvo mucho tiempo sin nada, y cada tanto levanta la vista a buscarte. Todo sale del reloj de la placa, sin estado nuevo y sin tocar el bridge.</p>
+    </div>
+    <span class="badge">Dirección A · idle</span>
+  </header>
+
+  <div class="device">
+    <canvas id="big" width="640" height="344" aria-label="Vista previa animada del vidrio de 320x172 con las reacciones de idle"></canvas>
+    <span class="edge"></span>
+  </div>
+
+  <div class="controls">
+    <button id="play" type="button">Pausar</button>
+    <input id="scrub" type="range" min="0" max="12000" step="10" value="0" aria-label="Recorrer la línea de tiempo">
+    <span class="clock" id="clock">t <b>0.0 s</b> / 12.0 s</span>
+  </div>
+
+  <div class="track" id="track" aria-label="Línea de tiempo de las reacciones">
+    <span class="seg" data-from="0" data-to="1300">quieta</span>
+    <span class="seg" data-from="1300" data-to="2400">microsacada</span>
+    <span class="seg" data-from="2400" data-to="3200">parpadeo</span>
+    <span class="seg" data-from="3200" data-to="6200">estiramiento</span>
+    <span class="seg" data-from="6200" data-to="9000">busca al dueño</span>
+    <span class="seg" data-from="9000" data-to="12000">respira</span>
+  </div>
+
+  <div class="strip" id="strip"></div>
+
+  <div class="cols">
+    <div class="card">
+      <h2>Qué se lee</h2>
+      <ul>
+        <li><b>Estiramiento</b> (3.4–6.2 s): los ojos suben 8 px y el párpado baja a 0.38 durante 1.2 s. Es el gesto de alguien que estaba quieto y se acomoda, no un bostezo.</li>
+        <li><b>Busca al dueño</b> (6.2–9.0 s): mirada 16 px a la izquierda y 5 arriba, con el ojo un 4% más abierto y el párpado en 0.08. Dura 1.1 s: es un vistazo, no una llamada.</li>
+        <li><b>Con reloj</b>: si hay Concentración, cuando al bloque le quedan 5 minutos la mirada baja al número 220 ms y vuelve; a falta de 1 minuto, doble parpadeo y el vistazo al dueño. Nunca cambia de tamaño los ojos: el reloj manda.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h2>Cómo se hace</h2>
+      <p>Todo es función del reloj, como el idle que ya existe: sin timers acumulados y sin memoria. Cada gesto vive en su propia época larga (estiramiento: una vez cada 4 min como mínimo; vistazo: uno cada 45–90 s, con hash) y ninguno toma el control si hay un estado del bridge o una reacción del IMU en curso.</p>
+      <p>Canales usados: <code>gy</code>, <code>lid</code>, <code>gx</code>, <code>rx</code>. Nada de <code>hot</code>: el idle no se enoja.</p>
+      <p>Antirrebote: un gesto que no llegó a 300 ms no se dibuja, igual que hoy con los estados.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>No cambia</h2>
+    <p>Parpadeo irregular, microsacadas de 1–3 px, respiración de 4.5 s, los 12 eventos de idle, el bicho, la pelotita, el IMU y el temporizador. Esta dirección suma tres gestos y no reemplaza ninguno.</p>
+  </div>
+
+  <p class="tradeoff"><b>Tradeoff:</b> es la dirección más cálida y la que más se nota de reojo, pero es también la que más movimiento mete en un ambiente donde la placa puede ser "mueble". El estiramiento cada 4 minutos con alguien leyendo al lado se puede leer como que la placa se colgó, y el vistazo al dueño puede confundirse con el arranque de un pedido de atención.</p>
+
+  <p class="legend">
+    <span class="key"><i style="background:var(--eye)"></i> ojo del dueño #00b4ff</span>
+    <span class="key"><i style="background:var(--hot)"></i> calor #ff3c1e</span>
+    <span class="key"><i style="background:var(--gold)"></i> logro #ffd700</span>
+    <span class="key">Glow aproximado: en la placa se ditheriza, acá se mezcla con alpha.</span>
+  </p>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  var EYE = "#00b4ff", HOT = "#ff3c1e", GOLD = "#ffd700", MINT = "#55db9c";
+  var NUM = ["gx", "gy", "rx", "ry", "lid", "lidL", "lidR", "bottom", "rot", "hot", "energy"];
+  var DEF = { gx: 0, gy: 0, rx: 48, ry: 48, lid: 0, lidL: 0, lidR: 0, bottom: 0, rot: 0, hot: 0, energy: 1, small: false, digits: null, hud: null };
+  var DUR = 12000;
+
+  function P(o) { return Object.assign({}, DEF, o); }
+  function lerp(a, b, k) { return a + (b - a) * k; }
+
+  function sample(keys, t) {
+    var a = keys[0], b = keys[keys.length - 1], i;
+    for (i = 0; i < keys.length; i++) {
+      if (keys[i].t <= t) a = keys[i];
+      if (keys[i].t > t) { b = keys[i]; break; }
+    }
+    if (a === b) return Object.assign({}, a.p);
+    var k = (t - a.t) / (b.t - a.t);
+    var out = Object.assign({}, a.p);
+    for (i = 0; i < NUM.length; i++) out[NUM[i]] = lerp(a.p[NUM[i]], b.p[NUM[i]], k);
+    return out;
+  }
+
+  function rr(ctx, x, y, w, h, r) {
+    var m = Math.min(w, h) / 2;
+    if (r > m) r = m;
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
+  function rgba(hex, a) {
+    var n = parseInt(hex.slice(1), 16);
+    return "rgba(" + ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + a + ")";
+  }
+
+  function withAlpha(col, a) {
+    if (col.indexOf("rgb(") === 0) return col.replace("rgb(", "rgba(").replace(")", "," + a + ")");
+    return rgba(col, a);
+  }
+
+  function mix(hex, hot) {
+    if (!hot) return hex;
+    var a = parseInt(hex.slice(1), 16), b = parseInt(HOT.slice(1), 16);
+    var ch = function (s) { return Math.round(((a >> s) & 255) + (((b >> s) & 255) - ((a >> s) & 255)) * hot); };
+    return "rgb(" + ch(16) + "," + ch(8) + "," + ch(0) + ")";
+  }
+
+  function drawHud(ctx, kind) {
+    if (kind === "ask") {
+      ctx.fillStyle = HOT;
+      rr(ctx, 292, 8, 18, 18, 5);
+      ctx.fill();
+      ctx.fillStyle = "#000";
+      ctx.font = "700 14px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("!", 301, 18);
+    } else if (kind === "ok") {
+      ctx.fillStyle = MINT;
+      rr(ctx, 292, 8, 18, 18, 5);
+      ctx.fill();
+      ctx.strokeStyle = "#04220f";
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(296, 17); ctx.lineTo(300, 21); ctx.lineTo(306, 12);
+      ctx.stroke();
+    } else if (kind === "busy") {
+      ctx.fillStyle = "rgba(255,213,49,0.9)";
+      [0, 1, 2].forEach(function (i) {
+        ctx.beginPath();
+        ctx.arc(296 + i * 8, 17, 2.6, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+  }
+
+  function draw(ctx, p, scale, W, H) {
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, W, H);
+    var cy = p.small ? 34 : 88;
+    var col = mix(EYE, p.hot);
+    var xs = [105, 215];
+    for (var i = 0; i < 2; i++) {
+      var x = xs[i] + p.gx, y = cy + p.gy;
+      var pads = [[10, 0.10], [7, 0.16], [4, 0.22]];
+      for (var g = 0; g < pads.length; g++) {
+        var pad = pads[g][0];
+        ctx.fillStyle = withAlpha(col, pads[g][1] * p.energy);
+        rr(ctx, x - p.rx - pad, y - p.ry - pad, 2 * (p.rx + pad), 2 * (p.ry + pad), Math.min(p.rx, p.ry) * 0.38 + pad * 0.6);
+        ctx.fill();
+      }
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(p.rot * Math.PI / 180);
+      ctx.fillStyle = col;
+      ctx.globalAlpha = Math.max(0, Math.min(1, p.energy));
+      rr(ctx, -p.rx, -p.ry, 2 * p.rx, 2 * p.ry, Math.min(p.rx, p.ry) * 0.38);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      var lid = Math.max(0, Math.min(1, p.lid + (i === 0 ? p.lidL : p.lidR)));
+      var lidY = -p.ry + 2 * p.ry * lid;
+      if (lidY > -p.ry) {
+        ctx.fillStyle = "#000";
+        ctx.fillRect(-p.rx - 14, -p.ry - 14, 2 * p.rx + 28, lidY + p.ry + 14);
+      }
+      var bot = Math.max(0, Math.min(1, p.bottom));
+      var botY = p.ry - 2 * p.ry * bot;
+      if (botY < p.ry) {
+        ctx.fillStyle = "#000";
+        ctx.fillRect(-p.rx - 14, botY, 2 * p.rx + 28, p.ry - botY + 14);
+      }
+      ctx.restore();
+    }
+    if (p.digits) {
+      ctx.fillStyle = "#fff";
+      ctx.font = "700 74px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(p.digits, 160, 116);
+    }
+    if (p.hud) drawHud(ctx, p.hud);
+  }
+
+  // ---- the storyboard -------------------------------------------------------
+  var KEYS = [
+    { t: 0, p: P({}) },
+    { t: 1300, p: P({ gx: 3, gy: -1 }) },
+    { t: 1900, p: P({ gx: 3, gy: -1 }) },
+    { t: 2350, p: P({ gx: 1, lid: 0 }) },
+    { t: 2560, p: P({ gx: 1, lid: 1 }) },
+    { t: 2700, p: P({ gx: 1, lid: 1 }) },
+    { t: 2860, p: P({ gx: 1, lid: 0 }) },
+    { t: 3400, p: P({ gy: -2, lid: 0.12 }) },
+    { t: 4200, p: P({ gy: -8, lid: 0.38, rx: 45 }) },
+    { t: 5400, p: P({ gy: -8, lid: 0.34, rx: 45 }) },
+    { t: 6000, p: P({ gy: 0, lid: 0.05 }) },
+    { t: 6400, p: P({ gy: 0, lid: 0.05 }) },
+    { t: 7000, p: P({ gx: -16, gy: -5, lid: 0.08, rx: 50 }) },
+    { t: 8100, p: P({ gx: -16, gy: -5, lid: 0.1, rx: 50 }) },
+    { t: 8800, p: P({ gx: -2, gy: 0, lid: 0.05 }) },
+    { t: 9300, p: P({ gy: 0, lid: 0.06 }) },
+    { t: 10600, p: P({ gy: 1.6, lid: 0.1 }) },
+    { t: 12000, p: P({}) }
+  ];
+
+  var big = document.getElementById("big");
+  var bctx = big.getContext("2d");
+  var scrub = document.getElementById("scrub");
+  var clock = document.getElementById("clock");
+  var playBtn = document.getElementById("play");
+  var segs = Array.prototype.slice.call(document.querySelectorAll("#track .seg"));
+  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var playing = !reduced;
+  var started = performance.now();
+  var manual = 0;
+
+  function render(t) {
+    var p = sample(KEYS, t);
+    draw(bctx, p, 2, 320, 172);
+    clock.innerHTML = "t <b>" + (t / 1000).toFixed(1) + " s</b> / " + (DUR / 1000).toFixed(1) + " s";
+    for (var i = 0; i < segs.length; i++) {
+      var from = +segs[i].dataset.from, to = +segs[i].dataset.to;
+      segs[i].classList.toggle("on", t >= from && t < to);
+    }
+  }
+
+  function loop(now) {
+    if (playing) {
+      var t = (now - started) % DUR;
+      scrub.value = t;
+      render(t);
+    }
+    requestAnimationFrame(loop);
+  }
+
+  playBtn.addEventListener("click", function () {
+    playing = !playing;
+    playBtn.textContent = playing ? "Pausar" : "Reproducir";
+    if (playing) started = performance.now() - manual;
+  });
+
+  scrub.addEventListener("input", function () {
+    manual = +scrub.value;
+    playing = false;
+    playBtn.textContent = "Reproducir";
+    render(manual);
+  });
+
+  // static filmstrip
+  var strip = document.getElementById("strip");
+  [
+    { t: 600, cap: "quieta", note: "0.6 s" },
+    { t: 1700, cap: "microsacada", note: "1.7 s · 3 px" },
+    { t: 2630, cap: "parpadeo", note: "2.6 s · 130 ms" },
+    { t: 4600, cap: "estiramiento", note: "4.6 s · 1.4 s" },
+    { t: 7600, cap: "busca al dueño", note: "7.6 s · 1.1 s" }
+  ].forEach(function (f) {
+    var fig = document.createElement("figure");
+    fig.tabIndex = 0;
+    var c = document.createElement("canvas");
+    c.width = 320; c.height = 172;
+    draw(c.getContext("2d"), sample(KEYS, f.t), 1, 320, 172);
+    var cap = document.createElement("figcaption");
+    cap.innerHTML = "<b>" + f.cap + "</b><br>" + f.note;
+    fig.appendChild(c);
+    fig.appendChild(cap);
+    fig.addEventListener("focus", function () { render(f.t); playing = false; playBtn.textContent = "Reproducir"; });
+    strip.appendChild(fig);
+  });
+  (function withTimer() {
+    var fig = document.createElement("figure");
+    fig.tabIndex = 0;
+    var c = document.createElement("canvas");
+    c.width = 320; c.height = 172;
+    draw(c.getContext("2d"), P({ small: true, digits: "04:12", gy: 2, lid: 0.06 }), 1, 320, 172);
+    var cap = document.createElement("figcaption");
+    cap.innerHTML = "<b>con reloj</b><br>queda poco: mira el número";
+    fig.appendChild(c);
+    fig.appendChild(cap);
+    strip.appendChild(fig);
+  })();
+
+  render(0);
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

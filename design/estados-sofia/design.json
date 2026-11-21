@@ -1,0 +1,28 @@
+{
+  "title": "Sofía · estados y reacciones",
+  "brief": "Vocabulario de reacciones de la cara de Sofía en el vidrio de 320x172: qué hace mientras está idle, mientras trabaja (leer no es teclear) y cómo pide atención cuando Hermes necesita una respuesta. Una dirección por estado, animada y con tiempos, para elegir antes de tocar el firmware.",
+  "feature": "odd/tasks/estados-sofia.md",
+  "artboards": [
+    {
+      "file": "01-idle-compania.html",
+      "title": "Idle · compañía de escritorio",
+      "tradeoff": "La más cálida y la que más se nota de reojo; también la que más movimiento mete en un ambiente donde la placa puede ser mueble. El estiramiento puede leerse como que se colgó.",
+      "width": 1000,
+      "height": 1180
+    },
+    {
+      "file": "02-trabajando-ritmo.html",
+      "title": "Trabajando · leer no es teclear",
+      "tradeoff": "Da más información sin texto, pero el ritmo de la tool puede leerse como una barra de progreso y tartamudea si el bridge alterna thinking/tool seguido.",
+      "width": 1000,
+      "height": 1180
+    },
+    {
+      "file": "03-te-necesita.html",
+      "title": "Te necesita · insistencia con techo",
+      "tradeoff": "La más inequívoca y la única hecha para interrumpir; un falso positivo se paga caro y el rojo del ! compite con el rojo de Sin conexión. El canal no está verificado.",
+      "width": 1000,
+      "height": 1240
+    }
+  ]
+}

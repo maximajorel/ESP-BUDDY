@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sofía · estados 03 · te necesita</title>
+<style>
+  :root {
+    --bg: #0e1015; --card: #161a22; --inset: #1b212b; --line: #262d3a;
+    --tx: #e8ecf4; --dim: #94a0b4; --accent: #fb4903; --accent-soft: #3a1408;
+    --eye: #00b4ff; --hot: #ff3c1e; --gold: #ffd700; --ok: #4ade80;
+    --radius: 16px; --tap: 44px;
+  }
+  * { box-sizing: border-box; }
+  html { color-scheme: dark; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg); color: var(--tx);
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display: flex; justify-content: center;
+  }
+  .stage { width: 1000px; padding: 34px 40px 48px; display: flex; flex-direction: column; gap: 20px; }
+  header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
+  h1 { margin: 0; font-size: 26px; letter-spacing: -0.3px; }
+  .sub { margin: 6px 0 0; color: var(--dim); font-size: 14px; max-width: 62ch; }
+  .badge {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase;
+    color: var(--accent); background: var(--accent-soft); border: 1px solid var(--accent-soft);
+    border-radius: 999px; padding: 7px 12px; white-space: nowrap;
+  }
+  .device { position: relative; align-self: center; padding: 24px; border: 1px solid var(--line); border-radius: 24px; background: #070a0d; }
+  .device canvas { display: block; width: 640px; height: 344px; image-rendering: pixelated; border-radius: 6px; }
+  .device .edge { position: absolute; inset: 24px; border: 1px solid #3c1a12; border-radius: 6px; pointer-events: none; }
+  .controls { display: flex; align-items: center; gap: 14px; }
+  .controls button {
+    font: inherit; font-weight: 650; background: var(--accent); color: #170703; border: 0;
+    border-radius: 10px; padding: 10px 16px; min-height: var(--tap); cursor: pointer; width: 118px;
+  }
+  .controls input[type=range] { flex: 1; accent-color: var(--accent); min-height: var(--tap); }
+  .controls button:focus-visible, .controls input[type=range]:focus-visible,
+  .strip figure:focus-visible { outline: 2px solid var(--eye); outline-offset: 3px; }
+  .clock {
+    font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color: var(--dim); min-width: 160px; text-align: right;
+  }
+  .clock b { color: var(--tx); font-weight: 650; }
+  .track { display: flex; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); }
+  .seg {
+    padding: 9px 8px; font-size: 12px; color: var(--dim); background: var(--inset);
+    border-right: 1px solid var(--line); white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis; transition: background 160ms linear, color 160ms linear;
+  }
+  .seg:last-child { border-right: 0; }
+  .seg.on { background: var(--accent-soft); color: var(--accent); font-weight: 650; }
+  .strip { display: flex; gap: 12px; flex-wrap: wrap; }
+  .strip figure { margin: 0; width: 176px; }
+  .strip canvas { display: block; width: 176px; height: 95px; border: 1px solid var(--line); border-radius: 8px; image-rendering: pixelated; background: #000; }
+  .strip figcaption { margin-top: 6px; font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--dim); }
+  .strip figcaption b { color: var(--tx); font-weight: 600; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; }
+  .card h2 { margin: 0 0 8px; font-size: 15px; letter-spacing: 0.2px; }
+  .card p, .card li { font-size: 13px; color: var(--dim); margin: 0 0 6px; }
+  .card ul { margin: 0; padding-left: 18px; }
+  .card b { color: var(--tx); font-weight: 600; }
+  .card.warn { border-color: var(--accent-soft); background: #1a1410; }
+  .card.warn h2 { color: var(--accent); }
+  code { font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--tx); }
+  .tradeoff { border-left: 2px solid var(--accent); padding-left: 12px; color: var(--dim); font-size: 13px; margin: 0; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--dim); }
+  .key { display: inline-flex; align-items: center; gap: 6px; }
+  .key i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+</style>
+</head>
+<body>
+<main class="stage">
+  <header>
+    <div>
+      <h1>Te necesita · insistencia con techo</h1>
+      <p class="sub">Estado nuevo <code>needs_you</code>: Hermes pide permiso para ejecutar algo o necesita que le contestes desde la app, Telegram o un canal compatible. Es el único estado que existe para que levantes la vista, así que se lee desde el otro lado del cuarto, insiste cinco veces y después se calla sin desaparecer.</p>
+    </div>
+    <span class="badge">Dirección A · needs_you</span>
+  </header>
+
+  <div class="device">
+    <canvas id="big" width="640" height="344" aria-label="Vista previa animada del estado te necesita: ojos abiertos, mirada fija y pulso de brillo"></canvas>
+    <span class="edge"></span>
+  </div>
+
+  <div class="controls">
+    <button id="play" type="button">Pausar</button>
+    <input id="scrub" type="range" min="0" max="12000" step="10" value="0" aria-label="Recorrer la línea de tiempo">
+    <span class="clock" id="clock">t <b>0.0 s</b> / 12.0 s</span>
+  </div>
+
+  <div class="track" id="track" aria-label="Línea de tiempo de las reacciones">
+    <span class="seg" data-from="0" data-to="800">idle</span>
+    <span class="seg" data-from="800" data-to="1600">entrada · ojos anchos</span>
+    <span class="seg" data-from="1600" data-to="5000">sostén · pulso</span>
+    <span class="seg" data-from="5000" data-to="7300">insistencia</span>
+    <span class="seg" data-from="7300" data-to="9000">techo alcanzado</span>
+    <span class="seg" data-from="9000" data-to="12000">quieto y visible</span>
+  </div>
+
+  <div class="strip" id="strip"></div>
+
+  <div class="cols">
+    <div class="card">
+      <h2>Qué se lee</h2>
+      <ul>
+        <li><b>Entrada</b> (0.35 s): los ojos se abren 20% de golpe y el párpado va a 0 — la sorpresa que hace levantar la vista — y en la esquina aparece el <code>!</code> rojo.</li>
+        <li><b>Sostén</b>: mirada fija arriba del centro (−6, −6), ojo un 6% más abierto, párpado en 0.18. Te mira; no barre ni parpadea al ritmo del idle.</li>
+        <li><b>Pulso</b>: el brillo respira a 0.4 Hz (1 → 0.72 → 1 en 2.5 s). El LED trasero usa el rojo de <code>ask</code> con el pulso lento que ya existe en <code>buddy_bead</code>.</li>
+        <li><b>Insistencia</b>: cada 25 s un doble toque de brillo (1 → 0.6 → 1 en 300 ms), cinco veces. Después de la quinta no insiste más.</li>
+        <li><b>Salida</b>: si se resuelve, el estado fabrica el tilde verde de 1.2 s (el mismo del fin de turno) y vuelve a idle. Ningún rojo se apaga de golpe.</li>
+      </ul>
+    </div>
+    <div class="card warn">
+      <h2>El canal no está verificado</h2>
+      <p>Decisión del dueño: <b>solo doc, cosmético</b>. Las aprobaciones y los <code>clarify</code> de Hermes viven en memoria del proceso del gateway, no en <code>state.db</code>, y el bridge no las ve (<code>docs/IDEAS.md</code>). Este diseño documenta la reacción; <b>no promete que se dispare</b>.</p>
+      <p>Mientras no exista el canal, el estado se puede ver con <code>buddyface needs_you</code> en la consola serie y con un <code>POST /api/face</code> de mood para el panel. Nada más.</p>
+      <p>Cuando el bridge consiga la señal, el contrato ya está listo: un nombre de estado nuevo y la etiqueta corta de siempre (≤40 caracteres).</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Cómo se hace</h2>
+    <p>Canales: <code>rx</code>, <code>ry</code>, <code>lid</code>, <code>gx</code>, <code>gy</code>, <code>energy</code>. El <code>!</code> es el HUD fase <code>ask</code> que ya existe, así que no hay un badge nuevo que dibujar.</p>
+    <p>El pulso es <code>millis() % 2500</code> y la insistencia <code>millis() % 25000</code>: sin timers ni memoria, y si la cara se congela retoma donde corresponde.</p>
+    <p>El estado es <b>local y con techo</b>: pasados los cinco avisos queda quieto en la pose de sostén. Si el bridge sigue pidiendo, no vuelve a empezar: eso convertiría una alarma en decoración.</p>
+  </div>
+
+  <div class="card">
+    <h2>No cambia</h2>
+    <p>El estado <code>waiting</code> del run propio del bridge (que ya usa la fase <code>ask</code>) y <code>error</code>, que se queda con el rojo caliente y las cruces en los ojos. <code>needs_you</code> es atención, no falla: nunca usa el calor del ojo.</p>
+  </div>
+
+  <p class="tradeoff"><b>Tradeoff:</b> es la dirección más inequívoca y la única pensada para interrumpir, pero un falso positivo se paga caro: si el canal llegara con estados colgados, la cara gritaría por nada. Por eso el techo de cinco avisos, la pose final quieta y la entrada/salida suaves. El rojo del <code>!</code> también compite con el rojo de <code>Sin conexión</code>: si el dueño confunde uno con otro, hay que mover el badge o cambiar el de offline.</p>
+
+  <p class="legend">
+    <span class="key"><i style="background:var(--eye)"></i> ojo del dueño #00b4ff</span>
+    <span class="key"><i style="background:var(--hot)"></i> HUD ask / calor #ff3c1e</span>
+    <span class="key"><i style="background:var(--ok)"></i> tilde fabricado</span>
+    <span class="key">Glow aproximado: en la placa se ditheriza, acá se mezcla con alpha.</span>
+  </p>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  var EYE = "#00b4ff", HOT = "#ff3c1e", MINT = "#55db9c";
+  var NUM = ["gx", "gy", "rx", "ry", "lid", "lidL", "lidR", "bottom", "rot", "hot", "energy"];
+  var DEF = { gx: 0, gy: 0, rx: 48, ry: 48, lid: 0, lidL: 0, lidR: 0, bottom: 0, rot: 0, hot: 0, energy: 1, small: false, digits: null, hud: null };
+  var DUR = 12000;
+
+  function P(o) { return Object.assign({}, DEF, o); }
+  function lerp(a, b, k) { return a + (b - a) * k; }
+
+  function sample(keys, t) {
+    var a = keys[0], b = keys[keys.length - 1], i;
+    for (i = 0; i < keys.length; i++) {
+      if (keys[i].t <= t) a = keys[i];
+      if (keys[i].t > t) { b = keys[i]; break; }
+    }
+    if (a === b) return Object.assign({}, a.p);
+    var k = (t - a.t) / (b.t - a.t);
+    var out = Object.assign({}, a.p);
+    for (i = 0; i < NUM.length; i++) out[NUM[i]] = lerp(a.p[NUM[i]], b.p[NUM[i]], k);
+    return out;
+  }
+
+  function rr(ctx, x, y, w, h, r) {
+    var m = Math.min(w, h) / 2;
+    if (r > m) r = m;
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
+  function rgba(hex, a) {
+    var n = parseInt(hex.slice(1), 16);
+    return "rgba(" + ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + a + ")";
+  }
+
+  function withAlpha(col, a) {
+    if (col.indexOf("rgb(") === 0) return col.replace("rgb(", "rgba(").replace(")", "," + a + ")");
+    return rgba(col, a);
+  }
+
+  function mix(hex, hot) {
+    if (!hot) return hex;
+    var a = parseInt(hex.slice(1), 16), b = parseInt(HOT.slice(1), 16);
+    var ch = function (s) { return Math.round(((a >> s) & 255) + (((b >> s) & 255) - ((a >> s) & 255)) * hot); };
+    return "rgb(" + ch(16) + "," + ch(8) + "," + ch(0) + ")";
+  }
+
+  function drawHud(ctx, kind) {
+    if (kind === "ask") {
+      ctx.fillStyle = HOT;
+      rr(ctx, 292, 8, 18, 18, 5);
+      ctx.fill();
+      ctx.fillStyle = "#000";
+      ctx.font = "700 14px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("!", 301, 18);
+    } else if (kind === "ok") {
+      ctx.fillStyle = MINT;
+      rr(ctx, 292, 8, 18, 18, 5);
+      ctx.fill();
+      ctx.strokeStyle = "#04220f";
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(296, 17); ctx.lineTo(300, 21); ctx.lineTo(306, 12);
+      ctx.stroke();
+    } else if (kind === "busy") {
+      ctx.fillStyle = "rgba(255,213,49,0.9)";
+      [0, 1, 2].forEach(function (i) {
+        ctx.beginPath();
+        ctx.arc(296 + i * 8, 17, 2.6, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+  }
+
+  function draw(ctx, p, scale, W, H) {
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, W, H);
+    var cy = p.small ? 34 : 88;
+    var col = mix(EYE, p.hot);
+    var xs = [105, 215];
+    for (var i = 0; i < 2; i++) {
+      var x = xs[i] + p.gx, y = cy + p.gy;
+      var pads = [[10, 0.10], [7, 0.16], [4, 0.22]];
+      for (var g = 0; g < pads.length; g++) {
+        var pad = pads[g][0];
+        ctx.fillStyle = withAlpha(col, pads[g][1] * p.energy);
+        rr(ctx, x - p.rx - pad, y - p.ry - pad, 2 * (p.rx + pad), 2 * (p.ry + pad), Math.min(p.rx, p.ry) * 0.38 + pad * 0.6);
+        ctx.fill();
+      }
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(p.rot * Math.PI / 180);
+      ctx.fillStyle = col;
+      ctx.globalAlpha = Math.max(0, Math.min(1, p.energy));
+      rr(ctx, -p.rx, -p.ry, 2 * p.rx, 2 * p.ry, Math.min(p.rx, p.ry) * 0.38);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      var lid = Math.max(0, Math.min(1, p.lid + (i === 0 ? p.lidL : p.lidR)));
+      var lidY = -p.ry + 2 * p.ry * lid;
+      if (lidY > -p.ry) {
+        ctx.fillStyle = "#000";
+        ctx.fillRect(-p.rx - 14, -p.ry - 14, 2 * p.rx + 28, lidY + p.ry + 14);
+      }
+      var bot = Math.max(0, Math.min(1, p.bottom));
+      var botY = p.ry - 2 * p.ry * bot;
+      if (botY < p.ry) {
+        ctx.fillStyle = "#000";
+        ctx.fillRect(-p.rx - 14, botY, 2 * p.rx + 28, p.ry - botY + 14);
+      }
+      ctx.restore();
+    }
+    if (p.digits) {
+      ctx.fillStyle = "#fff";
+      ctx.font = "700 74px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(p.digits, 160, 116);
+    }
+    if (p.hud) drawHud(ctx, p.hud);
+  }
+
+  // ---- the storyboard -------------------------------------------------------
+  // One pulse cycle is 2.5 s; the insist window lands at 5 s and 7 s here.
+  var KEYS = [
+    { t: 0, p: P({ lid: 0.06 }) },
+    { t: 800, p: P({ lid: 0.06 }) },
+    { t: 1150, p: P({ rx: 57, ry: 58, lid: 0, hud: "ask" }) },
+    { t: 1600, p: P({ rx: 53, ry: 53, lid: 0.18, gx: -6, gy: -6, hud: "ask" }) },
+    { t: 2500, p: P({ rx: 53, ry: 53, lid: 0.18, gx: -6, gy: -6, energy: 0.72, hud: "ask" }) },
+    { t: 3300, p: P({ rx: 53, ry: 53, lid: 0.18, gx: -6, gy: -6, energy: 1, hud: "ask" }) },
+    { t: 4100, p: P({ rx: 53, ry: 53, lid: 0.18, gx: -6, gy: -6, hud: "ask" }) },
+    { t: 5000, p: P({ rx: 53, ry: 53, lid: 0.18, gx: -6, gy: -6, energy: 0.6, hud: "ask" }) },
+    { t: 5150, p: P({ rx: 53, ry: 53, lid: 0.18, gx: -6, gy: -6, energy: 1, hud: "ask" }) },
+    { t: 5300, p: P({ rx: 53, ry: 53, lid: 0.18, gx: -6, gy: -6, hud: "ask" }) },
+    { t: 7000, p: P({ rx: 53, ry: 53, lid: 0.18, gx: -6, gy: -6, energy: 0.6, hud: "ask" }) },
+    { t: 7150, p: P({ rx: 53, ry: 53, lid: 0.18, gx: -6, gy: -6, energy: 1, hud: "ask" }) },
+    { t: 7300, p: P({ rx: 51, ry: 51, lid: 0.2, gx: -6, gy: -6, hud: "ask" }) },
+    { t: 9000, p: P({ rx: 50, ry: 50, lid: 0.22, gx: -5, gy: -5, hud: "ask" }) },
+    { t: 12000, p: P({ lid: 0.06 }) }
+  ];
+
+  var big = document.getElementById("big");
+  var bctx = big.getContext("2d");
+  var scrub = document.getElementById("scrub");
+  var clock = document.getElementById("clock");
+  var playBtn = document.getElementById("play");
+  var segs = Array.prototype.slice.call(document.querySelectorAll("#track .seg"));
+  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var playing = !reduced;
+  var started = performance.now();
+  var manual = 0;
+
+  function render(t) {
+    draw(bctx, sample(KEYS, t), 2, 320, 172);
+    clock.innerHTML = "t <b>" + (t / 1000).toFixed(1) + " s</b> / " + (DUR / 1000).toFixed(1) + " s";
+    for (var i = 0; i < segs.length; i++) {
+      var from = +segs[i].dataset.from, to = +segs[i].dataset.to;
+      segs[i].classList.toggle("on", t >= from && t < to);
+    }
+  }
+
+  function loop(now) {
+    if (playing) {
+      var t = (now - started) % DUR;
+      scrub.value = t;
+      render(t);
+    }
+    requestAnimationFrame(loop);
+  }
+
+  playBtn.addEventListener("click", function () {
+    playing = !playing;
+    playBtn.textContent = playing ? "Pausar" : "Reproducir";
+    if (playing) started = performance.now() - manual;
+  });
+
+  scrub.addEventListener("input", function () {
+    manual = +scrub.value;
+    playing = false;
+    playBtn.textContent = "Reproducir";
+    render(manual);
+  });
+
+  var strip = document.getElementById("strip");
+  [
+    { t: 400, cap: "idle", note: "párpado 0.06" },
+    { t: 950, cap: "entrada", note: "ojos +20% en 0.35 s" },
+    { t: 2000, cap: "sostén", note: "mirada fija, pulso" },
+    { t: 5075, cap: "insistencia", note: "brillo 0.6 · 150 ms" },
+    { t: 7600, cap: "techo", note: "ya no insiste" },
+    { t: 11000, cap: "vuelta", note: "sale con tilde" }
+  ].forEach(function (f) {
+    var fig = document.createElement("figure");
+    fig.tabIndex = 0;
+    var c = document.createElement("canvas");
+    c.width = 320; c.height = 172;
+    var pose = sample(KEYS, f.t);
+    if (f.t === 11000) { pose = P({ hud: "ok", rx: 52, ry: 52, lid: 0.02 }); }
+    draw(c.getContext("2d"), pose, 1, 320, 172);
+    var cap = document.createElement("figcaption");
+    cap.innerHTML = "<b>" + f.cap + "</b><br>" + f.note;
+    fig.appendChild(c);
+    fig.appendChild(cap);
+    fig.addEventListener("focus", function () { render(f.t === 11000 ? 11000 : f.t); playing = false; playBtn.textContent = "Reproducir"; });
+    strip.appendChild(fig);
+  });
+
+  render(0);
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
