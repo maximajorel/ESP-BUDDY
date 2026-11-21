@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "chosen": "01-mitad-limpia.html",
+  "handoffs": {
+    "01-mitad-limpia.html": {
+      "status": "in_progress",
+      "queued": false,
+      "sentAt": "2026-11-21T20:49:20.430Z",
+      "startedAt": "2026-11-21T20:54:24.211Z",
+      "implementedAt": null,
+      "feature": "odd/tasks/calendario-local.md",
+      "note": "Implementando la pantalla partida en screen_buddy: ojos 24–30 px a la izquierda, ficha tipográfica a la derecha, descarte por toque y cierre por fin de ventana."
+    }
+  }
+}

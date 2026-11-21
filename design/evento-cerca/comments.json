@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "comments": [
+    {
+      "id": "w3lohnsj",
+      "file": "01-mitad-limpia.html",
+      "selector": "#big",
+      "excerpt": "Vista previa del vidrio de 320x172 partido al medio: los ojos a la izquierda y los detalles del evento a la derecha",
+      "comment": "En vez de \"Se viene\" Poner Próximamente.\n\nSaquemos el toque = listo",
+      "createdAt": "2026-11-21T20:48:41.623Z",
+      "status": "resolved",
+      "sentAt": "2026-11-21T20:48:44.711Z",
+      "resolvedAt": "2026-11-21T20:49:10.147Z"
+    }
+  ]
+}

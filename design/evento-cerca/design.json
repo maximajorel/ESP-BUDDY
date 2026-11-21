@@ -1,0 +1,28 @@
+{
+  "title": "Evento cerca · pantalla partida",
+  "brief": "La pantalla del vidrio (320x172) cuando se acerca un evento del calendario: partida al medio, los ojos vivos a la izquierda y los detalles del evento a la derecha. Un toque corto la descarta una vez leída y la cara vuelve a su estado; si el evento termina, vuelve sola. Tres direcciones para elegir la jerarquía antes de tocar el firmware.",
+  "feature": "odd/tasks/calendario-local.md",
+  "artboards": [
+    {
+      "file": "01-mitad-limpia.html",
+      "title": "Mitad limpia · tipográfica",
+      "tradeoff": "La jerarquía más legible y la que deja más aire para títulos de dos líneas; sin aviso de toque, el gesto depende de que el dueño lo sepa.",
+      "width": 1000,
+      "height": 1240
+    },
+    {
+      "file": "02-bloque-hora.html",
+      "title": "El número manda · reloj",
+      "tradeoff": "Se lee desde lejos y la hora queda grabada como en el reloj; el número grande se come el ancho útil y la barra lateral puede confundirse con batería.",
+      "width": 1000,
+      "height": 1240
+    },
+    {
+      "file": "03-ticket-y-ventana.html",
+      "title": "Ticket y ventana · progreso",
+      "tradeoff": "La ventana del recordatorio se entiende sin leer números; la franja superior puede leerse como progreso del sistema y los ticks son lo más interfaz de las tres.",
+      "width": 1000,
+      "height": 1240
+    }
+  ]
+}

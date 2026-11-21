@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Evento cerca · Evento cerca · el número manda</title>
+<style>
+  :root {
+    --bg: #0e1015; --card: #161a22; --inset: #1b212b; --line: #262d3a;
+    --tx: #e8ecf4; --dim: #94a0b4; --accent: #00b4ff; --accent-soft: #0b2b38;
+    --eye: #00b4ff; --hot: #ff3c1e; --gold: #ffd700; --violet: #aa50ff;
+    --ok: #4ade80; --radius: 16px; --tap: 44px;
+  }
+  * { box-sizing: border-box; }
+  html { color-scheme: dark; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg); color: var(--tx);
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display: flex; justify-content: center;
+  }
+  .stage { width: 1000px; padding: 34px 40px 48px; display: flex; flex-direction: column; gap: 20px; }
+  header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
+  h1 { margin: 0; font-size: 26px; letter-spacing: -0.3px; }
+  .sub { margin: 6px 0 0; color: var(--dim); font-size: 14px; max-width: 68ch; }
+  .badge {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase;
+    color: var(--violet); background: #1b1029; border: 1px solid #3a2456;
+    border-radius: 999px; padding: 7px 12px; white-space: nowrap;
+  }
+  .device {
+    position: relative; align-self: center; padding: 24px; border: 1px solid var(--line);
+    border-radius: 24px; background: #070a0d;
+  }
+  .device canvas { display: block; width: 640px; height: 344px; image-rendering: pixelated; border-radius: 6px; }
+  .device .edge { position: absolute; inset: 24px; border: 1px solid #2a1c3f; border-radius: 6px; pointer-events: none; }
+  .controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .controls .group { display: flex; gap: 6px; padding: 4px; border: 1px solid var(--line); border-radius: 12px; background: var(--inset); }
+  .controls button {
+    font: inherit; font-size: 13px; font-weight: 650; background: transparent; color: var(--dim);
+    border: 0; border-radius: 9px; padding: 8px 12px; min-height: 36px; cursor: pointer;
+  }
+  .controls button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
+  .controls button.primary { background: var(--violet); color: #08040f; min-height: var(--tap); padding: 10px 16px; }
+  .controls button.ghost { border: 1px solid var(--line); min-height: var(--tap); padding: 10px 16px; }
+  .controls button:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+  .state {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color: var(--dim); border-top: 1px solid var(--line); padding-top: 10px;
+  }
+  .state b { color: var(--tx); font-weight: 650; }
+  .state .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--violet); display: inline-block; margin-right: 8px; }
+  .strip { display: flex; gap: 12px; flex-wrap: wrap; }
+  .strip figure { margin: 0; width: 200px; }
+  .strip canvas { display: block; width: 200px; height: 108px; border: 1px solid var(--line); border-radius: 8px; image-rendering: pixelated; background: #000; }
+  .strip figcaption { margin-top: 6px; font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--dim); }
+  .strip figcaption b { color: var(--tx); font-weight: 600; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; }
+  .card h2 { margin: 0 0 8px; font-size: 15px; letter-spacing: 0.2px; }
+  .card p, .card li { font-size: 13px; color: var(--dim); margin: 0 0 6px; }
+  .card ul { margin: 0; padding-left: 18px; }
+  .card b { color: var(--tx); font-weight: 600; }
+  code { font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--tx); }
+  .tradeoff { border-left: 2px solid var(--violet); padding-left: 12px; color: var(--dim); font-size: 13px; margin: 0; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--dim); }
+  .key { display: inline-flex; align-items: center; gap: 6px; }
+  .key i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+</style>
+</head>
+<body>
+<main class="stage">
+  <header>
+    <div>
+      <h1>Evento cerca · el número manda</h1>
+      <p class="sub">Misma partición, otra estrategia: el número es el ancla. La hora se dibuja con los siete segmentos del reloj y la mitad izquierda agranda los ojos, así la pantalla se lee desde el otro lado del cuarto. El botón LISTO aparece como objeto, no como texto de ayuda.</p>
+    </div>
+    <span class="badge">Dirección B · reloj</span>
+  </header>
+
+  <div class="device">
+    <canvas id="big" width="640" height="344" aria-label="Vista previa del vidrio de 320x172 partido al medio: los ojos a la izquierda y los detalles del evento a la derecha"></canvas>
+    <span class="edge"></span>
+  </div>
+
+  <div class="controls">
+    <div class="group" id="phases" role="group" aria-label="Momento del recordatorio">
+      <button type="button" data-phase="early" aria-pressed="true">20 min</button>
+      <button type="button" data-phase="near" aria-pressed="false">8 min</button>
+      <button type="button" data-phase="starting" aria-pressed="false">2 min</button>
+      <button type="button" data-phase="ongoing" aria-pressed="false">empezó</button>
+    </div>
+    <button type="button" class="primary" id="dismiss">Toque: leído</button>
+    <button type="button" class="ghost" id="ended">Evento terminó</button>
+    <button type="button" class="ghost" id="restart">Reiniciar</button>
+  </div>
+
+  <p class="state" id="stateText" aria-live="polite"><span class="dot"></span><b>se viene</b> · faltan 20 min</p>
+
+  <div class="strip">
+    <figure><canvas width="320" height="172" data-snap="early" aria-label="Llega el evento"></canvas><figcaption><b>Llega</b> · la ventana se abre, los ojos miran a la ficha</figcaption></figure>
+    <figure><canvas width="320" height="172" data-snap="starting" aria-label="Faltan dos minutos"></canvas><figcaption><b>Ya casi</b> · los ojos se abren y la ficha sigue igual</figcaption></figure>
+    <figure><canvas width="320" height="172" data-snap="normal" aria-label="Leído o terminado: cara normal"></canvas><figcaption><b>Leído / terminó</b> · un toque o el fin de la ventana; la cara vuelve</figcaption></figure>
+  </div>
+
+  <div class="cols">
+    <div class="card">
+          <h2>Qué se lee</h2>
+          <ul>
+            <li><b>El número es el ancla:</b> la hora se dibuja con siete segmentos, el mismo alfabeto del reloj, a 20×32 por dígito. No es una fuente: es el reloj de la placa.</li>
+            <li><b>La mitad izquierda crece.</b> Los ojos suben a 28×28 y la fase los sigue abriendo; no hay línea divisoria: el borde de la tarjeta es el corte.</li>
+            <li><b>El botón se ve como botón:</b> un rectángulo violeta con <code>LISTO</code> aparece cuando la ventana está activa; en la fase temprana queda apagado.</li>
+            <li><b>La barra del corte</b> sube desde abajo y mide la ventana: es la versión vertical de la línea de la dirección A.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h2>Qué no cambia</h2>
+          <p>El borde de la tarjeta es de 1 px, como todo en el vidrio: no hay sombras ni rellenos. El relleno violeta del botón usa el color de la fase evento (<code>#aa50ff</code>), no el rojo de <code>ask</code>.</p>
+          <p>La cara sigue siendo la misma pareja de siempre: el título en escala 2 y el resto en escala 1; nada de texto sobre los ojos.</p>
+        </div>
+    <div class="card">
+          <h2>El gesto</h2>
+          <ul>
+            <li><b>Un toque corto</b> mientras esta pantalla es la dueña del vidrio: se descarta en el acto. No espera la ventana del doble toque: leer y salir tiene que ser inmediato.</li>
+            <li><b>Es por evento.</b> Se recuerda el <code>startEpoch</code> del evento descartado: la misma instancia no vuelve a abrir la pantalla aunque el poll siguiente traiga el mismo título.</li>
+            <li><b>Uno nuevo rearma.</b> Otro evento, u otro día, con distinto <code>startEpoch</code>, vuelve a mostrar la mitad de detalles.</li>
+            <li><b>Al terminar, sola.</b> Cuando pasa <code>start + grace</code> la ventana se cierra y la cara vuelve a su estado; no hace falta tocar nada.</li>
+            <li><b>El resto del botón no cambia.</b> Fuera de esta pantalla, el toque corto sigue saludando y el doble sigue la pelotita; durante la lectura no hay boop.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h2>Cómo se hace en el firmware</h2>
+          <p>La pantalla no es un estado nuevo del bridge: es una <b>vista local</b> de <code>BUDDY_UPCOMING</code> que ya existe. <code>screen_buddy.cpp</code> ya recibe <code>calendarReactionNow()</code> con <code>msToStart</code>, <code>leadMin</code> e <code>intensity</code>.</p>
+          <p>El descarte vive en RAM, como el sueño local: <code>uint32_t s_calendarDismissedStart</code> (0 = nada descartado). <code>buddyShortPress()</code> pregunta primero si la reacción del calendario tiene la cara; si sí, guarda el <code>startEpoch</code> y consume el gesto sin tocar el temporizador del doble toque.</p>
+          <p>El frame sigue siendo de 50 ms y todo es función de <code>millis()</code>; no hay timers nuevos. La mitad izquierda reusa <code>eyePair</code> + <code>buddyPose</code>; la derecha usa <code>gfxText</code> (5×7, escala 1 y 2) y, en la dirección B, <code>gfxSegmentDigit</code>.</p>
+        </div>
+  </div>
+
+    <p class="tradeoff"><b>Tradeoff:</b> se lee desde el otro lado del cuarto y la hora queda grabada como en el reloj. El número grande se come la mitad del ancho útil: un título largo baja a una sola línea, y la barra lateral puede confundirse con un indicador de batería o de carga.</p>
+
+  <p class="legend">
+      <span class="key"><i style="background:var(--eye)"></i> ojo del dueño #00b4ff</span>
+      <span class="key"><i style="background:var(--violet)"></i> fase evento #aa50ff</span>
+      <span class="key"><i style="background:var(--gold)"></i> urgencia #ffd700</span>
+      <span class="key">Glow aproximado: en la placa se ditheriza, acá se mezcla con alpha.</span>
+    </p>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  var REDUCED = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var EYE = "#00b4ff", GOLD = "#ffd700", VIOLET = "#aa50ff", WHITE = "#ffffff";
+  var GREY = "#8a8a8a", BLUEGREY = "#7a8ca0", RULE = "#333333", BLACK = "#000000";
+  var DIM_VIOLET = RULE;
+  var PHASES = ["early", "near", "starting", "ongoing"];
+  var P = {
+    early:    { label: "se viene",  min: 20, pct: 33 },
+    near:     { label: "falta poco", min: 8,  pct: 73 },
+    starting: { label: "ya casi",    min: 2,  pct: 93 },
+    ongoing:  { label: "empezó",     min: -2, pct: 100 }
+  };
+  var S = { phase: "early", dismissed: false, ended: false, t0: performance.now(), raf: 0 };
+  var canvas = document.getElementById("big");
+  var ctx = canvas.getContext("2d");
+  var W = 320, H = 172, SCALE = 2;
+
+  function rr(c, x, y, w, h, r) {
+    var m = Math.min(w, h) / 2;
+    if (r > m) r = m;
+    c.beginPath();
+    c.moveTo(x + r, y);
+    c.lineTo(x + w - r, y);
+    c.quadraticCurveTo(x + w, y, x + w, y + r);
+    c.lineTo(x + w, y + h - r);
+    c.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    c.lineTo(x + r, y + h);
+    c.quadraticCurveTo(x, y + h, x, y + h - r);
+    c.lineTo(x, y + r);
+    c.quadraticCurveTo(x, y, x + r, y);
+    c.closePath();
+  }
+
+  function rgba(hex, a) {
+    var n = parseInt(hex.slice(1), 16);
+    return "rgba(" + ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + a + ")";
+  }
+
+  function text(c, str, x, y, size, color, align) {
+    c.fillStyle = color;
+    c.font = "600 " + size + "px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+    c.textAlign = align || "left";
+    c.textBaseline = "alphabetic";
+    c.fillText(str, x, y);
+  }
+
+  function spaces(str) {
+    // The bitmap font advances 6 px at scale 1; a touch of tracking keeps the
+    // eyebrows reading as labels instead of words.
+    return str.split("").join(String.fromCharCode(8202));
+  }
+
+  function blinkAt(t, double) {
+    if (double) {
+      var b = t % 2;
+      return b < 0.14 || (b > 0.32 && b < 0.46);
+    }
+    return (t % 4.1) < 0.12;
+  }
+
+  function eyePair(c, cx1, cx2, cy, rx, ry, o) {
+    var xs = [cx1, cx2];
+    for (var i = 0; i < 2; i++) {
+      var x = xs[i] + (o.gx || 0);
+      var y = cy + (o.gy || 0) + (o.bob || 0);
+      var pads = [[10, 0.10], [7, 0.16], [4, 0.22]];
+      for (var g = 0; g < pads.length; g++) {
+        var pad = pads[g][0];
+        c.fillStyle = rgba(EYE, pads[g][1]);
+        rr(c, x - rx - pad, y - ry - pad, 2 * (rx + pad), 2 * (ry + pad),
+           Math.min(rx, ry) * 0.38 + pad * 0.6);
+        c.fill();
+      }
+      c.fillStyle = EYE;
+      rr(c, x - rx, y - ry, 2 * rx, 2 * ry, Math.min(rx, ry) * 0.38);
+      c.fill();
+      var lid = Math.max(0, Math.min(1, o.lid || 0));
+      if (lid > 0) {
+        c.fillStyle = BLACK;
+        var lidY = -ry + 2 * ry * lid;
+        c.fillRect(x - rx - 14, y - ry - 14, 2 * rx + 28, lidY + ry + 14);
+      }
+      if (o.blink) {
+        c.fillStyle = BLACK;
+        c.fillRect(x - rx - 14, y - 2, 2 * rx + 28, 4);
+      }
+    }
+  }
+
+  function phaseEyes(c, t, phase) {
+    var p = P[phase];
+    var rx = 24, ry = 24, gx = 3, gy = 1, lid = 0;
+    if (phase === "near") { rx = 27; ry = 28; gx = 4; gy = 0; }
+    if (phase === "starting") { rx = 30; ry = 32; gx = 5; gy = -2; }
+    if (phase === "ongoing") { rx = 32; ry = 34; gx = 5; gy = -2; }
+    var tremble = phase === "starting" ? Math.sin(t * 37) * 0.7 : 0;
+    var opts = {
+      gx: gx + tremble,
+      gy: gy,
+      lid: lid,
+      bob: Math.sin(t * 2.2) * 1,
+      blink: blinkAt(t, phase === "ongoing")
+    };
+    return { rx: rx, ry: ry, opts: opts };
+  }
+
+  function drawNormal(c, t) {
+    c.fillStyle = BLACK;
+    c.fillRect(0, 0, W, H);
+    eyePair(c, 105, 215, 88, 48, 48, {
+      bob: Math.sin(t * 2.2) * 1.6,
+      blink: blinkAt(t, false)
+    });
+  }
+
+  var lastState = "";
+  function header(s, t) {
+    // Shared state line under the controls. Cached: the frame runs at 60 fps and
+    // rewriting the DOM every frame is jank for no information.
+    var p = P[S.phase];
+    var state = document.getElementById("stateText");
+    if (!state) return;
+    var html;
+    if (S.dismissed) {
+      html = "<span class=\"dot\" style=\"background:#4ade80\"></span><b>leído</b> · el gesto ya se consumió; la cara vuelve sola";
+    } else if (S.ended) {
+      html = "<span class=\"dot\" style=\"background:#4ade80\"></span><b>evento terminado</b> · ventana cerrada, cara normal; uno nuevo vuelve a armar la pantalla";
+    } else {
+      var left = p.min > 0 ? "faltan " + p.min + " min" : "empezó hace " + Math.abs(p.min) + " min";
+      html = "<span class=\"dot\"></span><b>" + p.label + "</b> · " + left +
+        " · ventana consumida " + p.pct + "%";
+    }
+    if (html === lastState) return;
+    lastState = html;
+    state.innerHTML = html;
+  }
+
+  var SEG = {
+    "0": "abcdef", "1": "bc", "2": "abged", "3": "abgcd", "4": "fgbc",
+    "5": "afgcd", "6": "afgedc", "7": "abc", "8": "abcdefg", "9": "abcfgd"
+  };
+
+  // Seven segments, same idea as gfxSegmentDigit: the clock screen's alphabet,
+  // not a font. `w x h` is the digit box, `t` the stroke.
+  function digit(c, x, y, w, h, t, mask, color) {
+    var on = {};
+    String(mask).split("").forEach(function (s) { on[s] = true; });
+    c.fillStyle = color;
+    if (on.a) c.fillRect(x + t, y, w - 2 * t, t);
+    if (on.g) c.fillRect(x + t, y + (h - t) / 2, w - 2 * t, t);
+    if (on.d) c.fillRect(x + t, y + h - t, w - 2 * t, t);
+    if (on.f) c.fillRect(x, y + t, t, (h - t) / 2);
+    if (on.b) c.fillRect(x + w - t, y + t, t, (h - t) / 2);
+    if (on.e) c.fillRect(x, y + h / 2, t, (h - t) / 2);
+    if (on.c) c.fillRect(x + w - t, y + h / 2, t, (h - t) / 2);
+
+  }
+
+  function clockText(c, str, x, y, color) {
+    var w = 20, h = 32, t = 3, gap = 2, cx = x;
+    for (var i = 0; i < str.length; i++) {
+      if (str[i] === ":") {
+        c.fillStyle = color;
+        c.fillRect(cx + 1, y + 8, 3, 3);
+        c.fillRect(cx + 1, y + 21, 3, 3);
+        cx += 7;
+      } else {
+        digit(c, cx, y, w, h, t, SEG[str[i]], color);
+        cx += w + gap;
+      }
+    }
+  }
+
+  function drawDirection(c, t) {
+    var p = P[S.phase];
+    c.fillStyle = BLACK;
+    c.fillRect(0, 0, W, H);
+
+    // The card owns the right half; the face keeps the left, larger and alert.
+    c.strokeStyle = S.phase === "early" ? RULE : DIM_VIOLET;
+    c.lineWidth = 1;
+    c.strokeRect(162.5, 8.5, 148, 150);
+
+    var e = phaseEyes(c, t, S.phase);
+    eyePair(c, 48, 112, 88, Math.min(30, e.rx + 4), Math.min(32, e.ry + 4), e.opts);
+
+    c.save();
+    c.beginPath(); c.rect(160, 0, 160, H); c.clip();
+    clockText(c, "15:00", 182, 22, WHITE);
+    text(c, "EN " + Math.max(0, p.min) + " MIN", 176, 72, 10, GOLD);
+    text(c, "Dentista", 176, 94, 15, WHITE);
+    text(c, "Dra. Paz", 176, 110, 9, GREY);
+    text(c, "AVISO 30 MIN", 176, 128, 8, BLUEGREY);
+    text(c, "PERSONAL", 176, 140, 8, RULE);
+    // The affordance is the button itself: an outline while the window is far,
+    // a filled violet key when the event is close.
+    if (S.phase === "early") {
+      c.strokeStyle = RULE; c.lineWidth = 1;
+      c.strokeRect(238.5, 146.5, 65, 15);
+    } else {
+      c.fillStyle = VIOLET;
+      rr(c, 238, 146, 66, 16, 3); c.fill();
+    }
+    text(c, "TOQUE", 176, 158, 8, GREY);
+    text(c, "LISTO", 247, 158, 9, S.phase === "early" ? GREY : BLACK);
+    // The split is also the gauge: it fills from the bottom as the window burns.
+    c.fillStyle = DIM_VIOLET;
+    c.fillRect(158, 8, 2, 150);
+    c.fillStyle = VIOLET;
+    var hgt = Math.round(150 * p.pct / 100);
+    c.fillRect(158, 158 - hgt, 2, hgt);
+    c.restore();
+  }
+
+  function frame(now) {
+    var t = (now - S.t0) / 1000;
+    ctx.setTransform(SCALE, 0, 0, SCALE, 0, 0);
+    if (S.dismissed || S.ended) {
+      drawNormal(ctx, t);
+    } else {
+      drawDirection(ctx, t);
+    }
+    header(S, t);
+    S.raf = requestAnimationFrame(frame);
+  }
+
+  function updateButtons() {
+    var phaseWrap = document.getElementById("phases");
+    if (phaseWrap) {
+      Array.prototype.forEach.call(phaseWrap.querySelectorAll("button"), function (b) {
+        b.setAttribute("aria-pressed", b.dataset.phase === S.phase ? "true" : "false");
+      });
+    }
+  }
+
+  function restart() {
+    S.dismissed = false; S.ended = false; S.t0 = performance.now();
+    updateButtons();
+  }
+
+  function snap(target, mode) {
+    var c = target.getContext("2d");
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.fillStyle = BLACK; c.fillRect(0, 0, 320, 172);
+    if (mode === "normal") {
+      drawNormal(c, 0.4);
+    } else {
+      var keep = S.phase;
+      S.phase = mode;
+      drawDirection(c, 0.9);
+      S.phase = keep;
+    }
+  }
+
+  var phases = document.getElementById("phases");
+  if (phases) {
+    phases.addEventListener("click", function (e) {
+      var b = e.target.closest("button[data-phase]");
+      if (!b) return;
+      S.phase = b.dataset.phase;
+      S.dismissed = false; S.ended = false;
+      updateButtons();
+    });
+  }
+  var dismiss = document.getElementById("dismiss");
+  if (dismiss) dismiss.addEventListener("click", function () { S.dismissed = true; });
+  var ended = document.getElementById("ended");
+  if (ended) ended.addEventListener("click", function () { S.ended = true; });
+  var again = document.getElementById("restart");
+  if (again) again.addEventListener("click", restart);
+
+  // Small snapshots: arriving, reading, after the press.
+  var snaps = document.querySelectorAll("canvas[data-snap]");
+  Array.prototype.forEach.call(snaps, function (t) {
+    snap(t, t.dataset.snap);
+  });
+
+  if (REDUCED) {
+    ctx.setTransform(SCALE, 0, 0, SCALE, 0, 0);
+    drawDirection(ctx, 0.4);
+    header(S, 0.4);
+  } else {
+    S.raf = requestAnimationFrame(frame);
+  }
+})();
+</script>
+
+</body>
+</html>

@@ -61,7 +61,8 @@ Sources: `esp32_gadget/buddy_face.h` (owner and hot colours, glow pad),
 | `glass-gold` | `#ffd700` | Splash second line, splash hold hint |
 | `glass-grey` | `#8a8a8a` | Splash screen list |
 | `glass-blue-grey` | `#7a8ca0` | Splash "connect to this network" line |
-| `glass-rule` | `#333333` | Splash divider |
+| `glass-rule` | `#333333` | Splash divider; also the unfilled part of a progress mark |
+| `glass-event` | `#aa50ff` | `buddy_phase.h` `BUDDY_PHASE_EVENT` default LED: the calendar's event face and its progress marks |
 
 Glow, three nested layers behind each eye (`screen_buddy.cpp:666-668`):
 `buddyEyeScale(colour, 32)` at `pad + 6`, `17` at `pad + 4`, `7` at `pad + 6`
