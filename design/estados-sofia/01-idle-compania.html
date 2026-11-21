@@ -111,7 +111,8 @@
         <li><b>Estiramiento</b> (3.4–6.2 s): los ojos suben 8 px y el párpado baja a 0.38 durante 1.2 s. Es el gesto de alguien que estaba quieto y se acomoda, no un bostezo.</li>
         <li><b>Busca al dueño</b> (6.2–9.0 s): mirada 16 px a la izquierda y 5 arriba, con el ojo un 4% más abierto y el párpado en 0.08. Dura 1.1 s: es un vistazo, no una llamada.</li>
         <li><b>Con reloj</b>: si hay Concentración, cuando al bloque le quedan 5 minutos la mirada baja al número 220 ms y vuelve; a falta de 1 minuto, doble parpadeo y el vistazo al dueño. Nunca cambia de tamaño los ojos: el reloj manda.</li>
-        <li><b>Proporción nueva</b> (la del frame 6): el número crece y engorda — la propuesta es 68×104 con trazo 13, en negrita — y los ojos bajan a 32×24, centrados y con 88 px de aire entre ellos. La pareja queda en 152 px: <b>dentro</b> del ancho de tres dígitos (192 px), no estirada hasta el borde. Los ojos no compiten con el número y no se ven despegados.</li>
+        <li><b>Proporción nueva</b> (la del frame 6): el número crece y engorda — la propuesta es 68×104 con trazo 13, en negrita — y los ojos bajan a 32×24. La clave es que la pareja conserva la <b>silueta de la cara normal</b>: 12 px de aire entre ojos contra los 14 px que deja hoy la cara completa, así que los ojos se leen como los mismos, sólo más chicos, en vez de dos islas.</li>
+        <li><b>El color del número</b>: el temporizador no inventa paleta. Usa <code>eyeRgb</code>, el mismo color ya resuelto para los ojos en cada frame — el del dueño (<code>settingsGetBuddyEyeColor()</code>), apagado al 32% cuando no hay bridge y pasado a calor cuando la cara se enoja. La barra de progreso ya lo hacía; el número se suma.</li>
       </ul>
     </div>
     <div class="card">
@@ -265,15 +266,18 @@
     if (p.digits) {
       // Bolder and bigger than the shipped number: the stroke behind the fill is
       // how this artboard says "trazo grueso" without a seven-segment renderer.
+      // The ink is `col`, the same colour the eyes resolved this frame, so the
+      // owner's eye colour paints the timer too — dim when the bridge is gone,
+      // hot when the face is angry.
       var ds = p.dsize || 74;
       ctx.font = "700 " + ds + "px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.strokeStyle = "#fff";
+      ctx.strokeStyle = col;
       ctx.lineWidth = Math.max(2, ds * 0.07);
       ctx.lineJoin = "round";
       ctx.strokeText(p.digits, 160, 172 - ds * 0.42);
-      ctx.fillStyle = "#fff";
+      ctx.fillStyle = col;
       ctx.fillText(p.digits, 160, 172 - ds * 0.42);
     }
     if (p.hud) drawHud(ctx, p.hud);
@@ -370,9 +374,9 @@
     fig.tabIndex = 0;
     var c = document.createElement("canvas");
     c.width = 320; c.height = 172;
-    draw(c.getContext("2d"), P({ small: true, digits: "04:12", gy: 2, lid: 0.06, rx: 16, ry: 12, eox: 60, dsize: 96 }), 1, 320, 172);
+    draw(c.getContext("2d"), P({ small: true, digits: "04:12", gy: 2, lid: 0.06, rx: 16, ry: 12, eox: 22, dsize: 96 }), 1, 320, 172);
     var cap = document.createElement("figcaption");
-    cap.innerHTML = "<b>con reloj</b><br>ojos 32×24 a 88 px de aire · número 96 px";
+    cap.innerHTML = "<b>con reloj</b><br>ojos 32×24 a 12 px · número del color de los ojos";
     fig.appendChild(c);
     fig.appendChild(cap);
     strip.appendChild(fig);

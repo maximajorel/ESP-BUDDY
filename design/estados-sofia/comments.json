@@ -22,6 +22,17 @@
       "status": "resolved",
       "sentAt": "2026-11-21T00:28:21.566Z",
       "resolvedAt": "2026-11-21T00:28:33.388Z"
+    },
+    {
+      "id": "ks2lv20w",
+      "file": "01-idle-compania.html",
+      "selector": "#strip > figure:nth-of-type(6) > canvas",
+      "excerpt": "",
+      "comment": "Los ojos siguen muy separados respecto a como estga en su estado normal! ojo con eso. Y quiero que el reloj sea del mismo color que los ojos, aprovechemos la logica que tenemos implementada para decidir el color de los ojos para pintar tambien el temporizador",
+      "createdAt": "2026-11-21T00:51:56.552Z",
+      "status": "resolved",
+      "sentAt": "2026-11-21T00:51:56.583Z",
+      "resolvedAt": "2026-11-21T00:52:20.847Z"
     }
   ]
 }
