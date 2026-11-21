@@ -10,6 +10,8 @@
 #include "buddy_ball.h"
 #include "buddy_face.h"
 #include "buddy_focus_state.h"
+#include "calendar.h"
+#include "text_fold.h"
 #include "buddy_http.h"
 #include "buddy_imu.h"
 #include "buddy_event.h"
@@ -607,6 +609,27 @@ void buddySetBall(bool on) {
   s_dirty = true;
 }
 
+// Which states the calendar may interrupt. The face belongs to the calendar when
+// nothing more urgent is happening; a run thinking, using a tool or asking for an
+// answer keeps the glass, because that is Sofía working, not the clock.
+static bool calendarMayOwnFace(BuddyState state) {
+  switch (state) {
+    case BUDDY_IDLE:
+    case BUDDY_DONE:
+    case BUDDY_ASLEEP:
+    case BUDDY_UNCONFIGURED:
+    case BUDDY_OFFLINE:
+    case BUDDY_UPCOMING:
+      return true;
+    case BUDDY_THINKING:
+    case BUDDY_TOOL:
+    case BUDDY_WAITING:
+    case BUDDY_ERROR:
+      break;
+  }
+  return false;
+}
+
 void buddyGetView(BuddyView *out) {
   if (!out) return;
   memset(out, 0, sizeof(*out));
@@ -648,6 +671,26 @@ void buddyGetView(BuddyView *out) {
     out->stateAgeMs = diff < 10000 ? epochAge : localAge;
   } else {
     out->stateAgeMs = localAge;
+  }
+  // The calendar is local and time-driven: when it owns the face the snapshot
+  // becomes UPCOMING, with the event's own label and the violet event phase, so
+  // the HUD, the bead and the panel agree. It never overrides a state that is
+  // asking for attention.
+  const CalendarReaction cal = calendarReactionNow();
+  if (cal.active && calendarMayOwnFace(out->state)) {
+    out->calendarActive = true;
+    out->calendarMsToStart = cal.msToStart;
+    out->calendarIntensity = cal.intensity;
+    out->state = BUDDY_UPCOMING;
+    const size_t labelLen = strnlen(cal.summary, sizeof(out->label) - 1);
+    memcpy(out->label, cal.summary, labelLen);
+    out->label[labelLen] = '\0';
+    // A local reaction adopts at once; the 200 ms hold exists for the bridge's
+    // flickering polls, and here it would hide the first warning frame.
+    out->stateAgeMs = 200;
+    out->phase = BUDDY_PHASE_EVENT;
+    out->led = buddyPhaseDefaultLed(BUDDY_PHASE_EVENT);
+    out->ledValid = true;
   }
   xSemaphoreGive(s_lock);
 }
@@ -907,6 +950,8 @@ static void hudLinkDown(uint32_t nowMs) {
 // animation describes a bridge the device cannot reach; otherwise it is the
 // phase. The step is skipped rather than reset while offline, so the animation
 // resumes where it was when the link comes back.
+static void hudEvent(uint32_t nowMs);
+
 static void drawHud(BuddyPhase phase, BuddyRgb led, bool linkDown,
                     uint32_t nowMs) {
   if (linkDown) {
@@ -921,7 +966,34 @@ static void drawHud(BuddyPhase phase, BuddyRgb led, bool linkDown,
     hudAsk(nowMs);
   } else if (shown == BUDDY_PHASE_OK) {
     hudCheck(buddyHudCheckAge(&s_hud, nowMs));
+  } else if (shown == BUDDY_PHASE_EVENT) {
+    hudEvent(nowMs);
   }
+}
+
+// The calendar's phase: a small violet dot that breathes, the only mark in the
+// HUD that is not the bridge's. It said nothing before, because the old calendar
+// lived on the other server and the phase only existed on paper.
+static void hudEvent(uint32_t nowMs) {
+  const float pulse = 0.5f + 0.5f * cosf((float)nowMs * 0.0032f);
+  const uint16_t dot = gfxColor((uint8_t)(120 + 80 * pulse),
+                                (uint8_t)(60 + 40 * pulse),
+                                (uint8_t)(200 + 55 * pulse));
+  gfxFillCircle(HUD_CX, HUD_CY, 3, dot);
+  gfxCircle(HUD_CX, HUD_CY, 8, gfxColor(70, 40, 110));
+}
+
+// The event's title, small and at the top edge: the face has no mouth and the
+// corner belongs to the HUD, so the name travels in the one free line. Folded to
+// the panel's ASCII font and cut by measured width, never by guessing.
+static void drawUpcomingTitle(const char *text) {
+  if (!text || !*text) return;
+  char folded[CALENDAR_SUMMARY_MAX * 2];
+  textFoldAscii(text, folded, sizeof(folded));
+  size_t n = strlen(folded);
+  while (n > 0 && gfxTextWidth(1, folded) > 285) folded[--n] = '\0';
+  if (n == 0) return;
+  gfxText(8, 2, 1, folded, gfxColor(200, 160, 255));
 }
 
 // Concentración, drawn on the band under the eyes. Kept out of the pose on
@@ -1286,7 +1358,10 @@ bool buddyTick(uint32_t nowMs) {
   // owner asked for a face during the game, and the link's absence is visible the
   // moment it ends. Arriving or leaving is news by itself, so the frame redraws
   // once more than the animation alone would.
-  bool linkDown = buddyShowsLinkBadge(view.link) && !gameFace;
+  // A calendar reaction is the one thing worth showing even when the bridge is
+  // down: the owner asked for the event, not for the link diagnosis.
+  bool linkDown =
+      buddyShowsLinkBadge(view.link) && !gameFace && !view.calendarActive;
   if (linkDown != s_badge) {
     s_badge = linkDown;
     s_dirty = true;
@@ -1303,6 +1378,9 @@ bool buddyTick(uint32_t nowMs) {
   } else {
     shown = buddyShownState(s_drawnState, view.state, view.stateAgeMs);
   }
+  // The local calendar is not a poll: when it owns the face it adopts at once
+  // and releases it as soon as the window closes.
+  if (view.calendarActive) shown = BUDDY_UPCOMING;
   if (shown != s_drawnState) {
     s_drawnState = shown;
     s_shownAt = nowMs;
@@ -1343,6 +1421,10 @@ bool buddyTick(uint32_t nowMs) {
   uint32_t poseAge =
       asleepNow ? buddySleepClockIdleMs(&s_sleep, nowMs) : shownAge;
   BuddyPose pose = buddyPose(poseState, poseAge, nowMs, s_seed);
+  if (view.calendarActive && shown == BUDDY_UPCOMING) {
+    buddyUpcomingPose(view.calendarMsToStart, view.calendarIntensity, nowMs,
+                      &pose);
+  }
   if (shown == BUDDY_TOOL && (int32_t)(s_surpriseUntil - nowMs) > 0) {
     pose.surprise = true;
     pose.rx = 50;
@@ -1530,6 +1612,7 @@ bool buddyTick(uint32_t nowMs) {
   drawHud(view.phase,
           view.ledValid ? view.led : buddyPhaseDefaultLed(view.phase), linkDown,
           nowMs);
+  if (view.calendarActive) drawUpcomingTitle(view.label);
   s_drawnRevision = view.revision;
   s_lastDraw = nowMs;
   s_dirty = false;

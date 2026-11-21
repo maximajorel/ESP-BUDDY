@@ -13,6 +13,7 @@
 #include <WiFi.h>
 
 #include "button.h"
+#include "calendar.h"
 #include "console.h"
 #include "display.h"
 #include "gfx.h"
@@ -83,6 +84,9 @@ void setup() {
 
   netBegin();
   spotifyBegin();
+  // El calendario tiene su propia tarea y su propio cliente TLS: no depende del
+  // bridge y no comparte socket con Spotify ni con el long-poll de Sofía.
+  calendarBegin();
   screensBegin();
   if (wakeAtBoot) buddyWakeBegin(millis());
 

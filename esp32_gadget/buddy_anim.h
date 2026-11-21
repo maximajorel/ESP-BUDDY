@@ -719,6 +719,48 @@ static inline BuddyGesture buddyGestureAt(uint32_t ageMs, uint32_t seed) {
   }
 }
 
+// The calendar's reaction, painted on top of the UPCOMING base pose. `msToStart`
+// is the time left until the event (negative once it started) and `intensity` is
+// how much of the lead window is already consumed (0..100), both from
+// `calendar_plan.h`. The escalation is monotonic in intensity on purpose: an
+// outside observer reads the same direction as the owner, "the clock is closer".
+static inline void buddyUpcomingPose(int32_t msToStart, uint8_t intensity,
+                                     uint32_t nowMs, BuddyPose *p) {
+  if (!p) return;
+  const int level = intensity > 100 ? 100 : (int)intensity;
+
+  // The clock lives in the top-right HUD corner, so she keeps checking it. The
+  // whole pair turns slightly towards it instead of staring at the owner.
+  p->gazeX = 8.0f + (float)level * 0.07f;
+  p->gazeY = -7.0f - (float)level * 0.06f;
+  p->turn = -0.10f;
+  p->tilt = -1.5f;
+
+  if (msToStart <= 0) {
+    // It is happening now: the widest, stillest eyes of the ladder, plus a
+    // double blink at the start of every 4 s cycle so it reads as "now" and
+    // not as a frozen stare.
+    p->rx = 56;
+    p->ry = 70;
+    p->surprise = true;
+    p->lid = 0.0f;
+    p->bottom = 0.0f;
+    p->tremble = 0.0f;
+    p->bob = sinf((float)nowMs * 0.0024f) * 1.4f;
+    const uint32_t in = nowMs % 4000u;
+    p->blink = in < 140u || (in >= 320u && in < 460u);
+    return;
+  }
+
+  // 48x48 is the neutral eye; the last stretch opens it past the surprise size.
+  p->rx = 48 + level / 8;   // 48..60
+  p->ry = 48 + level / 5;   // 48..68
+  p->lid = 0.10f * (float)(100 - level) / 100.0f;  // lids lift as it gets closer
+  p->bottom = 0.05f;
+  p->tremble = level >= 85 ? 0.25f : 0.0f;
+  p->bob = sinf((float)nowMs * 0.0022f) * (0.6f + (float)level * 0.01f);
+}
+
 static inline BuddyPose buddyPose(BuddyState state, uint32_t ageMs,
                                   uint32_t nowMs, uint32_t seed) {
   BuddyPose p;
@@ -948,6 +990,13 @@ static inline BuddyPose buddyPose(BuddyState state, uint32_t ageMs,
         genericBlink = false;
         return p;
       }
+      break;
+    case BUDDY_UPCOMING:
+      // The clock is talking, not Sofía: the escalation lives in
+      // `buddyUpcomingPose`, called by the face after this base pose. No idle
+      // life (that is what the default would add), and the blink is the
+      // reaction's own, so the last stretch does not look like a calm idle face.
+      genericBlink = false;
       break;
     case BUDDY_IDLE:
     default:

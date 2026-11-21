@@ -14,7 +14,9 @@
 #include "rotation.h"
 #include "buddy_face.h"
 #include "buddy_focus_state.h"
-#include "buddy_calendar.h"
+#include "calendar.h"
+#include "calendar_plan.h"
+#include "calendar_store.h"
 #include "buddy_url.h"
 #include "screen_buddy.h"
 #include "screen_sleep.h"
@@ -777,29 +779,50 @@ static ApiResult apiBuddyAsk(const String &body) {
   return apiOk();
 }
 
-// El calendario lo resuelve el bridge; el panel del ESP es su cara. Todo esto
-// proxea para que configurarlo no obligue a abrir otra web. Leer usa el token del
-// buddy, escribir el de administración: por eso `hasAskToken` viaja al panel, que
-// con eso decide si muestra el botón de guardar o el paso que falta.
+// The calendar lives on this board now: it holds the Google credentials, does
+// the OAuth device flow and fetches the events itself. None of these handlers
+// talks to the bridge, and all of them need a session: the event titles and
+// which credentials are stored are the owner's business.
+static const char *calendarKindName(CalendarStatusKind kind) {
+  switch (kind) {
+    case CALENDAR_UNCONFIGURED: return "unconfigured";
+    case CALENDAR_NEEDS_AUTH: return "needs_auth";
+    case CALENDAR_AUTH_PENDING: return "auth_pending";
+    case CALENDAR_READY: break;
+  }
+  return "ready";
+}
+
 static void fillCalendarJson(JsonDocument &doc) {
-  BuddyCalendarStatus cal;
-  const bool reachable = buddyCalendarStatus(&cal);
-  doc["ok"] = reachable;
-  doc["reachable"] = reachable;
-  doc["bridgeStatus"] = cal.status;
-  doc["configured"] = cal.configured;
-  doc["active"] = cal.active;
-  doc["hasClientId"] = cal.hasClientId;
-  doc["hasClientSecret"] = cal.hasClientSecret;
-  doc["hasRefreshToken"] = cal.hasRefreshToken;
-  doc["hasAskToken"] = cal.hasAskToken;
-  doc["calendarId"] = cal.calendarId;
-  doc["leadMin"] = cal.leadMin;
-  doc["graceMin"] = cal.graceMin;
-  doc["oauthRedirect"] = cal.redirect;
-  doc["hasNext"] = cal.hasNext;
-  doc["nextSummary"] = cal.nextSummary;
-  doc["nextInMin"] = cal.nextInMin;
+  const CalendarStatusInfo c = calendarStatusInfo();
+  doc["ok"] = true;
+  doc["kind"] = calendarKindName(c.kind);
+  doc["configured"] = c.configured;
+  doc["authorized"] = c.authorized;
+  doc["pending"] = c.pending;
+  doc["syncing"] = c.syncing;
+  doc["userCode"] = c.userCode;
+  doc["verificationUrl"] = c.verificationUrl;
+  doc["pendingSecondsLeft"] = c.pendingSecondsLeft;
+  doc["selectedId"] = c.selectedId;
+  doc["selectedName"] = c.selectedName;
+  doc["fallbackLeadMin"] = c.fallbackLeadMin;
+  doc["graceMin"] = c.graceMin;
+  doc["lastError"] = c.lastError;
+  doc["lastSyncMs"] = c.lastSyncMs;
+  doc["calendarCount"] = c.calendarCount;
+  doc["eventCount"] = c.eventCount;
+  doc["hasNext"] = c.hasNext;
+  doc["nextSummary"] = c.nextSummary;
+  doc["nextInMin"] = c.nextMsToStart / 60000;
+  doc["nextStarted"] = c.nextMsToStart <= 0;
+  doc["nextLeadMin"] = c.nextLeadMin;
+  const CalendarReaction r = calendarReactionNow();
+  JsonObject reaction = doc["reaction"].to<JsonObject>();
+  reaction["active"] = r.active;
+  reaction["phase"] = calendarPhaseName(r.phase);
+  reaction["intensity"] = r.intensity;
+  reaction["msToStart"] = r.msToStart;
 }
 
 static ApiResult apiCalendarStatus() {
@@ -810,49 +833,102 @@ static ApiResult apiCalendarStatus() {
   return r;
 }
 
-static ApiResult apiCalendarSave(const String &body) {
+static ApiResult apiCalendarCalendars() {
+  ApiResult r;
+  JsonDocument doc;
+  JsonArray items = doc["items"].to<JsonArray>();
+  CalendarInfo info;
+  for (size_t i = 0; calendarCalendarAt(i, &info); i++) {
+    JsonObject item = items.add<JsonObject>();
+    item["id"] = info.id;
+    item["name"] = info.name;
+    item["primary"] = info.primary;
+  }
+  serializeJson(doc, r.body);
+  return r;
+}
+
+// Empty means "leave what is stored", exactly like the Spotify card: the panel
+// never gets a secret back, so it cannot resend it. A changed client pair drops
+// the old grant, because a refresh token belongs to the client that minted it.
+static ApiResult apiCalendarConfig(const String &body) {
   JsonDocument doc;
   if (!parseOptionalJson(body, doc)) return apiFail(400, API_BAD_JSON);
-  BuddyCalendarEdit edit;
-  edit.clientId = doc["clientId"] | "";
-  edit.clientSecret = doc["clientSecret"] | "";
-  edit.refreshToken = doc["refreshToken"] | "";
-  edit.calendarId = doc["calendarId"] | "";
-  edit.leadMin = doc["leadMin"] | 0;
-  edit.graceMin = doc["graceMin"].is<int>() ? (int)doc["graceMin"] : -1;
-  char error[80];
-  if (!buddyCalendarSave(edit, error, sizeof(error))) {
-    return apiFail(502, error[0] ? error : "No pude guardar el calendario");
+  const char *clientId = doc["clientId"] | "";
+  const char *clientSecret = doc["clientSecret"] | "";
+
+  bool changed = false;
+  if (*clientId) {
+    changed = strcmp(clientId, calendarStoreClientId()) != 0;
+    if (!calendarStoreSetClientId(clientId)) {
+      return apiFail(400, "Client ID invalido (8 a 120 caracteres sin espacios)");
+    }
+  }
+  if (*clientSecret) {
+    changed = changed || strcmp(clientSecret, calendarStoreClientSecret()) != 0;
+    if (!calendarStoreSetClientSecret(clientSecret)) {
+      return apiFail(400,
+                     "Client secret invalido (8 a 120 caracteres sin espacios)");
+    }
+  }
+  if (doc["fallbackLeadMin"].is<int>()) {
+    if (!calendarStoreSetFallbackLeadMin(doc["fallbackLeadMin"] | 0)) {
+      return apiFail(400, "El aviso por defecto va de 1 a 720 minutos");
+    }
+  }
+  if (doc["graceMin"].is<int>()) {
+    if (!calendarStoreSetGraceMin(doc["graceMin"] | 0)) {
+      return apiFail(400, "La gracia va de 0 a 120 minutos");
+    }
+  }
+  if (changed) {
+    calendarStoreForgetToken();
+    calendarAuthResetAccess();
+    calendarCancelFlow();
+  }
+  return apiCalendarStatus();
+}
+
+static ApiResult apiCalendarConnect() {
+  if (!calendarStoreConfigured()) {
+    return apiFail(409, "Guarda el Client ID y el secret primero");
+  }
+  char error[96];
+  if (!calendarStartFlow(error, sizeof(error))) {
+    return apiFail(502, error[0] ? error : "No pude empezar la conexion con Google");
+  }
+  return apiCalendarStatus();
+}
+
+static ApiResult apiCalendarCancel() {
+  calendarCancelFlow();
+  return apiCalendarStatus();
+}
+
+static ApiResult apiCalendarSelect(const String &body) {
+  JsonDocument doc;
+  if (!parseRequiredJson(body, doc)) return apiFail(400, API_BAD_JSON);
+  const char *id = doc["calendarId"] | "";
+  if (!*id) return apiFail(400, "Falta el calendario");
+  const char *name = doc["name"] | "";
+  if (!calendarSelect(id, name)) {
+    return apiFail(400, "El calendario no se pudo guardar");
   }
   return apiCalendarStatus();
 }
 
 static ApiResult apiCalendarForget() {
-  char error[80];
-  if (!buddyCalendarForget(error, sizeof(error))) {
-    return apiFail(502, error[0] ? error : "No pude olvidar el calendario");
-  }
+  calendarCancelFlow();
+  calendarAuthResetAccess();
+  calendarStoreForgetAll();
   return apiCalendarStatus();
 }
 
-// El bridge arma la URL de Google con PKCE y su propio `state`; el ESP sólo la
-// devuelve para que el panel abra la pestaña. El código vuelve al bridge, no a la
-// placa: así el refresh token nunca pasa por el equipo.
-static ApiResult apiCalendarOAuth(const String &body) {
-  JsonDocument doc;
-  if (!parseOptionalJson(body, doc)) return apiFail(400, API_BAD_JSON);
-  char url[256];
-  char error[80];
-  if (!buddyCalendarOAuthStart(doc["clientId"] | "", doc["clientSecret"] | "", url,
-                               sizeof(url), error, sizeof(error))) {
-    return apiFail(502, error[0] ? error : "No pude empezar la conexion con Google");
+static ApiResult apiCalendarRefresh() {
+  if (!calendarRequestRefresh()) {
+    return apiFail(409, "Falta conectar Google");
   }
-  ApiResult r;
-  JsonDocument out;
-  out["ok"] = true;
-  out["url"] = url;
-  serializeJson(out, r.body);
-  return r;
+  return apiOk();
 }
 
 // The panel needs to know what is missing, not just that something failed: the
@@ -1022,7 +1098,8 @@ static const char *const POST_PATHS[] = {
     "/api/spotify/config", "/api/spotify/url", "/api/spotify/code",
     "/api/spotify/forget", "/api/screens/order", "/api/screens/names",
     "/api/panel/colors", "/api/buddy/ask", "/api/admin/credentials",
-    "/api/calendar/save", "/api/calendar/oauth", "/api/calendar/forget",
+    "/api/calendar/config", "/api/calendar/connect", "/api/calendar/cancel",
+    "/api/calendar/select", "/api/calendar/refresh", "/api/calendar/forget",
 };
 static const uint32_t POST_PATH_COUNT = sizeof(POST_PATHS) / sizeof(POST_PATHS[0]);
 
@@ -1050,7 +1127,8 @@ ApiResult netHandleApi(const char *method, const char *path, const String &body)
   }
 
   if (!strcmp(path, "/api/status") || !strcmp(path, "/api/spotify") ||
-      !strcmp(path, "/api/calendar")) {
+      !strcmp(path, "/api/calendar") ||
+      !strcmp(path, "/api/calendar/calendars")) {
     if (isPost) return apiFail(405, "Metodo no permitido");
     if (!strcmp(path, "/api/status")) {
       ApiResult r;
@@ -1058,6 +1136,7 @@ ApiResult netHandleApi(const char *method, const char *path, const String &body)
       return r;
     }
     if (!strcmp(path, "/api/calendar")) return apiCalendarStatus();
+    if (!strcmp(path, "/api/calendar/calendars")) return apiCalendarCalendars();
     return apiSpotifyStatus();
   }
 
@@ -1070,8 +1149,11 @@ ApiResult netHandleApi(const char *method, const char *path, const String &body)
   }
   if (!strcmp(path, "/api/wifi")) return apiWifi(body);
   if (!strcmp(path, "/api/buddy/ask")) return apiBuddyAsk(body);
-  if (!strcmp(path, "/api/calendar/save")) return apiCalendarSave(body);
-  if (!strcmp(path, "/api/calendar/oauth")) return apiCalendarOAuth(body);
+  if (!strcmp(path, "/api/calendar/config")) return apiCalendarConfig(body);
+  if (!strcmp(path, "/api/calendar/connect")) return apiCalendarConnect();
+  if (!strcmp(path, "/api/calendar/cancel")) return apiCalendarCancel();
+  if (!strcmp(path, "/api/calendar/select")) return apiCalendarSelect(body);
+  if (!strcmp(path, "/api/calendar/refresh")) return apiCalendarRefresh();
   if (!strcmp(path, "/api/calendar/forget")) return apiCalendarForget();
   if (!strcmp(path, "/api/panel/colors")) {
     // Panel self-test on demand. It blocks for ~5 s while the three colour bars
@@ -1442,6 +1524,8 @@ void netBegin() {
   s_server.on("/api/scan", HTTP_GET, handleApi);
   s_server.on("/api/scan", HTTP_POST, handleApi);
   s_server.on("/api/spotify", HTTP_GET, handleApi);
+  s_server.on("/api/calendar", HTTP_GET, handleApi);
+  s_server.on("/api/calendar/calendars", HTTP_GET, handleApi);
 
   // The two session endpoints the dispatcher does not own. Logging in is the one
   // POST that has to work without a session, and the state call answers from the

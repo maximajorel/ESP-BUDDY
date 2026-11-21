@@ -39,6 +39,12 @@ void buddySetBall(bool on);
 struct BuddyView {
   bool configured;
   bool online;
+  // The local calendar's reaction, when it owns the face right now. It is
+  // applied on top of the bridge snapshot so the eyes, the LED, the panel and
+  // the console all read the same answer.
+  bool calendarActive;
+  int32_t calendarMsToStart;  // negative once the event started
+  uint8_t calendarIntensity;  // 0..100 of the lead window consumed
   BuddyState state;
   char label[BUDDY_LABEL_MAX + 1];
   int active;

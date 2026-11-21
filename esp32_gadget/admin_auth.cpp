@@ -273,6 +273,11 @@ bool adminRequiresSession(const char *method, const char *path) {
   }
 
   bool isApi = strncmp(path, "/api/", 5) == 0;
+  // El calendario es privado incluso para leer: los títulos de los eventos y qué
+  // credenciales hay guardadas no son para cualquiera que se una al AP del
+  // equipo. Las demás lecturas siguen públicas porque alimentan la cara y el
+  // selector de pantalla.
+  if (isApi && strncmp(path, "/api/calendar", 13) == 0) return true;
   if (isApi && strcmp(method, "GET") != 0) {
     // Every other write verb under /api, including the ones no route knows:
     // answering a 401 for an unknown path costs nothing and an unauthenticated

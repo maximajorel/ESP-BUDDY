@@ -748,6 +748,42 @@ int main() {
     check("a look at the owner opens the eye a little", p.rx > 48);
   }
 
+  printf("-- upcoming: the calendar reminder drives the escalation\n");
+  {
+    BuddyPose early;
+    buddyUpcomingPose(20 * 60000, 20, 5000, &early);
+    check("it looks up at the clock corner",
+          early.gazeX > 5.0f && early.gazeY < -5.0f);
+    check("it turns a little towards the clock", early.turn < 0.0f);
+    check("early is calm: no shake", early.tremble < 0.01f);
+    check("early barely opens the eye box", early.rx <= 52);
+
+    BuddyPose near;
+    buddyUpcomingPose(8 * 60000, 73, 8000, &near);
+    check("nearer opens the eyes more", near.ry > early.ry);
+    check("nearer lifts the lids", near.lid <= early.lid);
+
+    BuddyPose starting;
+    buddyUpcomingPose(2 * 60000, 93, 9000, &starting);
+    check("the last stretch opens wider than near", starting.ry > near.ry);
+    check("the last stretch shakes", starting.tremble > 0.1f);
+
+    BuddyPose now;
+    buddyUpcomingPose(-60000, 100, 0, &now);
+    check("an event that started opens wide", now.surprise && now.ry >= 60);
+    check("it is wider than the last stretch", now.ry > starting.ry);
+    check("the started face is not shaking", now.tremble < 0.01f);
+
+    BuddyPose blink1, blink2, gap, gap2;
+    buddyUpcomingPose(-1000, 100, 100, &blink1);
+    buddyUpcomingPose(-1000, 100, 400, &blink2);
+    buddyUpcomingPose(-1000, 100, 800, &gap);
+    buddyUpcomingPose(-1000, 100, 1200, &gap2);
+    check("the first blink of the double", blink1.blink);
+    check("the second blink of the double", blink2.blink);
+    check("then the eyes stay open", !gap.blink && !gap2.blink);
+  }
+
   printf("\n%s (%d failures)\n", g_failures == 0 ? "PASSED" : "FAILED",
          g_failures);
   return g_failures == 0 ? 0 : 1;

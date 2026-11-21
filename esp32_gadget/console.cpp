@@ -19,6 +19,8 @@
 #include "rgb.h"
 #include "rotation.h"
 #include "buddy_phase.h"
+#include "calendar.h"
+#include "calendar_plan.h"
 #include "screen_buddy.h"
 #include "screens.h"
 #include "settings.h"
@@ -240,6 +242,7 @@ static void printHelp() {
   Serial.println("  colors                     three bars: red, green, blue");
   Serial.println("  assets                     checksum of the web panel shipped in flash");
   Serial.println("  rgb <r> <g> <b> [level]    LED bead colour");
+  Serial.println("  calendar [refresh]         Google Calendar: estado, proximo evento y reaccion");
   Serial.println("  spotify [status]           credenciales y ultima pista");
   Serial.println("  spotify id <client_id>     guarda el client id de Spotify");
   Serial.println("  spotify url                URL de autorizacion para abrir en la PC");
@@ -315,6 +318,49 @@ static void handleCommand(char *line) {
   }
   if (!strcmp(argv[0], "help")) {
     printHelp();
+    return;
+  }
+  if (!strcmp(argv[0], "calendar")) {
+    if (argc >= 2 && !strcmp(argv[1], "refresh")) {
+      bool ok = calendarRequestRefresh();
+      Serial.printf("calendar refresh: %s\n", ok ? "pedido" : "falta autorizar");
+      return;
+    }
+    CalendarStatusInfo c = calendarStatusInfo();
+    const char *kind = c.kind == CALENDAR_UNCONFIGURED ? "sin configurar"
+                       : c.kind == CALENDAR_NEEDS_AUTH ? "falta autorizar"
+                       : c.kind == CALENDAR_AUTH_PENDING ? "esperando Google"
+                                                         : "conectado";
+    txReliable(true);
+    Serial.printf("calendar: %s  configurado=%s autorizado=%s pendiente=%s\n",
+                  kind, c.configured ? "si" : "no", c.authorized ? "si" : "no",
+                  c.pending ? "si" : "no");
+    Serial.printf("  calendario: %s (%s)  aviso por defecto=%d min  gracia=%d min\n",
+                  c.selectedName[0] ? c.selectedName : "-",
+                  c.selectedId[0] ? c.selectedId : "-", c.fallbackLeadMin,
+                  c.graceMin);
+    if (c.pending) {
+      Serial.printf("  codigo: %s  en %s  vence en %d s\n", c.userCode,
+                    c.verificationUrl, c.pendingSecondsLeft);
+    }
+    if (c.hasNext) {
+      long mins = c.nextMsToStart / 60000;
+      Serial.printf("  proximo: %s en %ld min (recordatorio %d min)\n",
+                    c.nextSummary, mins,
+                    c.nextLeadMin < 0 ? -1 : c.nextLeadMin);
+    } else {
+      Serial.println("  proximo: sin eventos a la vista");
+    }
+    CalendarReaction r = calendarReactionNow();
+    Serial.printf("  reaccion: %s%s intensidad=%u ms=%ld\n",
+                  calendarPhaseName(r.phase), r.active ? " (activa)" : "",
+                  (unsigned)r.intensity, (long)r.msToStart);
+    if (c.calendarCount || c.eventCount) {
+      Serial.printf("  cache: %u calendarios, %u eventos\n",
+                    (unsigned)c.calendarCount, (unsigned)c.eventCount);
+    }
+    if (c.lastError[0]) Serial.printf("  ultimo error: %s\n", c.lastError);
+    txReliable(false);
     return;
   }
   if (!strcmp(argv[0], "spotify")) {
