@@ -4,6 +4,10 @@
 // handler, the per-loop advance and the draw tick can only ever see this object.
 static BuddyFocus s_focus;
 
+void buddyFocusRequestSeconds(uint32_t seconds, uint32_t nowMs) {
+  buddyFocusStartSeconds(&s_focus, nowMs, seconds);
+}
+
 void buddyFocusRequest(uint16_t minutes, uint32_t nowMs) {
   buddyFocusStart(&s_focus, nowMs, minutes);
 }

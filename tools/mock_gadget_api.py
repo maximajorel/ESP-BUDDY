@@ -118,17 +118,19 @@ def log_request(entry):
 def focus_payload():
     """The study countdown as the firmware reports it: state, not a local clock."""
     f = STATE.get("focus") or {}
-    minutes = f.get("minutes") or 0
+    seconds = f.get("seconds") or 0
     started = f.get("startedMs")
-    if not minutes or started is None:
-        return {"active": False, "finished": False, "minutes": minutes, "remainingMs": 0}
+    if not seconds or started is None:
+        return {"active": False, "finished": False, "seconds": seconds,
+                "minutes": seconds // 60, "remainingMs": 0}
     elapsed = int(time.time() * 1000) - started
-    total = minutes * 60000
+    total = seconds * 1000
     left = max(0, total - elapsed)
     return {
         "active": left > 0,
         "finished": left == 0 and elapsed < total + 6000,
-        "minutes": minutes,
+        "seconds": seconds,
+        "minutes": seconds // 60,
         "remainingMs": left,
     }
 
@@ -266,13 +268,29 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/focus":
-            minutes = body.get("minutes")
-            if not isinstance(minutes, int) or minutes < 0:
-                minutes = 0
-            minutes = min(minutes, 180)
+            # Same rule as the firmware: seconds is the exact form, minutes is the
+            # compatibility form, both together is a client bug, zero cancels and
+            # above the ceiling it clamps.
+            has_minutes = "minutes" in body
+            has_seconds = "seconds" in body
+            if has_minutes and has_seconds:
+                self._fail(400, "manda minutes o seconds, no los dos")
+                return
+            seconds = 0
+            field = "seconds" if has_seconds else "minutes"
+            value = body.get(field)
+            if isinstance(value, int) and value > 0:
+                seconds = value if has_seconds else value * 60
+                seconds = min(seconds, 5999)
+            elif isinstance(value, int) and value < 0:
+                self._fail(400, field + " no puede ser negativo")
+                return
+            elif value is not None and not isinstance(value, int):
+                self._fail(400, field + " tiene que ser un entero")
+                return
             STATE["focus"] = {
-                "minutes": minutes,
-                "startedMs": int(time.time() * 1000) if minutes else None,
+                "seconds": seconds,
+                "startedMs": int(time.time() * 1000) if seconds else None,
             }
             self._json(200, {"ok": True})
             return

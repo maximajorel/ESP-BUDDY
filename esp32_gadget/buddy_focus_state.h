@@ -20,7 +20,12 @@
 
 #include "buddy_focus.h"
 
-// Starts (or replaces) the countdown; zero cancels.
+// Starts (or replaces) the countdown with an exact number of seconds; zero
+// cancels. The board's `nowMs` comes from millis().
+void buddyFocusRequestSeconds(uint32_t seconds, uint32_t nowMs);
+
+// Starts (or replaces) the countdown in whole minutes; zero cancels. Kept for
+// callers that speak minutes (the console, the old API field).
 void buddyFocusRequest(uint16_t minutes, uint32_t nowMs);
 
 // The live countdown. Callers that only read must not write to it.

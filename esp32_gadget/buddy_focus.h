@@ -19,26 +19,60 @@
 #include <stdio.h>
 
 #define BUDDY_FOCUS_DEFAULT_MINUTES 25u
-#define BUDDY_FOCUS_MIN_MINUTES 1u
-#define BUDDY_FOCUS_MAX_MINUTES 180u
+#define BUDDY_FOCUS_MIN_SECONDS 1u
+// 99:59 is not an arbitrary ceiling: the number is four seven-segment digits
+// wide on a 320 px glass, so a third minute digit would either shrink the whole
+// timer or push it off the panel. The owner asked for the timer to be the
+// biggest thing on the glass, and that decides the range.
+#define BUDDY_FOCUS_MAX_SECONDS 5999u
+#define BUDDY_FOCUS_MAX_MINUTES 99u
 // How long the achievement stays on the glass before the face goes back to
 // normal. Long enough to be seen from across the room, short enough not to
 // become furniture.
 #define BUDDY_FOCUS_DONE_MS 6000u
 #define BUDDY_FOCUS_MINUTE_MS 60000u
+#define BUDDY_FOCUS_SECOND_MS 1000u
 
-// Geometry of the band under the eyes, on the 320x172 glass. The face's lowest
-// paint is y=144 at rest and y=156 in the widest surprise frame, so the band does
-// not try to dodge it: while a session runs the timer owns a black plate from
-// BUDDY_FOCUS_PLATE_Y down and draws on it. On a black glass the plate is
-// invisible, except where it trims the bottom of a surprise glow by a few pixels
-// for the length of that animation — cheaper than a number nobody can read.
-#define BUDDY_FOCUS_PLATE_Y 146
-#define BUDDY_FOCUS_BAND_Y 148
-#define BUDDY_FOCUS_BAND_SCALE 2  // 5x7 font at 2x: 14 px tall, 12 px per digit
-#define BUDDY_FOCUS_BAR_Y 166
+// Geometry of the study layout, on the 320x172 glass. Concentración no longer
+// shares the canvas with a full-size face: while a session is up the eyes are
+// small in the upper band and the timer owns the lower two thirds. Nothing here
+// may overlap: the checks in `tools/buddy_focus_test.cpp` pin the arithmetic.
+//
+//   y  0..54   small eyes (cy 34, half height 12)
+//   y 56..61   slim progress mark, under the eyes
+//   y 64..172  black plate: four 64x104 digits plus a colon
+
+// The eye pair while a session runs: half the normal size, centred above the
+// number. `BUDDY_FOCUS_EYE_CX` is the offset from the glass centre, so the pair
+// keeps the same gap the full-size face has.
+#define BUDDY_FOCUS_EYE_CY 34
+#define BUDDY_FOCUS_EYE_CX 55
+#define BUDDY_FOCUS_EYE_RX 22
+#define BUDDY_FOCUS_EYE_RY 12
+// How far the gaze and the bob may push a small eye: past this the eye (and its
+// glow) would cross into the progress mark.
+#define BUDDY_FOCUS_EYE_SLACK_Y 4
+#define BUDDY_FOCUS_EYE_SLACK_X 10
+
+#define BUDDY_FOCUS_PLATE_Y 64
+#define BUDDY_FOCUS_BAND_Y 66
+#define BUDDY_FOCUS_DIGIT_W 64
+#define BUDDY_FOCUS_DIGIT_H 100
+#define BUDDY_FOCUS_DIGIT_THICK 10
+#define BUDDY_FOCUS_DIGIT_GAP 6
+#define BUDDY_FOCUS_COLON_W 18
+#define BUDDY_FOCUS_COLON_GAP 12
+// Four digits, two digit gaps, the colon and its two gaps: 310 px of 320.
+#define BUDDY_FOCUS_DIGIT_TOTAL_W                            \
+  (BUDDY_FOCUS_DIGIT_W * 4 + BUDDY_FOCUS_DIGIT_GAP * 2 +     \
+   BUDDY_FOCUS_COLON_W + BUDDY_FOCUS_COLON_GAP * 2)
+// The achievement is a word, not a number: five 5x7 glyphs at 6x.
+#define BUDDY_FOCUS_DONE_SCALE 6
+
+// The progress mark sits between the small eyes and the plate.
+#define BUDDY_FOCUS_BAR_Y 56
 #define BUDDY_FOCUS_BAR_H 5
-#define BUDDY_FOCUS_BAR_W 120
+#define BUDDY_FOCUS_BAR_W 200
 #define BUDDY_FOCUS_LABEL_MAX 8
 
 // The achievement colour: the glass's gold, the same one the splash uses.
@@ -53,7 +87,7 @@
 
 // How the eyes behave while a session runs: once every period they drop towards
 // the number and come back. Slow and regular, so it reads as studying.
-#define BUDDY_FOCUS_DIP_PX 6
+#define BUDDY_FOCUS_DIP_PX 4
 #define BUDDY_FOCUS_DIP_PERIOD_MS 9000u
 #define BUDDY_FOCUS_DIP_START_MS 6000u
 
@@ -70,22 +104,35 @@ static inline void buddyFocusClear(BuddyFocus *f) {
   *f = BuddyFocus();
 }
 
-// Starts (or replaces) a countdown of `minutes`. Zero cancels and leaves the
-// timer idle; above the maximum it clamps instead of rejecting, because a web
-// field is a suggestion, not a contract.
-static inline bool buddyFocusStart(BuddyFocus *f, uint32_t nowMs, uint16_t minutes) {
+// Starts (or replaces) a countdown of `seconds`, the unit of truth. Zero cancels
+// and leaves the timer idle; above the maximum it clamps instead of rejecting,
+// because a web field is a suggestion, not a contract.
+static inline bool buddyFocusStartSeconds(BuddyFocus *f, uint32_t nowMs,
+                                          uint32_t seconds) {
   if (!f) return false;
-  if (minutes == 0) {
+  if (seconds == 0) {
     buddyFocusClear(f);
     return true;
   }
-  if (minutes > BUDDY_FOCUS_MAX_MINUTES) minutes = BUDDY_FOCUS_MAX_MINUTES;
+  if (seconds > BUDDY_FOCUS_MAX_SECONDS) seconds = BUDDY_FOCUS_MAX_SECONDS;
   f->active = true;
   f->finished = false;
-  f->durationMs = (uint32_t)minutes * BUDDY_FOCUS_MINUTE_MS;
+  f->durationMs = seconds * BUDDY_FOCUS_SECOND_MS;
   f->endMs = nowMs + f->durationMs;
   f->finishedAtMs = 0;
   return true;
+}
+
+// The minutes form is kept for every existing caller (the API, the console and
+// the old tests). It is a wrapper, not a second state machine: the countdown is
+// still stored in seconds, so a session started in minutes and one started in
+// seconds cannot disagree. Minutes clamp to whole minutes first, so asking for
+// 100 minutes lands on 99:00 and not on the odd 99:59 the seconds ceiling would
+// give.
+static inline bool buddyFocusStart(BuddyFocus *f, uint32_t nowMs,
+                                   uint16_t minutes) {
+  if (minutes > BUDDY_FOCUS_MAX_MINUTES) minutes = BUDDY_FOCUS_MAX_MINUTES;
+  return buddyFocusStartSeconds(f, nowMs, (uint32_t)minutes * 60u);
 }
 
 static inline uint32_t buddyFocusRemainingMs(const BuddyFocus *f, uint32_t nowMs) {
@@ -136,6 +183,13 @@ static inline void buddyFocusFormat(uint32_t remainingMs, char *out, size_t cap)
   const uint32_t minutes = totalSec / 60u;
   const uint32_t seconds = totalSec % 60u;
   snprintf(out, cap, "%02u:%02u", (unsigned)minutes, (unsigned)seconds);
+}
+
+// Whether the timer owns the glass right now and the face has to shrink into the
+// top band. Pure: the draw tick asks this instead of inspecting the session.
+static inline bool buddyFocusCompact(const BuddyFocus *f, uint32_t nowMs) {
+  if (!f) return false;
+  return f->active || buddyFocusDoneVisible(f, nowMs);
 }
 
 // How far the eyes drop towards the number, in pixels. Zero for most of the

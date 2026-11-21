@@ -92,16 +92,51 @@ int main() {
     check("the cancel leaves no remaining", buddyFocusRemainingMs(&f, 120000) == 0);
   }
 
+  printf("-- seconds are the unit of truth\n");
+  {
+    BuddyFocus f;
+    buddyFocusClear(&f);
+    check("starting a countdown in seconds is accepted",
+          buddyFocusStartSeconds(&f, 1000, 90));
+    check("90 seconds are 90 seconds, not 90 minutes",
+          buddyFocusRemainingMs(&f, 1000) == 90000u);
+    check("a start in seconds reports its duration in seconds",
+          f.durationMs == 90000u);
+    check("one second is the floor", buddyFocusStartSeconds(&f, 0, 1));
+    check("a one second countdown is one second",
+          buddyFocusRemainingMs(&f, 0) == 1000u);
+    check("zero seconds cancels", buddyFocusStartSeconds(&f, 0, 0));
+    check("the cancel in seconds leaves it idle", !f.active && !f.finished);
+    check("above the ceiling it clamps in seconds",
+          buddyFocusStartSeconds(&f, 0, 10000));
+    check("the seconds clamp is the documented maximum",
+          buddyFocusRemainingMs(&f, 0) == BUDDY_FOCUS_MAX_SECONDS * 1000u);
+    check("the seconds maximum is 99:59", BUDDY_FOCUS_MAX_SECONDS == 5999);
+  }
+
+  printf("-- the minutes wrapper keeps working\n");
+  {
+    BuddyFocus f;
+    buddyFocusClear(&f);
+    check("minutes still start a countdown", buddyFocusStart(&f, 0, 2));
+    check("two minutes are 120 seconds",
+          buddyFocusRemainingMs(&f, 0) == 120000u);
+    check("above the ceiling the minutes wrapper clamps",
+          buddyFocusStart(&f, 0, 999));
+    check("the minutes clamp is the documented maximum",
+          buddyFocusRemainingMs(&f, 0) == BUDDY_FOCUS_MAX_MINUTES * 60000u);
+    check("the minutes maximum is what the digits can show",
+          BUDDY_FOCUS_MAX_MINUTES == 99);
+  }
+
   printf("-- bounds\n");
   {
     BuddyFocus f;
     buddyFocusClear(&f);
     buddyFocusStart(&f, 0, 1);
     check("one minute is the floor", buddyFocusRemainingMs(&f, 0) == 60000u);
-    check("above the ceiling it clamps", buddyFocusStart(&f, 0, 999));
-    check("the clamp is the documented maximum",
-          buddyFocusRemainingMs(&f, 0) == BUDDY_FOCUS_MAX_MINUTES * 60000u);
-    check("the maximum is the documented one", BUDDY_FOCUS_MAX_MINUTES == 180);
+    check("the minutes ceiling fits the big digits",
+          BUDDY_FOCUS_MAX_MINUTES * 60u <= BUDDY_FOCUS_MAX_SECONDS);
   }
 
   printf("-- progress\n");
@@ -126,8 +161,12 @@ int main() {
     check("minutes and seconds print together", strcmp(buf, "01:01") == 0);
     buddyFocusFormat(25u * 60000u, buf, sizeof(buf));
     check("the default duration prints as 25:00", strcmp(buf, "25:00") == 0);
-    buddyFocusFormat(180u * 60000u, buf, sizeof(buf));
-    check("three digit minutes still print", strcmp(buf, "180:00") == 0);
+    buddyFocusFormat(90000, buf, sizeof(buf));
+    check("seconds print under a minute", strcmp(buf, "01:30") == 0);
+    buddyFocusFormat(3599000, buf, sizeof(buf));
+    check("the last two digit minute prints", strcmp(buf, "59:59") == 0);
+    buddyFocusFormat(BUDDY_FOCUS_MAX_SECONDS * 1000u, buf, sizeof(buf));
+    check("the maximum prints in four digits", strcmp(buf, "99:59") == 0);
     buddyFocusFormat(59999, buf, sizeof(buf));
     check("a partial second rounds up so it never lies at zero",
           strcmp(buf, "01:00") == 0);
@@ -150,21 +189,30 @@ int main() {
 
   printf("-- the band under the eyes\n");
   {
-    // The face reaches y=144 at rest, y=156 in the widest surprise frame and
-    // y=150 with the studious dip. The band does not dodge that: its plate starts
-    // at BUDDY_FOCUS_PLATE_Y and covers whatever the eyes paint below it.
-    check("the plate covers the widest surprise eye",
-          BUDDY_FOCUS_PLATE_Y <= 88 + 60 + BUDDY_GLOW_PAD + 2);
-    check("the plate covers a dipped glance at rest",
-          BUDDY_FOCUS_PLATE_Y <= 88 + 48 + BUDDY_GLOW_PAD + 2 + BUDDY_FOCUS_DIP_PX);
-    check("the digits sit on the plate", BUDDY_FOCUS_BAND_Y >= BUDDY_FOCUS_PLATE_Y);
-    check("the digits clear the progress bar",
-          BUDDY_FOCUS_BAND_Y + 7 * BUDDY_FOCUS_BAND_SCALE <= BUDDY_FOCUS_BAR_Y);
-    check("the bar clears the bottom edge",
-          BUDDY_FOCUS_BAR_Y + BUDDY_FOCUS_BAR_H <= 172);
+    // Concentración now owns the glass: small eyes on top, a slim progress mark
+    // under them, and the giant MM:SS below. Every bound is checked against the
+    // 320x172 panel so a geometry edit cannot silently push the number off it.
+    check("the small eyes stay in the upper band",
+          BUDDY_FOCUS_EYE_CY + BUDDY_FOCUS_EYE_RY + BUDDY_GLOW_PAD + 2 <=
+              BUDDY_FOCUS_BAR_Y);
+    check("the eyes are small: at most 60% of the normal half height",
+          BUDDY_FOCUS_EYE_RY * 100 <= 60 * 24);
+    check("the bar sits under the eyes and over the digits",
+          BUDDY_FOCUS_BAR_Y > BUDDY_FOCUS_EYE_CY &&
+              BUDDY_FOCUS_BAR_Y + BUDDY_FOCUS_BAR_H <=
+                  BUDDY_FOCUS_PLATE_Y);
+    check("the digits start on the plate",
+          BUDDY_FOCUS_BAND_Y >= BUDDY_FOCUS_PLATE_Y);
+    check("the timer is more than half the glasses height",
+          (BUDDY_FOCUS_DIGIT_H * 100) > (172 * 50));
+    check("the digits clear the bottom edge",
+          BUDDY_FOCUS_BAND_Y + BUDDY_FOCUS_DIGIT_H <= 172);
+    check("four digits plus the colon fit the width",
+          (BUDDY_FOCUS_DIGIT_W * 4 + BUDDY_FOCUS_DIGIT_GAP * 2 +
+           BUDDY_FOCUS_COLON_W + BUDDY_FOCUS_COLON_GAP * 2) <= 320);
     check("the bar fits the width", BUDDY_FOCUS_BAR_W <= 320);
     char label[BUDDY_FOCUS_LABEL_MAX];
-    buddyFocusFormat(180u * 60000u, label, sizeof(label));
+    buddyFocusFormat(BUDDY_FOCUS_MAX_SECONDS * 1000u, label, sizeof(label));
     check("the widest label fits the buffer", strlen(label) < BUDDY_FOCUS_LABEL_MAX);
   }
 

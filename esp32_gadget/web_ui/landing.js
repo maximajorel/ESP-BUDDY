@@ -113,6 +113,7 @@
   // number the owner is actually watching.
   var focusUi = {
     minutes: document.getElementById("focusMinutes"),
+    seconds: document.getElementById("focusSeconds"),
     start: document.getElementById("focusStart"),
     stop: document.getElementById("focusStop"),
     state: document.getElementById("focusState"),
@@ -123,10 +124,29 @@
   // truth instead of guessing that the session is over.
   var focusLast = null;
 
-  function focusRequestedMinutes() {
-    var n = parseInt(focusUi.minutes.value, 10);
-    if (!isFinite(n) || n < 1) n = 25;
-    return n > 180 ? 180 : n;
+  // Minutes and seconds are two fields but one number: the device counts
+  // seconds, and it is the only clock. Above 99:59 the big digits cannot show the
+  // number, so the panel never asks for more; zero means "the usual session"
+  // (cancel has its own button).
+  function focusRequestedSeconds() {
+    var m = parseInt(focusUi.minutes.value, 10);
+    var s = parseInt(focusUi.seconds.value, 10);
+    if (!isFinite(m) || m < 0) m = 0;
+    if (!isFinite(s) || s < 0) s = 0;
+    m = Math.min(m, 99);
+    s = Math.min(s, 59);
+    var total = m * 60 + s;
+    if (total < 1) total = 25 * 60;
+    return Math.min(total, 5999);
+  }
+
+  // mm:ss with the same rounding the glass uses: a partial second is shown, never
+  // a 00:00 that is still running.
+  function focusClock(ms) {
+    var total = Math.ceil(ms / 1000);
+    var m = Math.floor(total / 60);
+    var s = total % 60;
+    return (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s;
   }
 
   function renderFocus(status) {
@@ -136,9 +156,8 @@
     var finished = !!(f && f.finished);
     focusUi.state.textContent = finished ? "Terminado" : (active ? "En curso" : "Apagada");
     if (active && f.remainingMs > 0) {
-      var mins = Math.ceil(f.remainingMs / 60000);
-      focusUi.now.textContent = "Sofía está concentrada: quedan " + mins +
-        " min en su pantalla.";
+      focusUi.now.textContent = "Sofía está concentrada: quedan " +
+        focusClock(f.remainingMs) + " en su pantalla.";
       focusUi.now.hidden = false;
     } else if (finished) {
       focusUi.now.textContent = "Sesión completa. Sofía te espera despierta.";
@@ -150,11 +169,11 @@
     focusUi.start.disabled = active || focusBusy;
   }
 
-  function sendFocus(minutes) {
+  function sendFocus(seconds) {
     if (focusBusy) return;
     focusBusy = true;
     focusUi.start.disabled = true;
-    api("POST", "/api/focus", { minutes: minutes })
+    api("POST", "/api/focus", { seconds: seconds })
       .then(function () { return api("GET", "/api/status"); })
       .then(renderFocus)
       .catch(function (error) {
@@ -170,12 +189,13 @@
   }
 
   focusUi.start.addEventListener("click", function () {
-    sendFocus(focusRequestedMinutes());
+    sendFocus(focusRequestedSeconds());
   });
   focusUi.stop.addEventListener("click", function () { sendFocus(0); });
   document.querySelectorAll("[data-focus-min]").forEach(function (chip) {
     chip.addEventListener("click", function () {
       focusUi.minutes.value = chip.dataset.focusMin;
+      focusUi.seconds.value = 0;
       document.querySelectorAll("[data-focus-min]").forEach(function (other) {
         other.setAttribute("aria-pressed", other === chip ? "true" : "false");
       });

@@ -203,6 +203,9 @@ static void buildStatusJson(String &out) {
     JsonObject f = doc["focus"].to<JsonObject>();
     f["active"] = focus.active;
     f["finished"] = focus.finished;
+    // Duration in whole seconds is the exact number; `minutes` stays for callers
+    // that only ever think in blocks.
+    f["seconds"] = (uint32_t)(focus.durationMs / BUDDY_FOCUS_SECOND_MS);
     f["minutes"] = (uint16_t)(focus.durationMs / BUDDY_FOCUS_MINUTE_MS);
     f["remainingMs"] = buddyFocusRemainingMs(&focus, (uint32_t)millis());
   }
@@ -569,27 +572,46 @@ static ApiResult apiFace(const String &body) {
 // screen with no session, the same authority it already has to choose the
 // screen. This handler only writes a deadline against millis(); it never draws,
 // never switches screens and never takes the buddy lock, so a slow client cannot
-// hold the face loop. Zero minutes cancels, above the maximum clamps.
+// hold the face loop. Zero cancels, above the maximum clamps.
+//
+// The countdown is stored in seconds. `minutes` stays for every caller that
+// already exists, `seconds` is the exact form. Sending both is a client bug, not
+// a preference, so it is refused instead of silently picking one.
 static ApiResult apiFocus(const String &body) {
   JsonDocument doc;
   if (!parseOptionalJson(body, doc)) return apiFail(400, API_BAD_JSON);
-  // Three different requests, three different answers: no `minutes` at all means
-  // the usual session, zero means cancel, and anything that is not an integer is
-  // a client bug that must not silently stop a session that is already running.
+  JsonVariant minutesIn = doc["minutes"];
+  JsonVariant secondsIn = doc["seconds"];
+  if (!minutesIn.isNull() && !secondsIn.isNull()) {
+    return apiFail(400, "manda minutes o seconds, no los dos");
+  }
+  const uint32_t now = (uint32_t)millis();
+  // Three different requests, three different answers: no field at all means the
+  // usual session, zero means cancel, and anything that is not an integer is a
+  // client bug that must not silently stop a session that is already running.
+  if (!secondsIn.isNull()) {
+    if (!secondsIn.is<int>()) return apiFail(400, "seconds tiene que ser un entero");
+    const int value = secondsIn.as<int>();
+    if (value < 0) return apiFail(400, "seconds no puede ser negativo");
+    uint32_t seconds = (uint32_t)value;
+    if (seconds > BUDDY_FOCUS_MAX_SECONDS) seconds = BUDDY_FOCUS_MAX_SECONDS;
+    buddyFocusRequestSeconds(seconds, now);
+    return apiOk();
+  }
   uint16_t minutes = BUDDY_FOCUS_DEFAULT_MINUTES;
-  JsonVariant in = doc["minutes"];
+  JsonVariant in = minutesIn;
   if (!in.isNull()) {
     if (!in.is<int>()) return apiFail(400, "minutes tiene que ser un entero");
     const int value = in.as<int>();
     if (value < 0) return apiFail(400, "minutes no puede ser negativo");
     if (value == 0) {
-      buddyFocusRequest(0, (uint32_t)millis());
+      buddyFocusRequestSeconds(0, now);
       return apiOk();
     }
     minutes = (uint16_t)value;
     if (minutes > BUDDY_FOCUS_MAX_MINUTES) minutes = BUDDY_FOCUS_MAX_MINUTES;
   }
-  buddyFocusRequest(minutes, (uint32_t)millis());
+  buddyFocusRequest(minutes, now);
   return apiOk();
 }
 
