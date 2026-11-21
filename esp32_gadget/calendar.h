@@ -63,6 +63,14 @@ CalendarReaction calendarReactionNow();
 // calendar). Returns false when the calendar is not authorized yet.
 bool calendarRequestRefresh();
 
+// Serial-console dump hook, the same trust model as `buddyface` and `imufake`:
+// fabricates one reaction so the glass can be proven without a Google account,
+// NTP or network. Never persisted; the next real fetch replaces nothing because
+// it only affects `calendarReactionNow()`. `minutesToStart` may be negative for
+// an event that already started.
+void calendarDebugFakeEvent(int minutesToStart, int leadMin);
+void calendarDebugFakeOff();
+
 // Panel actions. StartFlow talks to Google and may take a couple of seconds.
 bool calendarStartFlow(char *err, size_t errCap);
 void calendarCancelFlow();

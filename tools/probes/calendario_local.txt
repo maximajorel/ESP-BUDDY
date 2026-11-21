@@ -1,0 +1,33 @@
+# Google Calendar local: la reaccion de la cara sin cuenta de Google ni NTP.
+#
+# `calendar fake <min> <lead>` inyecta un evento sintetico (hook de consola, no
+# persiste) para poder probar la escalera y el titulo en el vidrio. Lo que se
+# verifica:
+#   1. arranque sano y estado del calendario sin credenciales,
+#   2. 20 min antes con aviso de 30 → fase early, la cara pasa a UPCOMING,
+#   3. 2 min antes → fase starting, ojos mas abiertos,
+#   4. evento ya empezado → fase ongoing, doble parpadeo,
+#   5. `calendar fake off` devuelve la cara al estado del bridge.
+boot 4
+status
+calendar
+screen 5
+sleep 800
+calendar fake 20 30
+sleep 500
+calendar
+api GET /api/status
+dump 4
+calendar fake 2 30
+sleep 500
+calendar
+dump 4
+calendar fake -1 30
+sleep 500
+calendar
+api GET /api/status
+dump 4
+calendar fake off
+sleep 500
+calendar
+api GET /api/status

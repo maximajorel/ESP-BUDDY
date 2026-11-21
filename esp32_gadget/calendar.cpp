@@ -167,6 +167,13 @@ void taskLoop(void *) {
 
 bool clockReady() { return time(nullptr) > 1600000000; }
 
+// Set by the serial console only. Volatile because the web task reads it.
+volatile bool s_debugFake = false;
+volatile int32_t s_debugMinutes = 0;
+volatile int32_t s_debugLeadMin = 30;
+
+constexpr int64_t kDebugBase = 2000000000;
+
 }  // namespace
 
 void calendarBegin() {
@@ -281,6 +288,17 @@ CalendarReaction calendarReactionNow() {
   CalendarReaction r;
   memset(&r, 0, sizeof(r));
   r.phase = CALENDAR_PHASE_NONE;
+  if (s_debugFake) {
+    // A synthetic event at a fixed epoch, so the output does not depend on NTP.
+    CalendarEvent event;
+    memset(&event, 0, sizeof(event));
+    snprintf(event.summary, sizeof(event.summary), "Evento de prueba");
+    event.startEpoch = kDebugBase + (int64_t)s_debugMinutes * 60;
+    event.endEpoch = event.startEpoch + 3600;
+    event.leadMin = (int)s_debugLeadMin;
+    calendarPickReaction(&event, 1, kDebugBase, calendarStoreGraceMin(), &r);
+    return r;
+  }
   if (!clockReady()) return r;
   const int64_t nowEpoch = (int64_t)time(nullptr);
   lock();
@@ -309,6 +327,18 @@ bool calendarStartFlow(char *err, size_t errCap) {
 }
 
 void calendarCancelFlow() { calendarAuthCancelFlow(); }
+
+void calendarDebugFakeEvent(int minutesToStart, int leadMin) {
+  if (leadMin < 0) leadMin = 0;
+  if (leadMin > CALENDAR_MAX_LEAD_MIN) leadMin = CALENDAR_MAX_LEAD_MIN;
+  if (minutesToStart < -1440) minutesToStart = -1440;
+  if (minutesToStart > 1440) minutesToStart = 1440;
+  s_debugMinutes = minutesToStart;
+  s_debugLeadMin = leadMin;
+  s_debugFake = true;
+}
+
+void calendarDebugFakeOff() { s_debugFake = false; }
 
 bool calendarSelect(const char *id, const char *name) {
   if (!calendarStoreSetSelected(id, name)) return false;

@@ -243,6 +243,7 @@ static void printHelp() {
   Serial.println("  assets                     checksum of the web panel shipped in flash");
   Serial.println("  rgb <r> <g> <b> [level]    LED bead colour");
   Serial.println("  calendar [refresh]         Google Calendar: estado, proximo evento y reaccion");
+  Serial.println("  calendar fake <min> <lead> inyecta una reaccion para dump (sin Google ni NTP)");
   Serial.println("  spotify [status]           credenciales y ultima pista");
   Serial.println("  spotify id <client_id>     guarda el client id de Spotify");
   Serial.println("  spotify url                URL de autorizacion para abrir en la PC");
@@ -321,6 +322,19 @@ static void handleCommand(char *line) {
     return;
   }
   if (!strcmp(argv[0], "calendar")) {
+    if (argc >= 2 && !strcmp(argv[1], "fake")) {
+      if (argc >= 3 && !strcmp(argv[2], "off")) {
+        calendarDebugFakeOff();
+        Serial.println("calendar fake off");
+      } else if (argc >= 4) {
+        calendarDebugFakeEvent(atoi(argv[2]), atoi(argv[3]));
+        Serial.printf("calendar fake: evento en %s min, aviso %s min\n", argv[2],
+                      argv[3]);
+      } else {
+        Serial.println("uso: calendar fake <minutos> <aviso> | calendar fake off");
+      }
+      return;
+    }
     if (argc >= 2 && !strcmp(argv[1], "refresh")) {
       bool ok = calendarRequestRefresh();
       Serial.printf("calendar refresh: %s\n", ok ? "pedido" : "falta autorizar");
