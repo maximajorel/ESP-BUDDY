@@ -33,39 +33,6 @@ void spotifyBase64UrlEncode(const uint8_t *data, size_t len, char *out,
   out[o] = '\0';
 }
 
-// --- url encoding -----------------------------------------------------------
-
-// Only the unreserved set (RFC 3986) survives unescaped, which is what both the
-// authorize query and the token body need.
-void spotifyUrlEncode(const char *in, char *out, size_t outCap) {
-  if (!out || outCap == 0) return;
-  if (!in) {
-    out[0] = '\0';
-    return;
-  }
-  static const char HEX[] = "0123456789ABCDEF";
-  size_t o = 0;
-  for (size_t i = 0; in[i]; i++) {
-    unsigned char c = (unsigned char)in[i];
-    bool plain = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
-                 (c >= '0' && c <= '9') || c == '-' || c == '.' || c == '_' ||
-                 c == '~';
-    size_t need = plain ? 1 : 3;
-    if (o + need + 1 > outCap) {
-      out[0] = '\0';
-      return;
-    }
-    if (plain) {
-      out[o++] = (char)c;
-    } else {
-      out[o++] = '%';
-      out[o++] = HEX[c >> 4];
-      out[o++] = HEX[c & 0x0F];
-    }
-  }
-  out[o] = '\0';
-}
-
 // --- code extraction --------------------------------------------------------
 
 static int hexDigit(char c) {

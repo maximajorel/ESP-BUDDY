@@ -7,6 +7,7 @@
 #include "spotify_http.h"
 #include "spotify_pkce.h"
 #include "spotify_store.h"
+#include "url_codec.h"
 
 // Unreserved set from RFC 7636; 66 characters, so a modulo has no bias worth
 // worrying about for a value that lives for a couple of minutes.
@@ -65,9 +66,9 @@ bool spotifyAuthBuildUrl(char *out, size_t cap) {
   char client[128];
   char scope[128];
   char redirect[128];
-  spotifyUrlEncode(spotifyStoreClientId(), client, sizeof(client));
-  spotifyUrlEncode(SPOTIFY_SCOPE, scope, sizeof(scope));
-  spotifyUrlEncode(SPOTIFY_REDIRECT_URI, redirect, sizeof(redirect));
+  urlEncode(spotifyStoreClientId(), client, sizeof(client));
+  urlEncode(SPOTIFY_SCOPE, scope, sizeof(scope));
+  urlEncode(SPOTIFY_REDIRECT_URI, redirect, sizeof(redirect));
 
   int n = snprintf(
       out, cap,
@@ -111,9 +112,9 @@ bool spotifyAuthExchangeCode(const char *code, char *err, size_t errCap) {
   char codeEnc[512];
   char redirect[128];
   char client[128];
-  spotifyUrlEncode(extracted, codeEnc, sizeof(codeEnc));
-  spotifyUrlEncode(SPOTIFY_REDIRECT_URI, redirect, sizeof(redirect));
-  spotifyUrlEncode(spotifyStoreClientId(), client, sizeof(client));
+  urlEncode(extracted, codeEnc, sizeof(codeEnc));
+  urlEncode(SPOTIFY_REDIRECT_URI, redirect, sizeof(redirect));
+  urlEncode(spotifyStoreClientId(), client, sizeof(client));
 
   String form = "grant_type=authorization_code";
   form += "&code=" + String(codeEnc);
@@ -174,8 +175,8 @@ bool spotifyAuthEnsureAccessToken(bool force, char *err, size_t errCap) {
 
   char tokenEnc[SPOTIFY_TOKEN_MAX * 3 + 8];
   char client[128];
-  spotifyUrlEncode(spotifyStoreRefreshToken(), tokenEnc, sizeof(tokenEnc));
-  spotifyUrlEncode(spotifyStoreClientId(), client, sizeof(client));
+  urlEncode(spotifyStoreRefreshToken(), tokenEnc, sizeof(tokenEnc));
+  urlEncode(spotifyStoreClientId(), client, sizeof(client));
 
   String form = "grant_type=refresh_token";
   form += "&refresh_token=" + String(tokenEnc);

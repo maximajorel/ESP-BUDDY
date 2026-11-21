@@ -22,9 +22,8 @@ enum SpotifyPkceResult {
 void spotifyBase64UrlEncode(const uint8_t *data, size_t len, char *out,
                             size_t outCap);
 
-// Percent-encodes for a URL query and an application/x-www-form-urlencoded body
-// (space becomes %20, not '+'). Writes "" when `outCap` is too small.
-void spotifyUrlEncode(const char *in, char *out, size_t outCap);
+// Percent-encoding lives in `url_codec.h`: it is the same RFC 3986 rule Google
+// Calendar needs, so it is not a Spotify-specific piece.
 
 enum SpotifyCodeResult {
   SPOTIFY_CODE_OK = 0,

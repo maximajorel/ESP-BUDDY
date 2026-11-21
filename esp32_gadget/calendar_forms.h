@@ -13,6 +13,7 @@
 
 #include "calendar_model.h"
 #include "calendar_time.h"
+#include "url_codec.h"
 
 #define CALENDAR_OAUTH_HOST "oauth2.googleapis.com"
 #define CALENDAR_DEVICE_CODE_PATH "/device/code"
@@ -23,39 +24,13 @@
   "&fields=items(id,summary,primary,defaultReminders)"
 #define CALENDAR_SCOPE "https://www.googleapis.com/auth/calendar.readonly"
 
-// RFC 3986 unreserved characters stay, everything else becomes %XX in upper
-// case. Calendar ids contain `@` and refresh tokens contain `/` and `+`, so this
-// is not cosmetic: an unescaped `+` becomes a space on Google's side.
-static inline bool calendarUrlEncode(const char *in, char *out, size_t cap) {
-  if (!in || !out || cap == 0) return false;
-  static const char kHex[] = "0123456789ABCDEF";
-  size_t n = 0;
-  for (const char *p = in; *p; p++) {
-    const unsigned char c = (unsigned char)*p;
-    const bool safe = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
-                      (c >= '0' && c <= '9') || c == '-' || c == '_' ||
-                      c == '.' || c == '~';
-    if (safe) {
-      if (n + 1 >= cap) return false;
-      out[n++] = (char)c;
-    } else {
-      if (n + 3 >= cap) return false;
-      out[n++] = '%';
-      out[n++] = kHex[c >> 4];
-      out[n++] = kHex[c & 0x0F];
-    }
-  }
-  out[n] = '\0';
-  return true;
-}
-
 static inline bool calendarDeviceCodeForm(const char *clientId, char *out,
                                           size_t cap) {
   if (!clientId || !out) return false;
   char id[CALENDAR_ID_MAX * 3 + 4];
   char scope[sizeof(CALENDAR_SCOPE) * 3];
-  if (!calendarUrlEncode(clientId, id, sizeof(id))) return false;
-  if (!calendarUrlEncode(CALENDAR_SCOPE, scope, sizeof(scope))) return false;
+  if (!urlEncode(clientId, id, sizeof(id))) return false;
+  if (!urlEncode(CALENDAR_SCOPE, scope, sizeof(scope))) return false;
   const int n = snprintf(out, cap, "client_id=%s&scope=%s", id, scope);
   return n > 0 && (size_t)n < cap;
 }
@@ -70,9 +45,9 @@ static inline bool calendarTokenFormDevice(const char *clientId,
   char id[CALENDAR_ID_MAX * 3 + 4];
   char secret[CALENDAR_ID_MAX * 3 + 4];
   char code[CALENDAR_ID_MAX * 3 + 4];
-  if (!calendarUrlEncode(clientId, id, sizeof(id))) return false;
-  if (!calendarUrlEncode(clientSecret, secret, sizeof(secret))) return false;
-  if (!calendarUrlEncode(deviceCode, code, sizeof(code))) return false;
+  if (!urlEncode(clientId, id, sizeof(id))) return false;
+  if (!urlEncode(clientSecret, secret, sizeof(secret))) return false;
+  if (!urlEncode(deviceCode, code, sizeof(code))) return false;
   const int n = snprintf(
       out, cap,
       "client_id=%s&client_secret=%s&device_code=%s&grant_type="
@@ -89,9 +64,9 @@ static inline bool calendarTokenFormRefresh(const char *clientId,
   char id[CALENDAR_ID_MAX * 3 + 4];
   char secret[CALENDAR_ID_MAX * 3 + 4];
   char token[512 * 3 + 4];
-  if (!calendarUrlEncode(clientId, id, sizeof(id))) return false;
-  if (!calendarUrlEncode(clientSecret, secret, sizeof(secret))) return false;
-  if (!calendarUrlEncode(refreshToken, token, sizeof(token))) return false;
+  if (!urlEncode(clientId, id, sizeof(id))) return false;
+  if (!urlEncode(clientSecret, secret, sizeof(secret))) return false;
+  if (!urlEncode(refreshToken, token, sizeof(token))) return false;
   const int n = snprintf(out, cap,
                          "client_id=%s&client_secret=%s&refresh_token=%s"
                          "&grant_type=refresh_token",
@@ -108,7 +83,7 @@ static inline bool calendarEventsPath(const char *calendarId,
                                       char *out, size_t cap) {
   if (!calendarId || !out) return false;
   char id[CALENDAR_ID_MAX * 3 + 4];
-  if (!calendarUrlEncode(calendarId, id, sizeof(id))) return false;
+  if (!urlEncode(calendarId, id, sizeof(id))) return false;
   char from[24];
   char to[24];
   if (!calendarRfc3339FromEpoch(timeMin, from, sizeof(from))) return false;

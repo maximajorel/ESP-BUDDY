@@ -261,24 +261,6 @@ int main() {
     check("short output buffer left untouched", out[0] == '\0', true);
   }
 
-  // 13. Form encoding, used both for the authorize URL query and the token
-  //     request body. A stray '+' or an unescaped ':' makes Spotify answer with
-  //     an invalid_grant that blames the user's code.
-  {
-    char out[128];
-    spotifyUrlEncode("", out, sizeof(out));
-    checkStr("urlencode of nothing", out, "");
-    spotifyUrlEncode("abc-._~019", out, sizeof(out));
-    checkStr("unreserved characters pass through", out, "abc-._~019");
-    spotifyUrlEncode("a b", out, sizeof(out));
-    checkStr("space becomes %20", out, "a%20b");
-    spotifyUrlEncode("http://127.0.0.1:8888/callback", out, sizeof(out));
-    checkStr("redirect uri is escaped", out,
-             "http%3A%2F%2F127.0.0.1%3A8888%2Fcallback");
-    spotifyUrlEncode("a b", out, 2);
-    checkStr("short buffer yields nothing", out, "");
-  }
-
   // 14. FIPS 180-2 known-answer vectors. The challenge above only proves one
   //    32-byte digest; these prove the hash over the padding boundaries too
   //    (empty, one block, and a message that spans two blocks).

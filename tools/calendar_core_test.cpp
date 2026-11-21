@@ -268,16 +268,6 @@ static void testAllDayAndPriority() {
 static void testForms() {
   printf("-- the OAuth and API requests, built without a network\n");
   char buf[1024];
-  checkInt("url encoding keeps an email id query-safe",
-           calendarUrlEncode("abc@group.calendar.google.com", buf, sizeof(buf)),
-           true);
-  checkText("  the encoded id", buf, "abc%40group.calendar.google.com");
-  checkInt("a plain value is untouched", calendarUrlEncode("primary", buf, sizeof(buf)),
-           true);
-  checkText("  plain", buf, "primary");
-  checkInt("a buffer that cannot fit fails instead of truncating",
-           calendarUrlEncode("abc@group.calendar.google.com", buf, 8), false);
-
   checkInt("device code request",
            calendarDeviceCodeForm("1234-abc.apps.googleusercontent.com", buf,
                                   sizeof(buf)),

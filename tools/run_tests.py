@@ -39,7 +39,8 @@ COMPANION_SOURCES = {
     "sha256_test": ["sha256.cpp"],
     "text_fold_test": ["text_fold.cpp"],
     "spotify_core_test": ["spotify_parse.cpp", "spotify_pkce.cpp", "sha256.cpp"],
-    "calendar_core_test": ["calendar_parse.cpp", "calendar_auth_parse.cpp"],
+    "calendar_core_test": ["calendar_parse.cpp", "calendar_auth_parse.cpp", "url_codec.cpp"],
+    "url_codec_test": ["url_codec.cpp"],
 }
 
 # Checks written as scripts rather than firmware tests. The `.env` build step is
