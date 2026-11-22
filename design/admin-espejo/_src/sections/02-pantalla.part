@@ -1,0 +1,82 @@
+    <div class="region" id="pantalla" role="tabpanel" aria-labelledby="tab-pantalla" tabindex="0">
+      <div class="region-head">
+        <p class="lead">Brillo, color y comportamiento de la pantalla del equipo.</p>
+      </div>
+
+      <section class="card">
+
+        <details class="fold" open>
+          <summary>Brillo</summary>
+          <label class="slider">Brillo de la pantalla
+            <input type="range" id="brightness" min="5" max="100" step="5" value="75">
+            <output id="brightnessOut">75 %</output>
+          </label>
+        </details>
+
+        <details class="fold">
+          <summary>Color de la interfaz</summary>
+          <label class="field">
+            <span class="field-label">Color de la interfaz <span class="tag">el acento del equipo y del panel</span></span>
+            <span class="color-row">
+              <input type="color" id="uiColor" value="#ffd700">
+              <span class="hex">#FFD700</span>
+            </span>
+          </label>
+        </details>
+
+        <details class="fold">
+          <summary>Rotación de la pantalla</summary>
+          <label>Rotación <span class="tag">según cómo apoyes el equipo</span>
+            <select id="rotationMode">
+              <option value="auto" selected>Automática</option>
+              <option value="horizontal">Horizontal</option>
+              <option value="inverted">Horizontal invertida</option>
+            </select>
+          </label>
+
+          <label class="switch">
+            <span>Bloquear la rotación actual</span>
+            <input type="checkbox" id="rotationLock">
+          </label>
+          <p class="hint">Acostado de espaldas, el sensor no puede notar el giro: el equipo
+            se queda con la última orientación. Bloqueá para fijarla vos.</p>
+        </details>
+
+        <details class="fold">
+          <summary>Reloj</summary>
+          <label class="switch">
+            <span>Reloj en formato 24 horas</span>
+            <input type="checkbox" id="clock24" checked>
+          </label>
+          <div class="row">
+            <button class="btn ghost" id="setTime" type="button">Usar la hora de este teléfono</button>
+          </div>
+        </details>
+
+        <details class="fold">
+          <summary>Apagado automático</summary>
+          <p class="hint">Sin usar el equipo, la pantalla y la luz de atrás se apagan solas. Elegí después de cuánto y en qué pantallas; un toque en el botón las vuelve a prender.</p>
+          <label>Apagar después de
+            <select id="screenTimeout">
+              <option value="0">Nunca</option>
+              <option value="30">30 segundos</option>
+              <option value="60">1 minuto</option>
+              <option value="120">2 minutos</option>
+              <option value="300" selected>5 minutos</option>
+              <option value="600">10 minutos</option>
+              <option value="1800">30 minutos</option>
+            </select>
+          </label>
+          <div class="row" id="timeoutScreens">
+            <label class="switch"><span>RELOJ</span><input type="checkbox" data-sleep-screen="0" checked></label>
+            <label class="switch"><span>TRAGAMONEDAS</span><input type="checkbox" data-sleep-screen="1"></label>
+            <label class="switch"><span>METEORITOS</span><input type="checkbox" data-sleep-screen="2"></label>
+            <label class="switch"><span>RED</span><input type="checkbox" data-sleep-screen="3" checked></label>
+            <label class="switch"><span>MUSICA</span><input type="checkbox" data-sleep-screen="4"></label>
+            <label class="switch"><span>SOFIA</span><input type="checkbox" data-sleep-screen="5"></label>
+            <label class="switch"><span>CONFIG</span><input type="checkbox" data-sleep-screen="6"></label>
+          </div>
+        </details>
+
+      </section>
+    </div>

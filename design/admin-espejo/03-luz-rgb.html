@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<title>ESP BUDDY · Luz RGB</title>
+<style>
+/* Mirror of the panel's own stylesheet (esp32_gadget/web_ui/styles.css):
+   the admin-facing rules only, with every value unchanged. No external URL,
+   no font, no icon pack, exactly like the board that serves it. */
+
+:root {
+  --paper: #ffffff;
+  --sky: #dceeff;
+  --gray: #cccccc;
+  --mist: #e9e9e9;
+  --ink: #000000;
+  --blue: #4da2ff;
+  --mint: #55db9c;
+  --lav: #e9ccff;
+  --ember: #fb4903;
+  --sun: #ffd731;
+  --violet: #5c4ade;
+  --ok-ink: #0f7a45;
+  --bad-ink: #b32b00;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --line: 1px solid var(--ink);
+  --hair: 1px solid rgba(0, 0, 0, 0.16);
+  --r-card: 20px;
+  --r-lg: 40px;
+  --r-in: 16px;
+  --r-pill: 1600px;
+  --tap: 44px;
+  --page: 1080px;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 16px; }
+body { margin: 0; background: var(--sky); color: var(--ink); font: 16px/1.5 var(--font); -webkit-text-size-adjust: 100%; }
+h1, h2, h3 { font-family: var(--font); }
+a { color: var(--ink); }
+
+.skip { position: absolute; left: -9999px; top: 0; z-index: 60; padding: 10px 14px; border: var(--line); border-radius: var(--r-pill); background: var(--sun); font-size: 13px; font-weight: 700; text-decoration: none; }
+.skip:focus { left: 12px; top: 12px; }
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible { outline: 2px solid var(--violet); outline-offset: 2px; }
+.sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+.logo .eye { width: 10px; height: 10px; border-radius: 38%; background: #000000; }
+
+/* top bar */
+.topbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 14px; background: var(--paper); border-bottom: var(--line); }
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1 1 auto; }
+/* brand mark: the two eyes, in black on the sun sticker, in both themes — they
+   are the buddy's eyes, not a tint. No glow: the panel has no box-shadow. */
+.logo { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; gap: 3px; width: 34px; height: 34px; border: var(--line); border-radius: var(--r-pill); background: var(--sun); }
+.topbar h1 { margin: 0; font-size: 15px; letter-spacing: -0.01em; white-space: nowrap; }
+.sub { margin: 0; font-size: 11px; opacity: 0.7; }
+.topbar-end { display: flex; align-items: center; gap: 8px; margin-left: auto; flex: 0 0 auto; }
+
+.pill { display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border: var(--line); border-radius: var(--r-pill); background: var(--paper); font-size: 10px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; white-space: nowrap; }
+.pill .dot { width: 8px; height: 8px; border: var(--line); border-radius: 50%; background: var(--sun); }
+.pill.online { background: var(--mint); }
+.pill.online .dot { background: var(--paper); }
+.pill.offline { background: var(--ember); }
+.pill.offline .dot { background: var(--paper); }
+.who { display: flex; align-items: center; gap: 8px; }
+.who-user { max-width: 12ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; }
+
+/* tabs: the whole panel navigation, now a left aside. The strip is gone; the
+   sections live in a column and the content takes the rest of the page. */
+/* The column is as wide as the longest label and every pill fills it, so the
+   menu reads as one block instead of a ragged stack. */
+.shell { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: stretch; }
+.tabs { display: flex; flex-direction: column; align-items: stretch; gap: 6px; padding: 10px; background: var(--paper); border-right: var(--line); }
+.nav-item { flex: 0 0 auto; display: flex; align-items: center; justify-content: flex-start; gap: 7px; width: 100%; min-height: 36px; padding: 7px 11px; border: var(--line); border-radius: var(--r-pill); background: var(--paper); color: var(--ink); font: inherit; font-size: 11px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; white-space: nowrap; cursor: pointer; }
+.nav-item:hover { background: var(--mist); }
+.nav-item.active { background: var(--ink); color: var(--paper); }
+.nav-ico { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.tab-sep { flex: 0 0 auto; align-self: stretch; height: 1px; margin: 8px 2px; background: var(--ink); opacity: 0.2; }
+
+/* regions and cards */
+main { padding: 16px 14px 40px; max-width: var(--page); }
+.region { display: grid; gap: 14px; scroll-margin-top: 12px; }
+.region-head { padding: 0 2px; }
+.region-head.row { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 14px; }
+.region-head.row .lead { margin: 0; }
+.eyebrow { margin: 0; font-size: 10px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; }
+.region-head h2 { margin: 2px 0 0; font-size: clamp(30px, 8vw, 40px); font-weight: 900; line-height: 0.9; letter-spacing: -0.04em; }
+.lead { margin: 8px 0 0; font-size: 13px; max-width: 62ch; }
+.now { display: inline-block; padding: 3px 9px; border: var(--line); border-radius: var(--r-pill); background: var(--sun); font-size: 10px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; }
+
+.card { padding: 16px; border: var(--line); border-radius: var(--r-card); background: var(--paper); }
+.card.tint-lav { background: var(--lav); }
+.card.tint-mist { background: var(--mist); }
+.card.tint-sky { background: var(--sky); }
+.card.danger { background: var(--mist); border-color: var(--ember); }
+.card.danger h2, .card.danger h3 { color: var(--bad-ink); }
+.card h2 { margin: 0 0 4px; font-size: 17px; letter-spacing: -0.01em; }
+.card h3 { margin: 0 0 4px; font-size: 15px; letter-spacing: -0.01em; }
+.region > .card > h3:first-child { margin-top: 0; }
+.hint { margin: 0 0 14px; font-size: 12px; opacity: 0.72; }
+.hint.inline { margin: 0; }
+
+.fold { margin-top: 16px; border-top: var(--hair); }
+.card > .fold:first-of-type { margin-top: 0; border-top: 0; }
+.fold > summary em { margin-left: 8px; font-size: 11px; font-style: normal; font-weight: 500; opacity: 0.6; }
+.fold > summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: var(--tap); padding: 10px 0; font-size: 13px; font-weight: 700; cursor: pointer; list-style: none; }
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary::after { content: ""; width: 8px; height: 8px; border-right: 2px solid var(--ink); border-bottom: 2px solid var(--ink); transform: rotate(45deg); transition: transform 0.2s ease; }
+.fold[open] > summary::after { transform: rotate(-135deg); }
+
+/* stats */
+.grid { display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr); }
+.stat { padding: 12px; border: var(--line); border-radius: var(--r-in); background: var(--mist); }
+.stat .k { font-size: 10px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; }
+.stat .v { font-size: 18px; font-weight: 900; letter-spacing: -0.03em; overflow-wrap: anywhere; }
+.mono { font-family: var(--mono); font-size: 0.92em; }
+
+/* forms */
+.form { display: grid; gap: 14px; }
+.form label { display: grid; gap: 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.02em; }
+input[type="text"], input[type="password"], input[type="number"], input[type="search"], select, textarea { width: 100%; min-height: var(--tap); padding: 10px 13px; border: var(--line); border-radius: var(--r-in); background: var(--paper); color: var(--ink); font: inherit; font-size: 15px; }
+input::placeholder, textarea::placeholder { color: rgba(0, 0, 0, 0.42); }
+input:disabled, select:disabled { background: var(--mist); opacity: 0.75; }
+.tag { display: inline-block; padding: 3px 9px; border: var(--line); border-radius: var(--r-pill); background: var(--mist); font-size: 10px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: var(--tap); padding: 10px 16px; border: var(--line); border-radius: var(--r-pill); background: var(--ink); color: var(--paper); font: inherit; font-size: 12px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; text-decoration: none; cursor: pointer; }
+.btn:hover { background: #1a1a1a; }
+.btn:disabled { opacity: 0.5; cursor: progress; }
+.btn.ghost { background: var(--paper); color: var(--ink); }
+.btn.ghost:hover { background: var(--mist); }
+.btn.danger { background: var(--ember); color: var(--ink); }
+.btn.danger:hover { background: #e04200; }
+.btn.sm { min-height: 34px; padding: 6px 12px; font-size: 11px; }
+.btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Round icon button: theme switch, the only icon-only control in the panel. */
+.icon-btn { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: var(--line); border-radius: var(--r-pill); background: var(--paper); color: var(--ink); cursor: pointer; }
+.icon-btn:hover { background: var(--mist); }
+.icon-btn[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.icon-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+.warn { margin: 10px 0 0; padding: 10px 12px; border: var(--line); border-radius: var(--r-in); background: var(--sun); font-size: 12px; }
+
+/* Chips: one sticker button per choice, the pressed one filled with ink. */
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.chip { padding: 8px 12px; border: var(--line); border-radius: var(--r-pill); background: var(--paper); color: var(--ink); font: inherit; font-size: 11px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; cursor: pointer; }
+.chip:hover { background: var(--mist); }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+
+/* Field: a labelled control whose box is part of the design, not the browser's.
+   The value is mono so a Client ID or a hex colour never shifts. */
+.field { display: grid; gap: 6px; }
+.field-label { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.02em; }
+.field-input { display: flex; align-items: center; gap: 10px; min-height: var(--tap); padding: 0 12px; border: var(--line); border-radius: var(--r-in); background: var(--mist); }
+.field-input:focus-within { outline: 2px solid var(--violet); outline-offset: 2px; }
+.field-input input[type="text"] { flex: 1; min-width: 0; min-height: 0; padding: 0; border: 0; background: none; font-family: var(--mono); font-size: 13px; }
+.field-input input[type="text"]:focus-visible { outline: 0; }
+.field-count { flex: 0 0 auto; font-family: var(--mono); font-size: 11px; opacity: 0.55; }
+
+/* Colour field: the swatch plus its hex, so it never sits alone. */
+.color-row { display: flex; align-items: center; gap: 12px; }
+.color-row input[type="color"] { flex: 0 0 auto; width: 76px; height: 44px; padding: 3px; border: var(--line); border-radius: var(--r-in); background: var(--paper); cursor: pointer; }
+.color-row .hex { font-family: var(--mono); font-size: 13px; letter-spacing: 0.02em; }
+.swatches { display: flex; gap: 8px; flex-wrap: wrap; }
+.swatches button { width: 38px; height: 38px; padding: 0; border: var(--line); border-radius: var(--r-pill); background: var(--mist); cursor: pointer; }
+.swatches button[aria-pressed="true"] { outline: 2px solid var(--ink); outline-offset: 2px; }
+.slider { display: grid; gap: 6px; margin-bottom: 16px; font-size: 12px; font-weight: 700; }
+.slider input[type="range"] { width: 100%; accent-color: var(--ink); }
+.switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: var(--tap); padding: 8px 0; border-bottom: var(--hair); }
+.switch:last-child { border-bottom: 0; }
+.switch input { width: 22px; height: 22px; accent-color: var(--ink); }
+.row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+
+/* lists */
+.netlist { display: grid; gap: 8px; margin: 10px 0; }
+.netlist button { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: var(--tap); padding: 10px 13px; border: var(--line); border-radius: var(--r-in); background: var(--paper); color: var(--ink); font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
+.netlist button:hover { background: var(--sky); }
+.netlist .rssi { font-family: var(--mono); font-size: 11px; opacity: 0.7; }
+.order { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.order li { display: flex; align-items: center; gap: 8px; padding: 8px; border: var(--line); border-radius: var(--r-in); background: var(--paper); }
+.order li.dragging { background: var(--sun); opacity: 0.9; }
+.order li.over { outline: 2px solid var(--violet); outline-offset: 2px; }
+.order .grip { flex: 0 0 auto; display: grid; place-items: center; width: 30px; height: 38px; border: var(--line); border-radius: var(--r-in); background: var(--mist); font-size: 15px; line-height: 1; letter-spacing: -0.06em; cursor: grab; user-select: none; }
+.order .grip:active { cursor: grabbing; }
+.order .num { flex: 0 0 auto; width: 1.4em; font-family: var(--mono); font-size: 11px; opacity: 0.6; text-align: right; }
+.order button { display: grid; place-items: center; width: 38px; height: 38px; padding: 0; border: var(--line); border-radius: var(--r-pill); background: var(--mist); color: var(--ink); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.order button:disabled { opacity: 0.35; cursor: default; }
+
+/* Sub-tabs: one card at a time inside a section that holds several. */
+.subtabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.subtab { min-height: 38px; padding: 7px 13px; border: var(--line); border-radius: var(--r-pill); background: var(--paper); color: var(--ink); font: inherit; font-size: 11px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; white-space: nowrap; cursor: pointer; }
+.subtab:hover { background: var(--mist); }
+.subtab[aria-selected="true"] { background: var(--ink); color: var(--paper); }
+.region > [hidden] { display: none; }
+.order input { flex: 1; min-width: 0; min-height: 38px; padding: 6px 10px; font-size: 13px; }
+
+/* spotify, calendar, integrations */
+.steps { margin: 0 0 12px; padding-left: 20px; font-size: 13px; }
+.steps li { margin-bottom: 8px; }
+.steps strong, .steps em { font-style: normal; font-weight: 700; }
+.steps a, .link { color: var(--ink); font-weight: 700; }
+.link { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 8px 14px; border: var(--line); border-radius: var(--r-pill); background: var(--paper); font-size: 12px; letter-spacing: 0.032em; text-decoration: none; }
+.link:hover { background: var(--mist); }
+.authbox { margin: 12px 0 16px; }
+.sp-state { display: inline-flex; align-items: center; gap: 7px; padding: 5px 11px; border: var(--line); border-radius: var(--r-pill); background: var(--paper); font-size: 10px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; }
+.sp-state .dot { width: 8px; height: 8px; border: var(--line); border-radius: 50%; background: var(--sun); }
+.sp-state.ok { background: var(--mint); }
+.sp-state.warn { background: var(--sun); }
+.sp-state.bad { background: var(--ember); }
+.sp-panel { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 14px; align-items: center; margin: 12px 0; padding: 12px; border: var(--line); border-radius: var(--r-in); background: var(--lav); }
+.sp-cover { border: var(--line); border-radius: var(--r-in); overflow: hidden; background: var(--paper); }
+.sp-cover svg { display: block; width: 100%; height: auto; }
+.sp-meta { min-width: 0; }
+.sp-album { margin: 6px 0 0; font-size: 11px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; opacity: 0.62; }
+.sp-title { margin: 0; font-size: 14px; font-weight: 700; overflow-wrap: anywhere; }
+.sp-artist { margin: 2px 0 0; font-size: 12px; opacity: 0.75; overflow-wrap: anywhere; }
+.sp-bar { grid-column: 1 / -1; position: relative; height: 8px; overflow: hidden; border: var(--line); border-radius: var(--r-pill); background: var(--paper); }
+.sp-bar span { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--ink); transition: width 0.4s linear; }
+.sp-time { grid-column: 1 / -1; display: flex; justify-content: space-between; font-family: var(--mono); font-size: 11px; }
+.sp-error { margin: 10px 0 0; padding: 10px 12px; border: var(--line); border-radius: var(--r-in); background: var(--ember); font-size: 12px; }
+
+/* screens grid (aplicaciones) */
+.screens { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.tile { display: grid; gap: 6px; align-content: start; padding: 13px; border: var(--line); border-radius: var(--r-in); background: var(--paper); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.tile:nth-child(4n + 1) { background: var(--paper); }
+.tile:nth-child(4n + 2) { background: var(--lav); }
+.tile:nth-child(4n + 3) { background: var(--paper); }
+.tile:nth-child(4n) { background: var(--mist); }
+.tile:hover { outline: 2px solid var(--ink); outline-offset: -2px; }
+.tile svg { width: 22px; height: 22px; fill: none; stroke: var(--ink); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.tile-ico { margin-bottom: 2px; }
+.tile-name { font-size: 11px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; }
+.tile-desc { font-size: 11px; line-height: 1.3; opacity: 0.72; }
+.tile-badge { display: none; justify-self: start; padding: 2px 8px; border: var(--line); border-radius: var(--r-pill); background: var(--sun); font-size: 9px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; }
+.tile.active { background: var(--sun); }
+.tile.active .tile-badge { display: inline-block; }
+
+/* toast */
+.toast { position: fixed; left: 14px; right: 14px; bottom: 14px; z-index: 40; padding: 12px 16px; border: var(--line); border-radius: var(--r-pill); background: var(--ink); color: var(--paper); font-size: 13px; font-weight: 700; text-align: center; }
+.toast.ok { background: var(--mint); color: var(--ink); }
+.toast.err { background: var(--ember); color: var(--ink); }
+
+/* Google device-flow code */
+.cal-code { font-family: var(--mono); font-size: 2rem; letter-spacing: 0.18em; font-weight: 700; color: var(--ink); background: var(--sky); border: var(--line); border-radius: var(--r-in); padding: 10px 18px; display: inline-block; margin: 6px 0 4px; }
+
+/* the panel's footer sits outside <main>, so it needs the same gutter */
+main + footer, body > footer { padding: 0 14px 32px; font-size: 11px; }
+main + footer p, body > footer p { margin: 0 0 4px; }
+
+@media (min-width: 620px) {
+  main { padding: 20px 20px 48px; }
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .screens { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .toast { left: 50%; right: auto; transform: translateX(-50%); max-width: 420px; }
+}
+/* --- dark theme ----------------------------------------------------------- */
+/* The stickers keep their colour in both themes: they are the system, not a
+   tint. Paper, ink and the three neutral surfaces flip; anything painted on a
+   sticker keeps black text, so contrast stays the same in both themes. */
+[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #16171a;
+  --sky: #0e0f12;
+  --gray: #23252a;
+  --mist: #22242a;
+  --ink: #f1f1f3;
+  --ok-ink: #58d99b;
+  --bad-ink: #ff8f66;
+}
+[data-theme="dark"] :is(.now, .pill.online, .pill.offline, .warn, .sp-state.ok,
+  .sp-state.warn, .sp-state.bad, .sp-panel, .btn.danger, .toast.ok, .toast.err,
+  .tile.active, .tile:nth-child(4n + 2), .skip) { color: #000000; }
+[data-theme="dark"] input::placeholder, [data-theme="dark"] textarea::placeholder { color: rgba(255, 255, 255, 0.42); }
+[data-theme="dark"] .btn:hover { background: #ffffff; }
+[data-theme="dark"] .banner p, [data-theme="dark"] .banner strong { color: #000000; }
+
+@media (max-width: 759px) {
+  .shell { grid-template-columns: minmax(0, 1fr); }
+  .tabs { flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 8px; overflow-x: auto; padding: 10px 14px; border-right: 0; border-bottom: var(--line); scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab-sep { width: 1px; height: auto; margin: 6px 2px; }
+}
+@media (min-width: 980px) {
+  .topbar { padding: 12px 20px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
+}
+</style>
+</head>
+<body>
+
+<a class="skip" href="#contenido">Saltar al contenido</a>
+
+<svg class="sprite" aria-hidden="true" focusable="false"><defs>
+  <symbol id="i-apps" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+  <symbol id="i-display" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></symbol>
+  <symbol id="i-light" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+  <symbol id="i-game" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="11" rx="4"/><path d="M7 11v3M5.5 12.5h3"/><circle cx="16" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="18.5" cy="14.5" r="1" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V6l10-2v12"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/></symbol>
+  <symbol id="i-plug" viewBox="0 0 24 24"><path d="M9 3v5M15 3v5"/><path d="M6 8h12v3a6 6 0 0 1-12 0V8z"/><path d="M12 17v4"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><circle cx="12" cy="15" r="1.6" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-wifi" viewBox="0 0 24 24"><path d="M2 8.5a15 15 0 0 1 20 0M5 12a10.5 10.5 0 0 1 14 0M8.5 15.5a6 6 0 0 1 7 0"/><circle cx="12" cy="19" r="1"/></symbol>
+  <symbol id="i-smile" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2.5 4 2.5 4-2.5 4-2.5"/><circle cx="9" cy="10" r=".7" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r=".7" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="2" fill="currentColor" stroke="none"/><circle cx="8" cy="18" r="2" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-slot" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/><circle cx="8" cy="15" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="15" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="15" r="1" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><circle cx="12" cy="15.5" r="1.2" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-rocket" viewBox="0 0 24 24"><path d="M12 3c3 2 4.5 5 4.5 9L14 15h-4l-2.5-3C7.5 8 9 5 12 3z"/><path d="M9.5 16.5 7 20l4-1M14.5 16.5 17 20l-4-1"/><circle cx="12" cy="9" r="1.4"/></symbol>
+<symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M4.2 4.2l1.6 1.6M18.2 18.2l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.2 19.8l1.6-1.6M18.2 5.8l1.6-1.6"/></symbol>
+</defs></svg>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="logo" aria-hidden="true"><span class="eye"></span><span class="eye"></span></span>
+    <h1>ESP BUDDY</h1>
+  </div>
+  <div class="topbar-end">
+    <button class="icon-btn" id="themeBtn" type="button" aria-pressed="false" aria-label="Cambiar a tema oscuro" title="Tema oscuro"><svg aria-hidden="true"><use href="#i-moon"/></svg></button>
+    <div class="pill online" id="connPill"><span class="dot"></span><span id="connText">En línea</span></div>
+    <div class="who" id="whoChip">
+      <span class="who-user" id="whoUser">maxi</span>
+      <button class="btn ghost sm" id="logoutBtn" type="button">Salir</button>
+    </div>
+  </div>
+</header>
+
+<div class="shell">
+
+  <nav class="tabs" id="nav" role="tablist" aria-label="Secciones del panel">
+    <button class="nav-item" id="tab-aplicaciones" type="button" role="tab" aria-selected="false" aria-controls="aplicaciones" tabindex="-1"><svg class="nav-ico" aria-hidden="true"><use href="#i-apps"/></svg><span>Aplicaciones</span></button>
+    <button class="nav-item" id="tab-pantalla" type="button" role="tab" aria-selected="false" aria-controls="pantalla" tabindex="-1"><svg class="nav-ico" aria-hidden="true"><use href="#i-display"/></svg><span>Pantalla</span></button>
+    <button class="nav-item active" id="tab-luz" type="button" role="tab" aria-selected="true" aria-controls="luz" tabindex="0"><svg class="nav-ico" aria-hidden="true"><use href="#i-light"/></svg><span>Luz RGB</span></button>
+    <button class="nav-item" id="tab-juegos" type="button" role="tab" aria-selected="false" aria-controls="juegos" tabindex="-1"><svg class="nav-ico" aria-hidden="true"><use href="#i-game"/></svg><span>Juegos</span></button>
+    <button class="nav-item" id="tab-spotify" type="button" role="tab" aria-selected="false" aria-controls="spotify" tabindex="-1"><svg class="nav-ico" aria-hidden="true"><use href="#i-music"/></svg><span>Música</span></button>
+    <span class="tab-sep" aria-hidden="true"></span>
+    <button class="nav-item" id="tab-integraciones" type="button" role="tab" aria-selected="false" aria-controls="integraciones" tabindex="-1"><svg class="nav-ico" aria-hidden="true"><use href="#i-plug"/></svg><span>Integraciones</span></button>
+    <span class="tab-sep" aria-hidden="true"></span>
+    <button class="nav-item" id="tab-red" type="button" role="tab" aria-selected="false" aria-controls="red" tabindex="-1"><svg class="nav-ico" aria-hidden="true"><use href="#i-wifi"/></svg><span>Red</span></button>
+    <button class="nav-item" id="tab-sofia" type="button" role="tab" aria-selected="false" aria-controls="sofia" tabindex="-1"><svg class="nav-ico" aria-hidden="true"><use href="#i-smile"/></svg><span>Sofía</span></button>
+    <span class="tab-sep" aria-hidden="true"></span>
+    <button class="nav-item" id="tab-sistema" type="button" role="tab" aria-selected="false" aria-controls="sistema" tabindex="-1"><svg class="nav-ico" aria-hidden="true"><use href="#i-settings"/></svg><span>Sistema</span></button>
+    <button class="nav-item" id="tab-cuenta" type="button" role="tab" aria-selected="false" aria-controls="cuenta" tabindex="-1"><svg class="nav-ico" aria-hidden="true"><use href="#i-lock"/></svg><span>Cuenta</span></button>
+  </nav>
+
+  <main id="contenido" tabindex="-1">
+
+    <div class="region" id="luz" role="tabpanel" aria-labelledby="tab-luz" tabindex="0">
+      <div class="region-head">
+        <p class="lead">La luz que está detrás del equipo. En el tragamonedas se enciende sola cuando ganás.</p>
+      </div>
+
+      <section class="card">
+        <p class="hint" id="rgbBuddyNote" hidden>Sofía está configurada y usa esta
+          luz para mostrar su estado: el color y el modo los decide ella. El brillo
+          sí se ajusta desde acá.</p>
+        <div class="row" id="rgbColorRow">
+          <label class="field">
+            <span class="field-label">Color de la luz <span class="tag">el que se usa en el modo color fijo</span></span>
+            <span class="color-row">
+              <input type="color" id="rgbColor" value="#ffd700">
+              <span class="hex">#FFD700 · oro</span>
+            </span>
+          </label>
+        </div>
+        <label class="slider">Intensidad
+          <input type="range" id="rgbLevel" min="0" max="100" step="5" value="80">
+          <output id="rgbLevelOut">80 %</output>
+        </label>
+        <label id="rgbEffectRow">Modo
+          <select id="rgbEffect">
+            <option value="0" selected>Color fijo</option>
+            <option value="1">Arcoíris</option>
+            <option value="2">Apagada</option>
+          </select>
+        </label>
+        <div class="actions">
+          <button class="btn" id="rgbApply" type="button">Aplicar</button>
+        </div>
+      </section>
+    </div>
+
+  </main>
+</div>
+
+<footer>
+  <p>ESP BUDDY · Waveshare ESP32-S3-LCD-1.47B</p>
+</footer>
+
+<script>
+/* Theme switch: light paper by default, dark on demand. The choice is remembered
+   in the browser; the device does not store it. */
+(function () {
+  'use strict';
+  var root = document.documentElement;
+  var btn = document.getElementById('themeBtn');
+
+  function paint(dark) {
+    root.setAttribute('data-theme', dark ? 'dark' : 'light');
+    if (!btn) return;
+    btn.setAttribute('aria-pressed', String(dark));
+    btn.setAttribute('aria-label', dark ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro');
+    btn.title = dark ? 'Tema claro' : 'Tema oscuro';
+    var use = btn.querySelector('use');
+    if (use) use.setAttribute('href', dark ? '#i-sun' : '#i-moon');
+  }
+
+  var saved = null;
+  try { saved = localStorage.getItem('espbuddy-theme'); } catch (error) { saved = null; }
+  paint(saved === 'dark');
+
+  if (!btn) return;
+  btn.addEventListener('click', function () {
+    var dark = root.getAttribute('data-theme') !== 'dark';
+    paint(dark);
+    try { localStorage.setItem('espbuddy-theme', dark ? 'dark' : 'light'); } catch (error) { /* private mode */ }
+  });
+})();
+</script>
+</body>
+</html>

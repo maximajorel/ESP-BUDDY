@@ -133,3 +133,47 @@ palabra larga no ensanche el teléfono, y el footer del panel (que vive fuera de
 `<main>`) tenía el texto pegado al borde. (d) El mock devolvía seis nombres de
 pantalla y el séptimo tile mostraba "—": se agregó `CONFIG` al mock, no era un
 bug de CSS.
+
+L6: Espejo del panel real para iterar por sección. `design/admin-espejo/` tiene
+diez planchas, una por pestaña de `admin.html` (aplicaciones, pantalla, luz,
+juegos, música, integraciones, red, Sofía, sistema, cuenta), con la hoja de
+estilos del panel inlinada y los valores sin tocar: es una copia, no una
+dirección nueva. `_src/` guarda el CSS recortado, la plantilla, el sprite y una
+parte por sección; `_src/build.py` las ensambla. Sirve de base para pedir
+cambios sección por sección; no hay plancha elegida todavía, así que las diez
+son el estado actual.
+
+L7: Primeros comentarios del canvas sobre `design/admin-espejo/` (16, todos
+aplicados). Globales a las diez planchas: el proyecto se llama ESP BUDDY, se fue
+la línea de firmware del top bar, el eyebrow de cada sección, el título grande
+repetido de cada pestaña y la segunda línea del footer. Por sección: Aplicaciones
+reordena arrastrando el grip (sin flechas, el plegado abierto); Pantalla quedó en
+tres desplegables (Aspecto, Reloj, Apagado automático) con el interruptor a la
+derecha; Juegos también con el interruptor a la derecha; Música quedó sólo con el
+estado en vivo; Integraciones y Red pasaron a sub-pestañas; Sofía perdió las
+tarjetas de estado y el bridge se reporta en un pill a la derecha del encabezado.
+
+L8: Segundo y tercer lote de comentarios sobre `design/admin-espejo/`. (a) El
+logo dejó el rombo: el sticker amarillo lleva los dos ojos de Sofía en negro,
+también en tema oscuro. (b) La navegación pasó de tira horizontal a aside de
+188 px a la izquierda, con los botones del ancho de su propio texto; debajo de
+760 px vuelve a tira con scroll. (c) Se agregó un interruptor de tema en el
+header: `[data-theme="dark"]` cambia paper, sky, mist, gray e ink, los stickers
+conservan su color y todo lo que se pinta sobre un sticker fuerza texto negro
+para no perder contraste; el color-scheme nativo acompaña a los controles.
+
+L9: Cuarto lote de comentarios sobre `design/admin-espejo/` (8). Nav: la columna
+del aside mide `max-content`, así todos los pills tienen el mismo ancho, el de la
+palabra más larga (INTEGRACIONES). Aplicaciones pierde el botón de nombres y orden
+originales. Pantalla pasa a cinco desplegables verticales (brillo, color,
+rotación, reloj, apagado) y el color de interfaz usa el nuevo campo con su hex.
+Luz RGB pierde los atajos de paleta y el color queda con etiqueta y hex al lado.
+Música suma portada (SVG plano de la paleta, sin imágenes) y álbum, con más aire.
+Integraciones estrena el campo `.field-input` (caja propia, valor en mono,
+contador de caracteres) en el Client ID de Spotify. Sofía: el botón dice
+"Restablecer color".
+
+L10: Sofía ya no tiene el formulario "Pedirle algo a Sofía". En su lugar hay un
+selector de estados simulados (chips `.chip`, uno activo con relleno de tinta:
+en calma, aburrida, pensando, trabajando, esperando, listo, se viene algo, error)
+más "Volver al estado real" para soltar la simulación.

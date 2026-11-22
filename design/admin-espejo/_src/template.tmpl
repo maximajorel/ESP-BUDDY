@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<title>{{TITLE}}</title>
+<style>
+{{CORE}}
+</style>
+</head>
+<body>
+
+<a class="skip" href="#contenido">Saltar al contenido</a>
+
+{{SPRITE}}
+
+<header class="topbar">
+  <div class="brand">
+    <span class="logo" aria-hidden="true"><span class="eye"></span><span class="eye"></span></span>
+    <h1>ESP BUDDY</h1>
+  </div>
+  <div class="topbar-end">
+    <button class="icon-btn" id="themeBtn" type="button" aria-pressed="false" aria-label="Cambiar a tema oscuro" title="Tema oscuro"><svg aria-hidden="true"><use href="#i-moon"/></svg></button>
+    <div class="pill online" id="connPill"><span class="dot"></span><span id="connText">En línea</span></div>
+    <div class="who" id="whoChip">
+      <span class="who-user" id="whoUser">maxi</span>
+      <button class="btn ghost sm" id="logoutBtn" type="button">Salir</button>
+    </div>
+  </div>
+</header>
+
+<div class="shell">
+
+  <nav class="tabs" id="nav" role="tablist" aria-label="Secciones del panel">
+{{NAV}}
+  </nav>
+
+  <main id="contenido" tabindex="-1">
+
+{{CONTENT}}
+
+  </main>
+</div>
+
+<footer>
+  <p>ESP BUDDY · Waveshare ESP32-S3-LCD-1.47B</p>
+</footer>
+
+{{SCRIPT}}
+</body>
+</html>

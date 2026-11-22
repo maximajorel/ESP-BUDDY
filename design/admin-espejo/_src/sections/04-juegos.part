@@ -1,0 +1,34 @@
+    <div class="region" id="juegos" role="tabpanel" aria-labelledby="tab-juegos" tabindex="0">
+      <div class="region-head">
+        <p class="lead">Récords y controles del sensor para Meteoritos.</p>
+      </div>
+
+      <section class="card">
+        <div class="grid">
+          <div class="stat"><span class="k">Récord · Esquivar</span><span class="v" id="scoreGame">42</span></div>
+          <div class="stat"><span class="k">Mejor premio · Tragamonedas</span><span class="v" id="scoreSlot">120</span></div>
+        </div>
+
+        <h3>Controles del sensor</h3>
+        <p class="hint">¿La nave no responde como esperás? Recalibrá con la guía de cinco pasos: quieto, hacia vos, alejando, izquierda y derecha.</p>
+        <div class="actions">
+          <button class="btn ghost" id="steerRecal" type="button">Recalibrar controles</button>
+          <button class="btn ghost" id="steerSwap" type="button">Cambiar eje del control</button>
+        </div>
+
+        <label class="switch">
+          <span>Invertir izquierda/derecha del juego (si la nave va al revés)</span>
+          <input type="checkbox" id="steerInvert">
+        </label>
+
+        <label class="switch">
+          <span>Invertir arriba/abajo del juego (si la nave sube cuando querés bajar)</span>
+          <input type="checkbox" id="steerInvertY">
+        </label>
+
+        <h3>Récords</h3>
+        <div class="actions">
+          <button class="btn ghost" id="resetScores" type="button">Borrar récords</button>
+        </div>
+      </section>
+    </div>

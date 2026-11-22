@@ -1,0 +1,29 @@
+    <div class="region" id="cuenta" role="tabpanel" aria-labelledby="tab-cuenta" tabindex="0">
+      <div class="region-head">
+        <p class="lead">Con qué usuario y contraseña se entra a este panel. El equipo guarda un hash con sal, así que la contraseña no se puede leer desde acá.</p>
+      </div>
+
+      <section class="card">
+        <h3>Cambiar usuario y contraseña</h3>
+        <p class="hint" id="accountWho">Sesión iniciada como maxi.</p>
+        <form id="accountForm" class="form">
+          <label>Usuario
+            <input id="acctUser" name="user" autocomplete="username" maxlength="32" required value="maxi">
+          </label>
+          <label>Contraseña actual
+            <input id="acctCurrent" name="current" type="password" autocomplete="current-password" required>
+          </label>
+          <label>Contraseña nueva <span class="tag">mínimo 8 caracteres</span>
+            <input id="acctPass" name="pass" type="password" autocomplete="new-password" minlength="8" maxlength="64" required>
+          </label>
+          <label>Repetir la contraseña nueva
+            <input id="acctRepeat" name="repeat" type="password" autocomplete="new-password" minlength="8" maxlength="64" required>
+          </label>
+          <div class="actions">
+            <button class="btn" type="submit">Guardar credenciales</button>
+            <button class="btn ghost" type="button" id="logoutBtnCard">Salir del panel</button>
+          </div>
+          <p class="hint">Al guardar, los demás dispositivos que tengan el panel abierto van a tener que volver a entrar.</p>
+        </form>
+      </section>
+    </div>

@@ -1,0 +1,69 @@
+    <div class="region" id="aplicaciones" role="tabpanel" aria-labelledby="tab-aplicaciones" tabindex="0">
+      <div class="region-head">
+        <p class="lead">Elegí qué se ve en la pantalla del equipo. <span class="now" id="nowScreen">Ahora: RELOJ</span></p>
+      </div>
+
+      <section class="card">
+        <div class="screens" id="screenPicker">
+          <button class="tile active" data-screen="0" type="button">
+            <svg class="tile-ico" aria-hidden="true"><use href="#i-clock"/></svg>
+            <span class="tile-name">RELOJ</span>
+            <span class="tile-desc">Hora digital</span>
+            <span class="tile-badge">Ahora</span>
+          </button>
+          <button class="tile" data-screen="1" type="button">
+            <svg class="tile-ico" aria-hidden="true"><use href="#i-slot"/></svg>
+            <span class="tile-name">TRAGAMONEDAS</span>
+            <span class="tile-desc">Juego de casino</span>
+            <span class="tile-badge">Ahora</span>
+          </button>
+          <button class="tile" data-screen="2" type="button">
+            <svg class="tile-ico" aria-hidden="true"><use href="#i-rocket"/></svg>
+            <span class="tile-name">METEORITOS</span>
+            <span class="tile-desc">Esquivar con el sensor</span>
+            <span class="tile-badge">Ahora</span>
+          </button>
+          <button class="tile" data-screen="3" type="button">
+            <svg class="tile-ico" aria-hidden="true"><use href="#i-wifi"/></svg>
+            <span class="tile-name">RED</span>
+            <span class="tile-desc">Datos de conexión</span>
+            <span class="tile-badge">Ahora</span>
+          </button>
+          <button class="tile" data-screen="4" type="button">
+            <svg class="tile-ico" aria-hidden="true"><use href="#i-music"/></svg>
+            <span class="tile-name">MUSICA</span>
+            <span class="tile-desc">Lo que suena en Spotify</span>
+            <span class="tile-badge">Ahora</span>
+          </button>
+          <button class="tile" data-screen="5" type="button">
+            <svg class="tile-ico" aria-hidden="true"><use href="#i-smile"/></svg>
+            <span class="tile-name">SOFIA</span>
+            <span class="tile-desc">Tu buddy companion</span>
+            <span class="tile-badge">Ahora</span>
+          </button>
+          <button class="tile" data-screen="6" type="button">
+            <svg class="tile-ico" aria-hidden="true"><use href="#i-settings"/></svg>
+            <span class="tile-name">CONFIG</span>
+            <span class="tile-desc">Brillo del LCD y del LED</span>
+            <span class="tile-badge">Ahora</span>
+          </button>
+        </div>
+
+        <details class="fold" open>
+          <summary>Nombres y orden del menú del equipo</summary>
+          <p class="hint">Elegí cómo se llama cada pantalla (hasta 12 letras) y arrastrá las filas con el mouse para cambiar el orden en que aparecen al mantener el botón 1 segundo. Los cambios quedan guardados en el equipo.</p>
+          <ul class="order" id="orderList">
+            <li><span class="grip" draggable="true" role="button" tabindex="0" aria-label="Arrastrar para reordenar" title="Arrastrar para reordenar">⠿</span><span class="num">1</span><input value="RELOJ" maxlength="12" aria-label="Nombre de la pantalla 1"></li>
+            <li><span class="grip" draggable="true" role="button" tabindex="0" aria-label="Arrastrar para reordenar" title="Arrastrar para reordenar">⠿</span><span class="num">2</span><input value="TRAGAMONEDAS" maxlength="12" aria-label="Nombre de la pantalla 2"></li>
+            <li><span class="grip" draggable="true" role="button" tabindex="0" aria-label="Arrastrar para reordenar" title="Arrastrar para reordenar">⠿</span><span class="num">3</span><input value="METEORITOS" maxlength="12" aria-label="Nombre de la pantalla 3"></li>
+            <li><span class="grip" draggable="true" role="button" tabindex="0" aria-label="Arrastrar para reordenar" title="Arrastrar para reordenar">⠿</span><span class="num">4</span><input value="RED" maxlength="12" aria-label="Nombre de la pantalla 4"></li>
+            <li><span class="grip" draggable="true" role="button" tabindex="0" aria-label="Arrastrar para reordenar" title="Arrastrar para reordenar">⠿</span><span class="num">5</span><input value="MUSICA" maxlength="12" aria-label="Nombre de la pantalla 5"></li>
+            <li><span class="grip" draggable="true" role="button" tabindex="0" aria-label="Arrastrar para reordenar" title="Arrastrar para reordenar">⠿</span><span class="num">6</span><input value="SOFIA" maxlength="12" aria-label="Nombre de la pantalla 6"></li>
+            <li><span class="grip" draggable="true" role="button" tabindex="0" aria-label="Arrastrar para reordenar" title="Arrastrar para reordenar">⠿</span><span class="num">7</span><input value="CONFIG" maxlength="12" aria-label="Nombre de la pantalla 7"></li>
+          </ul>
+          <div class="actions">
+            <button class="btn" id="orderSave" type="button">Guardar nombres y orden</button>
+          </div>
+        </details>
+      </section>
+    </div>

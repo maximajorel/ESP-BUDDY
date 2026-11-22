@@ -1,0 +1,34 @@
+    <div class="region" id="luz" role="tabpanel" aria-labelledby="tab-luz" tabindex="0">
+      <div class="region-head">
+        <p class="lead">La luz que está detrás del equipo. En el tragamonedas se enciende sola cuando ganás.</p>
+      </div>
+
+      <section class="card">
+        <p class="hint" id="rgbBuddyNote" hidden>Sofía está configurada y usa esta
+          luz para mostrar su estado: el color y el modo los decide ella. El brillo
+          sí se ajusta desde acá.</p>
+        <div class="row" id="rgbColorRow">
+          <label class="field">
+            <span class="field-label">Color de la luz <span class="tag">el que se usa en el modo color fijo</span></span>
+            <span class="color-row">
+              <input type="color" id="rgbColor" value="#ffd700">
+              <span class="hex">#FFD700 · oro</span>
+            </span>
+          </label>
+        </div>
+        <label class="slider">Intensidad
+          <input type="range" id="rgbLevel" min="0" max="100" step="5" value="80">
+          <output id="rgbLevelOut">80 %</output>
+        </label>
+        <label id="rgbEffectRow">Modo
+          <select id="rgbEffect">
+            <option value="0" selected>Color fijo</option>
+            <option value="1">Arcoíris</option>
+            <option value="2">Apagada</option>
+          </select>
+        </label>
+        <div class="actions">
+          <button class="btn" id="rgbApply" type="button">Aplicar</button>
+        </div>
+      </section>
+    </div>

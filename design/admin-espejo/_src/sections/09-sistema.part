@@ -1,0 +1,40 @@
+    <div class="region" id="sistema" role="tabpanel" aria-labelledby="tab-sistema" tabindex="0">
+      <div class="region-head">
+        <p class="lead">Estado del equipo y mantenimiento. No hace falta entrar acá para el uso diario.</p>
+      </div>
+
+      <section class="card" id="estado">
+        <h3>Estado del dispositivo</h3>
+        <p class="hint">Estos son los datos de conexión que también se ven en la pantalla del equipo.</p>
+        <div class="grid">
+          <div class="stat"><span class="k">Red del dispositivo</span><span class="v" id="stApSsid">ESP32-Gadget</span></div>
+          <div class="stat"><span class="k">Contraseña</span><span class="v" id="stApPass">gadget-2025</span></div>
+          <div class="stat"><span class="k">Dirección del panel</span><span class="v mono" id="stApIp">192.168.4.1</span></div>
+          <div class="stat"><span class="k">WiFi de casa</span><span class="v" id="stSta">Casa-Majorel</span></div>
+          <div class="stat"><span class="k">Hora del equipo</span><span class="v mono" id="stTime">22:14:07</span></div>
+          <div class="stat"><span class="k">Encendido hace</span><span class="v" id="stUptime">2 h 41 min</span></div>
+          <div class="stat"><span class="k">Memoria libre</span><span class="v" id="stHeap">184 KB</span></div>
+          <div class="stat"><span class="k">Pantalla activa</span><span class="v" id="stScreen">RELOJ</span></div>
+        </div>
+      </section>
+
+      <section class="card danger" id="mantenimiento">
+        <h3>Mantenimiento</h3>
+        <p class="hint">Reiniciar no borra nada. Restablecer de fábrica borra el WiFi de casa y los récords.</p>
+        <div class="actions">
+          <button class="btn ghost" id="restartBtn" type="button">Reiniciar equipo</button>
+          <button class="btn danger" id="factoryBtn" type="button">Restablecer de fábrica</button>
+        </div>
+
+        <h3>Probar el equipo</h3>
+        <p class="hint">Estos botones hacen lo mismo que el botón BOOT y sirven para revisar el panel sin tocar el equipo.</p>
+        <div class="actions">
+          <button class="btn ghost" id="pressShort" type="button">Simular toque</button>
+          <button class="btn ghost" id="pressLong" type="button">Simular mantener 3s</button>
+        </div>
+        <div class="actions">
+          <button class="btn ghost" id="panelColors" type="button">Probar colores de la pantalla</button>
+        </div>
+        <p class="hint">La pantalla se pone roja, verde, azul y blanca. Si no ves esos colores, el problema es del panel y no de las pantallas.</p>
+      </section>
+    </div>

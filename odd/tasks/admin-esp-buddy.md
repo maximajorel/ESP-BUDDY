@@ -59,11 +59,17 @@ login. El estado sigue siendo del equipo: el panel no inventa valores.
 
 | ID | Qué | Specs | Commit |
 | --- | --- | --- | --- |
-| T1 | Marca, tema oscuro, aside, sin eyebrows ni títulos repetidos | S1-S4, S11 | `feat(web): ESP BUDDY shell` |
-| T2 | Aplicaciones: reordenar arrastrando | S5 | `feat(web): drag the screen order` |
-| T3 | Pantalla en desplegables, interruptor a la derecha, campos de color | S6, S7 | `feat(web): compact screen settings` |
-| T4 | Música con portada, Integraciones y Red en sub-pestañas | S8, S9 | `feat(web): tab the integrations` |
-| T5 | Sofía: fuera las tarjetas, pill del bridge, simulador de estados | S10 | `feat(web): simulate Sofia's face` |
+| T1 | Marca, tema oscuro, aside, sin eyebrows ni títulos repetidos | S1-S4, S11 | `dd55047` |
+| T2 | Aplicaciones: reordenar arrastrando | S5 | `dd55047` |
+| T3 | Pantalla en desplegables, interruptor a la derecha, campos de color | S6, S7 | `dd55047` |
+| T4 | Música con portada, Integraciones y Red en sub-pestañas | S8, S9 | `dd55047` |
+| T5 | Sofía: fuera las tarjetas, pill del bridge, simulador de estados | S10 | `dd55047` |
+
+Un solo commit de código (`dd55047`) lleva T1-T5. El rediseño es uno solo: el
+aside, el tema, el chrome sin eyebrows y los diez paneles se sostienen entre sí,
+y partirlo dejaba commits intermedios que no se pueden abrir en el equipo. Las
+líneas de autor son ~960 entre `admin.html`, `app.js` y `styles.css`;
+`web_assets.h` es generado (`tools/pack_web.py`) y no cuenta como autoría.
 
 ## Log
 

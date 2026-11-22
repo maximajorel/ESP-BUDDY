@@ -1,0 +1,55 @@
+    <div class="region" id="red" role="tabpanel" aria-labelledby="tab-red" tabindex="0">
+      <div class="region-head">
+        <p class="lead">Conectá el equipo a tu WiFi de casa y ajustá la red que crea para este panel.</p>
+      </div>
+
+      <div class="subtabs" role="tablist" aria-label="Red">
+        <button class="subtab" type="button" role="tab" aria-selected="true" aria-controls="wifi">Red remota</button>
+        <button class="subtab" type="button" role="tab" aria-selected="false" aria-controls="acceso">Punto de acceso</button>
+      </div>
+
+      <section class="card" id="wifi" data-subpanel role="tabpanel" aria-label="Conectarse a una red">
+        <h3>Conectarse a una red</h3>
+        <p class="hint">Con esto el reloj se pone en hora solo. Si no lo configurás, el equipo igual funciona y muestra la hora cuando lo conectes.</p>
+        <div class="row">
+          <button class="btn ghost" id="scanBtn" type="button">Buscar redes</button>
+          <span class="hint inline" id="scanHint">Toca para ver las redes cercanas</span>
+        </div>
+        <div class="netlist" id="netlist">
+          <button type="button"><span>Casa-Majorel</span><span class="rssi">-48 dBm</span></button>
+          <button type="button"><span>Fibertel-2.4G</span><span class="rssi">-63 dBm</span></button>
+          <button type="button"><span>Vecino_5G</span><span class="rssi">-78 dBm</span></button>
+        </div>
+        <form id="wifiForm" class="form">
+          <label>Nombre de la red (SSID)
+            <input id="wifiSsid" name="ssid" autocomplete="off" maxlength="32" required placeholder="MiWiFi" value="Casa-Majorel">
+          </label>
+          <label>Contraseña
+            <input id="wifiPass" name="pass" type="password" autocomplete="off" maxlength="64" placeholder="••••••••">
+          </label>
+          <div class="actions">
+            <button class="btn" type="submit">Guardar y conectar</button>
+            <button class="btn ghost" type="button" id="wifiForget">Olvidar red</button>
+            <button class="btn ghost" type="button" id="wifiDiagBtn">¿Por qué no conecta?</button>
+          </div>
+          <p class="warn" id="wifiDiag" hidden></p>
+        </form>
+      </section>
+
+      <section class="card" id="acceso" data-subpanel role="tabpanel" aria-label="Punto de acceso" hidden>
+        <h3>Punto de acceso del equipo</h3>
+        <p class="hint">Es la red que crea el equipo para que te conectes a este panel. El nombre y la contraseña se muestran en la pantalla RED.</p>
+        <form id="apForm" class="form">
+          <label>Nombre de la red
+            <input id="apSsid" name="ssid" autocomplete="off" maxlength="32" required value="ESP32-Gadget">
+          </label>
+          <label>Contraseña <span class="tag">mínimo 8 caracteres</span>
+            <input id="apPass" name="pass" autocomplete="off" maxlength="64" value="gadget-2025">
+          </label>
+          <div class="actions">
+            <button class="btn" type="submit">Aplicar cambios</button>
+          </div>
+          <p class="warn" id="apWarn" hidden>Si cambiás estos datos, vas a tener que reconectarte a la nueva red.</p>
+        </form>
+      </section>
+    </div>

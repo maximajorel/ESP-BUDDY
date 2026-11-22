@@ -1,0 +1,45 @@
+    <div class="region" id="sofia" role="tabpanel" aria-labelledby="tab-sofia" tabindex="0">
+      <div class="region-head row">
+        <p class="lead">La cara de la pantalla SOFIA reacciona a lo que hace Hermes, consultando el bridge. Acepta la dirección de tu LAN o una URL pública con HTTPS.</p>
+        <div class="pill online" id="bridgePill"><span class="dot"></span><span id="bridgeState">Bridge conectado</span></div>
+      </div>
+
+      <section class="card">
+        <p class="hint inline">La URL del bridge y los tokens se cargan en <a href="#integraciones">Integraciones</a>.</p>
+
+        <h3>Color de los ojos</h3>
+        <div class="row">
+          <input type="color" id="buddyEyeColor" value="#00b4ff">
+          <div class="swatches" id="buddyEyeSwatches">
+            <button type="button" data-color="#00b4ff" style="--c:#00b4ff" title="Cyan original" aria-pressed="true"></button>
+            <button type="button" data-color="#ff3c1e" style="--c:#ff3c1e" title="Rojo"></button>
+            <button type="button" data-color="#9b5cff" style="--c:#9b5cff" title="Violeta"></button>
+            <button type="button" data-color="#00ff9c" style="--c:#00ff9c" title="Verde"></button>
+            <button type="button" data-color="#ffd700" style="--c:#ffd700" title="Ámbar"></button>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn ghost" id="buddyEyeReset" type="button">Restablecer color</button>
+        </div>
+        <p class="hint">Se guarda en el equipo y sobrevive a un reinicio. El enojo y el mareo lo tiñen un momento y después vuelve a tu color; la luz RGB sigue el estado del bridge.</p>
+
+        <h3>Calendario</h3>
+        <p class="hint inline">Los eventos los baja la placa directo de Google Calendar. Se configuran en <a href="#integraciones">Integraciones → Google Calendar</a>; cuando falta poco para un evento, los ojos cambian solos.</p>
+
+        <h3>Simular un estado</h3>
+        <p class="hint">Para probar la cara sin esperar a que pase: elegí un estado y el equipo lo muestra en la pantalla SOFIA hasta que lo cambies o lo sueltes.</p>
+        <div class="chips" id="buddyStates" role="group" aria-label="Estados de Sofía">
+          <button class="chip" type="button" aria-pressed="false">En calma</button>
+          <button class="chip" type="button" aria-pressed="false">Aburrida</button>
+          <button class="chip" type="button" aria-pressed="true">Pensando</button>
+          <button class="chip" type="button" aria-pressed="false">Trabajando</button>
+          <button class="chip" type="button" aria-pressed="false">Esperando</button>
+          <button class="chip" type="button" aria-pressed="false">Listo</button>
+          <button class="chip" type="button" aria-pressed="false">Se viene algo</button>
+          <button class="chip" type="button" aria-pressed="false">Error</button>
+        </div>
+        <div class="actions">
+          <button class="btn ghost" id="buddyStateClear" type="button">Volver al estado real</button>
+        </div>
+      </section>
+    </div>

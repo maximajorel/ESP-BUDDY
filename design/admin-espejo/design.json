@@ -1,0 +1,77 @@
+{
+  "title": "Espejo del panel /admin",
+  "brief": "Réplica del panel real (esp32_gadget/web_ui/admin.html) con su propia hoja de estilos, una plancha por sección, para pedir cambios sección por sección. Marca ESP BUDDY con los ojos de Sofía en el logo, navbar aside a la izquierda, secciones sin título repetido, Pantalla en desplegables, Integraciones y Red en sub-pestañas, reordenar aplicaciones arrastrando y cambio de tema claro/oscuro desde el header.",
+  "feature": "odd/tasks/web-redesign.md",
+  "artboards": [
+    {
+      "file": "01-aplicaciones.html",
+      "title": "Aplicaciones",
+      "tradeoff": "Aside de 188 px con los botones del ancho de su texto; siete stickers de pantalla y el plegado del orden abierto.",
+      "width": 1024,
+      "height": 1440
+    },
+    {
+      "file": "02-pantalla.html",
+      "title": "Pantalla",
+      "tradeoff": "Cinco desplegables verticales (brillo, color, rotación, reloj, apagado); con todo cerrado se ve de un vistazo, pero hay que abrir para comparar valores.",
+      "width": 1024,
+      "height": 880
+    },
+    {
+      "file": "03-luz-rgb.html",
+      "title": "Luz RGB",
+      "tradeoff": "Color con su hex al lado y sin atajos de paleta; intensidad y modo debajo.",
+      "width": 1024,
+      "height": 640
+    },
+    {
+      "file": "04-juegos.html",
+      "title": "Juegos",
+      "tradeoff": "Récords y controles del sensor, con el interruptor a la derecha del texto.",
+      "width": 1024,
+      "height": 840
+    },
+    {
+      "file": "05-musica.html",
+      "title": "Música",
+      "tradeoff": "Estado en vivo con portada, álbum y progreso; sin párrafos de ayuda alrededor.",
+      "width": 1024,
+      "height": 700
+    },
+    {
+      "file": "06-integraciones.html",
+      "title": "Integraciones",
+      "tradeoff": "Una sub-pestaña por integración: la sección dejó de ser la más alta del panel, pero oculta dos tercios.",
+      "width": 1024,
+      "height": 1080
+    },
+    {
+      "file": "07-red.html",
+      "title": "Red",
+      "tradeoff": "Dos sub-pestañas, conectarse a una red y punto de acceso; el estado de las dos no se ve junto.",
+      "width": 1024,
+      "height": 820
+    },
+    {
+      "file": "08-sofia.html",
+      "title": "Sofía",
+      "tradeoff": "Sin las tarjetas de estado: el bridge se reporta en un pill a la derecha del encabezado, y el estado se simula eligiendo un chip.",
+      "width": 1024,
+      "height": 960
+    },
+    {
+      "file": "09-sistema.html",
+      "title": "Sistema",
+      "tradeoff": "Ocho datos de estado más la card roja de mantenimiento al final.",
+      "width": 1024,
+      "height": 1080
+    },
+    {
+      "file": "10-cuenta.html",
+      "title": "Cuenta",
+      "tradeoff": "Un formulario de cuatro campos y dos botones; casi todo el alto es aire del panel.",
+      "width": 1024,
+      "height": 760
+    }
+  ]
+}

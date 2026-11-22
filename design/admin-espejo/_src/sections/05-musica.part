@@ -1,0 +1,30 @@
+    <div class="region" id="spotify" role="tabpanel" aria-labelledby="tab-spotify" tabindex="0">
+      <section class="card">
+        <h3>Estado en vivo</h3>
+        <div class="sp-state ok" id="spotifyStateBox">
+          <span class="dot"></span><span id="spotifyState">Autorizado</span>
+        </div>
+        <p class="hint" id="spotifyStateHint">El equipo está leyendo tu cuenta de Spotify.</p>
+        <p class="sp-error" id="spotifyError" hidden></p>
+        <div class="sp-panel" id="spotifyTrack">
+          <div class="sp-cover" aria-hidden="true">
+            <svg viewBox="0 0 100 100" role="img">
+              <rect width="100" height="100" fill="#e9ccff"/>
+              <path d="M0 68h100v32H0z" fill="#e9e9e9"/>
+              <circle cx="34" cy="58" r="21" fill="#55db9c" stroke="#000" stroke-width="2"/>
+              <path d="M60 14h26v48L60 74z" fill="#5c4ade" stroke="#000" stroke-width="2"/>
+              <circle cx="73" cy="21" r="8" fill="#ffd731" stroke="#000" stroke-width="2"/>
+              <path d="M12 16h28v9H12z" fill="#000"/>
+              <path d="M12 31h18v5H12z" fill="#000"/>
+            </svg>
+          </div>
+          <div class="sp-meta">
+            <p class="sp-title" id="spotifyTitle">Bohemian Rhapsody</p>
+            <p class="sp-artist" id="spotifyArtist">Queen</p>
+            <p class="sp-album">A Night at the Opera · 1975</p>
+          </div>
+          <div class="sp-bar"><span id="spotifyBar" style="width:58%"></span></div>
+          <p class="sp-time"><span id="spotifyPlay">Reproduciendo</span> · <span id="spotifyTime">3:12 de 5:55</span></p>
+        </div>
+      </section>
+    </div>

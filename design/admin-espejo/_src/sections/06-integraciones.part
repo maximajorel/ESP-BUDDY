@@ -1,0 +1,154 @@
+    <div class="region" id="integraciones" role="tabpanel" aria-labelledby="tab-integraciones" tabindex="0">
+      <div class="region-head">
+        <p class="lead">Las tres cosas con las que habla el equipo, configuradas desde acá. Spotify manda la música a la pantalla, Hermes le presta la cabeza a Sofía y Google Calendar le avisa cuándo se viene un evento.</p>
+      </div>
+
+      <div class="subtabs" role="tablist" aria-label="Integraciones">
+        <button class="subtab" type="button" role="tab" aria-selected="true" aria-controls="intSpotify">Spotify</button>
+        <button class="subtab" type="button" role="tab" aria-selected="false" aria-controls="intHermes">Hermes</button>
+        <button class="subtab" type="button" role="tab" aria-selected="false" aria-controls="intCalendar">Google Calendar</button>
+      </div>
+
+      <section class="card" id="intSpotify" data-subpanel role="tabpanel" aria-label="Spotify">
+        <p class="hint inline">Lo que está sonando, en la pantalla MUSICA.</p>
+        <h3>Conectar tu cuenta</h3>
+
+        <form id="spotifyForm" class="form">
+          <label class="field" for="spotifyClientId">
+            <span class="field-label">Client ID de tu app</span>
+            <span class="field-input">
+              <input id="spotifyClientId" name="clientId" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="63" required placeholder="Pegá el Client ID acá" value="4f9c1ab2e7d84a0f9b3c5d6e7f8a9b0c">
+              <span class="field-count">32/63</span>
+            </span>
+          </label>
+          <div class="actions">
+            <button class="btn" type="submit">Guardar Client ID</button>
+          </div>
+        </form>
+
+        <details class="fold">
+          <summary>Cómo preparar la app de Spotify</summary>
+          <ol class="steps">
+            <li>Entrá a <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">developer.spotify.com/dashboard</a> con tu cuenta de Spotify y creá una app. El nombre que le pongas da igual.</li>
+            <li>Dentro de esa app, agregá esta dirección como <em>Redirect URI</em>, copiada tal cual y sin espacios: <span class="mono">http://127.0.0.1:8888/callback</span></li>
+            <li>Copiá el <strong>Client ID</strong> que muestra la app y pegalo en el campo de arriba.</li>
+          </ol>
+        </details>
+
+        <h3>Autorizar el equipo</h3>
+        <ol class="steps">
+          <li>Tocá <strong>Autorizar</strong> y abrí el enlace que aparece.</li>
+          <li>Entrá con tu cuenta de Spotify y tocá <strong>Aceptar</strong>.</li>
+          <li>El navegador va a intentar volver a la dirección de abajo y va a mostrar un error de conexión. <strong>Eso es esperado</strong>: esa dirección vive en tu computadora, no en el teléfono.</li>
+          <li>Sin cerrar esa pestaña, copiá de la barra de direcciones todo lo que está después de <span class="mono">code=</span> y antes del próximo <span class="mono">&amp;</span>. Ese valor es el código.</li>
+        </ol>
+        <div class="actions">
+          <button class="btn ghost" id="spotifyAuthBtn" type="button">Autorizar</button>
+        </div>
+
+        <div class="authbox" id="spotifyAuthBox" hidden>
+          <p class="hint inline">Enlace para dar el permiso (se abre en una pestaña nueva):</p>
+          <a class="link mono" id="spotifyAuthLink" href="#" target="_blank" rel="noopener"></a>
+          <p class="warn">Después de aprobar, la página va a fallar al volver y vas a ver un error de conexión con <span class="mono">127.0.0.1</span>. Es normal. No cierres esa pestaña: copiá el valor de <span class="mono">code=</span> desde la barra de direcciones y pegalo abajo.</p>
+          <p class="hint inline">La dirección de vuelta configurada en tu app tiene que ser <span class="mono" id="spotifyRedirect">http://127.0.0.1:8888/callback</span></p>
+        </div>
+
+        <form id="spotifyCodeForm" class="form">
+          <label>Código de autorización
+            <input id="spotifyCode" name="code" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Pegá la dirección completa (empieza con http://127.0.0.1:8888/callback?code=...)">
+          </label>
+          <p class="hint inline">Sirve la dirección entera o sólo lo que está después de <span class="mono">code=</span>: el equipo saca el código solo.</p>
+          <div class="actions">
+            <button class="btn" type="submit">Enviar código</button>
+            <button class="btn ghost" id="spotifyForget" type="button">Olvidar autorización</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="card" id="intHermes" data-subpanel role="tabpanel" aria-label="Hermes" hidden>
+        <p class="hint inline">El bridge es el que sabe qué está haciendo Hermes y el que guarda las credenciales de Google.</p>
+        <form id="buddyForm" class="form">
+          <label>URL del bridge
+            <input id="buddyUrl" name="url" autocomplete="off" spellcheck="false" maxlength="96" placeholder="http://192.168.100.64:8787" value="http://192.168.100.64:8787">
+          </label>
+          <label>Token del buddy <span class="tag">vacío = no cambiarlo</span>
+            <input id="buddyToken" name="token" type="password" autocomplete="off" maxlength="64" placeholder="••••••••">
+          </label>
+          <label>Token de administración <span class="tag">vacío = no cambiarlo</span>
+            <input id="buddyAskToken" name="askToken" type="password" autocomplete="off" maxlength="64" placeholder="••••••••">
+          </label>
+          <p class="hint inline">El panel guarda la URL y los dos tokens; la clave de Hermes no pasa por el equipo. El de administración es el que habilita escribir en el bridge: sin él el panel no puede pedirle cosas a Sofía ni cambiar el estado del lado del bridge. Ejemplos: <span class="mono">http://192.168.100.64:8787</span> en tu LAN, o <span class="mono">https://bridge.tu-dominio.com</span> con un túnel. Con <span class="mono">https://</span> el equipo valida el certificado solo: no hay que subir nada.</p>
+          <div class="actions">
+            <button class="btn" type="submit">Guardar</button>
+            <button class="btn ghost" id="buddyForget" type="button">Olvidar token</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="card" id="intCalendar" data-subpanel role="tabpanel" aria-label="Google Calendar" hidden>
+        <p class="hint inline">La placa habla con Google por su cuenta: no necesita el bridge. Cuando se viene un evento, los ojos cambian según el recordatorio que tenga <em>ese</em> evento en tu calendario, y la luz se pone violeta.</p>
+
+        <div class="sp-state ok" id="calStateBox"><span class="dot"></span><span id="calState">Autorizado</span></div>
+        <p class="hint" id="calStateHint">Revisando tu calendario cada minuto.</p>
+
+        <div class="grid">
+          <div class="stat"><span class="k">Credenciales</span><span class="v" id="calCreds">Autorizadas</span></div>
+          <div class="stat"><span class="k">Calendario</span><span class="v mono" id="calId">maximiliano.majorel@gmail.com</span></div>
+          <div class="stat"><span class="k">Próximo evento</span><span class="v" id="calNext">en 25 min · Daily de producto</span></div>
+          <div class="stat"><span class="k">Aviso del evento</span><span class="v" id="calLead">Por defecto 10 min · gracia 5 min</span></div>
+        </div>
+
+        <h3>Preparar Google (una sola vez)</h3>
+        <ol class="steps">
+          <li>Entrá a <a href="https://console.cloud.google.com/projectcreate" target="_blank" rel="noopener">Google Cloud</a> y creá un proyecto (o usá uno que ya tengas). Es gratis.</li>
+          <li>Abrí <a href="https://console.cloud.google.com/apis/library/calendar-json.googleapis.com" target="_blank" rel="noopener">Google Calendar API</a> y tocá <strong>Habilitar</strong>.</li>
+          <li>En <a href="https://console.cloud.google.com/apis/credentials/consent" target="_blank" rel="noopener">Pantalla de consentimiento OAuth</a> elegí <strong>Externo</strong>, poné un nombre (por ejemplo <em>Sofía</em>) y tu correo. En <strong>Permisos</strong> agregá <span class="mono">https://www.googleapis.com/auth/calendar.readonly</span>. Agregá tu cuenta como <strong>usuario de prueba</strong> y tocá <strong>Publicar app</strong>: si queda en <em>Prueba</em>, Google vence el permiso a los 7 días.</li>
+          <li>En <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Credenciales</a> → <strong>Crear credenciales</strong> → <strong>ID de cliente de OAuth</strong> → tipo de aplicación <strong>TVs and Limited Input devices</strong> (TV y dispositivos de entrada limitada). Copiá el <strong>Client ID</strong> y el <strong>Client secret</strong>.</li>
+          <li>Pegalos acá abajo y tocá <strong>Guardar</strong>. Después <strong>Conectar con Google</strong>, abrí el enlace, escribí el código y aprobá. Volvé a este panel: la lista de calendarios aparece sola.</li>
+        </ol>
+        <p class="hint inline">No busques una <em>API key</em>: para leer un calendario privado Google usa credenciales OAuth, que son justamente el <strong>Client ID</strong> y el <strong>Client secret</strong> de estos pasos. El equipo no necesita una URL pública ni el bridge, y el permiso es de sólo lectura: no puede crear, editar ni borrar eventos.</p>
+
+        <form id="calForm" class="form">
+          <label>Client ID <span class="tag">vacío = dejar el que está</span>
+            <input id="calClientId" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="120" placeholder="1234-abc.apps.googleusercontent.com">
+          </label>
+          <label>Client secret <span class="tag">vacío = dejar el que está</span>
+            <input id="calClientSecret" type="password" autocomplete="off" maxlength="120" placeholder="••••••••">
+          </label>
+          <label>Aviso si el evento no define recordatorio
+            <input id="calFallbackLead" type="number" min="1" max="720" step="1" placeholder="10" value="10">
+          </label>
+          <label>Cuánto sigue la cara una vez que empezó
+            <input id="calGrace" type="number" min="0" max="120" step="1" placeholder="5" value="5">
+          </label>
+          <div class="actions">
+            <button class="btn" type="submit">Guardar</button>
+            <button class="btn ghost" id="calConnect" type="button">Conectar con Google</button>
+            <button class="btn ghost" id="calForget" type="button">Olvidar credenciales</button>
+          </div>
+        </form>
+
+        <div class="authbox" id="calAuthBox" hidden>
+          <p class="hint inline">Abrí <a id="calAuthLink" href="https://www.google.com/device" target="_blank" rel="noopener">google.com/device</a> en cualquier teléfono o computadora y escribí este código:</p>
+          <p class="cal-code" id="calUserCode">—</p>
+          <p class="hint" id="calAuthTimer">—</p>
+          <div class="actions">
+            <button class="btn ghost" id="calCancel" type="button">Cancelar</button>
+          </div>
+        </div>
+
+        <div id="calPicker" hidden>
+          <h3>¿Qué calendario?</h3>
+          <p class="hint inline">Estos son los calendarios de tu cuenta de Google. Elegí uno y guardá: los eventos de ese calendario son los que mueven la cara.</p>
+          <div class="form">
+            <label>Calendario
+              <select id="calSelect"></select>
+            </label>
+            <div class="actions">
+              <button class="btn" id="calSelectSave" type="button">Guardar calendario</button>
+              <button class="btn ghost" id="calRefresh" type="button">Actualizar ahora</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
