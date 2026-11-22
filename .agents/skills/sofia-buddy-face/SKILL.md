@@ -86,6 +86,13 @@ added: the idle face's microsaccades and glances would read as a twitch under a
 beat. A paused player is not a beat, so the dance stops and its notes die; the
 progress position is what phases the beat, so resuming lands on the song again.
 
+The motion is a hop, not a nod: the eye leaves the floor (`bob` 0 → −10 px),
+stretches in the air (`ry` 48 → 54), squashes on landing (44) and carries its joy
+in the lower lid (`bottom` 0 → 0.20). Never mark the beat by dropping the upper
+lid: on a face, a lid going down is tiredness, and the owner read the first
+version as sleepy. The hop is written **after** `buddyPoseFilterStep` and mixed in
+with `buddyPoseMix`, because a 100 ms ease flattens a 545 ms arc into a sway.
+
 `dance <seconds>` on the console and the "Bailando" chip in the panel pin the
 same reaction on a synthetic 112 BPM beat, so it can be dumped with `dump` and no
 Spotify account.

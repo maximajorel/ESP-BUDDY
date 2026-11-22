@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "chosen": "01-bote-parejo.html",
+  "handoffs": {
+    "01-bote-parejo.html": {
+      "status": "sent",
+      "queued": false,
+      "sentAt": "2026-11-22T04:04:55.252Z",
+      "startedAt": null,
+      "implementedAt": null,
+      "feature": "odd/tasks/baile-spotify.md"
+    }
+  }
+}

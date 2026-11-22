@@ -69,61 +69,121 @@ static inline BuddyDanceBeat buddyDanceBeatAt(uint32_t bpm,
   return b;
 }
 
-// The pose the rhythm paints. It *overrides* the channels it owns instead of
-// adding to them: the idle face has its own microsaccades and glances, and a
-// dance that merely added to those would read as a twitch, not as a beat.
+// The pose the rhythm paints: "bote parejo".
 //
-// The vocabulary is the face's own: no brows, no mouth, no extra shapes. The
-// sway turns the head (turn), the pair rolls (tilt/rot), the head lifts on the
-// beat (bob), the lids dip with it, and the eyes look where the head goes.
+// The dance hops. It does not nod: the previous version dipped the eyelid on the
+// beat and the owner read that as sleepy, because a lid going down is tiredness
+// on every face. This one takes the eye off the floor -- up, stretched in the
+// air, squashed on landing, with the lower lid carrying the joy -- which is what
+// a body dancing looks like. The approved artboard is
+// `design/baile-sofia/01-bote-parejo.html`; this is the same law, in the same
+// numbers.
+//
+// It *overrides* the channels it owns instead of adding to them: the idle face
+// has its own microsaccades and glances, and a dance that merely added to those
+// would read as a twitch, not as a beat.
 static inline void buddyDancePose(const BuddyDanceBeat &beat, uint32_t nowMs,
                                   BuddyPose *p) {
   if (!p || !beat.active) return;
   (void)nowMs;
   const float tau = 6.2831853f;
-  // The bar is the musical phrase: the body sways across it and the dance changes
-  // direction every bar, which is what a two-step looks like on a face.
-  const float sway = sinf(beat.barPhase * tau);
-  const float step = (beat.barIndex & 1u) ? -1.0f : 1.0f;
-  // Sharp attack, quick decay: 1 on the beat, 0 by the next one. A linear ramp
-  // would make every beat look late.
-  const float pop = 1.0f - beat.beatPhase;
-  const float kick = pop * pop;
+  const bool lastBeat = (beat.beatIndex % 4u) == 3u;
+  // The hop: up for 62% of the beat and down for the rest. The last beat of the
+  // bar is two quick small ones instead of a single big jump, which is what
+  // closes the phrase.
+  const float phase = beat.beatPhase;
+  float air, squash;
+  if (lastBeat) {
+    const float half = (phase * 2.0f) - floorf(phase * 2.0f);
+    air = sinf(3.14159265f * (half < 0.62f ? half / 0.62f : 1.0f)) * 5.0f;
+    const float d = half - 0.62f;
+    squash = 1.0f - (d < 0.0f ? -d : d) / 0.16f;
+  } else {
+    air = sinf(3.14159265f * (phase < 0.62f ? phase / 0.62f : 1.0f)) * 10.0f;
+    const float d = phase - 0.62f;
+    squash = 1.0f - (d < 0.0f ? -d : d) / 0.18f;
+  }
+  if (squash < 0.0f) squash = 0.0f;
+  const float airborne = air / 10.0f;
 
-  // The sway is smaller than it wants to be: the pair sliding sideways eats the
-  // only two free columns of the glass, and the beat already reads in the lids,
-  // the roll and the lift. 7 px of gaze keeps the notes' bands clear of the eye
-  // glow (measured on the panel, see the note bands below).
-  p->gazeX = 5.0f * sway + 2.0f * step * kick;
-  p->gazeY = -2.5f * kick;
+  p->gazeX = 0.0f;
+  p->gazeY = -2.0f * airborne;
   p->eyeGazeL = 0.0f;
   p->eyeGazeR = 0.0f;
-  p->turn = 0.14f * sway;
-  p->tilt = -5.0f * sway + 1.5f * step;
-  p->rot = 2.2f * step * sinf(beat.barPhase * tau + 0.9f);
-  p->rotL = 0.0f;
-  p->rotR = 0.0f;
-  p->bob = -3.5f * kick;
-  // The lids dip on the beat: that is the nod, and it is the only way this face
-  // can mark time without a mouth.
-  p->lid = 0.06f + 0.10f * kick;
+  p->bob = -air;
+  // Bigger in the air, flatter on the ground: the squash is the weight.
+  p->rx = (int)lroundf(48.0f + 2.5f * airborne);
+  p->ry = (int)lroundf(48.0f + 6.0f * airborne - 4.0f * squash);
+  p->lid = 0.10f * squash;
   p->lidL = 0.0f;
   p->lidR = 0.0f;
-  p->bottom = 0.0f;
-  p->grow = 1.0f + 0.03f * kick;
+  // Joy lives in the lower eyelid on this face; there is no mouth to smile with.
+  p->bottom = 0.20f * airborne;
+  // The pair rolls to one side per bar and tips with the phrase, so the hop is a
+  // dance and not a piston.
+  p->rot = 4.0f * ((beat.barIndex & 1u) ? -1.0f : 1.0f);
+  p->rotL = 0.0f;
+  p->rotR = 0.0f;
+  p->tilt = 3.0f * sinf(tau * (float)(beat.beatIndex % 4u) / 4.0f);
+  p->turn = 0.05f * sinf(tau * (float)(beat.barIndex % 4u) / 4.0f);
+  p->grow = 1.0f;
   p->open = 1.0f;
   p->glow = 1.0f;
   p->hot = 0.0f;
   p->dim = false;
   p->tremble = 0.0f;
-  p->rx = 48;
-  p->ry = 48;
   p->surprise = false;
   p->happy = false;
   p->closed = false;
-  // The random idle blink would land off the beat, so the dance blinks on its
-  // own count: the last beat of every two bars, in time with the phrase.
-  p->blink = (beat.beatIndex % 8u) == 7u && beat.beatPhase < 0.18f;
+  // A face that never blinks looks dead. The one moment the dance can afford it
+  // is the landing of the last bar of four, which reads as "uff, qué tema".
+  p->blink = (beat.barIndex % 4u) == 3u && phase > 0.68f && phase < 0.80f;
+}
+
+// Mixes two poses. The dance writes on top of the eased face for the hop itself,
+// because the pose filter would flatten a 545 ms arc into a sway; `t` is the
+// blend, 0 leaving the base untouched and 1 being the dance exactly.
+static inline void buddyPoseMix(const BuddyPose &base, const BuddyPose &over,
+                                float t, BuddyPose *out) {
+  if (!out) return;
+  if (!(t > 0.0f)) {
+    *out = base;
+    return;
+  }
+  if (t >= 1.0f) {
+    *out = over;
+    return;
+  }
+  *out = base;
+  out->gazeX = base.gazeX + (over.gazeX - base.gazeX) * t;
+  out->gazeY = base.gazeY + (over.gazeY - base.gazeY) * t;
+  out->eyeGazeL = base.eyeGazeL + (over.eyeGazeL - base.eyeGazeL) * t;
+  out->eyeGazeR = base.eyeGazeR + (over.eyeGazeR - base.eyeGazeR) * t;
+  out->rx = (int)lroundf((float)base.rx + (float)(over.rx - base.rx) * t);
+  out->ry = (int)lroundf((float)base.ry + (float)(over.ry - base.ry) * t);
+  out->lid = base.lid + (over.lid - base.lid) * t;
+  out->lidL = base.lidL + (over.lidL - base.lidL) * t;
+  out->lidR = base.lidR + (over.lidR - base.lidR) * t;
+  out->bottom = base.bottom + (over.bottom - base.bottom) * t;
+  out->rot = base.rot + (over.rot - base.rot) * t;
+  out->rotL = base.rotL + (over.rotL - base.rotL) * t;
+  out->rotR = base.rotR + (over.rotR - base.rotR) * t;
+  out->hot = base.hot + (over.hot - base.hot) * t;
+  out->bob = base.bob + (over.bob - base.bob) * t;
+  out->grow = base.grow + (over.grow - base.grow) * t;
+  out->tremble = base.tremble + (over.tremble - base.tremble) * t;
+  out->tilt = base.tilt + (over.tilt - base.tilt) * t;
+  out->turn = base.turn + (over.turn - base.turn) * t;
+  out->open = base.open + (over.open - base.open) * t;
+  out->glow = base.glow + (over.glow - base.glow) * t;
+  // The booleans cannot be blended: halfway through a squint is unspeakable.
+  if (t > 0.5f) {
+    out->blink = over.blink;
+    out->happy = over.happy;
+    out->closed = over.closed;
+    out->surprise = over.surprise;
+    out->dim = over.dim;
+  }
 }
 
 // --- the music truth ---------------------------------------------------------

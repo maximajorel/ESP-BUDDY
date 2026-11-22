@@ -73,7 +73,9 @@ int main() {
   b = buddyDanceBeatAt(400, 1000);
   check("a nonsense tempo clamps to the ceiling", b.bpm == BUDDY_DANCE_BPM_MAX);
 
-  printf("-- the pose the rhythm paints\n");
+  printf("-- the pose the rhythm paints: the hop\n");
+  // One beat at 120 bpm is 500 ms. Phase 0 is the floor (the hop begins), 0.31 is
+  // the top of the arc, 0.62 is the landing squash.
   BuddyPose p;
   p.hot = 0.8f;
   p.happy = true;
@@ -85,39 +87,71 @@ int main() {
   p.grow = 1.4f;
   p.glow = 0.2f;
   p.eyeGazeL = 6.0f;
-  buddyDancePose(buddyDanceBeatAt(120, 1000), 1000, &p);
+  p.dim = true;
+  buddyDancePose(buddyDanceBeatAt(120, 0), 0, &p);
   check("the dance takes the face back to its own channels",
-        !p.happy && !p.closed && !p.surprise && p.hot == 0.0f &&
+        !p.happy && !p.closed && !p.surprise && !p.dim && p.hot == 0.0f &&
             p.lidL == 0.0f && p.tremble == 0.0f && p.glow == 1.0f &&
-            p.eyeGazeL == 0.0f);
-  check("the eye keeps the neutral squircle",
-        p.rx == 48 && p.ry == 48 && p.grow >= 1.0f && p.grow <= 1.04f);
-  check("the downbeat dips the lid", p.lid > 0.06f && p.lid <= 0.16f);
-  check("the downbeat lifts the head", p.bob < 0.0f);
+            p.eyeGazeL == 0.0f && p.grow == 1.0f);
+  check("on the floor the eye is the neutral squircle",
+        p.rx == 48 && p.ry == 48 && p.bob == 0.0f && p.lid == 0.0f);
 
-  BuddyPose late;
-  buddyDancePose(buddyDanceBeatAt(120, 490), 490, &late);
-  check("just before the next beat the kick is spent", fabsf(late.bob) < 0.2f);
-  check("the lid comes back up between beats", late.lid < 0.07f);
+  BuddyPose top;
+  buddyDancePose(buddyDanceBeatAt(120, 155), 155, &top);
+  check("in the air the eye leaves the floor", top.bob <= -9.5f && top.bob >= -10.5f);
+  check("and it stretches taller", top.ry >= 53 && top.ry <= 55);
+  check("and it widens a little", top.rx >= 50 && top.rx <= 51);
+  check("the lids are open at the top", top.lid == 0.0f);
+  check("the joy is the lower eyelid", top.bottom > 0.18f && top.bottom <= 0.21f);
+  check("the gaze lifts with the jump", top.gazeY < -1.5f);
 
-  // A bar at 120 bpm is 2 s: beat 1 sits a quarter in, beat 3 three quarters in.
-  BuddyPose right;
-  buddyDancePose(buddyDanceBeatAt(120, 500), 500, &right);
-  BuddyPose left;
-  buddyDancePose(buddyDanceBeatAt(120, 1500), 1500, &left);
-  checkNear("a quarter into the bar the eyes go with the sway", right.gazeX,
-            7.0f, 0.5f);
-  checkNear("three quarters in they are on the other side", left.gazeX, -3.0f,
-            0.5f);
-  check("the head turns with the gaze", right.turn > 0.0f && left.turn < 0.0f);
-  check("the head tips against the sway", right.tilt < 0.0f && left.tilt > 0.0f);
+  BuddyPose land;
+  buddyDancePose(buddyDanceBeatAt(120, 315), 315, &land);
+  check("landing squashes the eye", land.ry <= 45 && land.ry >= 43);
+  check("and drops the lid for an instant", land.lid > 0.05f);
+  check("with the body back on the floor", fabsf(land.bob) < 1.0f);
+
+  // The last beat of the bar is two small hops: at a quarter of it the pair is
+  // already coming down from the first one.
+  BuddyPose close;
+  buddyDancePose(buddyDanceBeatAt(120, 500 * 3 + 78), 1578, &close);
+  check("the last beat hops twice, smaller", close.bob < -4.5f && close.bob > -5.5f);
+
+  BuddyPose barA;
+  buddyDancePose(buddyDanceBeatAt(120, 500 * 2), 1000, &barA);
+  BuddyPose barB;
+  buddyDancePose(buddyDanceBeatAt(120, 500 * 6), 3000, &barB);
+  check("the pair rolls the other way on the next bar",
+        barA.rot > 0.0f && barB.rot < 0.0f);
+  check("and tips with the phrase", fabsf(barA.tilt) < 3.5f);
 
   BuddyPose blink;
-  buddyDancePose(buddyDanceBeatAt(120, 500 * 7 + 20), 4000, &blink);
+  buddyDancePose(buddyDanceBeatAt(120, 500 * 15 + 375), 7875, &blink);
   check("the dance blinks on its own count", blink.blink);
   BuddyPose noBlink;
-  buddyDancePose(buddyDanceBeatAt(120, 500 * 9 + 20), 5000, &noBlink);
+  buddyDancePose(buddyDanceBeatAt(120, 500 * 8 + 375), 4375, &noBlink);
   check("and stays open off the count", !noBlink.blink);
+
+  printf("-- the blend\n");
+  BuddyPose base;
+  base.ry = 30;
+  base.bob = 4.0f;
+  base.happy = true;
+  BuddyPose over;
+  over.ry = 50;
+  over.bob = -8.0f;
+  over.happy = false;
+  BuddyPose mixed;
+  buddyPoseMix(base, over, 0.0f, &mixed);
+  check("a zero blend leaves the face alone", mixed.ry == 30 && mixed.bob == 4.0f);
+  buddyPoseMix(base, over, 1.0f, &mixed);
+  check("a full blend is the dance", mixed.ry == 50 && mixed.bob == -8.0f);
+  buddyPoseMix(base, over, 0.5f, &mixed);
+  check("halfway is halfway", mixed.ry == 40 && fabsf(mixed.bob + 2.0f) < 0.01f);
+  check("a boolean stays with the face until the dance is most of the blend",
+        mixed.happy);
+  buddyPoseMix(base, over, 0.6f, &mixed);
+  check("past the middle the dance owns the booleans too", !mixed.happy);
 
   printf("-- the music truth survives the poll cycle\n");
   // The bug this pins: spotify.cpp sets LOADING at the start of every poll (every

@@ -43,7 +43,9 @@ exactamente el que se dibujaba antes.
 | T2 | Render: notas dithered y pose de baile en `screen_buddy.cpp` | S1, S5 | inline | `cfee993` |
 | T3 | Disparador: Spotify sonando + gate de estado, despertar por música, pin | S2 | inline | `cfee993` |
 | T4 | Consola `dance`, `/api/face` con `dance` y chip "Bailando" del panel | S4 | inline | `147ec3b` |
-| T5 | Doc del proyecto, compilación y evidencia en la placa | S1-S6 | inline | — |
+| T5 | Doc del proyecto, compilación y evidencia en la placa | S1-S6 | inline | `206ac2c` |
+| T6 | El corte del baile en cada poll + `why=` en `buddydraw` | S1, S3 | inline | `1c0b8d0` |
+| T7 | El baile aprobado: salto ("bote parejo") en `buddy_dance.h` con blend posterior al easing | S1, S2, S5 | inline | `c19581b` |
 
 ## Log
 
@@ -99,6 +101,21 @@ vidrio, las tres sobre el mismo compás de 112 y con selector de tempo —
 (un ojo por tiempo, pide `bobL`/`bobR`) y `03-vuelo-por-compas.html` (un vuelo
 grande por compás, sin canales nuevos). El documento de la feature enlaza este
 diseño; la dirección elegida se implementa en una tarea nueva (T6).
+
+L9 (handoff del diseño): el dueño eligió la dirección A, "Bote parejo", de
+`design/baile-sofia/01-bote-parejo.html`. Implementación en T7: el salto es una
+curva de vuelo por tiempo (10 px, con dos saltos chicos en el cuarto tiempo),
+estiramiento en el aire (`ry` 48→54), aplaste al caer (44), alegría en el párpado
+inferior (`bottom` 0..0.20) y el párpado de arriba en 0 mientras vuela. Cambio
+técnico que el artboard no mostraba: el salto se escribe **después** del filtro de
+pose (`buddyPoseMix` con un blend de 160 ms), porque el easing de 100 ms aplanaba
+un arco de 545 ms en un balanceo. `buddydraw` ahora imprime `bob` y `bottom` para
+poder probarlo.
+
+L10 (evidencia en la placa del salto): con `dance 20` y diez `buddydraw`
+seguidos, la placa reporta `bob` entre 0 y −7.5 px, `bottom` hasta 0.15 y `lid` 0
+en el aire contra 0.06–0.09 al aterrizar, con las notas vivas (1 a 3). `dance 0`
+vuelve a `bob=0.0` y `why=nada sonando`.
 
 L5 (evidencia en la placa, autorizada por el dueño en la sesión): firmware
 flasheado por COM5 y probeado con `tools/gadget_probe.py`.

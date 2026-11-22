@@ -152,6 +152,10 @@ static BuddyNoteField s_notes;
 // `buddyDanceLatchStep`.
 static BuddyDanceLatch s_danceMusic;
 static bool s_danceOn = false;
+// 0..1 how much of the dance is on the glass. The hop is written after the pose
+// filter (a 100 ms ease would flatten a 545 ms arc into a sway), so this ramp is
+// what makes entering and leaving the dance smooth instead of a snap.
+static float s_danceBlend = 0.0f;
 // Why the dance is in the state it is in, for `buddydraw`: a face that stops
 // dancing in silence is the hardest kind of report to chase.
 static const char *s_danceWhy = "sin musica";
@@ -824,6 +828,10 @@ struct BuddyDrawInfo {
   float glow = 0;
   float lid = 0;
   float hot = 0;
+  // The hop's height and the lower lid: the two channels that say whether the
+  // face is jumping (dance) or nodding (sleepy), and what the dump proves.
+  float bob = 0;
+  float bottom = 0;
   int push = 0;
 };
 static BuddyDrawInfo s_draw;
@@ -1185,6 +1193,8 @@ static uint32_t drawEyes(const BuddyPose &pose, BuddyState state, bool poke,
   s_draw.glow = pose.glow;
   s_draw.lid = pose.lid;
   s_draw.hot = pose.hot;
+  s_draw.bob = pose.bob;
+  s_draw.bottom = pose.bottom;
   for (int i = 0; i < 2; i++) {
     s_draw.x[i] = eyeX[i];
     s_draw.rx[i] = eyeRx[i];
@@ -1891,7 +1901,6 @@ bool buddyTick(uint32_t nowMs) {
     BuddyDanceBeat beat = buddyDanceBeatAt(bpm, positionMs);
     uint32_t dt = s_danceAt ? (nowMs - s_danceAt) : BUDDY_FRAME_MS;
     if (dt > 250) dt = 250;
-    buddyDancePose(beat, nowMs, &pose);
     buddyDanceNotesStep(&s_notes, beat, nowMs, dt);
     s_danceAt = nowMs;
     s_danceBeat = beat;
@@ -1936,6 +1945,17 @@ bool buddyTick(uint32_t nowMs) {
   if (poseDt > 200) poseDt = 200;
   s_filterAt = nowMs;
   BuddyPose eased = buddyPoseFilterStep(&s_filter, pose, poseDt);
+  // The dance paints on top of the eased face. The filter is there to smooth
+  // intent; a beat is not intent, it is a landing, so it goes after the ease and
+  // the blend is what carries the face in and out of it.
+  s_danceBlend = buddyEase(s_danceBlend, dancing ? 1.0f : 0.0f, poseDt, 160.0f);
+  if (dancing && s_danceBlend > 0.002f) {
+    BuddyPose hop;
+    buddyDancePose(s_danceBeat, nowMs, &hop);
+    BuddyPose mixed;
+    buddyPoseMix(eased, hop, s_danceBlend, &mixed);
+    eased = mixed;
+  }
 
   // The tremble is noise, not intent: it is applied after the ease, because a
   // 100 ms filter would flatten a 25 Hz shake into a slow sway.
@@ -2066,9 +2086,11 @@ void buddyDumpDraw() {
     return;
   }
   static const char *kMoods[] = {"calm", "angry", "sleeping"};
-  Serial.printf("draw mood=%s grow=%.2f open=%.2f glow=%.2f lid=%.2f hot=%.2f push=%d\n",
-                kMoods[s_mood & 3], s_draw.grow, s_draw.open, s_draw.glow,
-                s_draw.lid, s_draw.hot, s_draw.push);
+  Serial.printf(
+      "draw mood=%s grow=%.2f open=%.2f glow=%.2f lid=%.2f hot=%.2f bob=%.1f "
+      "bottom=%.2f push=%d\n",
+      kMoods[s_mood & 3], s_draw.grow, s_draw.open, s_draw.glow, s_draw.lid,
+      s_draw.hot, s_draw.bob, s_draw.bottom, s_draw.push);
   Serial.printf("ball on=%d active=%d x=%.1f y=%.1f vx=%.1f vy=%.1f\n",
                 s_ballOn, s_ball.active, s_ball.x, s_ball.y, s_ball.vx,
                 s_ball.vy);
