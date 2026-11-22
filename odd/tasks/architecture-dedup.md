@@ -106,3 +106,14 @@ god, mock compartido) queda para una feature posterior.
   unidad revisable. Se entrega como rama con commits por unidad; si el dueño
   quiere PRs, el corte natural es `3417a9d..816d989` (build + códecs) y
   `fcda01f..HEAD` (límites + correcciones de verificación).
+- **L12** Review nativo: no se pudo correr sobre este worktree y el dueño dejó el
+  candidato (`sha256:7745753…`) explícitamente sin revisar. START falló del lado
+  nativo con `candidate-owner-parent-chmod-ineffective`: `/mnt/c` está montado
+  como drvfs sin la opción `metadata`, así que `chmod` no tiene efecto (probado:
+  `chmod 700` devuelve 777) y el motor no puede endurecer el padre de sus vistas
+  de candidato. `lineage_created: false`, `mutation_performed: false`: no se creó
+  autoridad ni se quemó nada. Queda como decisión por candidato, no como switch
+  apagado. Desbloqueo, si algún día hace falta: `[automount] options =
+  "metadata"` en `/etc/wsl.conf` + `wsl --shutdown`, o revisar sobre una copia en
+  ext4. La red de contención de esta rama fue el verificador independiente (L8),
+  la prueba diferencial del códec y la compilación del firmware.
