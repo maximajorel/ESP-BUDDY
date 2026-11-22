@@ -1,0 +1,69 @@
+name: tray-buddy
+
+# El runner windows-latest trae MSVC y el Windows SDK preinstalados, así que acá
+# no hace falta ningún toolchain local: la app se compila en GitHub y se baja
+# como artifact. Es el camino elegido en odd/tasks/tray-buddy.md (L7).
+on:
+  push:
+    branches: [feat/tray-buddy, main]
+    paths:
+      - 'tray_buddy/**'
+      - '.github/workflows/tray-build.yml'
+  pull_request:
+    paths:
+      - 'tray_buddy/**'
+      - '.github/workflows/tray-build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: tray_buddy
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: tray_buddy/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: tray_buddy/src-tauri -> target
+
+      - name: Instalar el CLI de Tauri
+        run: npm ci
+
+      # Los iconos están commiteados, pero se regeneran para que un cambio en la
+      # geometría del diseño no quede sin efecto por olvidarse de correr el
+      # script.
+      - name: Regenerar iconos desde el diseño
+        run: python tools/make_icons.py
+
+      - name: Compilar
+        run: npm run build
+
+      - name: Subir el instalador NSIS
+        uses: actions/upload-artifact@v4
+        with:
+          name: tray-buddy-instalador
+          path: tray_buddy/src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+
+      # El .exe suelto corre sin instalar: sirve para probar un cambio sin
+      # arrastrar el instalador, y para ver el binario que el instalador mete.
+      - name: Subir el ejecutable portable
+        uses: actions/upload-artifact@v4
+        with:
+          name: tray-buddy-portable
+          path: tray_buddy/src-tauri/target/release/tray-buddy.exe
+          if-no-files-found: error
