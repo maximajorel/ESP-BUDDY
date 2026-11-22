@@ -106,8 +106,8 @@ int main() {
   BuddyPose left;
   buddyDancePose(buddyDanceBeatAt(120, 1500), 1500, &left);
   checkNear("a quarter into the bar the eyes go with the sway", right.gazeX,
-            13.0f, 0.5f);
-  checkNear("three quarters in they are on the other side", left.gazeX, -7.0f,
+            7.0f, 0.5f);
+  checkNear("three quarters in they are on the other side", left.gazeX, -3.0f,
             0.5f);
   check("the head turns with the gaze", right.turn > 0.0f && left.turn < 0.0f);
   check("the head tips against the sway", right.tilt < 0.0f && left.tilt > 0.0f);

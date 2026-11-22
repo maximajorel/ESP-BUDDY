@@ -90,11 +90,15 @@ static inline void buddyDancePose(const BuddyDanceBeat &beat, uint32_t nowMs,
   const float pop = 1.0f - beat.beatPhase;
   const float kick = pop * pop;
 
-  p->gazeX = 10.0f * sway + 3.0f * step * kick;
+  // The sway is smaller than it wants to be: the pair sliding sideways eats the
+  // only two free columns of the glass, and the beat already reads in the lids,
+  // the roll and the lift. 7 px of gaze keeps the notes' bands clear of the eye
+  // glow (measured on the panel, see the note bands below).
+  p->gazeX = 5.0f * sway + 2.0f * step * kick;
   p->gazeY = -2.5f * kick;
   p->eyeGazeL = 0.0f;
   p->eyeGazeR = 0.0f;
-  p->turn = 0.20f * sway;
+  p->turn = 0.14f * sway;
   p->tilt = -5.0f * sway + 1.5f * step;
   p->rot = 2.2f * step * sinf(beat.barPhase * tau + 0.9f);
   p->rotL = 0.0f;
@@ -124,17 +128,20 @@ static inline void buddyDancePose(const BuddyDanceBeat &beat, uint32_t nowMs,
 
 // --- notes -------------------------------------------------------------------
 //
-// Small eighth notes that leave the bottom of the glass, rise along the two side
-// fields and fade out. They never cross the eyes: the left eye spans x 57..153
-// and the right one 167..263, so the free bands are 0..56 and 264..319, and a
-// note is ~14 px wide.
+// Small eighth notes that leave the bottom of the glass, rise along the two
+// outermost columns and fade out. They never cross the eyes or their glow: the
+// pair sweeps x 42..278 while it dances, so the only honest free bands are the
+// 12 px note glyphs on either edge, which is exactly what these are.
 
 #define BUDDY_NOTE_COUNT 8
 #define BUDDY_NOTE_LIFE_MS 2400u
-#define BUDDY_NOTE_LEFT_MIN 18.0f
-#define BUDDY_NOTE_LEFT_MAX 46.0f
-#define BUDDY_NOTE_RIGHT_MIN 274.0f
-#define BUDDY_NOTE_RIGHT_MAX 302.0f
+// Measured on the glass with the dance at full sway: the left eye's drawn extent
+// plus its glow never starts before x=42 and the right one never ends after 278.
+// These bands, one 12 px glyph wide, keep a couple of pixels of black between.
+#define BUDDY_NOTE_LEFT_MIN 12.0f
+#define BUDDY_NOTE_LEFT_MAX 30.0f
+#define BUDDY_NOTE_RIGHT_MIN 291.0f
+#define BUDDY_NOTE_RIGHT_MAX 308.0f
 #define BUDDY_NOTE_Y0 152.0f     // where it appears
 #define BUDDY_NOTE_RISE 46.0f    // px per second: 110 px over its life
 #define BUDDY_NOTE_DRIFT 7.0f    // px per second, both signs
@@ -242,7 +249,7 @@ static inline void buddyDanceNotesStep(BuddyNoteField *f,
   n.maxX = right ? BUDDY_NOTE_RIGHT_MAX : BUDDY_NOTE_LEFT_MAX;
   n.x = n.minX + (float)(r % 1000u) / 1000.0f * span;
   n.y = BUDDY_NOTE_Y0;
-  n.size = 0.75f + (float)((r >> 10) % 400u) / 1000.0f;
+  n.size = 0.80f + (float)((r >> 10) % 300u) / 1000.0f;
   n.drift = ((r >> 12) & 1u) ? BUDDY_NOTE_DRIFT : -BUDDY_NOTE_DRIFT;
   n.alpha = 0.0f;
   n.bornMs = nowMs;
