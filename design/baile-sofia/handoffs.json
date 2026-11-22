@@ -3,12 +3,13 @@
   "chosen": "01-bote-parejo.html",
   "handoffs": {
     "01-bote-parejo.html": {
-      "status": "sent",
+      "status": "implemented",
       "queued": false,
       "sentAt": "2026-11-22T04:04:55.252Z",
       "startedAt": null,
-      "implementedAt": null,
-      "feature": "odd/tasks/baile-spotify.md"
+      "implementedAt": "2026-11-22T04:05:35.135Z",
+      "feature": "odd/tasks/baile-spotify.md",
+      "note": "Implementado en la placa: curva de vuelo de 10 px por tiempo, estiramiento y aplaste, alegría en el párpado inferior. El salto va después del filtro de pose porque el easing aplanaba el arco. Probado con dance 20 + buddydraw (bob 0..-7.5, bottom hasta 0.15) y con dump de las notas."
     }
   }
 }
