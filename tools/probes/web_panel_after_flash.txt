@@ -1,0 +1,8 @@
+# El panel web nuevo, después de flashear: el equipo arranca, responde la API y
+# el vidrio dibuja. La prueba del panel en sí es por HTTP contra la IP que
+# informa `status` (o 192.168.4.1 si está en su propio punto de acceso):
+#   curl -s http://<ip>/ | grep -c "ESP-BUDDY\|Pomodoro"
+boot 4
+status
+api GET /api/status
+dump 4

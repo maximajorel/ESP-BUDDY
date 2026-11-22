@@ -215,3 +215,14 @@ entrada, el login y el plan de escritorio comparten la misma hoja y los mismos
 componentes; las ~330 líneas de autoría se reparten entre `index.html`,
 `login.html`, `landing.js` y `styles.css`. El diseño va en su commit aparte
 (`abcad88`), como en el panel.
+
+L14: Flasheado y verificado en la placa (COM5). Compilación exit 0 con el FQBN
+fijo (sketch 1570734 bytes, 49%; RAM 22%), subida con `Hash of data verified`.
+El equipo arranca, se conecta a VICTORWIFI en 192.168.100.75 y sirve lo nuevo:
+`/` trae ESP-BUDDY, Pomodoro y "Sofía se concentra con vos." sin rastro de
+marquesina, pill, tagline, footer ni botón de reinicio; `/login` trae los dos
+ojos, ESP BUDDY, "Administrar Buddy" y el link como pill; `/admin` con sesión
+trae `#themeBtn`, diez `nav-item`, `#bridgePill`, siete chips de estado y dos
+tiras de sub-pestañas, sin `#firmwareLine`, eyebrows, `#orderReset`, `#swatches`
+ni `#buddyAskForm`. `dump 4` dibuja la cara de Sofía en el vidrio. Secuencia
+reproducible en `tools/probes/web_panel_after_flash.txt`.
