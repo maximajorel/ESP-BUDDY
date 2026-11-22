@@ -310,6 +310,13 @@ L11. Evidencia de verificación de esta sesión (no son opiniones, son corridas)
 - `npm run build`: instalador generado, `Buddy_0.1.0_x64-setup.exe`, 1.373.688
   bytes, exit code 0. El `installer.nsi` generado referencia `SIDEBARIMAGE` y
   `HEADERIMAGE` y makensis corre después, así que las imágenes viajan dentro.
+- **Corrección de un error de esta misma sesión**: se creyó que en un build de
+  desarrollo Tauri lee el frontend del disco. Es falso: `generate_context!`
+  embebe `ui/` al compilar (brotli), y `cargo build` no se enteraba de los
+  cambios de `ui/` porque el build script no los vigilaba. Por eso el dueño
+  seguía viendo el asistente transparente después del arreglo. Se agregaron los
+  `cargo:rerun-if-changed` de `../ui/*` en `build.rs`. Y `cargo build` falla con
+  "Acceso denegado" si la app está corriendo: hay que cerrarla antes.
 - Verificación visual del popover y del asistente: Edge headless
   (`--headless=new --screenshot --force-device-scale-factor=1`) sobre
   `ui/index.html`. De ahí salió el bug del asistente "transparente": un hijo
