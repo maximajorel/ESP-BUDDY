@@ -126,6 +126,52 @@ static inline void buddyDancePose(const BuddyDanceBeat &beat, uint32_t nowMs,
   p->blink = (beat.beatIndex % 8u) == 7u && beat.beatPhase < 0.18f;
 }
 
+// --- the music truth ---------------------------------------------------------
+//
+// The Spotify poll sets `LOADING` at the start of every request, which is every
+// three seconds, and a transport error is not a pause either. A gate that read
+// the raw feed stopped and restarted the dance on every poll: that was the
+// owner's "baila, deja de bailar, y vuelve a bailar, cuando la musica no paro
+// nunca". So the dance listens to the last *authoritative* answer (a track, or a
+// 204 that says nothing is playing) and ignores everything else for a bounded
+// window.
+enum BuddyDanceMusic {
+  BUDDY_DANCE_MUSIC_UNKNOWN = 0,  // no answer yet, a poll in flight, or an error
+  BUDDY_DANCE_MUSIC_PLAYING = 1,
+  BUDDY_DANCE_MUSIC_SILENT = 2,   // Spotify answered that nothing is playing
+};
+
+// How long an old answer still counts. A failed poll retries in 20 s
+// (`SPOTIFY_POLL_RETRY_MS`), so one of those must not stop a song in the middle.
+#define BUDDY_DANCE_HOLD_MS 20000u
+
+struct BuddyDanceLatch {
+  bool playing = false;
+  bool have = false;     // an authoritative answer has been seen
+  uint32_t heardMs = 0;  // when it arrived
+};
+
+// One step of the latch. `music` is a BuddyDanceMusic. Playing and silent are
+// believed at once; anything else only ages what was already known.
+static inline void buddyDanceLatchStep(BuddyDanceLatch *l, int music,
+                                       uint32_t nowMs) {
+  if (!l) return;
+  if (music == BUDDY_DANCE_MUSIC_PLAYING || music == BUDDY_DANCE_MUSIC_SILENT) {
+    l->playing = music == BUDDY_DANCE_MUSIC_PLAYING;
+    l->have = true;
+    l->heardMs = nowMs;
+    return;
+  }
+  // Nothing new: the previous answer still counts until the window closes. A
+  // pause is never aged out -- it latched `false` and stays there.
+  if (!l->have) return;
+  if ((uint32_t)(nowMs - l->heardMs) > BUDDY_DANCE_HOLD_MS) l->playing = false;
+}
+
+static inline bool buddyDanceLatchActive(const BuddyDanceLatch *l) {
+  return l && l->playing;
+}
+
 // --- notes -------------------------------------------------------------------
 //
 // Small eighth notes that leave the bottom of the glass, rise along the two

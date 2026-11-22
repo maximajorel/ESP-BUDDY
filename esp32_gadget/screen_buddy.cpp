@@ -147,7 +147,14 @@ static bool s_ballPrimed = false;
 // whether the owner pinned it from the console or the panel. The pin runs on a
 // synthetic position, so the dance can be proven without Spotify.
 static BuddyNoteField s_notes;
+// The last authoritative answer from Spotify, so a poll in flight (the feed goes
+// to LOADING every 3 s) or a failed request cannot stop the beat. See
+// `buddyDanceLatchStep`.
+static BuddyDanceLatch s_danceMusic;
 static bool s_danceOn = false;
+// Why the dance is in the state it is in, for `buddydraw`: a face that stops
+// dancing in silence is the hardest kind of report to chase.
+static const char *s_danceWhy = "sin musica";
 static bool s_danceDrawing = false;
 static BuddyDanceBeat s_danceBeat;
 static uint32_t s_danceAt = 0;
@@ -1486,6 +1493,61 @@ static void ballInputs(float *gravityX, float *gravityY, float *shakeX,
   *shakeY = fwd - s_ballTiltFwd;
 }
 
+// The feed only says three useful things. `TRACK` with the player stopped is a
+// real pause; `NOTHING` is Spotify answering that nothing plays; `LOADING`,
+// `IDLE` and `ERROR` carry no answer at all and must not move the dance.
+static int danceMusicTruth(const SpotifySnapshot &snap) {
+  if (snap.feed == SPOTIFY_FEED_TRACK) {
+    return snap.track.isPlaying ? BUDDY_DANCE_MUSIC_PLAYING
+                                : BUDDY_DANCE_MUSIC_SILENT;
+  }
+  if (snap.feed == SPOTIFY_FEED_NOTHING) return BUDDY_DANCE_MUSIC_SILENT;
+  return BUDDY_DANCE_MUSIC_UNKNOWN;
+}
+
+// One place that decides whether the dance owns the body, so the reason is a
+// value and not a comment: `buddydraw` prints it.
+static bool danceGate(const BuddyView &view, const SpotifySnapshot &music,
+                      bool musicPlaying, BuddyState shown, bool asleepNow,
+                      bool poseClosed, bool poke, bool ballGame, bool ballOn,
+                      bool gameFace, bool focusActive, bool tapActive) {
+  if (!musicPlaying) {
+    s_danceWhy = music.feed == SPOTIFY_FEED_NOTHING ? "nada sonando"
+                                                    : "sin musica";
+    return false;
+  }
+  if (shown != BUDDY_IDLE) {
+    s_danceWhy = "el estado manda";
+    return false;
+  }
+  if (asleepNow || poseClosed) {
+    s_danceWhy = "durmiendo";
+    return false;
+  }
+  if (ballGame || ballOn) {
+    s_danceWhy = "la pelotita manda";
+    return false;
+  }
+  if (view.calendarActive) {
+    s_danceWhy = "el calendario manda";
+    return false;
+  }
+  if (gameFace) {
+    s_danceWhy = "el juego manda";
+    return false;
+  }
+  if (focusActive) {
+    s_danceWhy = "concentracion";
+    return false;
+  }
+  if (poke || tapActive) {
+    s_danceWhy = "te escuche";
+    return false;
+  }
+  s_danceWhy = "music playing";
+  return true;
+}
+
 bool buddyTick(uint32_t nowMs) {
   // A pinned dance runs on a synthetic position from its own start, so the
   // console (`dance 10`) and the panel chip can prove the body without Spotify.
@@ -1500,8 +1562,10 @@ bool buddyTick(uint32_t nowMs) {
     buddyDanceNotesStep(&s_notes, beat, nowMs, dt);
     s_danceAt = nowMs;
     s_danceBeat = beat;
+    if (!s_danceOn) Serial.println("dance: on (pin)");
     s_danceOn = true;
     s_danceDrawing = true;
+    s_danceWhy = "pin de consola";
     s_bug.active = false;
     s_zzz = false;
     s_mood = BUDDY_MOOD_CALM;
@@ -1561,8 +1625,10 @@ bool buddyTick(uint32_t nowMs) {
   // poller runs from boot (`spotify.cpp`), so the face costs no extra request.
   SpotifySnapshot music;
   spotifySnapshot(&music);
-  const bool musicPlaying =
-      music.feed == SPOTIFY_FEED_TRACK && music.track.isPlaying;
+  // Read the last authoritative answer, not the raw feed: the poll flips it to
+  // LOADING every three seconds and that used to stop and restart the dance.
+  buddyDanceLatchStep(&s_danceMusic, danceMusicTruth(music), nowMs);
+  const bool musicPlaying = buddyDanceLatchActive(&s_danceMusic);
 
   // The web game's overlay, read once: it decides whether the badge is allowed
   // to cover the eyes and, further down, which mood the pose carries.
@@ -1806,11 +1872,10 @@ bool buddyTick(uint32_t nowMs) {
   // those would read as a twitch instead of a beat.
   const BuddyFocus &focus = buddyFocusView();
   const bool dancing =
-      (musicPlaying || (int32_t)(s_dancePinStart + s_dancePinHold - nowMs) > 0) &&
-      shown == BUDDY_IDLE && !asleepNow && !pose.closed && !poke &&
-      !ballGame && !s_ballOn && !view.calendarActive && !gameFace &&
-      !buddyFocusCompact(&focus, nowMs) &&
-      (int32_t)(s_listenUntil - nowMs) <= 0;
+      danceGate(view, music, musicPlaying, shown, asleepNow, pose.closed, poke,
+                ballGame, s_ballOn, gameFace,
+                buddyFocusCompact(&focus, nowMs),
+                (int32_t)(s_listenUntil - nowMs) > 0);
   if (dancing) {
     uint32_t bpm = BUDDY_DANCE_PIN_BPM;
     uint32_t positionMs;
@@ -1838,6 +1903,12 @@ bool buddyTick(uint32_t nowMs) {
     // Notes do not survive a pause: a note born for a song that stopped would
     // appear in the middle of the glass the next time the music starts.
     buddyDanceNotesClear(&s_notes);
+  }
+  if (dancing != s_danceOn) {
+    // One line per transition: the console is the only witness of a face that
+    // stops dancing while the owner still hears music.
+    Serial.printf("dance: %s (%s) feed=%u auth=%u\n", dancing ? "on" : "off",
+                  s_danceWhy, (unsigned)music.feed, (unsigned)music.auth);
   }
   s_danceOn = dancing;
   s_danceDrawing = dancing;
@@ -2006,8 +2077,8 @@ void buddyDumpDraw() {
     if (s_notes.notes[i].active) notes++;
   }
   Serial.printf(
-      "dance on=%d bpm=%u beat=%u phase=%.2f bar=%u notes=%d pin=%d\n",
-      s_danceOn ? 1 : 0, (unsigned)s_danceBeat.bpm,
+      "dance on=%d why=%s bpm=%u beat=%u phase=%.2f bar=%u notes=%d pin=%d\n",
+      s_danceOn ? 1 : 0, s_danceWhy, (unsigned)s_danceBeat.bpm,
       (unsigned)s_danceBeat.beatIndex, (double)s_danceBeat.beatPhase,
       (unsigned)s_danceBeat.barIndex, notes,
       (int32_t)(s_dancePinStart + s_dancePinHold - millis()) > 0 ? 1 : 0);

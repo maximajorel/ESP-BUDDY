@@ -119,6 +119,35 @@ int main() {
   buddyDancePose(buddyDanceBeatAt(120, 500 * 9 + 20), 5000, &noBlink);
   check("and stays open off the count", !noBlink.blink);
 
+  printf("-- the music truth survives the poll cycle\n");
+  // The bug this pins: spotify.cpp sets LOADING at the start of every poll (every
+  // 3 s), so a gate on the raw feed stopped and restarted the dance forever.
+  BuddyDanceLatch latch;
+  buddyDanceLatchStep(&latch, BUDDY_DANCE_MUSIC_UNKNOWN, 0);
+  check("with no answer yet the face does not dance",
+        !buddyDanceLatchActive(&latch));
+  buddyDanceLatchStep(&latch, BUDDY_DANCE_MUSIC_PLAYING, 1000);
+  check("a playing track starts the dance", buddyDanceLatchActive(&latch));
+  buddyDanceLatchStep(&latch, BUDDY_DANCE_MUSIC_UNKNOWN, 3000);
+  check("a poll in flight does not stop it", buddyDanceLatchActive(&latch));
+  buddyDanceLatchStep(&latch, BUDDY_DANCE_MUSIC_UNKNOWN, 3000 + 6000);
+  check("neither does a whole cycle of them", buddyDanceLatchActive(&latch));
+  buddyDanceLatchStep(&latch, BUDDY_DANCE_MUSIC_PLAYING, 3000 + 6000);
+  buddyDanceLatchStep(&latch, BUDDY_DANCE_MUSIC_UNKNOWN, 3000 + 6000 + 12000);
+  check("a long gap inside the window still dances",
+        buddyDanceLatchActive(&latch));
+  buddyDanceLatchStep(&latch, BUDDY_DANCE_MUSIC_UNKNOWN,
+                      3000 + 6000 + BUDDY_DANCE_HOLD_MS + 1);
+  check("past the window an old answer expires", !buddyDanceLatchActive(&latch));
+  buddyDanceLatchStep(&latch, BUDDY_DANCE_MUSIC_PLAYING, 40000);
+  check("the music comes back and so does the dance",
+        buddyDanceLatchActive(&latch));
+  buddyDanceLatchStep(&latch, BUDDY_DANCE_MUSIC_SILENT, 41000);
+  check("a 204 stops it at once", !buddyDanceLatchActive(&latch));
+  buddyDanceLatchStep(&latch, BUDDY_DANCE_MUSIC_UNKNOWN, 42000);
+  check("and an old silence is not turned back into a dance",
+        !buddyDanceLatchActive(&latch));
+
   printf("-- the notes\n");
   checkNear("a note is invisible the instant it is born",
             buddyDanceNoteAlpha(0.0f), 0.0f, 0.001f);
