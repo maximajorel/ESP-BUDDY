@@ -36,4 +36,4 @@ jobs:
       - name: Host suite
         env:
           ARDUINOJSON_DIR: ${{ runner.temp }}/ArduinoJson/src
-        run: python tools/run_tests.py --verbose
+        run: python tools/run_tests.py --verbose --fail-on-skip

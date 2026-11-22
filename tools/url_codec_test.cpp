@@ -72,6 +72,45 @@ int main() {
   checkText("a token with a slash and a plus",
             encode("dev/1+code", out, sizeof(out)), "dev%2F1%2Bcode");
 
+  printf("-- every byte, at every capacity around its own boundary\n");
+  {
+    // The merge of the two encoders claims the escape table and the capacity
+    // arithmetic are the same. This walks the whole table once, so a single
+    // wrong class (a byte that stopped being escaped, or one that started) cannot
+    // hide in a hand-picked list.
+    int bad = 0;
+    for (int c = 1; c < 256; c++) {
+      char in[2] = {(char)c, 0};
+      const bool plain = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+                         (c >= '0' && c <= '9') || c == '-' || c == '.' ||
+                         c == '_' || c == '~';
+      const size_t need = plain ? 1 : 3;
+      for (size_t cap = 1; cap <= 5; cap++) {
+        char buf[8];
+        memset(buf, 0x7f, sizeof(buf));
+        const bool ok = urlEncode(in, buf, cap);
+        const bool want = cap >= need + 1;
+        if (ok != want) {
+          printf("FAIL byte 0x%02X cap=%zu got=%d want=%d\n", c, cap, (int)ok,
+                 (int)want);
+          bad++;
+          continue;
+        }
+        if (ok) {
+          if (strlen(buf) != need) {
+            printf("FAIL byte 0x%02X wrote %zu chars, want %zu\n", c, strlen(buf),
+                   need);
+            bad++;
+          }
+        } else if (strcmp(buf, "") != 0) {
+          printf("FAIL byte 0x%02X left \"%s\" after refusing\n", c, buf);
+          bad++;
+        }
+      }
+    }
+    check(bad == 0, true, "all 255 bytes escaped consistently at every capacity");
+  }
+
   printf("-- the capacity contract\n");
   check(urlEncode("a b", out, 6), true, "exactly the five characters plus NUL");
   checkText("  and it fits", out, "a%20b");

@@ -140,6 +140,12 @@ def main(argv=None):
     parser.add_argument("--filter", default="", help="only run tests whose name contains this")
     parser.add_argument("--verbose", action="store_true", help="print every test's output")
     parser.add_argument("--no-assets", action="store_true", help="skip the generated web asset check")
+    parser.add_argument(
+        "--fail-on-skip",
+        action="store_true",
+        help="treat a skipped test as a failure; CI uses this so a missing dependency"
+        " cannot turn into a green run",
+    )
     args = parser.parse_args(argv)
 
     compiler = find_compiler()
@@ -205,13 +211,17 @@ def main(argv=None):
             print("     run: python tools/pack_web.py esp32_gadget/web_ui esp32_gadget/web_assets.h")
 
     print()
+    skipped_fail = args.fail_on_skip and bool(skipped)
     summary = "%d passed" % len(passed)
     if skipped:
         summary += ", %d skipped" % len(skipped)
-    if failed or not asset_ok:
-        summary += ", %d failed" % (len(failed) + (0 if asset_ok else 1))
+        if skipped_fail:
+            summary += " (treated as failed: --fail-on-skip)"
+    if failed or not asset_ok or skipped_fail:
+        summary += ", %d failed" % (len(failed) + (0 if asset_ok else 1)
+                                    + (1 if skipped_fail else 0))
     print(summary)
-    return 0 if not failed and asset_ok else 1
+    return 0 if not failed and asset_ok and not skipped_fail else 1
 
 
 if __name__ == "__main__":

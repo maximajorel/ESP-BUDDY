@@ -4,6 +4,7 @@
 // Keeping it out of the sketch means `esp32_gadget.ino` is only boot, button
 // reading and the main loop, and this file can be read as one unit when a
 // console command misbehaves.
+#include "config_value.h"
 #include "console.h"
 
 #include <Arduino.h>
@@ -728,9 +729,9 @@ static void handleCommand(char *line) {
     return;
   }
   if (!strcmp(argv[0], "bl") && argc > 1) {
-    int value = atoi(argv[1]);
-    if (value < 0) value = 0;
-    if (value > 100) value = 100;
+    // The same single clamp the panel and CONFIG use, so the console cannot be
+    // the place where a third brightness range appears.
+    int value = cfgClampLcd(atoi(argv[1]));
     // Persisted like the panel's slider, so `bl` and CONFIG cannot disagree
     // about what the device boots with.
     settingsSetLcdBrightness((uint8_t)value);

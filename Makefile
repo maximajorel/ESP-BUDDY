@@ -31,7 +31,7 @@ BUILD_DIR ?= .build-make
 # Serial port for `make flash`; never guessed, always passed by the owner.
 PORT ?=
 
-.PHONY: help test pack verify-assets seed build flash clean
+.PHONY: help test pack verify-assets seed build flash check-port clean
 
 help:
 	@echo "make test          host suite: pure C++ tests + web asset round trip"
@@ -64,8 +64,12 @@ seed:
 build: verify-assets
 	$(ARDUINO_CLI) compile --fqbn "$(FQBN)" --build-path "$(BUILD_DIR)" "$(SKETCH)"
 
-flash: build
+# Fails before the compile, not after it: spending five minutes building the
+# firmware only to be told the port was missing is a bad way to learn.
+check-port:
 	@test -n "$(PORT)" || { echo "usage: make flash PORT=COM5" >&2; exit 1; }
+
+flash: check-port build
 	$(ARDUINO_CLI) upload -p "$(PORT)" --fqbn "$(FQBN)" --build-path "$(BUILD_DIR)" "$(SKETCH)"
 
 clean:

@@ -265,6 +265,25 @@ static void testAllDayAndPriority() {
   checkInt("  and full", r.intensity, 100);
 }
 
+// The encoder refusing a buffer that does not fit is only half the contract: the
+// builders have to propagate that refusal instead of sending a request with a
+// truncated id. `url_codec_test` pins the encoder; this pins the call sites.
+static void testFormCapacityAborts() {
+  printf("-- a form whose encoder cannot fit is refused, not truncated\n");
+  char out[1024];
+  char big[CALENDAR_ID_MAX * 3 + 120];
+  memset(big, 'a', sizeof(big) - 1);
+  big[sizeof(big) - 1] = '\0';
+  checkInt("oversized calendar id aborts the device-code form",
+           calendarDeviceCodeForm(big, out, sizeof(out)), false);
+  checkInt("oversized calendar id aborts the events path",
+           calendarEventsPath(big, 1700000000, 1700086400, out, sizeof(out)),
+           false);
+  char tiny[8];
+  checkInt("a small output buffer still aborts",
+           calendarDeviceCodeForm("id", tiny, sizeof(tiny)), false);
+}
+
 static void testForms() {
   printf("-- the OAuth and API requests, built without a network\n");
   char buf[1024];
@@ -464,6 +483,7 @@ int main() {
   testEvents();
   testReaction();
   testAllDayAndPriority();
+  testFormCapacityAborts();
   testForms();
   testOAuthResponses();
   printf("\n%s\n", g_failures ? "FAILED" : "all calendar checks passed");

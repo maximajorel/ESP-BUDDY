@@ -9,6 +9,7 @@
 // by one tap instead of stepped, and the bead's 0..255 level has to survive a
 // trip through the percentage the glass and the panel both show.
 
+#include <climits>
 #include <cstdio>
 
 #include "config_value.h"
@@ -133,6 +134,8 @@ int main() {
            cfgClampLcd(1000000), CFG_LCD_MAX);
   checkInt("the most negative int is repaired too", cfgClampLcd(-1000000),
            CFG_LCD_MIN);
+  checkInt("INT_MIN is repaired", cfgClampLcd(INT_MIN), CFG_LCD_MIN);
+  checkInt("INT_MAX is repaired", cfgClampLcd(INT_MAX), CFG_LCD_MAX);
 
   printf("\n%s (%d failures)\n", g_failures == 0 ? "PASSED" : "FAILED",
          g_failures);

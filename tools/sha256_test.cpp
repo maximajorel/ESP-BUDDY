@@ -72,6 +72,18 @@ int main() {
   checkDigest("64 bytes: an exact block with no data left over", a64, 64,
               "ffe054fe7ae0cb6dc65c3af9b61d5209f439851db43d0ba5997337df154668eb");
 
+  printf("-- lengths that straddle two blocks (119/120/128 B)\n");
+  static uint8_t a119[119], a120[120], a128[128];
+  memset(a119, 'a', sizeof(a119));
+  memset(a120, 'a', sizeof(a120));
+  memset(a128, 'a', sizeof(a128));
+  checkDigest("119 bytes: the length still fits the second block", a119, 119,
+              "31eba51c313a5c08226adf18d4a359cfdfd8d2e816b13f4af952f7ea6584dcfb");
+  checkDigest("120 bytes: the length spills to a third block", a120, 120,
+              "2f3d335432c70b580af0e8e1b3674a7c020d683aa5f73aaaedfdc55af904c21c");
+  checkDigest("128 bytes: two exact blocks", a128, 128,
+              "6836cf13bac400e9105071cd6af47084dfacad4e5e302c94bfed24e013afb73e");
+
   printf("-- many blocks\n");
   static uint8_t million[1000000];
   memset(million, 'a', sizeof(million));

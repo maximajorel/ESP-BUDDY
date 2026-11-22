@@ -50,8 +50,9 @@ poder probarla en la compu sin la placa. La suite compila cada
 `web_ui/`. Requiere un compilador C++17; el test de Spotify además necesita
 ArduinoJson (el runner lo busca solo y lo informa como *skipped* si falta).
 
-La corre el CI en cada push y cada PR (`.github/workflows/tests.yml`), así que
-no depende de que alguien se acuerde.
+La corre el CI en cada push a `main` y en cada PR (`.github/workflows/tests.yml`),
+así que no depende de que alguien se acuerde. El workflow usa `--fail-on-skip`:
+un test que se saltea por falta de una dependencia no puede leerse como verde.
 
 ## Compilar y flashear
 
