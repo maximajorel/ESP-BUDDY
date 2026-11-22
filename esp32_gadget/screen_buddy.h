@@ -24,6 +24,8 @@ void buddyPinFace(BuddyState state, uint32_t ageMs, uint32_t holdMs);
 // Debug only: hold the tap boop (happy face) for a few seconds so the serial
 // `dump` can show the squircle with its lower lid without racing a real tap.
 void buddyPinHappy(uint32_t holdMs);
+// Holds the dance on the glass for `holdMs` with no Spotify (console and panel).
+void buddyPinDance(uint32_t holdMs);
 
 // Debug only: pin the HUD/LED phase so `buddyphase ask` can be dumped without
 // waiting for the bridge to ask for approval (which is rare by design).

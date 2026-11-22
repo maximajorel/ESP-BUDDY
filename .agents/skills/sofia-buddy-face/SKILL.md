@@ -30,8 +30,18 @@ gyro reactions or the idle ball. Read this before choosing an expression shape.
   `buddyLidLineBottom`; never hand-draw a new lid line in a state branch.
 - **Lid bands must cover the rotated extent plus `BUDDY_GLOW_PAD`.** A hot or
   tinted sliver above or below the band is a bug, not a style.
+- **A lid band belongs to its own eye.** The inner edge stops at the pair's
+  midpoint or the other eye's edge, whichever is further in (`bandL`/`bandR` in
+  `drawEyes`): the owner caught the neighbour eye being cut by a black band, and
+  covering your own halo is worth a couple of the other halo's faintest pixels,
+  never a pixel of its shape.
 - **No mouth, no text, no assets** on the glass. The face is eyes only; labels
-  stay in the web panel.
+  stay in the web panel. The one decoration allowed is the dance: procedural
+  eighth notes (a dither-faded head, stem and flag, never an image) in the two
+  side fields `x 12-30` and `x 291-308`, the only columns the eye extents and
+  their glow cannot reach once the dance swings the pair (measured on the panel:
+  the left eye never starts before x 42 and the right one never ends after 278,
+  glow included). A note may never overlap an eye or its halo.
 - **The idle ball belongs to idle.** It is drawn only when the shown state is
   idle/bored, the face is awake and the bridge phase is idle. While the ball is
   toggled on, the IMU shake channel is held calm (`buddyImuCalm`) so bouncing it
@@ -54,8 +64,9 @@ gyro reactions or the idle ball. Read this before choosing an expression shape.
 | Pose vocabulary | `buddy_anim.h` | `BuddyPose` fields and the state/age ladders (`buddyPose`). |
 | Geometry and easing | `buddy_face.h` | Squircle predicate, lid bands, extents, glow shades, `BuddyPoseFilter`. |
 | Physical reactions | `buddy_imu.h` | Shake → dizzy/anger, tilt, sleeping; `buddyImuCalm` for the ball. |
+| Music reaction | `buddy_dance.h` | Tempo per track (hashed from `trackId`, 84-136), beat and bar from `progressMs`, the dance pose and the note field. |
 | Idle toy physics | `buddy_ball.h` | Spawn, shake step, edge bounce, gaze mapping. |
-| Renderer | `screen_buddy.cpp` | `drawEyes`: squircle + glow + lid bands, shared by the full face and the split frame (`drawSplitFrame`). `drawFace` adds the ball, the bug and the Zzz; `buddyTick` adds the HUD. |
+| Renderer | `screen_buddy.cpp` | `drawEyes`: squircle + glow + lid bands, shared by the full face and the split frame (`drawSplitFrame`). `drawFace` adds the ball, the bug, the Zzz and the dance's notes (`drawMusicNotes`); `buddyTick` adds the HUD and decides when the dance owns the body. |
 
 ## Workflow
 
@@ -69,6 +80,41 @@ gyro reactions or the idle ball. Read this before choosing an expression shape.
 5. Ask before flashing. Verify with `tools/gadget_probe.py` and a probe in
    `tools/probes/` (use `buddyface <state> [ageS]` for a pinned expression and
    `dump` to read pixels), then record the evidence in the ODD feature document.
+
+## The dance
+
+The music owns the body only when nothing else asks for the face: `idle` only,
+never while working, waiting, in error, with the ball on, or while the calendar,
+the study countdown or the web game own the glass. A playing track calls
+`buddySleepStimulus`, so music wakes a sleeping face. The pose is *written*, not
+added: the idle face's microsaccades and glances would read as a twitch under a
+beat. A paused player is not a beat, so the dance stops and its notes die; the
+progress position is what phases the beat, so resuming lands on the song again.
+
+The motion floats, and it never marks the beat by dropping the upper lid: on a
+face, a lid going down is tiredness, and the owner read the first hop version as
+sleepy. What ships (`design/baile-sofia/05-respiracion-con-pulso.html`) is ≤3 px of
+sway over a two-bar period, the eye growing 2 px on the beat and coming back, the
+joy on the lower lid (`bottom` 0.10..0.18) and the gaze orbiting once per bar.
+The small step per frame is the property that keeps it smooth at 20 fps; a big
+hop needs a higher frame rate before it reads as fluid. The dance is still mixed
+**after** `buddyPoseFilterStep` with `buddyPoseMix`, because a 100 ms ease would
+flatten a beat into a sway.
+
+`dance <seconds>` on the console and the "Bailando" chip in the panel pin the
+same reaction on a synthetic 112 BPM beat, so it can be dumped with `dump` and no
+Spotify account.
+
+## Frame budget
+
+A face animation is only as smooth as its slowest half. `buddydraw` prints
+`frame draw=<ms> push=<ms>` (average and worst case, then resets the counters), so
+the frame rate is decided by a number and not by a guess: `BUDDY_FRAME_MS` is 50
+(20 fps) today. The push is the expensive half and the orientation branch must
+never live inside the 55 040-pixel loop again; the mapping is `display_blit.h`,
+pinned on the host. Small per-frame deltas look smooth even at 20 fps, which is
+why a float (≤3 px per beat) can look smoother than a hop (10 px) without
+touching the frame rate.
 
 ## Pitfalls
 

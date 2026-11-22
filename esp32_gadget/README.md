@@ -10,7 +10,7 @@ equipo con siete pantallas y un panel de administración web.
 | **Meteoritos** | Juego ASCII de naves, meteoritos y cazas enemigos con barra de vida que disparan, con movimiento libre en dos ejes por sensor, dificultad creciente y récord. |
 | **Red** | Nombre y contraseña del WiFi del equipo + dirección del panel web. |
 | **Música** | Lo que estás escuchando en Spotify, con carátula, tema, artista y progreso. |
-| **Sofía** | Buddy companion: una cara procedural que reacciona a lo que hace Hermes (pensando, trabajando, esperando, error, listo) a través de su bridge, en la LAN o por HTTPS con una URL pública. |
+| **Sofía** | Buddy companion: una cara procedural que reacciona a lo que hace Hermes (pensando, trabajando, esperando, error, listo) a través de su bridge, en la LAN o por HTTPS con una URL pública. Cuando suena Spotify, baila: los ojos siguen el compás del tema y salen notas que se desvanecen. |
 | **Config** | Brillo del LCD y del LED trasero con el botón, guardados en el equipo. |
 
 Todo se maneja con **un solo botón**, el BOOT:
@@ -41,8 +41,8 @@ estado en NVS (`settings.*`), servicios (`net.*`, `spotify_*`, `imu.*`,
 - `screen_*.cpp` — una pantalla cada uno; no hablan HTTP ni escriben NVS.
 - `*.h` puros — `rotation_policy`, `game_difficulty`, `game_hits`,
   `config_value`, `screen_name`, `screen_order`, `steer_solve`,
-  `tap_window`, `text_fold`, `buddy_face`, `buddy_anim`, `buddy_sleep`,
-  `buddy_event`, `ui_color`.
+  `tap_window`, `text_fold`, `buddy_face`, `buddy_anim`, `buddy_dance`,
+  `buddy_sleep`, `buddy_event`, `ui_color`, `display_blit`.
 
 El mapa completo de módulos, la regla de dependencias, las claves de NVS y el
 paso a paso para agregar una pantalla, un comando o un endpoint están en

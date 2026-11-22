@@ -238,6 +238,7 @@ static void printHelp() {
   Serial.println("  wake                       repite el despertar de arranque (dump)");
   Serial.println("  buddyphase <phase> [sec]   fija el HUD/LED (ask, ok, busy, idle)");
   Serial.println("  buddyhappy [sec]           fija la cara feliz (dump de la sonrisa)");
+  Serial.println("  dance [sec|0]              baila sin Spotify (0 lo apaga; dump del baile)");
   Serial.println("  order [ids...]             orden del menu de pantallas");
   Serial.println("  bl <0-100>                 backlight");
   Serial.println("  colors                     three bars: red, green, blue");
@@ -479,6 +480,19 @@ static void handleCommand(char *line) {
     buddyPinFace(st, age, 20000);
     Serial.printf("buddy face pinned: %s age %lus\n", buddyStateWireName(st),
                   (unsigned long)(age / 1000));
+    return;
+  }
+  if (!strcmp(argv[0], "dance")) {
+    // The dance without Spotify: the pin runs on its own synthetic beat, so the
+    // probe can dump the body and the notes with no track and no account.
+    uint32_t hold = argc >= 2 ? (uint32_t)atoi(argv[1]) * 1000u : 10000u;
+    if (hold == 0) {
+      buddyPinDance(0);
+      Serial.println("dance: off");
+      return;
+    }
+    buddyPinDance(hold);
+    Serial.printf("dance: %lus (sin Spotify)\n", (unsigned long)(hold / 1000));
     return;
   }
   if (!strcmp(argv[0], "wake")) {

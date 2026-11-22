@@ -43,8 +43,8 @@ De arriba hacia abajo, nunca al revés:
 1. **Política pura** — `.h`/`.cpp` sin `Arduino.h`: `rotation_policy.h`,
    `game_difficulty.h`, `game_hits.h`, `config_value.h`, `screen_name.h`,
    `screen_order.h`, `steer_solve.h`, `tap_window.h`, `text_fold.cpp`,
-   `buddy_face.h`, `buddy_anim.h`, `buddy_imu.h`, `buddy_split.h`, `buddy_url.h`,
-   `buddy_link.h`,
+   `buddy_face.h`, `buddy_anim.h`, `buddy_dance.h`, `buddy_imu.h`, `buddy_split.h`,
+   `buddy_url.h`, `buddy_link.h`, `display_blit.h`,
    `admin_auth.*`, `ui_color.h`, `calendar_time.h`, `calendar_plan.h`,
    `calendar_forms.h`, `calendar_parse.*` y los `spotify_parse/pkce`. Son la
    parte que se puede probar en la compu.

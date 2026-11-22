@@ -14,7 +14,10 @@
   var SCREEN_NAME_MAX = 12;
   // The moods POST /api/face accepts (buddyGameMoodFromName in buddy_game.h). The
   // panel never invents a state: the buttons carry one of these wire names.
-  var SOFIA_MOODS = ['focus', 'thinking', 'alert', 'happy', 'anger', 'sleepy', 'sad'];
+  // 'dance' is the one entry that is not a game mood: POST /api/face pins the
+  // dance on a synthetic beat, so the music reaction can be proven without a
+  // track playing on Spotify.
+  var SOFIA_MOODS = ['focus', 'thinking', 'alert', 'happy', 'anger', 'sleepy', 'sad', 'dance'];
   // How long the face holds the simulated mood before falling back on its own.
   var SOFIA_HOLD_MS = 8000;
   // Tiles and toasts follow the names the device reports, so a rename shows up

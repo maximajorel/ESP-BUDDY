@@ -1,0 +1,42 @@
+{
+  "title": "Sofía · el baile de Spotify",
+  "brief": "Cuando suena Spotify, Sofía baila: los ojos tienen que saltar de alegría, no cabecear, y salen notas que se desvanecen. Tres direcciones de movimiento para elegir con el dueño.",
+  "feature": "odd/tasks/baile-spotify.md",
+  "artboards": [
+    {
+      "file": "01-bote-parejo.html",
+      "title": "Bote parejo · el ojo salta y aterriza",
+      "tradeoff": "La más legible como baile; también la más periódica y la que más cansa de reojo.",
+      "width": 1000,
+      "height": 980
+    },
+    {
+      "file": "02-salto-cruzado.html",
+      "title": "Salto cruzado · un ojo por tiempo",
+      "tradeoff": "La que mejor se lee como baile y la menos repetitiva; pide un canal de altura por ojo.",
+      "width": 1000,
+      "height": 980
+    },
+    {
+      "file": "03-vuelo-por-compas.html",
+      "title": "Vuelo por compás · despega una vez y flota",
+      "tradeoff": "Mucha personalidad y sin canales nuevos; tres tiempos tranquilos entre vuelo y vuelo.",
+      "width": 1000,
+      "height": 980
+    },
+    {
+      "file": "04-oleaje-organico.html",
+      "title": "Oleaje orgánico · el baile deja de ser un metrónomo",
+      "tradeoff": "Acentos y picos humanizados lo hacen respirar; deja de ser un pulso exacto y el aterrizaje pierde algo del golpe.",
+      "width": 1000,
+      "height": 1040
+    },
+    {
+      "file": "05-respiracion-con-pulso.html",
+      "title": "Respiración con pulso · suave de verdad",
+      "tradeoff": "La más orgánica y la más barata (no pide más FPS), pero la menos evidente como baile desde lejos.",
+      "width": 1000,
+      "height": 1040
+    }
+  ]
+}
