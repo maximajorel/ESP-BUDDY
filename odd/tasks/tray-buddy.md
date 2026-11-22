@@ -136,6 +136,8 @@ Cada punto es un candidato de review independiente y en ese orden:
 | S4 | asistente de conexión y popover conectado (T2, T4, T5, T7, T9) | `b65c2ce` |
 | S5 | instalador NSIS con las imágenes del diseño (T10) | `83fef0b` |
 | S6 | asistente que reemplaza el cuerpo y desbordes de la ventana | `f3dc558` |
+| S7 | endpoint `/api/calendar/events` (C1 de calendario-agenda) | `4562b95` |
+| S8 | agenda del día y popover que crece (C2 de calendario-agenda) | `4263613` |
 
 Un PR por slice cuando el dueño lo pida; no se abren solos. Los pendientes
 declarados (T6 ta-te-ti, T8 brillo/LED/colores, S13 USB) no entran en ninguno.
