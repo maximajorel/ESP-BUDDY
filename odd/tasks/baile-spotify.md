@@ -39,10 +39,10 @@ exactamente el que se dibujaba antes.
 
 | ID | Qué | Specs | Ruta | Commit |
 | --- | --- | --- | --- | --- |
-| T1 | `buddy_dance.h` puro (BPM por tema, beat, pose, campo de notas) + `tools/buddy_dance_test.cpp` | S1, S3, S6 | inline | — |
-| T2 | Render: notas dithered y pose de baile en `screen_buddy.cpp` | S1, S5 | inline | — |
-| T3 | Disparador: Spotify sonando + gate de estado, despertar por música, pin | S2 | inline | — |
-| T4 | Consola `dance`, `/api/face` con `dance` y chip "Bailando" del panel | S4 | inline | — |
+| T1 | `buddy_dance.h` puro (BPM por tema, beat, pose, campo de notas) + `tools/buddy_dance_test.cpp` | S1, S3, S6 | inline | `d2483c7` |
+| T2 | Render: notas dithered y pose de baile en `screen_buddy.cpp` | S1, S5 | inline | `cfee993` |
+| T3 | Disparador: Spotify sonando + gate de estado, despertar por música, pin | S2 | inline | `cfee993` |
+| T4 | Consola `dance`, `/api/face` con `dance` y chip "Bailando" del panel | S4 | inline | `147ec3b` |
 | T5 | Doc del proyecto, compilación y evidencia en la placa | S1-S6 | inline | — |
 
 ## Log
@@ -55,3 +55,24 @@ moveran a ritmo y saldran notas musicales que se desvanecerán"
 L2 (decisiones del dueño en el cuestionario previo, literales): "Baila si está al
 pedo (y la música la despierta)"; "Tempo por tema + fase real del playback";
 "Consola + panel".
+
+L3 (decisiones de implementación, con su razón):
+
+- Baila sólo en `idle`. `done` ya tiene su propia emoción (el rebote de la
+  victoria y la sonrisa de alivio) y las dos se pisaban; el pedido habla de
+  "está al pedo", que es idle.
+- Una pausa no congela el gesto: para el baile y mata las notas, y el beat queda
+  donde estaba el progreso, así que al reanudar vuelve a caer en el tema. Un
+  gesto congelado en el vidrio se lee como una cara trabada, no como una pausa.
+- Las notas viven en las bandas laterales (x 18-46 y 274-302): el ojo izquierdo
+  ocupa 57-153 y el derecho 167-263, con su glow. Es el único espacio libre real
+  del vidrio y respeta S5.
+- `web_assets.h` es generado y por eso el diff de la rama cuenta miles de líneas:
+  el cambio escrito a mano ronda las 700.
+- Corte de slices: T1 (capa pura + test) y luego T2+T3 (render y disparador, un
+  solo comportamiento) y T4 (consola, API y panel) en commits separados.
+
+L4 (verificación hasta acá): `python3 tools/run_tests.py` en verde (39 tests,
+incluye el nuevo `buddy_dance_test`), `tools/verify_assets.py` limpio y
+compilación del sketch con el FQBN de INSTALL.md §3 sin errores (1.574.998 bytes
+de flash, 22% de RAM).
