@@ -52,7 +52,7 @@ palabras que hoy.
 | ID | Spec | Ruta | Commit |
 |----|------|------|--------|
 | C1 | S3 | worker (firmware, verificado) | `4562b95` |
-| C2 | S4, S5, S6 | worker (app): comando de tamaño, flag en el store y la tarjeta con la agenda | `feat(tray): agenda del día y popover que crece` |
+| C2 | S4, S5, S6 | worker (app, verificado) | `ae0939c` |
 
 ## Log
 
@@ -77,3 +77,26 @@ L4. C1 cerrado y verificado. Evidencia real, no del informe del worker:
   `build_opt.h` fija `ARDUINO_LOOP_STACK_SIZE=16384` y el `WebServer` es
   síncrono sobre la tarea de loop.
 - `adminRequiresSession` no se tocó: el prefijo `/api/calendar` ya exige sesión.
+
+L5. C2 cerrado. Evidencia propia, no del informe del worker:
+- `cargo test` → **25 passed** (20 de antes + 5 nuevos: parseo del contrato S3,
+  `events` ausente, round-trip HTTP del endpoint, 401, y el store con `expanded`).
+- `cargo build` → exit 0. App cerrada antes de compilar, porque el `.exe` en uso
+  bloquea el link (`Acceso denegado`).
+- Contraste de contrato entre las dos mitades, hechos por separado: el firmware
+  emite exactamente `ok, tz, count, events[summary, location, startEpoch,
+  endEpoch, leadMin, allDay]` y la app deserializa esos seis campos con
+  `rename_all = "camelCase"`. No hay campo de un lado que falte del otro.
+- Capturas CDP a 388x660 y 520x820 con datos de ejemplo: `outside: []` en las
+  dos (ningún descendiente de la ventana se sale del wrap), 4 filas de agenda y
+  0 vacías.
+- Ajuste propio sobre el trabajo del worker: la columna grande de "próxima cita"
+  ahora muestra la hora del primer evento de la agenda en vez del aviso en
+  minutos, que duplicaba "en 12 min" con otro número.
+
+Pendiente de prueba manual, declarado: el `set_size`/`set_position` reales del
+Windows del dueño. La ventana declara `resizable: false`, así que si el sistema
+ignorara el resize programático el botón cambiaría el store y la clase CSS pero
+no la ventana. Es lo primero que hay que mirar al probarlo a 125%, junto con que
+el pico quede pegado al icono cuando el área de trabajo obliga a recortar la
+posición.
