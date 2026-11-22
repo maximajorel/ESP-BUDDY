@@ -107,6 +107,38 @@ S12. Sin CORS — el equipo no manda `Access-Control-Allow-Origin`, así que nin
 `fetch` desde el webview puede hablarle: todo el HTTP sale del proceso Rust con
 `reqwest`. El frontend nunca ve la IPv4 como URL de red, sólo como dato.
 
+S13. USB queda como requisito **futuro**, no de esta feature — verbatim: "en una
+de esas tal vez con USB? Lo anotemos como requisito futuro". Hoy el transporte es
+sólo HTTP sobre la LAN: el firmware expone el CDC serie para la consola, pero no
+hay protocolo de comandos por USB. Si se implementa, entra como transporte
+alternativo detrás de la misma capa de comandos (T2), sin que el frontend se
+entere. No se escribe código de USB en esta feature.
+
+S14. El icono de la bandeja es el cuadrado **amarillo** con ojos negros —
+verbatim: "el icono me gustaria que sea ese icono amarillo ocn los ojos negros".
+El papel pasa de `#ffffff` a `--sun` (`#ffd731`, `design/system.md` §1), que es el
+mismo amarillo que ya usa `.brand .logo` en el popover y el logo del panel web.
+Los ojos siguen en `--ink`. La geometría (26 unidades, borde de 1, ojos 6x7 al
+38%) no cambia: sólo el color del papel, y se regenera con
+`tools/make_icons.py`, que es la única fuente de los iconos.
+
+## Slices de entrega
+
+La rama `feat/tray-buddy` acumula más de 400 líneas autoradas desde `origin/main`,
+así que la entrega se corta por unidad revisable y **no** por la rama entera.
+Cada punto es un candidato de review independiente y en ese orden:
+
+| Slice | Contenido | Commit |
+|-------|-----------|--------|
+| S1 | esqueleto Tauri: ventana, bandeja, popover estático (T1) | `e9cdae6` |
+| S2 | icono amarillo y remuestreo arreglado (T11) | `50bbe44` |
+| S3 | transporte HTTP + store + comandos (T2, base de T4/T5/T7/T9) | `2b133e2` |
+| S4 | asistente de conexión y popover conectado (T2, T4, T5, T7, T9) | `b65c2ce` |
+| S5 | instalador NSIS con las imágenes del diseño (T10) | pendiente |
+
+Un PR por slice cuando el dueño lo pida; no se abren solos. Los pendientes
+declarados (T6 ta-te-ti, T8 brillo/LED/colores, S13 USB) no entran en ninguno.
+
 ## Tasks
 
 | ID | Spec | Ruta | Commit |
@@ -122,6 +154,8 @@ S12. Sin CORS — el equipo no manda `Access-Control-Allow-Origin`, así que nin
 | T8 | S8 | inline (parent): credenciales una vez + sesión guardada, y `/api/settings` (brightness, uiColor, buddyEyeColor, rgb) | `feat(tray): brillo, LED y colores` |
 | T9 | S7 | inline (parent): botón que abre `/admin` en el navegador | `feat(tray): acceso al panel` |
 | T10 | S2 | inline (parent): instalador NSIS con papel y tinta | `build(tray): instalador NSIS` |
+| T11 | S14 | inline (parent): `PAPER` a `--sun` en `tools/make_icons.py` y regenerar los iconos | `feat(tray): icono amarillo de la bandeja` |
+| T12 | S13 | **no se implementa en esta feature**: sólo queda anotado como requisito futuro | — |
 
 Riesgo declarado: con A la superficie nueva es del programa y no del firmware;
 T8 guarda credenciales del panel en el store local del usuario (item 2: la clave
@@ -242,3 +276,27 @@ los argumentos como arreglo (inmune al salto de línea que produjo los dos
 errores 87) y ahora usa `--passive` para que el dueño vea la barra de progreso
 en vez de 20 minutos de silencio. A y D quedan descartadas por decisión del
 dueño, no por inviabilidad técnica.
+
+L10. Tercer pedido del dueño sobre la app, después de ver el popover compilado
+(verbatim):
+"Ok bueno vi la estetica y me gusto si, el icono me gustaria que sea ese icono
+amarillo ocn los ojos negros
+
+Necesitamos entonces
+
+1.- Instalador
+2.- Wizard configurador con el programa
+3.- Integracion del sistema al esp con la red local... (en una de esas tal vez
+con USB? Lo anotemos como requisito futuro)
+
+Implementemos todo lo que podamos y de ahi ejecutar tests, luego de eso ya pruebo
+yp"
+
+Se agregan S13 (USB futuro, no se implementa) y S14 (icono amarillo), y T11/T12.
+T2, T4, T5, T9 y T10 se reabren: son exactamente los puntos 1 y 2 y la
+integración del punto 3. Bloqueante encontrado y resuelto en esta sesión:
+`tauri.conf.json` tenía `macOSPrivateApi: true` sin la feature
+`macos-private-api` en `Cargo.toml`, así que **ninguna** compilación había pasado
+del build script; el dueño decidió sacar la clave ("saquemos eso del macros, asi
+arrancamos de ultima primero con windows"), y `cargo build` quedó verde
+(`tray-buddy.exe`, 14 MB, arranca y crea la bandeja).

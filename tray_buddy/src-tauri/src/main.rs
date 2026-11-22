@@ -9,6 +9,8 @@
 
 mod api;
 mod commands;
+#[cfg(test)]
+mod installer_art;
 mod store;
 
 use tauri::{
