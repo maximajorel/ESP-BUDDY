@@ -111,7 +111,7 @@ S12. Sin CORS — el equipo no manda `Access-Control-Allow-Origin`, así que nin
 
 | ID | Spec | Ruta | Commit |
 |----|------|------|--------|
-| T0 | — | **decidido D en L7**: compilar en GitHub Actions (`windows-latest` trae MSVC). `.github/workflows/tray-build.yml` sube instalador NSIS y `.exe` portable · commit `pendiente` · no hay `tauri dev` local | `build(tray): compilar la app en GitHub Actions` |
+| T0 | — | **local, pendiente de elección (L8)**: toolchain descargable sin instalador pesado — A MinGW (~380 MB, sin admin) o B VS Build Tools mínimo (~2,2 GB, con admin) | — |
 | T1 | S1, S11 | inline (parent): esqueleto `tray_buddy/` + ventana sin bordes + bandeja · commit `e9cdae6` (1190 líneas: proyecto nuevo, HTML/CSS/Rust/iconos; queda in_progress sin compilar) | `chore(tray): esqueleto de la app de bandeja con Tauri` |
 | T2 | S3, S12 | inline (parent): transporte Rust + store + asistente de IPv4 con validación contra `/api/status` | `feat(tray): asistente de conexión por IPv4` |
 | T3 | S1, S11 | inline (parent): icono de ojos, anclaje del popover con el `rect` del evento de bandeja, atajo global, autostart | `feat(tray): bandeja, anclaje y atajo` |
@@ -225,3 +225,11 @@ en dos líneas llega partido a `setup.exe` (el log del bootstrapper muestra
 `--inc` + salto + `ludeRecommended`). `tools/setup-toolchain.ps1` quedó en el
 repo por si el dueño alguna vez quiere el toolchain local: pasa los argumentos
 como arreglo y verifica `cargo` y `link.exe` al final.
+
+L8. El dueño canceló D de inmediato: "NOOO CANCELA D". Se borró
+`.github/workflows/tray-build.yml` y T0 vuelve a ser toolchain **local**,
+pendiente de elegir entre A (MinGW portable, sin admin) y B (VS Build Tools
+sólo con VC.Tools + SDK, con admin). D queda descartada como camino, no como
+alternativa futura: el motivo del rechazo no se registró, pero el costo
+declarado en L7 (iterar por push, verificación manual del artifact) es la
+hipótesis.
