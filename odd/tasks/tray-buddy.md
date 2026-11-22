@@ -135,6 +135,7 @@ Cada punto es un candidato de review independiente y en ese orden:
 | S3 | transporte HTTP + store + comandos (T2, base de T4/T5/T7/T9) | `2b133e2` |
 | S4 | asistente de conexión y popover conectado (T2, T4, T5, T7, T9) | `b65c2ce` |
 | S5 | instalador NSIS con las imágenes del diseño (T10) | `83fef0b` |
+| S6 | asistente que reemplaza el cuerpo y desbordes de la ventana | `f3dc558` |
 
 Un PR por slice cuando el dueño lo pida; no se abren solos. Los pendientes
 declarados (T6 ta-te-ti, T8 brillo/LED/colores, S13 USB) no entran en ninguno.
