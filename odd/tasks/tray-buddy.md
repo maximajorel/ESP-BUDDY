@@ -111,7 +111,7 @@ S12. Sin CORS — el equipo no manda `Access-Control-Allow-Origin`, así que nin
 
 | ID | Spec | Ruta | Commit |
 |----|------|------|--------|
-| T0 | — | **acción del dueño** (elevación): Rust + MSVC Build Tools en Windows; sin eso no hay compilación posible (WSL no tiene sudo para webkit2gtk) | — |
+| T0 | — | **decidido D en L7**: compilar en GitHub Actions (`windows-latest` trae MSVC). `.github/workflows/tray-build.yml` sube instalador NSIS y `.exe` portable · commit `pendiente` · no hay `tauri dev` local | `build(tray): compilar la app en GitHub Actions` |
 | T1 | S1, S11 | inline (parent): esqueleto `tray_buddy/` + ventana sin bordes + bandeja · commit `e9cdae6` (1190 líneas: proyecto nuevo, HTML/CSS/Rust/iconos; queda in_progress sin compilar) | `chore(tray): esqueleto de la app de bandeja con Tauri` |
 | T2 | S3, S12 | inline (parent): transporte Rust + store + asistente de IPv4 con validación contra `/api/status` | `feat(tray): asistente de conexión por IPv4` |
 | T3 | S1, S11 | inline (parent): icono de ojos, anclaje del popover con el `rect` del evento de bandeja, atajo global, autostart | `feat(tray): bandeja, anclaje y atajo` |
@@ -200,3 +200,28 @@ memoria), porque sin compilador cada suposición cuesta un ciclo entero:
   `WindowEvent::CloseRequested { api }` confirmados.
 - `npm install` del CLI de Tauri ya corrió del lado Windows vía interop: el CLI
   está listo, lo único que falta es Rust + MSVC.
+
+L7. Decisión del dueño sobre el toolchain (pregunta "¿no hay otro camino para
+bajarme el instalador?"): **D · compilar en GitHub Actions**. Descartadas las
+otras tres, con sus números:
+- A (MinGW portable, `rustup target add x86_64-pc-windows-gnu` + WinLibs
+  16.2.0, zip de 276 MB): el más barato en MB y sin admin, pero Tauri sobre GNU
+  no está soportado oficialmente; `webview2-com-sys 0.39.1` declara el target
+  `x86_64-pc-windows-gnu` y el crate `windows` baja `windows_x86_64_gnu`, así
+  que la cadena podría cerrar, pero no hay garantía.
+- B (VS Build Tools sólo con `VC.Tools.x86.x64` + SDK, ~2,2 GB, con admin):
+  camino soportado. Queda como plan B si CI no alcanza.
+- C (Electron, 0 MB de toolchain): la app pasaría de ~8 MB a ~150 MB y se
+  descartaría el esqueleto Rust.
+- D (elegida): 0 MB locales, el runner `windows-latest` ya trae MSVC y el SDK;
+  se baja el instalador como artifact. Costo asumido: no hay `tauri dev` local,
+  la iteración es por push, y la verificación en pantalla la hace el dueño
+  corriendo el artifact.
+
+Nota de por qué se llegó hasta acá: el instalador de VS falló dos veces con
+código 87 por el mismo motivo, ajeno a winget y a los argumentos — PowerShell
+conserva el salto de línea dentro de las comillas, así que un argumento pegado
+en dos líneas llega partido a `setup.exe` (el log del bootstrapper muestra
+`--inc` + salto + `ludeRecommended`). `tools/setup-toolchain.ps1` quedó en el
+repo por si el dueño alguna vez quiere el toolchain local: pasa los argumentos
+como arreglo y verifica `cargo` y `link.exe` al final.
