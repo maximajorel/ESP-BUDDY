@@ -49,6 +49,7 @@ exactamente el que se dibujaba antes.
 | T8 | Direcciones orgánicas D y E en el canvas, con selector de FPS | S1, S6 | inline | `077c8e3` |
 | T9 | Presupuesto de cuadro: blit sin switch por píxel, snapshot cada 250 ms, redondeo sub-píxel e instrumentación | S6 | inline | `077c8e3` |
 | T10 | Dirección E aprobada: flotación en `buddy_dance.h` y bandas de párpado que no pisan al otro ojo | S1, S5 | inline | `ff8aeb3` |
+| T11 | Presupuesto de cuadro hasta 30 fps: transpose por bloques + glow más barato | S6 | inline | — |
 
 ## Log
 
@@ -151,6 +152,28 @@ punto medio del par o al borde del otro ojo, lo que quede más adentro; y
 `drawEyes` usa el mismo `bandL`/`bandR` para la banda inferior (y para la sonrisa
 del `happy`), con `bandReach` para que el borde dithered del párpado llegue al
 borde interno de la banda. Comentario resuelto con `gentle_design_comments`.
+
+L17 (evidencia en la placa de la dirección E, y el presupuesto real): flasheado por
+COM5 y probado con `dance 16` + `buddydraw`. La flotación está en el vidrio:
+`bob` entre −0.5 y −1.3 px, `bottom` 0.13–0.15, `lid` 0 (el párpado de arriba no
+se mueve nunca), `ry` 48–49 y `extY` 50–51, con 2 notas vivas. Handoff marcado
+`implemented`.
+
+L18 (el número que faltaba, y no es bueno): `buddydraw` reporta
+`frame draw=34-37ms max=47` y `push=27-39ms max=44`, o sea ~63-76 ms de trabajo por
+cuadro contra los 50 ms que el lazo supone. La cara está corriendo a **~15 fps**,
+no a 20: el gate de 50 ms casi nunca llega a frenar nada. Eso es la mitad del
+"poco smooth" que reportó el dueño. Las cuentas cierran con el uptime (76 draws ×
+~50 ms ≈ 3.8 s y 176 pushes × 26.7 ms ≈ 4.7 s en ~5 s de encendido).
+
+Reparto: el dibujo (36 ms) es más caro que el envío (27 ms). El piso del envío es
+el SPI: 110 KB a 80 MHz ≈ 11 ms, así que el transpose se lleva ~15 ms.
+
+T11 (pendiente, próximo paso): bajar el cuadro a ≤33 ms para llegar a 30 fps
+reales. Orden por costo medido: (1) transpose por bloques 4x4 en vez de saltos de
+640 B, (2) recortar el glow de tres coronas a dos evaluaciones de SDF por píxel, y
+(3) recién entonces `BUDDY_FRAME_MS` 50 → 33. No se tocó todavía: cambiar la
+frecuencia sin bajar el costo solo empeora el desfase.
 
 L16 (handoff del diseño): `gentle_design` marcó `design/baile-sofia/05-respiracion-con-pulso.html`
 como la plancha elegida del diseño y el handoff quedó en `in_progress` a
