@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sofía · baile 05 · respiración con pulso</title>
+<style>
+  :root {
+    --bg: #0e1015; --card: #161a22; --inset: #1b212b; --line: #262d3a;
+    --tx: #e8ecf4; --dim: #94a0b4; --accent: #00b4ff; --accent-soft: #0b2b38;
+    --eye: #00b4ff; --hot: #ff3c1e; --gold: #ffd700; --ok: #4ade80;
+    --radius: 16px; --tap: 44px;
+  }
+  * { box-sizing: border-box; }
+  html { color-scheme: dark; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg); color: var(--tx);
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display: flex; justify-content: center;
+  }
+  .stage { width: 1000px; padding: 34px 40px 48px; display: flex; flex-direction: column; gap: 20px; }
+  header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
+  h1 { margin: 0; font-size: 26px; letter-spacing: -0.3px; }
+  .sub { margin: 6px 0 0; color: var(--dim); font-size: 14px; max-width: 64ch; }
+  .badge {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase;
+    color: var(--accent); background: var(--accent-soft); border: 1px solid var(--accent-soft);
+    border-radius: 999px; padding: 7px 12px; white-space: nowrap;
+  }
+  .device {
+    position: relative; align-self: center; padding: 24px; border: 1px solid var(--line);
+    border-radius: 24px; background: #070a0d;
+  }
+  .device canvas { display: block; width: 640px; height: 344px; border-radius: 6px; }
+  .device .edge { position: absolute; inset: 24px; border: 1px solid #12303c; border-radius: 6px; pointer-events: none; }
+  .controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .controls button, .controls select {
+    font: inherit; font-weight: 650; background: var(--inset); color: var(--tx);
+    border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px;
+    min-height: var(--tap); cursor: pointer;
+  }
+  .controls button.primary { background: var(--accent); color: #06121a; border-color: var(--accent); width: 112px; }
+  .controls input[type=range] { flex: 1; min-width: 150px; accent-color: var(--accent); min-height: var(--tap); }
+  .controls button:focus-visible, .controls select:focus-visible,
+  .controls input[type=range]:focus-visible, .strip figure:focus-visible {
+    outline: 2px solid var(--gold); outline-offset: 3px;
+  }
+  .clock {
+    font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color: var(--dim); min-width: 210px;
+  }
+  .clock b { color: var(--tx); font-weight: 650; }
+  .fpsnote {
+    font-size: 12px; color: var(--dim); border: 1px dashed var(--line); border-radius: 10px;
+    padding: 8px 12px;
+  }
+  .fpsnote b { color: var(--tx); }
+  .strip { display: flex; gap: 12px; flex-wrap: wrap; }
+  .strip figure { margin: 0; width: 176px; }
+  .strip canvas { display: block; width: 176px; height: 95px; border: 1px solid var(--line); border-radius: 8px; background: #000; }
+  .strip figcaption { margin-top: 6px; font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--dim); }
+  .strip figcaption b { color: var(--tx); font-weight: 600; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; }
+  .card h2 { margin: 0 0 8px; font-size: 15px; letter-spacing: 0.2px; }
+  .card p, .card li { font-size: 13px; color: var(--dim); margin: 0 0 6px; }
+  .card ul { margin: 0; padding-left: 18px; }
+  .card b { color: var(--tx); font-weight: 600; }
+  code { font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--tx); }
+  .tradeoff { border-left: 2px solid var(--accent); padding-left: 12px; color: var(--dim); font-size: 13px; margin: 0; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--dim); }
+  .key { display: inline-flex; align-items: center; gap: 6px; }
+  .key i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+</style>
+</head>
+<body>
+<main class="stage">
+  <header>
+    <div>
+      <h1>Respiración con pulso · suave de verdad</h1>
+      <p class="sub">Dirección E. Ningún salto: la cara flota. 2.5 px de oleaje continuo, el ojo crece un 4% en cada tiempo y vuelve, el párpado inferior marca la alegría, y la mirada orbita despacio. El ritmo lo dicen las notas y la respiración, no el golpe. Es la más "smooth" posible y la más barata de dibujar: ningún canal salta más de 3 px por cuadro, así que incluso a 20 fps se ve continua.</p>
+    </div>
+    <span class="badge">Dirección E · respiración</span>
+  </header>
+
+  <div class="device">
+    <canvas id="big" width="640" height="344" aria-label="Vista previa animada del vidrio de 320x172 con el baile de respiración con pulso"></canvas>
+    <span class="edge"></span>
+  </div>
+
+  <div class="controls">
+    <button class="primary" id="play" type="button">Pausar</button>
+    <input id="scrub" type="range" min="0" max="4286" step="5" value="0" aria-label="Recorrer un compás">
+    <select id="bpm" aria-label="Tempo">
+      <option value="96">96 BPM</option>
+      <option value="112" selected>112 BPM</option>
+      <option value="128">128 BPM</option>
+    </select>
+    <select id="fps" aria-label="Frecuencia de refresco simulada">
+      <option value="60">60 fps</option>
+      <option value="30" selected>30 fps</option>
+      <option value="20">20 fps (hoy)</option>
+    </select>
+    <select id="speed" aria-label="Velocidad de reproducción">
+      <option value="1">normal</option>
+      <option value="0.5">lento ×0.5</option>
+      <option value="0.25">lento ×0.25</option>
+    </select>
+    <span class="clock" id="clock">t <b>0.00</b> · tiempo <b>1</b> de 4</span>
+  </div>
+
+  <p class="fpsnote" id="fpsnote"><b>20 fps</b> = 50 ms por cuadro. Con un movimiento máximo de 3 px por tiempo, cada cuadro se lleva 0.27 px: el ojo no alcanza a ver el escalón. Es la razón por la que esta dirección no necesita subir el frame rate.</p>
+
+  <div class="strip" id="strip"></div>
+
+  <div class="cols">
+    <div class="card">
+      <h2>Qué se lee</h2>
+      <ul>
+        <li><b>Oleaje</b>: <code>bob</code> = 2.5 px de seno a dos compases, más 1.2 px por tiempo. La cara se hamaca como una cabeza que sigue la música sin bailar.</li>
+        <li><b>Pulso de tamaño</b>: el ojo pasa de 48 a 50 de alto en cada tiempo y vuelve. Se lee como que la música lo empuja desde adentro.</li>
+        <li><b>Alegría</b>: párpado inferior 0.10 de base y 0.18 en el tiempo. Nunca baja el párpado de arriba: nada de sueño.</li>
+        <li><b>Mirada</b>: orbita 3 px en círculo lento, un compás por vuelta, así el baile tiene costado.</li>
+        <li><b>Notas</b>: son el metrónomo visual. Cada dos tiempos, alternando costado, con la vida y el desvanecido que ya tienen.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h2>Y el FPS</h2>
+      <p>Todo el movimiento es ≤ 3 px por tiempo, o sea ≤ 0.27 px por cuadro a 20 fps: no hay escalera posible. Se puede dejar el frame de 50 ms y no se paga nada.</p>
+      <p>Canales: <code>bob</code>, <code>ry</code>, <code>rx</code>, <code>bottom</code>, <code>gx</code>/<code>gy</code>, <code>rot</code>, <code>tilt</code>. Ninguno es nuevo y ninguno escribe un salto, así que el filtro de pose de 100 ms no la aplana.</p>
+      <p>Comparada con A y D, es la que menos cansa de reojo y la que menos CPU deja en el panel, porque no hay que subir la frecuencia de cuadro para que se vea bien.</p>
+    </div>
+  </div>
+
+  <p class="tradeoff"><b>Tradeoff:</b> es la más orgánica y la más barata, pero también la menos "baile": si el dueño quiere que se note desde el otro lado del cuarto que Sofía está escuchando música, esto por sí solo no lo consigue — depende de que las notas y el pulso alcancen. Es la candidata natural para "mientras trabajo" y la A/D para "poné el tema que quiero verte".</p>
+
+  <p class="legend">
+    <span class="key"><i style="background:var(--eye)"></i> ojo del dueño #00b4ff</span>
+    <span class="key"><i style="background:var(--gold)"></i> logro #ffd700</span>
+    <span class="key">Glow aproximado: en la placa se ditheriza, acá se mezcla con alpha.</span>
+  </p>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  var EYE = "#00b4ff";
+
+  function rr(ctx, x, y, w, h, r) {
+    var m = Math.min(w, h) / 2;
+    if (r > m) r = m;
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
+  function rgba(hex, a) {
+    var n = parseInt(hex.slice(1), 16);
+    return "rgba(" + ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + a + ")";
+  }
+
+  function eyes(ctx, p, W, H) {
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, W, H);
+    for (var i = 0; i < 2; i++) {
+      var x = 160 - 55 + i * 110 + p.gx;
+      var y = 88 + p.gy + p.bob;
+      var rx = p.rx, ry = p.ry;
+      var pads = [[10, 0.10], [7, 0.16], [4, 0.22]];
+      for (var g = 0; g < pads.length; g++) {
+        var pad = pads[g][0];
+        ctx.fillStyle = rgba(EYE, pads[g][1]);
+        rr(ctx, x - rx - pad, y - ry - pad, 2 * (rx + pad), 2 * (ry + pad),
+           Math.min(rx, ry) * 0.38 + pad * 0.6);
+        ctx.fill();
+      }
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate((p.rot + p.tilt) * Math.PI / 180);
+      ctx.fillStyle = EYE;
+      rr(ctx, -rx, -ry, 2 * rx, 2 * ry, Math.min(rx, ry) * 0.38);
+      ctx.fill();
+      var lidY = -ry + 2 * ry * p.lid;
+      if (lidY > -ry + 0.5) {
+        ctx.fillStyle = "#000";
+        ctx.fillRect(-rx - 14, -ry - 14, 2 * rx + 28, lidY + ry + 14);
+      }
+      var botY = ry - 2 * ry * p.bottom;
+      if (botY < ry - 0.5) {
+        ctx.fillStyle = "#000";
+        ctx.fillRect(-rx - 14, botY, 2 * rx + 28, ry - botY + 14);
+      }
+      ctx.restore();
+    }
+  }
+
+  function note(ctx, n) {
+    if (n.alpha <= 0.02) return;
+    var s = n.size;
+    var hrx = 4.2 * s, hry = 3.2 * s;
+    var stemH = 15 * s;
+    var cx = n.x, cy = n.y;
+    var stemX = cx + hrx - 1, top = cy - stemH;
+    ctx.fillStyle = rgba(EYE, Math.min(1, 0.25 + n.alpha));
+    for (var y = top; y <= cy + hry; y++) {
+      for (var x = cx - hrx; x <= stemX + 1 + 6 * s; x++) {
+        var dx = (x - cx) / hrx, dy = (y - cy) / hry;
+        var head = dx * dx + dy * dy <= 1;
+        var stem = Math.abs(x - stemX) < 0.6 && y <= cy && y >= top;
+        var flag = y >= top && y <= top + 5 * s && x > stemX && x <= stemX + 1 + (y - top);
+        if (!head && !stem && !flag) continue;
+        ctx.fillRect(x, y, 1, 1);
+      }
+    }
+  }
+
+  function draw(ctx, frame, scale, W, H) {
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    eyes(ctx, frame.pose, W, H);
+    for (var i = 0; i < frame.notes.length; i++) note(ctx, frame.notes[i]);
+  }
+
+  function hash(n) {
+    var x = (n * 2654435761) >>> 0;
+    x ^= x >>> 16; x = (x * 2246822507) >>> 0;
+    x ^= x >>> 13;
+    return (x >>> 0) / 4294967295;
+  }
+
+  // ---- the motion: no jump at all -------------------------------------------
+  function floatPose(bpm, ms) {
+    var beat = 60000 / bpm;
+    var barMs = beat * 4;
+    var phase = (ms % beat) / beat;
+    var pulse = Math.sin(Math.PI * phase);
+    var sway = Math.sin(2 * Math.PI * ms / (barMs * 2));
+    var orbit = 2 * Math.PI * ((ms % barMs) / barMs);
+    var accent = [1.0, 0.75, 0.9, 0.7][Math.floor(ms / beat) % 4];
+    return {
+      gx: 3.0 * Math.cos(orbit),
+      gy: -1.6 + 1.4 * Math.sin(orbit),
+      bob: -1.2 * pulse - 2.5 * (0.5 + 0.5 * sway) * 0.7,
+      rx: 48 + 1.3 * pulse * accent,
+      ry: 48 + 2.0 * pulse * accent,
+      lid: 0,
+      bottom: 0.10 + 0.08 * pulse * accent,
+      rot: 2.2 * Math.sin(orbit + 1.1),
+      tilt: 2.6 * Math.sin(orbit),
+      turn: 0.05 * Math.cos(orbit)
+    };
+  }
+
+  function noteField(bpm, ms) {
+    var beat = 60000 / bpm;
+    var life = 2400;
+    var out = [];
+    var lastBeat = Math.floor(ms / beat);
+    for (var b = lastBeat; b >= lastBeat - 14; b--) {
+      if (b % 2 !== 0) continue;
+      var born = b * beat;
+      var age = ms - born;
+      if (age < 0 || age >= life) continue;
+      var f = age / life;
+      var right = ((b / 2) % 2) === 0;
+      var h = hash(b) * 1000;
+      var minX = right ? 291 : 12, maxX = right ? 308 : 30;
+      var alpha = f < 0.12 ? f / 0.12 : (f < 0.45 ? 1 : 1 - (f - 0.45) / 0.55);
+      out.push({
+        x: minX + (h / 1000) * (maxX - minX),
+        y: 152 - 110 * f,
+        size: 0.8 + hash(b + 7) * 0.3,
+        alpha: alpha
+      });
+    }
+    return out;
+  }
+
+  var big = document.getElementById("big");
+  var bctx = big.getContext("2d");
+  var scrub = document.getElementById("scrub");
+  var clock = document.getElementById("clock");
+  var playBtn = document.getElementById("play");
+  var bpmSel = document.getElementById("bpm");
+  var fpsSel = document.getElementById("fps");
+  var speedSel = document.getElementById("speed");
+  var fpsNote = document.getElementById("fpsnote");
+  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var playing = !reduced;
+  if (reduced) playBtn.textContent = "Reproducir";
+  var started = performance.now();
+  var manual = 0;
+  var bpm = 112, fps = 30, speed = 1, lastFrameAt = 0;
+
+  function barMs() { return 4 * (60000 / bpm); }
+
+  function render(ms) {
+    draw(bctx, { pose: floatPose(bpm, ms), notes: noteField(bpm, ms) }, 2, 320, 172);
+    var beat = 60000 / bpm;
+    clock.innerHTML = "t <b>" + (ms / 1000).toFixed(2) + " s</b> · tiempo <b>" +
+      (Math.floor(ms / beat) % 4 + 1) + "</b> de 4";
+    scrub.max = String(Math.round(barMs()));
+  }
+
+  function loop(now) {
+    if (playing) {
+      var ms = ((now - started) * speed) % barMs();
+      if (Math.abs(ms - lastFrameAt) >= 1000 / fps - 0.001 || ms < lastFrameAt) {
+        lastFrameAt = ms;
+        scrub.value = ms;
+        render(ms);
+      }
+    }
+    requestAnimationFrame(loop);
+  }
+
+  playBtn.addEventListener("click", function () {
+    playing = !playing;
+    playBtn.textContent = playing ? "Pausar" : "Reproducir";
+    if (playing) started = performance.now() - manual / (speed || 1);
+  });
+
+  scrub.addEventListener("input", function () {
+    manual = +scrub.value;
+    playing = false;
+    playBtn.textContent = "Reproducir";
+    render(manual);
+  });
+
+  bpmSel.addEventListener("change", function () { bpm = +bpmSel.value; render(manual); });
+  speedSel.addEventListener("change", function () {
+    speed = +speedSel.value;
+    started = performance.now() - manual / (speed || 1);
+  });
+  fpsSel.addEventListener("change", function () {
+    fps = +fpsSel.value;
+    fpsNote.innerHTML = "<b>" + fps + " fps</b> son " + (1000 / fps).toFixed(0) +
+      " ms por cuadro. Acá el movimiento es tan chico por tiempo que incluso a 14 fps no se ve el escalón: no hay que pagar más refresco.";
+  });
+
+  var strip = document.getElementById("strip");
+  [
+    { f: 0.15, cap: "oleaje bajo", note: "bob 2.5 px" },
+    { f: 0.50, cap: "pulso", note: "ry 50 · bottom 0.18" },
+    { f: 0.85, cap: "vuelve", note: "ry 48.4" },
+    { f: 0.30, cap: "mirada", note: "órbita de 3 px" }
+  ].forEach(function (s) {
+    var fig = document.createElement("figure");
+    fig.tabIndex = 0;
+    var c = document.createElement("canvas");
+    c.width = 320; c.height = 172;
+    var ms = s.f * (60000 / 112) * 2;
+    draw(c.getContext("2d"), { pose: floatPose(112, ms), notes: noteField(112, 260 + 1.1 * (60000 / 112)) }, 1, 320, 172);
+    var cap = document.createElement("figcaption");
+    cap.innerHTML = "<b>" + s.cap + "</b><br>" + s.note;
+    fig.appendChild(c);
+    fig.appendChild(cap);
+    fig.addEventListener("focus", function () {
+      playing = false; playBtn.textContent = "Reproducir"; render(ms);
+    });
+    strip.appendChild(fig);
+  });
+
+  render(0);
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

@@ -1,5 +1,6 @@
 #include "display.h"
 
+#include "display_blit.h"
 #include "gfx.h"
 
 #include <SPI.h>
@@ -14,6 +15,13 @@
 #define PIN_BL 46
 
 #define SPI_FREQ 80000000
+
+// The blit helper's numbers have to be the driver's, or `displayBlitTarget` would
+// describe a mapping the panel never sees.
+static_assert(ORIENT_MIRROR == BLIT_ORIENT_MIRROR, "orientation numbering drifted");
+static_assert(ORIENT_CW == BLIT_ORIENT_CW, "orientation numbering drifted");
+static_assert(ORIENT_CCW == BLIT_ORIENT_CCW, "orientation numbering drifted");
+static_assert(ORIENT_MIRROR2 == BLIT_ORIENT_MIRROR2, "orientation numbering drifted");
 #define BL_FREQ 1000
 #define BL_RES 10
 
@@ -182,41 +190,58 @@ void displaySetOrientation(uint8_t orientation) {
 
 uint8_t displayGetOrientation() { return s_orientation; }
 
+// Frame-time accounting, read by `buddydraw`. microseconds since boot wrap every
+// ~71 minutes; the arithmetic below only ever uses differences inside one frame.
+static uint32_t s_pushTotalUs = 0;
+static uint32_t s_pushMaxUs = 0;
+static uint32_t s_pushCount = 0;
+
 void displayPush(const uint16_t *fb) {
   if (!s_panel) return;
 
   // The panel wants the high byte first while the ESP32 keeps uint16_t low byte
   // first, so the swap happens here; doing it during the transpose costs
   // nothing extra.
-  for (int y = 0; y < DISPLAY_H; y++) {
-    const uint16_t *src = fb + (size_t)y * DISPLAY_W;
-    for (int x = 0; x < DISPLAY_W; x++) {
-      int px, py;
-      switch (s_orientation) {
-        case ORIENT_MIRROR:
-          px = y;
-          py = x;
-          break;
-        case ORIENT_CCW:
-          px = y;
-          py = DISPLAY_W - 1 - x;
-          break;
-        case ORIENT_MIRROR2:
-          px = PANEL_W - 1 - y;
-          py = DISPLAY_W - 1 - x;
-          break;
-        case ORIENT_CW:
-        default:
-          px = PANEL_W - 1 - y;
-          py = x;
-          break;
+  //
+  // One loop per orientation instead of a `switch` inside the 55 040-pixel loop:
+  // that branch is the difference between affording a higher frame rate and not.
+  // The mapping itself is pinned on the host by `tools/display_blit_test.cpp`.
+  // The panel takes the low byte first on this unit (proven with the three bars:
+  // a red 0xF800 arrived as 0x00F8, blue), so the host-order value is kept and
+  // the little-endian bytes go out as low, high.
+  uint32_t t0 = micros();
+  switch (s_orientation) {
+    case ORIENT_MIRROR:
+      for (int y = 0; y < DISPLAY_H; y++) {
+        const uint16_t *src = fb + (size_t)y * DISPLAY_W;
+        for (int x = 0; x < DISPLAY_W; x++) s_panel[x * PANEL_W + y] = src[x];
       }
-      // The panel takes the low byte first on this unit (proven with the three
-      // bars: a red 0xF800 arrived as 0x00F8, blue). Keep the host-order value
-      // so the little-endian bytes go out as low, high.
-      uint16_t v = src[x];
-      s_panel[py * PANEL_W + px] = v;
-    }
+      break;
+    case ORIENT_CCW:
+      for (int y = 0; y < DISPLAY_H; y++) {
+        const uint16_t *src = fb + (size_t)y * DISPLAY_W;
+        for (int x = 0; x < DISPLAY_W; x++) {
+          s_panel[(DISPLAY_W - 1 - x) * PANEL_W + y] = src[x];
+        }
+      }
+      break;
+    case ORIENT_MIRROR2:
+      for (int y = 0; y < DISPLAY_H; y++) {
+        const uint16_t *src = fb + (size_t)y * DISPLAY_W;
+        for (int x = 0; x < DISPLAY_W; x++) {
+          s_panel[(DISPLAY_W - 1 - x) * PANEL_W + (PANEL_W - 1 - y)] = src[x];
+        }
+      }
+      break;
+    case ORIENT_CW:
+    default:
+      for (int y = 0; y < DISPLAY_H; y++) {
+        const uint16_t *src = fb + (size_t)y * DISPLAY_W;
+        for (int x = 0; x < DISPLAY_W; x++) {
+          s_panel[x * PANEL_W + (PANEL_W - 1 - y)] = src[x];
+        }
+      }
+      break;
   }
 
   // Full-frame window. With MADCTL 0x00 the column address is the panel's 172
@@ -236,6 +261,26 @@ void displayPush(const uint16_t *fb) {
   writeCommand(0x2C);
 
   writeDataBulk((const uint8_t *)s_panel, (uint32_t)PANEL_PIXELS * 2);
+
+  // How long one frame costs on the way out. A face animation is only as smooth
+  // as the slowest half of the frame, so this number decides the frame rate
+  // instead of a guess: `buddydraw` prints it.
+  uint32_t us = (uint32_t)(micros() - t0);
+  s_pushTotalUs += us;
+  s_pushCount++;
+  if (us > s_pushMaxUs) s_pushMaxUs = us;
+}
+
+void displayPushStats(uint32_t *avgUs, uint32_t *maxUs, uint32_t *count) {
+  if (avgUs) *avgUs = s_pushCount ? s_pushTotalUs / s_pushCount : 0;
+  if (maxUs) *maxUs = s_pushMaxUs;
+  if (count) *count = s_pushCount;
+}
+
+void displayPushStatsReset() {
+  s_pushTotalUs = 0;
+  s_pushMaxUs = 0;
+  s_pushCount = 0;
 }
 
 // Proof that the panel is actually being driven: three pure bars side by side,

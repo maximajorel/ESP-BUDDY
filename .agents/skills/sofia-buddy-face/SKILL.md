@@ -97,6 +97,17 @@ with `buddyPoseMix`, because a 100 ms ease flattens a 545 ms arc into a sway.
 same reaction on a synthetic 112 BPM beat, so it can be dumped with `dump` and no
 Spotify account.
 
+## Frame budget
+
+A face animation is only as smooth as its slowest half. `buddydraw` prints
+`frame draw=<ms> push=<ms>` (average and worst case, then resets the counters), so
+the frame rate is decided by a number and not by a guess: `BUDDY_FRAME_MS` is 50
+(20 fps) today. The push is the expensive half and the orientation branch must
+never live inside the 55 040-pixel loop again; the mapping is `display_blit.h`,
+pinned on the host. Small per-frame deltas look smooth even at 20 fps, which is
+why a float (≤3 px per beat) can look smoother than a hop (10 px) without
+touching the frame rate.
+
 ## Pitfalls
 
 - A lower lid drawn as a straight `gfxFillRect` must be followed by

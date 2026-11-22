@@ -50,6 +50,12 @@ uint8_t displayGetOrientation();
 // it in one SPI transfer.
 void displayPush(const uint16_t *fb);
 
+// How long the last pushes took, in microseconds: average, worst case and how
+// many frames the numbers cover. This is the honest half of the frame budget and
+// the input for deciding the frame rate.
+void displayPushStats(uint32_t *avgUs, uint32_t *maxUs, uint32_t *count);
+void displayPushStatsReset();
+
 // 0..100 backlight duty. Kept while the panel is asleep, so waking restores it.
 void displaySetBacklight(uint8_t percent);
 uint8_t displayGetBacklight();

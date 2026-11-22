@@ -23,6 +23,20 @@
       "tradeoff": "Mucha personalidad y sin canales nuevos; tres tiempos tranquilos entre vuelo y vuelo.",
       "width": 1000,
       "height": 980
+    },
+    {
+      "file": "04-oleaje-organico.html",
+      "title": "Oleaje orgánico · el baile deja de ser un metrónomo",
+      "tradeoff": "Acentos y picos humanizados lo hacen respirar; deja de ser un pulso exacto y el aterrizaje pierde algo del golpe.",
+      "width": 1000,
+      "height": 1040
+    },
+    {
+      "file": "05-respiracion-con-pulso.html",
+      "title": "Respiración con pulso · suave de verdad",
+      "tradeoff": "La más orgánica y la más barata (no pide más FPS), pero la menos evidente como baile desde lejos.",
+      "width": 1000,
+      "height": 1040
     }
   ]
 }

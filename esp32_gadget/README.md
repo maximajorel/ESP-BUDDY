@@ -42,7 +42,7 @@ estado en NVS (`settings.*`), servicios (`net.*`, `spotify_*`, `imu.*`,
 - `*.h` puros — `rotation_policy`, `game_difficulty`, `game_hits`,
   `config_value`, `screen_name`, `screen_order`, `steer_solve`,
   `tap_window`, `text_fold`, `buddy_face`, `buddy_anim`, `buddy_dance`,
-  `buddy_sleep`, `buddy_event`, `ui_color`.
+  `buddy_sleep`, `buddy_event`, `ui_color`, `display_blit`.
 
 El mapa completo de módulos, la regla de dependencias, las claves de NVS y el
 paso a paso para agregar una pantalla, un comando o un endpoint están en

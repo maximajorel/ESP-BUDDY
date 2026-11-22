@@ -156,6 +156,16 @@ static bool s_danceOn = false;
 // filter (a 100 ms ease would flatten a 545 ms arc into a sway), so this ramp is
 // what makes entering and leaving the dance smooth instead of a snap.
 static float s_danceBlend = 0.0f;
+// The last Spotify snapshot read, and when. See the read site in buddyTick.
+static SpotifySnapshot s_music;
+static uint32_t s_musicAt = 0;
+// How long the drawing of one face frame took, next to the push measured in
+// display.cpp: together they are the frame budget.
+static uint32_t s_drawTotalUs = 0;
+static uint32_t s_drawMaxUs = 0;
+static uint32_t s_drawCount = 0;
+static uint32_t s_drawStartUs = 0;
+
 // Why the dance is in the state it is in, for `buddydraw`: a face that stops
 // dancing in silence is the hardest kind of report to chase.
 static const char *s_danceWhy = "sin musica";
@@ -1117,7 +1127,10 @@ static uint32_t drawEyes(const BuddyPose &pose, BuddyState state, bool poke,
   if (energy < 100) eyeRgb = buddyEyeScale(eyeRgb, energy);
   uint16_t color = gfxHex(eyeRgb);
   uint16_t glowInner = gfxHex(buddyEyeScale(eyeRgb, BUDDY_GLOW_SHADE_INNER));
-  int bob = (int)(pose.bob * s);
+  // Rounded, not truncated: a cast towards zero biased every hop and every breath
+  // half a pixel low, which is exactly the kind of stepping the eye reads as
+  // "not smooth".
+  int bob = (int)lroundf(pose.bob * s);
   const int gazeY = (int)((pose.gazeY + extraGazeY) * s);
 
   // Where each eye lands, and how much screen it covers once rotated. The pair
@@ -1631,10 +1644,14 @@ bool buddyTick(uint32_t nowMs) {
   BuddyView view;
   buddyGetView(&view);
 
-  // The music, read once per frame. The snapshot is already fresh: the Spotify
-  // poller runs from boot (`spotify.cpp`), so the face costs no extra request.
-  SpotifySnapshot music;
-  spotifySnapshot(&music);
+  // The music. The snapshot is a mutex plus a ~600 byte copy, and Spotify answers
+  // every three seconds: reading it twenty times a second buys nothing. 250 ms is
+  // the compromise that still recognises a pause at once.
+  if ((uint32_t)(nowMs - s_musicAt) >= 250u) {
+    spotifySnapshot(&s_music);
+    s_musicAt = nowMs;
+  }
+  const SpotifySnapshot &music = s_music;
   // Read the last authoritative answer, not the raw feed: the poll flips it to
   // LOADING every three seconds and that used to stop and restart the dance.
   buddyDanceLatchStep(&s_danceMusic, danceMusicTruth(music), nowMs);
@@ -1686,6 +1703,7 @@ bool buddyTick(uint32_t nowMs) {
 
   bool animate = (uint32_t)(nowMs - s_lastDraw) >= BUDDY_FRAME_MS;
   if (!news && !animate) return false;
+  s_drawStartUs = micros();
 
   uint32_t shownAge = s_shownBaseAge + (uint32_t)(nowMs - s_shownAt);
 
@@ -1987,6 +2005,13 @@ bool buddyTick(uint32_t nowMs) {
   s_drawnRevision = view.revision;
   s_lastDraw = nowMs;
   s_dirty = false;
+  if (s_drawStartUs) {
+    uint32_t us = (uint32_t)(micros() - s_drawStartUs);
+    s_drawStartUs = 0;
+    s_drawTotalUs += us;
+    s_drawCount++;
+    if (us > s_drawMaxUs) s_drawMaxUs = us;
+  }
   return true;
 }
 
@@ -2094,6 +2119,18 @@ void buddyDumpDraw() {
   Serial.printf("ball on=%d active=%d x=%.1f y=%.1f vx=%.1f vy=%.1f\n",
                 s_ballOn, s_ball.active, s_ball.x, s_ball.y, s_ball.vx,
                 s_ball.vy);
+  uint32_t pushAvg = 0, pushMax = 0, pushCount = 0;
+  displayPushStats(&pushAvg, &pushMax, &pushCount);
+  Serial.printf(
+      "frame draw=%.1fms max=%.1fms push=%.1fms max=%.1fms n=%u/%u\n",
+      (double)(s_drawCount ? (float)s_drawTotalUs / s_drawCount / 1000.0f : 0.0f),
+      (double)((float)s_drawMaxUs / 1000.0f),
+      (double)((float)pushAvg / 1000.0f), (double)((float)pushMax / 1000.0f),
+      (unsigned)s_drawCount, (unsigned)pushCount);
+  s_drawTotalUs = 0;
+  s_drawMaxUs = 0;
+  s_drawCount = 0;
+  displayPushStatsReset();
   int notes = 0;
   for (int i = 0; i < BUDDY_NOTE_COUNT; i++) {
     if (s_notes.notes[i].active) notes++;

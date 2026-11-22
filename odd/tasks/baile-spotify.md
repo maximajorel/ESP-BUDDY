@@ -45,7 +45,9 @@ exactamente el que se dibujaba antes.
 | T4 | Consola `dance`, `/api/face` con `dance` y chip "Bailando" del panel | S4 | inline | `147ec3b` |
 | T5 | Doc del proyecto, compilación y evidencia en la placa | S1-S6 | inline | `206ac2c` |
 | T6 | El corte del baile en cada poll + `why=` en `buddydraw` | S1, S3 | inline | `1c0b8d0` |
-| T7 | El baile aprobado: salto ("bote parejo") en `buddy_dance.h` con blend posterior al easing | S1, S2, S5 | inline | `c19581b` |
+| T7 | El baile aprobado: salto ("bote parejo") en `buddy_dance.h` con blend posterior al easing | S1, S2, S5 | inline | `35f1c63` |
+| T8 | Direcciones orgánicas D y E en el canvas, con selector de FPS | S1, S6 | inline | `077c8e3` |
+| T9 | Presupuesto de cuadro: blit sin switch por píxel, snapshot cada 250 ms, redondeo sub-píxel e instrumentación | S6 | inline | `077c8e3` |
 
 ## Log
 
@@ -116,6 +118,29 @@ L10 (evidencia en la placa del salto): con `dance 20` y diez `buddydraw`
 seguidos, la placa reporta `bob` entre 0 y −7.5 px, `bottom` hasta 0.15 y `lid` 0
 en el aire contra 0.06–0.09 al aterrizar, con las notas vivas (1 a 3). `dance 0`
 vuelve a `bob=0.0` y `why=nada sonando`.
+
+L11 (pedido del dueño, literal): "necesito que levantes gentle design porque
+siento que es poco organico, necesito que las animaciones de los ojos sean mas
+'smooth' tambien quiero optimizar un poco para que vayamos bien de FPS".
+
+L12 (diagnóstico de "poco orgánico"): no era el tamaño del salto sino la
+repetición perfecta y el refresco. Tres causas concretas: (a) cada tiempo era
+idéntico, sin acentos ni variación; (b) el aterrizaje era una banda con bordes
+duros; (c) el redondeo de `bob` truncaba hacia cero, sesgando medio píxel abajo
+en cada salto. Direcciones nuevas: `04-oleaje-organico.html` (acentos, pico
+corrido por hash, aterrizaje en campana, aliento de fondo, roll no periódico) y
+`05-respiracion-con-pulso.html` (flotación sin salto, ≤3 px por tiempo). Las dos
+traen selector de FPS que cuantiza el reloj igual que el panel, para ver el
+problema real.
+
+L13 (FPS, sin medir todavía): el `switch` de orientación estaba **dentro** del
+lazo de 55.040 píxeles de `displayPush`; ahora hay un lazo por orientación y el
+mapeo vive en `display_blit.h`, pineado en el host por `display_blit_test.cpp`
+contra la implementación vieja (las cuatro orientaciones, píxel por píxel). El
+snapshot de Spotify pasó de 20 lecturas por segundo a una cada 250 ms (mutex +
+~600 bytes de copia). Y `buddydraw` ahora imprime `frame draw=… push=…` con
+promedio y peor caso, que es el número que decide si el cuadro puede bajar de
+50 ms a 33 ms. Falta la placa enchufada para tener ese número.
 
 L5 (evidencia en la placa, autorizada por el dueño en la sesión): firmware
 flasheado por COM5 y probeado con `tools/gadget_probe.py`.
