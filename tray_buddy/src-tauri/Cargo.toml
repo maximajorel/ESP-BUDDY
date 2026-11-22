@@ -1,0 +1,23 @@
+[package]
+name = "tray-buddy"
+version = "0.1.0"
+description = "Buddy en la bandeja: pantalla, pomodoro y calendario del equipo ESP32"
+edition = "2021"
+rust-version = "1.77"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Un solo binario, chico y sin symbolos. `opt-level = "s"` es lo que hace que el
+# instalador quede en unos pocos MB: no hay nada acá que necesite velocidad pura.
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

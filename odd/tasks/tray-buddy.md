@@ -1,0 +1,202 @@
+# Buddy de bandeja: app de escritorio para manejar el equipo
+
+Tercer pedido del dueño, sobre la dirección 01 ya cerrada en `design/tray-buddy/`.
+Una app de escritorio que vive en la bandeja de Windows, se instala como programa,
+abre un popover anclado al icono y maneja el equipo por la LAN: pantalla del LCD,
+pomodoro, ta-te-ti, calendario, brillo/LED/colores y acceso al `/admin`.
+Tauri v2 (webview del sistema + Rust) porque el diseño ya es HTML/CSS y porque el
+equipo no manda CORS: el HTTP sale del proceso nativo.
+
+## Specs
+
+S1. Stack Rust liviano — verbatim: "Podemos usar el stack de RUST si es rapido...
+y liviano. Si no electron tambien podria ser algo facil de entender." Se elige
+**Tauri v2** (binario ~5-10 MB, sin Chromium propio: WebView2 en Windows,
+WKWebView en macOS, WebKitGTK en Linux). Rust hace bandeja, posicionamiento,
+transporte HTTP, autostart, atajo global y notificaciones. El frontend es
+HTML/CSS/TypeScript sin framework y sin lógica de red: sólo `invoke` y pintura.
+Electron queda descartado por peso (+150 MB y +150 MB de RAM); WPF/WinUI queda
+descartado porque no llega a macOS ni a Linux.
+
+S2. Instalador con nuestro lenguaje de diseño — verbatim: "Tener un instalador
+respetando el lenguaje de diseño que tenemos, se instala en el sistema como
+programa." El instalador es NSIS por usuario (`installMode: "currentUser"`, sin
+pedir administrador), con las imágenes de cabecera y lateral en papel y tinta
+según `design/system.md`, el icono de la bandeja (cuadrado de tinta con dos ojos)
+y acceso en el menú de inicio. Instalar deja el programa disponible como
+cualquier otro, y desinstalar no deja la clave de red guardada.
+
+S3. Primer arranque guarda la conexión por IPv4 — verbatim: "En la primera
+apertura debe guardar la info para conectarse al ESP, por Ipv4 por ahora sobre la
+red local." El asistente pide la IPv4 (y puerto opcional, por defecto 80), valida
+contra `GET /api/status` antes de aceptar, y guarda el destino en el store local
+del usuario. Sin una conexión válida el popover no ofrece acciones del equipo y
+explica qué falla. La IPv4 se puede cambiar después sin reinstalar.
+
+S4. Pomodoro — verbatim: "Timer para el pomodoro." Chips 10 / 25 / 45 /
+personalizado como en `design/tray-buddy/01-popover-bandeja.html`, contador en
+mono tabular, y el **equipo es la única fuente de verdad**: arrancar manda
+`POST /api/focus {"seconds": n}` y el número que se dibuja sale de lo que informa
+`GET /api/status`, no de un contador propio. Parar manda `POST /api/focus
+{"seconds": 0}`, que cancela. +5 MIN suma sobre el restante informado. Al vencer,
+el equipo celebra solo (Concentración ya lo hace); la app sólo muestra el estado.
+
+S5. Los mismos juegos que la web — verbatim: "Mismos juegos que tenemos en la
+web." **Alcance confirmado en L4: sólo el ta-te-ti.** Hoy el único juego de la
+web pública es el **ta-te-ti** de
+`esp32_gadget/web_ui/landing.js`: tres dificultades (`easy`, `normal`, `hard` con
+las probabilidades de error 0.6 / 0.18 / 0), marcador persistido y la cara del
+equipo reaccionando por `POST /api/face` con los moods del firmware (`focus`,
+`thinking`, `alert`, `happy`, `anger`, `sleepy`, `sad`). Se porta 1:1 con las
+mismas reglas y el mismo marcador; el transporte lo pone Rust. No se inventan
+juegos nuevos: si mañana la web suma otro, se porta igual.
+
+S6. Calendario del panel, sólo lectura en v1 — verbatim: "Ver el calendario que
+fue configurado en la web ui. Si se puede crear eventos desde ahi genial, si no
+lo dejamos como spec." La app lee `GET /api/calendar` y `GET
+/api/calendar/calendars`, ambas protegidas por sesión, y dibuja la próxima cita y
+la lista de hoy como en el artboard 01. **Crear eventos queda fuera de v1**: el
+firmware hoy sólo lee de Google Calendar, no tiene endpoint de escritura, y darlo
+de alta implica OAuth con scope de escritura y un endpoint nuevo. Queda anotado
+como S6.1 para otra feature, no se improvisa acá.
+
+S6.1. (pendiente, fuera de v1) Crear eventos desde el programa. Requiere scope de
+escritura en el OAuth del equipo más un endpoint `POST /api/calendar/events`.
+
+S7. Acceso directo al `/admin` — verbatim: "Acceso directo para abrir el
+/admin." El botón del pie abre `http://<ip>/admin` en el navegador del sistema.
+No se embebe el panel en el webview: la sesión del panel es una cookie de ese
+equipo y duplicarla en la app sería tener dos sesiones que se expulsan entre sí.
+
+S8. Brillo, LED y colores sin login — verbatim: "Configuracion de brillo de
+pantalla, led y colores del buddy desde el programa sin necesidad de
+autenticación." Estado real del firmware: `POST /api/screen`, `POST /api/focus` y
+`POST /api/face` **ya** son públicas (`adminIsPublicWrite`), pero `POST
+/api/settings` — que es donde viven `brightness`, `uiColor`, `buddyEyeColor` y
+`rgb {r,g,b,level,effect}` — exige sesión. Tres caminos posibles:
+**Decidido A** (L4): el asistente pide una vez las credenciales del panel y
+`POST /api/session` devuelve la cookie `sid`, que la app guarda en el store
+local; cada request a `/api/settings` la manda, y ante un 401 la app repite el
+login una vez con las credenciales guardadas. Descartadas: (B) token de
+emparejamiento nuevo en el firmware — whitelist más angosta que la sesión, pero
+es código de autenticación nuevo en el equipo; (C) abrir `/api/settings` sin
+sesión, que sería un agujero: cualquier equipo en el AP podría reescribir la
+configuración. Con A el firmware no cambia en absoluto.
+
+S9. Elegir la pantalla del equipo — verbatim: "Seleccionar pantalla visible del
+ESP." Siete tiles como el artboard, con los nombres que devuelve `GET
+/api/screens/names` y el orden de `GET /api/screens/order`; la que está en el
+vidrio se marca leyendo `GET /api/status`. Elegir manda `POST /api/screen
+{"index": n}` (ya pública).
+
+S10. La app no es dueña de nada del equipo — verbatim: "Ver el calendario que fue
+configurado en la web ui." La app no guarda estado propio que compita con el
+equipo: no implementa OAuth, no duplica tokens de Spotify ni de Calendar y no
+lleva un temporizador paralelo. Todo lo que muestra lo lee del equipo, y sin
+conexión lo dice en vez de inventar.
+
+S11. Windows primero, macOS y Linux del mismo código — verbatim: "Quiero arrancar
+con compatibilidad en windows pero me gustaria que sea compatible para MAC o
+Linux." **Decidido en L4: mismo código multiplataforma ahora, validación real sólo
+en Windows en esta feature.** Un solo código y un solo `Cargo.toml`. Únicos puntos por plataforma: el
+anclaje del popover al icono (en macOS/Windows sale del rect de la bandeja; en
+Linux se ancla al cursor porque AppIndicator no expone rect) y la transparencia
+del popover (sin compositor en Linux no hay esquinas redondeadas).
+
+S12. Sin CORS — el equipo no manda `Access-Control-Allow-Origin`, así que ningún
+`fetch` desde el webview puede hablarle: todo el HTTP sale del proceso Rust con
+`reqwest`. El frontend nunca ve la IPv4 como URL de red, sólo como dato.
+
+## Tasks
+
+| ID | Spec | Ruta | Commit |
+|----|------|------|--------|
+| T0 | — | **acción del dueño** (elevación): Rust + MSVC Build Tools en Windows; sin eso no hay compilación posible (WSL no tiene sudo para webkit2gtk) | — |
+| T1 | S1, S11 | inline (parent): esqueleto `tray_buddy/` + ventana sin bordes + bandeja · commit `e9cdae6` (1190 líneas: proyecto nuevo, HTML/CSS/Rust/iconos; queda in_progress sin compilar) | `chore(tray): esqueleto de la app de bandeja con Tauri` |
+| T2 | S3, S12 | inline (parent): transporte Rust + store + asistente de IPv4 con validación contra `/api/status` | `feat(tray): asistente de conexión por IPv4` |
+| T3 | S1, S11 | inline (parent): icono de ojos, anclaje del popover con el `rect` del evento de bandeja, atajo global, autostart | `feat(tray): bandeja, anclaje y atajo` |
+| T4 | S9 | inline (parent): selector de pantalla contra `/api/screens/*` y `/api/status` | `feat(tray): selector de pantalla` |
+| T5 | S4 | inline (parent): pomodoro contra `/api/focus` | `feat(tray): pomodoro sobre Concentración` |
+| T6 | S5 | inline (parent): ta-te-ti portado de `landing.js` | `feat(tray): ta-te-ti` |
+| T7 | S6 | inline (parent): lectura de calendario del equipo | `feat(tray): calendario de sólo lectura` |
+| T8 | S8 | inline (parent): credenciales una vez + sesión guardada, y `/api/settings` (brightness, uiColor, buddyEyeColor, rgb) | `feat(tray): brillo, LED y colores` |
+| T9 | S7 | inline (parent): botón que abre `/admin` en el navegador | `feat(tray): acceso al panel` |
+| T10 | S2 | inline (parent): instalador NSIS con papel y tinta | `build(tray): instalador NSIS` |
+
+Riesgo declarado: con A la superficie nueva es del programa y no del firmware;
+T8 guarda credenciales del panel en el store local del usuario (item 2: la clave
+nunca se loguea y el archivo de estado no se commitea). T2 escribe un archivo de
+configuración local con la IPv4 (item 6: lo cubre un test del parser y del
+validador).
+
+## Log
+
+L1. Pedido original (mensaje 1, verbatim):
+"Fijate que en engram o seguramente en el proyecto esta la idea de hacer el
+tray-buddy. Quiero arrancar con compatibilidad en windows pero me gustaria que sea
+compatible para MAC o Linux. Que stack me recomendas?"
+
+L2. Pedido que abre esta feature (mensaje 2, verbatim):
+"Okas perfecto! Iniciemos un plan para hacer el programita.
+Podemos usar el stack de RUST si es rapido... y liviano. Si no electron tambien
+podria ser algo facil de entender.
+Yo creo que para cumplir el objetivo tiene que:
+
+01.- Tener un instalador respetando el lenguaje de diseño que tenemos, se instala
+en el sistema como programa
+02.- En la primera apertura debe guardar la info para conectarse al ESP, por Ipv4
+por ahora sobre la red local
+03.- El programa debe tener
+
+- Timer para el pomodoro
+- Mismos juegos que tenemos en la web
+- Ver el calendario que fue configurado en la web ui. Si se puede crear eventos
+desde ahi genial, si no lo dejamos como spec
+- Acceso directo para abrir el /admin
+- Configuracion de brillo de pantalla, led y colores del buddy desde el programa
+sin necesidad de autenticación
+- Seleccionar pantalla visible del ESP"
+
+L3. Evidencia del relevamiento (lectura del repo, sesión de plan):
+- `design/tray-buddy/01-popover-bandeja.html` es la dirección elegida; 02 y 03
+  están descartadas en `design.json`.
+- El único juego de la web es el ta-te-ti de `web_ui/landing.js` (SLIP 0.6/0.18/0,
+  marcador en `localStorage["gadget.tateti"]`, moods por `POST /api/face`).
+- `adminIsPublicWrite` ya deja públicas `POST /api/focus`, `/api/screen` y
+  `/api/face`; `POST /api/settings` y todo `/api/calendar*` exigen sesión
+  (`adminRequiresSession` en `admin_auth.cpp`).
+- No hay ningún header `Access-Control-Allow-Origin` en `esp32_gadget/`.
+- El calendario del firmware sólo lee de Google Calendar: no existe endpoint de
+  escritura de eventos.
+
+L4. Decisiones del dueño (mensaje 3, respuestas al cuestionario):
+1. Auth S8 → "A · Credenciales una vez, sesión guardada (recomendado)".
+2. Juegos → "Sí, sólo el ta-te-ti".
+3. Mac y Linux → "Ahora: mismo código, sin validar".
+
+L5. Evidencia de entorno (probe de la sesión de implementación):
+- WSL: sin `cargo`/`rustc`, sin `webkit2gtk-4.1`, y `sudo` bloqueado
+  ("no new privileges"), así que la variante Linux no se puede compilar ni correr
+  acá.
+- Windows (interop OK desde WSL): Windows 11 26200, WebView2 Runtime presente
+  (`C:\Program Files (x86)\Microsoft\EdgeWebView\Application\157.0.4341.60`),
+  node/npm/git presentes, **sin Rust y sin Visual Studio / MSVC**
+  (`vswhere` ausente, `link.exe` ausente).
+- Conclusión: T0 (instalar Rust + MSVC Build Tools) es prerequisito de cualquier
+  verificación; se compila desde WSL invocando los binarios de Windows por
+  interop.
+
+L6. APIs de Tauri 2.12.7 verificadas contra el código fuente del crate (no de
+memoria), porque sin compilador cada suposición cuesta un ciclo entero:
+- `TrayIconEvent::Click { rect, position, button, button_state }` trae el
+  rectángulo del icono medido en el momento del clic, y `TrayIcon::rect()` lo
+  consulta después. Eso hace innecesario `tauri-plugin-positioner` y cubre S11
+  sin plugin de terceros.
+- `Monitor::work_area() -> &PhysicalRect<i32, u32>` con campos `position` y
+  `size`: el clamp contra la barra de tareas sale sin dependencias.
+- `tauri::Rect` es `{ position: Position, size: Size }`, enums Physical/Logical
+  según plataforma: hay que convertir a mano con el `scale_factor` de la ventana.
+- `MenuItem::with_id(manager, id, text, enabled, accelerator)` y
+  `WindowEvent::CloseRequested { api }` confirmados.
+- `npm install` del CLI de Tauri ya corrió del lado Windows vía interop: el CLI
+  está listo, lo único que falta es Rust + MSVC.

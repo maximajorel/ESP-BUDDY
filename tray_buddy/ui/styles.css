@@ -1,0 +1,232 @@
+/* Buddy · popover de bandeja.
+
+   Mismo lenguaje que el panel del equipo (esp32_gadget/web_ui/styles.css):
+   papel, tinta, bordes de 1px, stickers planos, sin gradientes y sin
+   box-shadow. La ventana lleva el radio mínimo del sistema (--r-in, 16px) y
+   los hijos que tocan el borde repiten ese radio un píxel menos (15) porque el
+   borde de tinta ocupa el píxel de afuera.
+
+   La ventana del sistema es transparente y mide 388x660: los 8px de la derecha
+   y los 16px de abajo que sobran son la losa negra desplazada (7px) y el pico
+   que apunta al icono de la bandeja. Nada de eso puede quedar fuera del
+   rectángulo de la ventana o el sistema lo recorta. */
+
+:root {
+  --paper: #ffffff;
+  --sky: #dceeff;
+  --gray: #cccccc;
+  --mist: #e9e9e9;
+  --ink: #000000;
+  --blue: #4da2ff;
+  --mint: #55db9c;
+  --lav: #e9ccff;
+  --ember: #fb4903;
+  --sun: #ffd731;
+  --violet: #5c4ade;
+  --ok-ink: #0f7a45;
+  --bad-ink: #b32b00;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --line: 1px solid var(--ink);
+  --hair: 1px solid rgba(0, 0, 0, 0.16);
+  --r-card: 20px;
+  --r-lg: 40px;
+  --r-in: 16px;
+  --r-pill: 1600px;
+  --tap: 44px;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; }
+body {
+  color: var(--ink);
+  font: 16px/1.5 var(--font);
+  -webkit-font-smoothing: antialiased;
+  /* Sin cursor de texto en una app: el popover se lee, no se selecciona. */
+  user-select: none;
+}
+:where(button, [tabindex]):focus-visible { outline: 2px solid var(--violet); outline-offset: 2px; }
+h1, h2, h3, p { margin: 0; }
+button { font: inherit; color: inherit; cursor: pointer; }
+
+/* ── La ventana flotante ─────────────────────────────────────────────────── */
+/* La losa de elevación vive en el contenedor, nunca en un ::before con
+   z-index negativo del propio elemento: ese pseudo se pinta por ENCIMA del
+   fondo cuando el elemento abre contexto de apilado, y deja el popover negro. */
+.win-wrap { position: fixed; right: 8px; bottom: 16px; width: 380px; }
+.win-wrap::before {
+  content: "";
+  position: absolute; inset: 0;
+  transform: translate(7px, 7px);
+  background: var(--ink);
+  border-radius: var(--r-in);
+}
+.win {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 16px);
+  background: var(--paper);
+  border: var(--line);
+  border-radius: var(--r-in);
+}
+/* Pico hacia el icono de la bandeja: cuadrado rotado cuyo vértice exterior
+   hereda la curva de la ventana, así el recorte no se corta. */
+.win::after {
+  content: "";
+  position: absolute; right: 24px; bottom: -7px;
+  width: 12px; height: 12px;
+  background: var(--paper);
+  border-right: 1px solid var(--ink);
+  border-bottom: 1px solid var(--ink);
+  border-bottom-right-radius: 5px;
+  transform: rotate(45deg);
+}
+
+.titlebar {
+  display: flex; align-items: center; gap: 8px;
+  flex: 0 0 auto;
+  height: 40px; padding-left: 10px;
+  border-bottom: var(--line);
+  border-radius: 15px 15px 0 0;
+}
+.brand { display: flex; align-items: center; gap: 8px; }
+.brand .logo {
+  width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
+  gap: 2px; border: var(--line); border-radius: var(--r-pill); background: var(--sun);
+}
+.brand .logo i { width: 7px; height: 8px; border-radius: 38%; background: var(--ink); }
+.brand h1 { font-size: 13px; font-weight: 900; letter-spacing: -0.01em; }
+.brand h1 span { font-weight: 400; opacity: 0.55; }
+.win-status {
+  margin-left: auto; display: flex; align-items: center; gap: 5px;
+  font-size: 9px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase;
+  white-space: nowrap;
+}
+.win-status .dot { width: 6px; height: 6px; border-radius: 50%; border: 1px solid var(--ink); background: var(--mist); }
+.win-status[data-online="true"] .dot { background: var(--mint); }
+.win-status[data-online="false"] .dot { background: var(--ember); }
+.caption { display: flex; }
+.caption button {
+  width: 40px; height: 40px; display: grid; place-items: center;
+  background: var(--paper); border: 0; border-left: var(--line);
+}
+/* La última acción del título es la que toca la esquina: hereda la curva. */
+.caption button:last-child { border-top-right-radius: 15px; }
+.caption button:hover { background: var(--mist); }
+.caption button.close:hover { background: var(--ember); }
+.caption button[aria-pressed="true"] { background: var(--sky); }
+.caption svg { width: 12px; height: 12px; fill: none; stroke: var(--ink); stroke-width: 1.6; stroke-linecap: round; }
+
+.body { padding: 14px; display: grid; gap: 12px; background: var(--paper); overflow-y: auto; min-height: 0; }
+.body::-webkit-scrollbar { width: 8px; }
+.body::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.2); border-radius: var(--r-pill); }
+
+.sec-head {
+  display: flex; align-items: baseline; gap: 8px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase;
+}
+.sec-head .meta { margin-left: auto; font-weight: 700; opacity: 0.5; white-space: nowrap; }
+
+/* 1 · pantalla del LCD */
+.screens { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.tile {
+  min-height: 52px; padding: 7px 6px 6px;
+  display: grid; gap: 4px; justify-items: center; align-content: center;
+  background: var(--paper);
+  border: var(--line);
+  border-radius: var(--r-in);
+  font-size: 9px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase;
+  line-height: 1.1; text-align: center;
+}
+.tile svg { width: 15px; height: 15px; fill: none; stroke: var(--ink); stroke-width: 1.6; }
+.tile:hover:not(:disabled) { background: var(--mist); }
+.tile[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.tile[aria-pressed="true"] svg { stroke: var(--paper); }
+.tile[aria-pressed="true"] .flag { display: block; }
+.tile .flag { display: none; font-size: 8px; opacity: 0.7; letter-spacing: 0.06em; }
+.tile:disabled { opacity: 0.45; cursor: default; }
+
+/* 2 · temporizador */
+.focus-card {
+  padding: 14px; display: grid; gap: 12px;
+  background: var(--mint);
+  border: var(--line);
+  border-radius: var(--r-card);
+}
+.focus-top { display: flex; align-items: flex-start; gap: 10px; }
+.focus-label { font-size: 10px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; }
+.focus-clock {
+  margin-left: auto;
+  font-family: var(--mono); font-size: 40px; font-weight: 700;
+  letter-spacing: -0.03em; line-height: 0.85;
+  font-variant-numeric: tabular-nums;
+}
+.focus-clock small { font-size: 12px; font-weight: 700; letter-spacing: 0; opacity: 0.55; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  min-height: 28px; padding: 4px 11px;
+  background: var(--paper); border: var(--line); border-radius: var(--r-pill);
+  font-size: 10px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase;
+}
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.chip:disabled { opacity: 0.45; cursor: default; }
+.focus-actions { display: flex; gap: 8px; }
+.btn {
+  min-height: 34px; padding: 0 14px;
+  background: var(--ink); color: var(--paper);
+  border: var(--line); border-radius: var(--r-pill);
+  font-size: 10px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase;
+}
+.btn.ghost { background: var(--paper); color: var(--ink); }
+.btn:hover:not(:disabled) { background: var(--mist); color: var(--ink); }
+.btn:disabled { opacity: 0.45; cursor: default; }
+
+/* 3 · calendario */
+.cal-card { border: var(--line); border-radius: var(--r-card); overflow: hidden; background: var(--paper); }
+.next {
+  display: grid; grid-template-columns: 52px 1fr; gap: 10px;
+  padding: 12px; background: var(--lav); border-bottom: var(--line);
+}
+.next .hour { font-family: var(--mono); font-size: 15px; font-weight: 700; }
+.next .what { display: block; font-size: 14px; font-weight: 700; line-height: 1.25; }
+.next .where { display: block; font-size: 11px; opacity: 0.62; }
+.next .daytag {
+  grid-column: 1 / -1; display: flex; align-items: center; gap: 6px;
+  font-size: 9px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+}
+.next .daytag .rule { flex: 1; height: 1px; background: rgba(0, 0, 0, 0.25); }
+.agenda { display: grid; }
+.agenda-row { display: grid; grid-template-columns: 42px 1fr; gap: 10px; align-items: center; padding: 9px 12px; }
+.agenda-row + .agenda-row { border-top: var(--hair); }
+.agenda-row .hour { font-family: var(--mono); font-size: 12px; font-weight: 700; }
+.agenda-row .what { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; }
+.agenda-empty { padding: 9px 12px; font-size: 12px; opacity: 0.55; }
+.swatch { width: 9px; height: 9px; border: 1px solid var(--ink); flex: 0 0 auto; }
+.cal-foot { display: flex; gap: 8px; padding: 10px 12px; border-top: var(--line); background: var(--mist); }
+.cal-foot .btn { min-height: 30px; }
+
+.foot {
+  display: flex; align-items: center; gap: 8px;
+  flex: 0 0 auto;
+  padding: 10px 14px; border-top: var(--line); background: var(--paper);
+  border-radius: 0 0 15px 15px;
+}
+.pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 9px; background: var(--paper);
+  border: var(--line); border-radius: var(--r-pill);
+  font-size: 9px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase;
+  white-space: nowrap;
+}
+.pill .dot { width: 6px; height: 6px; border-radius: 50%; border: 1px solid var(--ink); background: var(--paper); }
+.pill.online { background: var(--mint); }
+.pill.online .dot { background: #ffffff; }
+.pill.offline { background: var(--paper); }
+.pill.offline .dot { background: var(--ember); }
+.foot .addr { font-family: var(--mono); font-size: 11px; opacity: 0.6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.foot .btn { margin-left: auto; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}

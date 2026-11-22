@@ -1,0 +1,13 @@
+{
+  "name": "tray-buddy",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Buddy en la bandeja del sistema",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

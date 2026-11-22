@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Buddy</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="win-wrap">
+  <section class="win" aria-label="Buddy">
+    <header class="titlebar" data-tauri-drag-region>
+      <div class="brand" data-tauri-drag-region>
+        <span class="logo" aria-hidden="true"><i></i><i></i></span>
+        <h1 data-tauri-drag-region>BUDDY <span>· bandeja</span></h1>
+      </div>
+      <p class="win-status" id="winStatus"><span class="dot"></span><span id="winStatusText">Sin conectar</span></p>
+      <div class="caption">
+        <button type="button" id="btnPin" title="Fijar arriba" aria-label="Fijar arriba" aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6l-1 6 4 4H6l4-4-1-6zM12 14v6"/></svg>
+        </button>
+        <button type="button" id="btnHide" title="Minimizar a la bandeja" aria-label="Minimizar a la bandeja">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12"/></svg>
+        </button>
+        <button class="close" type="button" id="btnClose" title="Cerrar" aria-label="Cerrar">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="body">
+      <!-- 1 · pantalla del LCD -->
+      <section aria-labelledby="s-screens">
+        <div class="sec-head" id="s-screens">Pantalla del LCD <span class="meta" id="screenNow">—</span></div>
+        <div class="screens" style="margin-top:8px" role="group" aria-label="Elegir pantalla del LCD" id="screens"></div>
+      </section>
+
+      <!-- 2 · temporizador -->
+      <section aria-labelledby="s-focus">
+        <div class="sec-head" id="s-focus">Temporizador <span class="meta" id="focusMeta">—</span></div>
+        <div class="focus-card" style="margin-top:8px">
+          <div class="focus-top">
+            <span class="focus-label" id="focusLabel">Pomodoro</span>
+            <p class="focus-clock"><span id="focusClock">25:00</span><small id="focusTotal"> /25</small></p>
+          </div>
+          <div class="chips" role="group" aria-label="Duración">
+            <button class="chip" type="button" data-min="10">10 min</button>
+            <button class="chip" type="button" data-min="25" aria-pressed="true">25 min</button>
+            <button class="chip" type="button" data-min="45">45 min</button>
+            <button class="chip" type="button" data-min="custom">Personalizado</button>
+          </div>
+          <div class="focus-actions">
+            <button class="btn" type="button" id="btnFocusStop">Parar</button>
+            <button class="btn ghost" type="button" id="btnFocusPlus">+5 min</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3 · calendario -->
+      <section aria-labelledby="s-cal">
+        <div class="sec-head" id="s-cal">Calendario <span class="meta" id="calMeta">—</span></div>
+        <div class="cal-card" style="margin-top:8px">
+          <div class="next" id="calNext">
+            <span class="daytag"><span id="calNextDay">Próxima cita</span><span class="rule"></span></span>
+            <span class="hour" id="calNextHour">--:--</span>
+            <span>
+              <span class="what" id="calNextWhat">Sin conexión</span>
+              <span class="where" id="calNextWhere">—</span>
+            </span>
+          </div>
+          <div class="agenda" id="calAgenda"></div>
+          <div class="cal-foot">
+            <button class="btn ghost" type="button" id="btnCalMonth" disabled>Ver el mes</button>
+            <button class="btn ghost" type="button" id="btnCalNew" disabled>Nuevo evento</button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <footer class="foot">
+      <span class="pill" id="connPill"><span class="dot"></span><span id="connText">Sin conectar</span></span>
+      <span class="addr" id="connAddr">—</span>
+      <button class="btn ghost" type="button" id="btnPanel">Panel</button>
+    </footer>
+  </section>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

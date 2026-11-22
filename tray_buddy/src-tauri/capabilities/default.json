@@ -1,0 +1,13 @@
+{
+  "identifier": "default",
+  "description": "Lo mínimo que el popover necesita: arrastrarse, esconderse y aparecer. No lleva permisos de sistema de archivos ni de shell.",
+  "windows": ["popover"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-hide",
+    "core:window:allow-show",
+    "core:window:allow-set-focus",
+    "core:window:allow-set-always-on-top"
+  ]
+}
