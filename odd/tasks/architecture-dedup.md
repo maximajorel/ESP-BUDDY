@@ -117,3 +117,30 @@ god, mock compartido) queda para una feature posterior.
   "metadata"` en `/etc/wsl.conf` + `wsl --shutdown`, o revisar sobre una copia en
   ext4. La red de contención de esta rama fue el verificador independiente (L8),
   la prueba diferencial del códec y la compilación del firmware.
+- **L13** Verificación en placa (autorizada por el dueño). Puerto COM5, VID `303A`
+  (los COM3/COM4 que veía Windows eran Bluetooth). `arduino-cli upload` → `Hash of
+  data verified`, exit 0.
+  - Arranque y estado: `status` → pantalla SOFIA, `imu ok`, AP `ESP Maxi`, STA
+    conectado a VICTORWIFI en 192.168.100.75; `api GET /api/status` → HTTP 200 con
+    el JSON completo; `screen 6` + `dump 3` → CONFIG renderizado en ASCII.
+  - **T4 en hardware**: `bl 200` → `backlight 100`, `bl -5` → `backlight 5`,
+    `bl 40` → `backlight 40` (valor original restaurado, confirmado en
+    `/api/status` con `"brightness":40`).
+  - **T2 en hardware**: por HTTP real contra 192.168.100.75, con las credenciales
+    del `.env` leídas dentro del script (nunca impresas ni mandadas por la consola
+    serie): contraseña incorrecta → 401; la correcta → **200 con cookie**. Solo
+    puede pasar si el SHA-256 iterado del firmware reproduce el hash sembrado en
+    el build. Una escritura autenticada sin sesión → 401 (`/api/calendar` es
+    privado incluso para leer).
+  - **T3 en hardware**: `POST /api/calendar/connect` → **200,
+    `userCode: QGDW-NVWZ`**. Google aceptó el formulario construido con
+    `urlEncode`; si el códec hubiera regresado, contestaba 400. Prueba de punta a
+    punta contra un tercero real, no un mock.
+  - El flujo de dispositivo que abrió esa prueba se canceló después
+    (`POST /api/calendar/cancel` → `pending:false`, `kind:ready`), así que el
+    equipo quedó como estaba.
+- **L14** Papercut de herramienta detectado en el camino: `boot 4` es una
+  directiva del archivo de probe, no un comando del firmware. Pasada como
+  argumento suelto se envía literal y la consola contesta `unknown: boot`. No
+  rompe nada (el banner ya ocurrió al abrir el puerto), pero confunde al que
+  ejecuta probes sueltos. Queda anotado; no se tocó.
