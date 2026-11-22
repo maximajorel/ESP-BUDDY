@@ -7,16 +7,22 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod api;
+mod commands;
+mod store;
+
 use tauri::{
     image::Image,
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager, PhysicalPosition, PhysicalRect, Position, Rect, RunEvent, Size,
+    AppHandle, Emitter, Manager, PhysicalPosition, PhysicalRect, Position, Rect, RunEvent, Size,
     WebviewWindow, WindowEvent,
 };
 
 const POPOVER: &str = "popover";
 const TRAY_ID: &str = "buddy";
+/// Evento que le dice al popover que abra el asistente de conexión.
+const OPEN_SETUP: &str = "buddy://setup";
 
 /// Cuánto sobresale el pico del popover sobre la fila del icono.
 const TAIL_OVERLAP: i32 = 4;
@@ -130,8 +136,9 @@ fn toggle_popover(app: &AppHandle) {
 
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let open = MenuItem::with_id(app, "open", "Abrir Buddy", true, None::<&str>)?;
+    let setup = MenuItem::with_id(app, "setup", "Cambiar dirección del equipo", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Salir", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&open, &quit])?;
+    let menu = Menu::with_items(app, &[&open, &setup, &quit])?;
 
     let icon = Image::from_bytes(include_bytes!("../icons/tray.png"))?;
 
@@ -144,6 +151,13 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {
             "open" => show_popover(app),
+            // El asistente vive en el popover. El menú no puede abrir un diálogo
+            // nativo propio sin duplicar el formulario, así que muestra el
+            // popover y le avisa qué hacer.
+            "setup" => {
+                show_popover(app);
+                let _ = app.emit(OPEN_SETUP, ());
+            }
             "quit" => app.exit(0),
             _ => {}
         })
@@ -184,9 +198,26 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
+            // El store se carga una vez, antes de que exista la ventana: si la
+            // conexión ya está guardada, el primer `device_status` del popover
+            // sale con datos en vez de con "sin conectar" y un salto después.
+            let dir = app.path().app_config_dir()?;
+            app.manage(commands::AppState::new(dir));
             build_tray(app.handle())?;
             Ok(())
         })
+        .invoke_handler(tauri::generate_handler![
+            commands::connection_load,
+            commands::connection_save,
+            commands::connection_forget,
+            commands::device_status,
+            commands::device_screen,
+            commands::device_focus,
+            commands::panel_login,
+            commands::panel_logout,
+            commands::panel_calendar,
+            commands::open_panel,
+        ])
         // Cerrar la ventana no cierra el programa: la esconde. Con `prevent_close`
         // el evento no llega al runtime y no hay forma de que el cierre destruya
         // la única ventana que la app sabe volver a mostrar.
