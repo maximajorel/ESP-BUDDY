@@ -79,6 +79,27 @@ el nuevo `buddy_dance_test`), `tools/verify_assets.py` limpio y compilación del
 sketch con el FQBN de INSTALL.md §3 sin errores (1.574.970 bytes de flash, 22% de
 RAM).
 
+L6 (reporte del dueño, literal): "estoy viendo el cambio y no parece tan 'feliz' al
+escuchar la musica, quiero como que los ojos vayan saltanto, que sea bien
+dinamico, si queres metele un gentle design y lo laburamos juntos. Ahora pasa
+tambien que es como que baila, y deja de bailar, y vuelve a bailar, cuando la
+musica no paro nunca".
+
+L7 (el corte, causa encontrada): `spotify.cpp` pone el feed en `LOADING` al
+arrancar **cada** poll (cada 3 s) y el gate leía el feed instantáneo, así que el
+baile se apagaba y se prendía en cada vuelta. Arreglo: `buddyDanceLatchStep` en
+`buddy_dance.h` cree sólo las respuestas con autoridad (un tema, o un 204 que
+dice que no hay nada), y espera `BUDDY_DANCE_HOLD_MS` (20 s) antes de rendirse con
+un dato viejo. El pin de consola no cambia. Además `buddydraw` ahora imprime
+`why=` y el firmware loguea cada transición del baile con el motivo.
+
+L8 (diseño para elegir): `design/baile-sofia/` con tres direcciones animadas del
+vidrio, las tres sobre el mismo compás de 112 y con selector de tempo —
+`01-bote-parejo.html` (salta el par entero en cada tiempo), `02-salto-cruzado.html`
+(un ojo por tiempo, pide `bobL`/`bobR`) y `03-vuelo-por-compas.html` (un vuelo
+grande por compás, sin canales nuevos). El documento de la feature enlaza este
+diseño; la dirección elegida se implementa en una tarea nueva (T6).
+
 L5 (evidencia en la placa, autorizada por el dueño en la sesión): firmware
 flasheado por COM5 y probeado con `tools/gadget_probe.py`.
 

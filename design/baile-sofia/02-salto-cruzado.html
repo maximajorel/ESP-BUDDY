@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sofía · baile 02 · salto cruzado</title>
+<style>
+  :root {
+    --bg: #0e1015; --card: #161a22; --inset: #1b212b; --line: #262d3a;
+    --tx: #e8ecf4; --dim: #94a0b4; --accent: #00b4ff; --accent-soft: #0b2b38;
+    --eye: #00b4ff; --hot: #ff3c1e; --gold: #ffd700; --ok: #4ade80;
+    --radius: 16px; --tap: 44px;
+  }
+  * { box-sizing: border-box; }
+  html { color-scheme: dark; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg); color: var(--tx);
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display: flex; justify-content: center;
+  }
+  .stage { width: 1000px; padding: 34px 40px 48px; display: flex; flex-direction: column; gap: 20px; }
+  header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
+  h1 { margin: 0; font-size: 26px; letter-spacing: -0.3px; }
+  .sub { margin: 6px 0 0; color: var(--dim); font-size: 14px; max-width: 62ch; }
+  .badge {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase;
+    color: var(--accent); background: var(--accent-soft); border: 1px solid var(--accent-soft);
+    border-radius: 999px; padding: 7px 12px; white-space: nowrap;
+  }
+  .device {
+    position: relative; align-self: center; padding: 24px; border: 1px solid var(--line);
+    border-radius: 24px; background: #070a0d;
+  }
+  .device canvas { display: block; width: 640px; height: 344px; border-radius: 6px; }
+  .device .edge { position: absolute; inset: 24px; border: 1px solid #12303c; border-radius: 6px; pointer-events: none; }
+  .controls { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .controls button, .controls select {
+    font: inherit; font-weight: 650; background: var(--inset); color: var(--tx);
+    border: 1px solid var(--line); border-radius: 10px; padding: 10px 16px;
+    min-height: var(--tap); cursor: pointer;
+  }
+  .controls button.primary { background: var(--accent); color: #06121a; border-color: var(--accent); width: 118px; }
+  .controls input[type=range] { flex: 1; min-width: 180px; accent-color: var(--accent); min-height: var(--tap); }
+  .controls button:focus-visible, .controls select:focus-visible,
+  .controls input[type=range]:focus-visible, .strip figure:focus-visible {
+    outline: 2px solid var(--gold); outline-offset: 3px;
+  }
+  .clock {
+    font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color: var(--dim); min-width: 190px;
+  }
+  .clock b { color: var(--tx); font-weight: 650; }
+  .strip { display: flex; gap: 12px; flex-wrap: wrap; }
+  .strip figure { margin: 0; width: 176px; }
+  .strip canvas { display: block; width: 176px; height: 95px; border: 1px solid var(--line); border-radius: 8px; background: #000; }
+  .strip figcaption { margin-top: 6px; font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--dim); }
+  .strip figcaption b { color: var(--tx); font-weight: 600; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; }
+  .card h2 { margin: 0 0 8px; font-size: 15px; letter-spacing: 0.2px; }
+  .card p, .card li { font-size: 13px; color: var(--dim); margin: 0 0 6px; }
+  .card ul { margin: 0; padding-left: 18px; }
+  .card b { color: var(--tx); font-weight: 600; }
+  code { font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--tx); }
+  .tradeoff { border-left: 2px solid var(--accent); padding-left: 12px; color: var(--dim); font-size: 13px; margin: 0; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--dim); }
+  .key { display: inline-flex; align-items: center; gap: 6px; }
+  .key i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+</style>
+</head>
+<body>
+<main class="stage">
+  <header>
+    <div>
+      <h1>Salto cruzado · un ojo por tiempo</h1>
+      <p class="sub">Dirección B del baile de Sofía. Los ojos no saltan juntos: se turnan. El izquierdo despega en el tiempo 1, el derecho en el 2, y así. El par se hamaca y se inclina en el sentido del que está en el aire, como cuando alguien baila apoyando un pie por vez. Es la dirección más "baile" y la menos repetitiva de las tres.</p>
+    </div>
+    <span class="badge">Dirección B · cruzado</span>
+  </header>
+
+  <div class="device">
+    <canvas id="big" width="640" height="344" aria-label="Vista previa animada del vidrio de 320x172 con el baile cruzado de los dos ojos"></canvas>
+    <span class="edge"></span>
+  </div>
+
+  <div class="controls">
+    <button class="primary" id="play" type="button">Pausar</button>
+    <input id="scrub" type="range" min="0" max="4286" step="10" value="0" aria-label="Recorrer un compás">
+    <select id="bpm" aria-label="Tempo">
+      <option value="96">96 BPM</option>
+      <option value="112" selected>112 BPM</option>
+      <option value="128">128 BPM</option>
+    </select>
+    <span class="clock" id="clock">t <b>0.00</b> · tiempo <b>1</b> de 4</span>
+  </div>
+
+  <div class="strip" id="strip"></div>
+
+  <div class="cols">
+    <div class="card">
+      <h2>Qué se lee</h2>
+      <ul>
+        <li><b>Turno</b>: cada ojo tiene su tiempo. El que salta sube 9 px, se estira a 50×56 y abre el párpado inferior a 0.26; el otro queda abajo, con el párpado en 0.12 y el ojo apenas más chico.</li>
+        <li><b>Inclinación</b>: el par se tilda ±5° hacia el ojo que está en el aire. Ese es el canal que hace que se lea como cuerpo y no como dos dibujos sueltos.</li>
+        <li><b>Hamaca</b>: la mirada se corre ±5 px por compás, así el baile también tiene costado.</li>
+        <li><b>Cierre de compás</b>: en el cuarto tiempo los dos ojos saltan juntos 4 px, como el golpe que cierra la frase.</li>
+        <li><b>La alegría la dice el ojo</b>: párpado inferior, nunca una boca. Y el ojo que aterriza abre al máximo, que es el gesto de "me gusta esta canción".</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h2>Cómo se hace</h2>
+      <p>Necesita dos canales de altura, uno por ojo: el firmware no los tiene (hoy <code>bob</code> mueve el par entero). La propuesta es agregar <code>bobL</code> y <code>bobR</code> al <code>BuddyPose</code>, que a cero son exactamente el frame de hoy.</p>
+      <p>El resto sale de la fase del tiempo: <code>bobL = seno(pi · fase)</code> cuando al ojo le toca, cero cuando espera. <code>tilt</code> sale del mismo turno, y <code>bottom</code> del tiempo que lleva en el aire.</p>
+      <p>Las notas siguen cada dos tiempos, en las dos bandas laterales que midió la placa.</p>
+    </div>
+  </div>
+
+  <p class="tradeoff"><b>Tradeoff:</b> es la que mejor se lee como baile, pero pide un canal nuevo por ojo en la pose y un test más; y con dos alturas independientes el par puede quedar feo si un día alguien toca la lógica del gap. También es la más inquieta de las tres para tenerla de fondo todo el día.</p>
+
+  <p class="legend">
+    <span class="key"><i style="background:var(--eye)"></i> ojo del dueño #00b4ff</span>
+    <span class="key"><i style="background:var(--gold)"></i> logro #ffd700</span>
+    <span class="key">Glow aproximado: en la placa se ditheriza, acá se mezcla con alpha.</span>
+  </p>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  var EYE = "#00b4ff";
+
+  function rr(ctx, x, y, w, h, r) {
+    var m = Math.min(w, h) / 2;
+    if (r > m) r = m;
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
+  function rgba(hex, a) {
+    var n = parseInt(hex.slice(1), 16);
+    return "rgba(" + ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + a + ")";
+  }
+
+  function eyes(ctx, p, W, H) {
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, W, H);
+    for (var i = 0; i < 2; i++) {
+      var x = 160 - 55 + i * 110 + p.gx;
+      var y = 88 + p.gy + (i === 0 ? p.bobL : p.bobR);
+      var rx = (i === 0 ? p.rxL : p.rxR);
+      var ry = (i === 0 ? p.ryL : p.ryR);
+      var pads = [[10, 0.10], [7, 0.16], [4, 0.22]];
+      for (var g = 0; g < pads.length; g++) {
+        var pad = pads[g][0];
+        ctx.fillStyle = rgba(EYE, pads[g][1]);
+        rr(ctx, x - rx - pad, y - ry - pad, 2 * (rx + pad), 2 * (ry + pad),
+           Math.min(rx, ry) * 0.38 + pad * 0.6);
+        ctx.fill();
+      }
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate((p.rot + p.tilt) * Math.PI / 180);
+      ctx.fillStyle = EYE;
+      rr(ctx, -rx, -ry, 2 * rx, 2 * ry, Math.min(rx, ry) * 0.38);
+      ctx.fill();
+      var lid = i === 0 ? p.lidL : p.lidR;
+      var lidY = -ry + 2 * ry * lid;
+      if (lidY > -ry + 0.5) {
+        ctx.fillStyle = "#000";
+        ctx.fillRect(-rx - 14, -ry - 14, 2 * rx + 28, lidY + ry + 14);
+      }
+      var bot = i === 0 ? p.botL : p.botR;
+      var botY = ry - 2 * ry * bot;
+      if (botY < ry - 0.5) {
+        ctx.fillStyle = "#000";
+        ctx.fillRect(-rx - 14, botY, 2 * rx + 28, ry - botY + 14);
+      }
+      ctx.restore();
+    }
+  }
+
+  function note(ctx, n) {
+    if (n.alpha <= 0.02) return;
+    var s = n.size;
+    var hrx = 4.2 * s, hry = 3.2 * s;
+    var stemH = 15 * s;
+    var cx = n.x, cy = n.y;
+    var stemX = cx + hrx - 1, top = cy - stemH;
+    ctx.fillStyle = rgba(EYE, Math.min(1, 0.25 + n.alpha));
+    for (var y = top; y <= cy + hry; y++) {
+      for (var x = cx - hrx; x <= stemX + 1 + 6 * s; x++) {
+        var dx = (x - cx) / hrx, dy = (y - cy) / hry;
+        var head = dx * dx + dy * dy <= 1;
+        var stem = Math.abs(x - stemX) < 0.6 && y <= cy && y >= top;
+        var flag = y >= top && y <= top + 5 * s && x > stemX && x <= stemX + 1 + (y - top);
+        if (!head && !stem && !flag) continue;
+        ctx.fillRect(x, y, 1, 1);
+      }
+    }
+  }
+
+  function draw(ctx, frame, scale, W, H) {
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    eyes(ctx, frame.pose, W, H);
+    for (var i = 0; i < frame.notes.length; i++) note(ctx, frame.notes[i]);
+  }
+
+  // ---- the motion: one eye per beat -----------------------------------------
+  function beatPose(bpm, ms) {
+    var beat = 60000 / bpm;
+    var phase = (ms % beat) / beat;
+    var beatIndex = Math.floor(ms / beat);
+    var bar = Math.floor(beatIndex / 4);
+    var inBar = beatIndex % 4;
+
+    // Which eye is airborne this beat: left on 0 and 2, right on 1 and 3. The
+    // last beat of the bar is the only one where both leave the floor.
+    var all = inBar === 3;
+    var arc = Math.sin(Math.PI * Math.min(1, phase / 0.66));
+    var squash = Math.max(0, 1 - Math.abs(phase - 0.66) / 0.2);
+    var hopL = all ? arc * 4 : (inBar % 2 === 0 ? arc * 9 : 0);
+    var hopR = all ? arc * 4 : (inBar % 2 === 1 ? arc * 9 : 0);
+    var airL = hopL / 9, airR = hopR / 9;
+    var dir = inBar % 2 === 0 ? -1 : 1;
+    var swap = (bar % 2 === 0) ? 1 : -1;
+
+    return {
+      gx: 5 * Math.sin(2 * Math.PI * (bar % 4 + phase / 4) / 4),
+      gy: -1.5,
+      bobL: -hopL,
+      bobR: -hopR,
+      rxL: 48 + 2 * airL - 1 * (inBar % 2 === 1 ? squash : 0),
+      rxR: 48 + 2 * airR - 1 * (inBar % 2 === 0 ? squash : 0),
+      ryL: 48 + 8 * airL - 3 * (inBar % 2 === 1 ? squash : 0),
+      ryR: 48 + 8 * airR - 3 * (inBar % 2 === 0 ? squash : 0),
+      lidL: airL > 0.05 ? 0 : 0.12,
+      lidR: airR > 0.05 ? 0 : 0.12,
+      botL: airL > 0.05 ? 0.26 * airL : 0,
+      botR: airR > 0.05 ? 0.26 * airR : 0,
+      rot: 3 * swap,
+      tilt: 5 * dir * swap
+    };
+  }
+
+  function noteField(bpm, ms) {
+    var beat = 60000 / bpm;
+    var life = 2400;
+    var out = [];
+    var lastBeat = Math.floor(ms / beat);
+    for (var b = lastBeat; b >= lastBeat - 12; b--) {
+      if (b % 2 !== 0) continue;
+      var born = b * beat;
+      var age = ms - born;
+      if (age < 0 || age >= life) continue;
+      var f = age / life;
+      var right = ((b / 2) % 2) === 0;
+      var h = (b * 2654435761) % 1000;
+      var minX = right ? 291 : 12, maxX = right ? 308 : 30;
+      var alpha = f < 0.12 ? f / 0.12 : (f < 0.45 ? 1 : 1 - (f - 0.45) / 0.55);
+      out.push({
+        x: minX + (h / 1000) * (maxX - minX),
+        y: 152 - 110 * f,
+        size: 0.8 + ((h >> 3) % 300) / 1000,
+        alpha: alpha
+      });
+    }
+    return out;
+  }
+
+  var big = document.getElementById("big");
+  var bctx = big.getContext("2d");
+  var scrub = document.getElementById("scrub");
+  var clock = document.getElementById("clock");
+  var playBtn = document.getElementById("play");
+  var bpmSel = document.getElementById("bpm");
+  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var playing = !reduced;
+  if (reduced) playBtn.textContent = "Reproducir";
+  var started = performance.now();
+  var manual = 0;
+  var bpm = 112;
+
+  function barMs() { return 4 * (60000 / bpm); }
+
+  function render(ms) {
+    draw(bctx, { pose: beatPose(bpm, ms), notes: noteField(bpm, ms) }, 2, 320, 172);
+    var beat = 60000 / bpm;
+    var n = Math.floor(ms / beat) % 4 + 1;
+    clock.innerHTML = "t <b>" + (ms / 1000).toFixed(2) + " s</b> · tiempo <b>" + n + "</b> de 4";
+    scrub.max = String(Math.round(barMs()));
+  }
+
+  function loop(now) {
+    if (playing) {
+      var ms = (now - started) % barMs();
+      scrub.value = ms;
+      render(ms);
+    }
+    requestAnimationFrame(loop);
+  }
+
+  playBtn.addEventListener("click", function () {
+    playing = !playing;
+    playBtn.textContent = playing ? "Pausar" : "Reproducir";
+    if (playing) started = performance.now() - manual;
+  });
+
+  scrub.addEventListener("input", function () {
+    manual = +scrub.value;
+    playing = false;
+    playBtn.textContent = "Reproducir";
+    render(manual);
+  });
+
+  bpmSel.addEventListener("change", function () {
+    bpm = +bpmSel.value;
+    render(manual);
+  });
+
+  var strip = document.getElementById("strip");
+  [
+    { f: 0.18, cap: "izquierdo arriba", note: "tiempo 1" },
+    { f: 0.34, cap: "derecho arriba", note: "tiempo 2" },
+    { f: 0.58, cap: "izquierdo otra vez", note: "tiempo 3" },
+    { f: 0.30, cap: "los dos juntos", note: "cierre del compás" }
+  ].forEach(function (s) {
+    var fig = document.createElement("figure");
+    fig.tabIndex = 0;
+    var c = document.createElement("canvas");
+    c.width = 320; c.height = 172;
+    var ms = s.f * (60000 / 112) * 4;
+    draw(c.getContext("2d"), {
+      pose: beatPose(112, ms),
+      notes: noteField(112, 300 + 0.9 * (60000 / 112))
+    }, 1, 320, 172);
+    var cap = document.createElement("figcaption");
+    cap.innerHTML = "<b>" + s.cap + "</b><br>" + s.note;
+    fig.appendChild(c);
+    fig.appendChild(cap);
+    fig.addEventListener("focus", function () {
+      playing = false; playBtn.textContent = "Reproducir";
+      render(ms);
+    });
+    strip.appendChild(fig);
+  });
+
+  render(0);
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
