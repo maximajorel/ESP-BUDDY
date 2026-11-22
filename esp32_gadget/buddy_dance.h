@@ -69,15 +69,16 @@ static inline BuddyDanceBeat buddyDanceBeatAt(uint32_t bpm,
   return b;
 }
 
-// The pose the rhythm paints: "bote parejo".
+// The pose the rhythm paints: "respiracion con pulso".
 //
-// The dance hops. It does not nod: the previous version dipped the eyelid on the
-// beat and the owner read that as sleepy, because a lid going down is tiredness
-// on every face. This one takes the eye off the floor -- up, stretched in the
-// air, squashed on landing, with the lower lid carrying the joy -- which is what
-// a body dancing looks like. The approved artboard is
-// `design/baile-sofia/01-bote-parejo.html`; this is the same law, in the same
-// numbers.
+// No hop at all. The face floats: 3 px of sway under everything, the eye grows a
+// little on every beat and comes back, the joy rides on the lower lid, and the
+// gaze orbits once per bar. The reason is the owner's own report -- the hop read
+// as "poco organico" and not smooth enough -- and the measurement behind it: a
+// big periodic jump only looks smooth if the frame rate is high, while a motion
+// of <= 3 px per beat is smooth even at 20 fps. The approved artboard is
+// `design/baile-sofia/05-respiracion-con-pulso.html`, and this is the same law
+// with the same numbers.
 //
 // It *overrides* the channels it owns instead of adding to them: the idle face
 // has its own microsaccades and glances, and a dance that merely added to those
@@ -87,45 +88,38 @@ static inline void buddyDancePose(const BuddyDanceBeat &beat, uint32_t nowMs,
   if (!p || !beat.active) return;
   (void)nowMs;
   const float tau = 6.2831853f;
-  const bool lastBeat = (beat.beatIndex % 4u) == 3u;
-  // The hop: up for 62% of the beat and down for the rest. The last beat of the
-  // bar is two quick small ones instead of a single big jump, which is what
-  // closes the phrase.
-  const float phase = beat.beatPhase;
-  float air, squash;
-  if (lastBeat) {
-    const float half = (phase * 2.0f) - floorf(phase * 2.0f);
-    air = sinf(3.14159265f * (half < 0.62f ? half / 0.62f : 1.0f)) * 5.0f;
-    const float d = half - 0.62f;
-    squash = 1.0f - (d < 0.0f ? -d : d) / 0.16f;
-  } else {
-    air = sinf(3.14159265f * (phase < 0.62f ? phase / 0.62f : 1.0f)) * 10.0f;
-    const float d = phase - 0.62f;
-    squash = 1.0f - (d < 0.0f ? -d : d) / 0.18f;
-  }
-  if (squash < 0.0f) squash = 0.0f;
-  const float airborne = air / 10.0f;
+  const uint32_t barMs = 4u * 60000u / (beat.bpm ? beat.bpm : 110u);
+  const uint32_t pos = beat.positionMs;
+  const float pulse = sinf(3.14159265f * beat.beatPhase);
+  // Two different periods: the sway is two bars long and the orbit one, so the
+  // face never lands twice on the same picture.
+  const float sway = sinf(tau * (float)(pos % (barMs * 2u)) / (float)(barMs * 2u));
+  const float orbit = tau * (float)(pos % barMs) / (float)barMs;
+  // A song does not hit every beat equally hard.
+  static const float kAccent[4] = {1.0f, 0.75f, 0.9f, 0.7f};
+  const float accent = kAccent[beat.beatIndex % 4u];
 
-  p->gazeX = 0.0f;
-  p->gazeY = -2.0f * airborne;
+  p->gazeX = 3.0f * cosf(orbit);
+  p->gazeY = -1.6f + 1.4f * sinf(orbit);
   p->eyeGazeL = 0.0f;
   p->eyeGazeR = 0.0f;
-  p->bob = -air;
-  // Bigger in the air, flatter on the ground: the squash is the weight.
-  p->rx = (int)lroundf(48.0f + 2.5f * airborne);
-  p->ry = (int)lroundf(48.0f + 6.0f * airborne - 4.0f * squash);
-  p->lid = 0.10f * squash;
+  p->bob = -1.2f * pulse * accent - 1.75f * (0.5f + 0.5f * sway);
+  // The eye grows from the inside: 2 px of height and 1 px of width, never more,
+  // which is what keeps every frame a small step.
+  p->rx = (int)lroundf(48.0f + 1.3f * pulse * accent);
+  p->ry = (int)lroundf(48.0f + 2.0f * pulse * accent);
+  // The upper lid never moves: on this face a lid going down is tiredness, and
+  // the owner read the first version as sleepy for exactly that.
+  p->lid = 0.0f;
   p->lidL = 0.0f;
   p->lidR = 0.0f;
-  // Joy lives in the lower eyelid on this face; there is no mouth to smile with.
-  p->bottom = 0.20f * airborne;
-  // The pair rolls to one side per bar and tips with the phrase, so the hop is a
-  // dance and not a piston.
-  p->rot = 4.0f * ((beat.barIndex & 1u) ? -1.0f : 1.0f);
+  // Joy lives in the lower eyelid here; there is no mouth to smile with.
+  p->bottom = 0.10f + 0.08f * pulse * accent;
+  p->rot = 2.2f * sinf(orbit + 1.1f);
   p->rotL = 0.0f;
   p->rotR = 0.0f;
-  p->tilt = 3.0f * sinf(tau * (float)(beat.beatIndex % 4u) / 4.0f);
-  p->turn = 0.05f * sinf(tau * (float)(beat.barIndex % 4u) / 4.0f);
+  p->tilt = 2.6f * sinf(orbit);
+  p->turn = 0.05f * cosf(orbit);
   p->grow = 1.0f;
   p->open = 1.0f;
   p->glow = 1.0f;
@@ -135,9 +129,10 @@ static inline void buddyDancePose(const BuddyDanceBeat &beat, uint32_t nowMs,
   p->surprise = false;
   p->happy = false;
   p->closed = false;
-  // A face that never blinks looks dead. The one moment the dance can afford it
-  // is the landing of the last bar of four, which reads as "uff, qué tema".
-  p->blink = (beat.barIndex % 4u) == 3u && phase > 0.68f && phase < 0.80f;
+  // A face that never blinks looks dead. Once every four bars, between beats, so
+  // it never lands on the pulse.
+  p->blink = (beat.barIndex % 4u) == 3u && beat.beatPhase > 0.5f &&
+             beat.beatPhase < 0.62f;
 }
 
 // Mixes two poses. The dance writes on top of the eased face for the hop itself,

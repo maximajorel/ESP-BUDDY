@@ -1199,6 +1199,36 @@ static uint32_t drawEyes(const BuddyPose &pose, BuddyState state, bool poke,
     eyeX[0] += shift;
     eyeX[1] += shift;
   }
+  // Where a black lid band may go, per eye. A band has to cover this eye's glow
+  // (that is why it reaches GLOW_PAD + 2 past the drawn extent), but it may never
+  // paint over the other eye: the owner saw the neighbour cut by a band. The inner
+  // edge is the pair's midpoint or the other eye's own edge, whichever is further
+  // in, so the solid shape of the other eye is always out of reach.
+  const int pairMid = (eyeX[0] + eyeX[1]) / 2;
+  int bandL[2];
+  int bandR[2];
+  int bandReach[2];
+  for (int i = 0; i < 2; i++) {
+    const int reach = eyeExtentX[i] + BUDDY_GLOW_PAD + 2;
+    int lo = eyeX[i] - reach;
+    int hi = eyeX[i] + reach;
+    const int neighbour = eyeX[1 - i] + (i == 0 ? -1 : 1) * (eyeExtentX[1 - i] + 1);
+    const int inner = i == 0 ? (neighbour < pairMid ? neighbour : pairMid)
+                             : (neighbour > pairMid ? neighbour : pairMid);
+    if (i == 0) {
+      if (hi > inner) hi = inner;
+    } else {
+      if (lo < inner) lo = inner;
+    }
+    bandL[i] = lo;
+    bandR[i] = hi;
+    // The dithered lid edge has to reach the band's inner edge (where the lid
+    // line actually falls) and no further in than the eye's own shape, which is
+    // what `buddySquircleInside` already enforces.
+    bandReach[i] = i == 0 ? hi - eyeX[i] : eyeX[i] - lo;
+    if (bandReach[i] < 1) bandReach[i] = 1;
+  }
+
   s_draw.have = true;
   s_draw.push = push;
   s_draw.grow = grow;
@@ -1229,13 +1259,14 @@ static uint32_t drawEyes(const BuddyPose &pose, BuddyState state, bool poke,
       float deg = eyeDeg[i];
       drawEyeGlow(x, y, eyeRx[i], baseRy, deg, eyeRgb);
       gfxFillSquircleRotAA(x, y, eyeRx[i], baseRy, deg, color, glowInner);
-      int bandHalfX = eyeExtentX[i] + BUDDY_GLOW_PAD + 2;
+      const int bandL0 = bandL[i];
+      const int bandW = bandR[i] - bandL[i];
       BuddyLidBand band =
           buddyLidBandBottom(y, eyeExtentY[i], BUDDY_GLOW_PAD, happyBottom);
-      if (band.h > 0) {
-        gfxFillRect(x - bandHalfX, band.y0, bandHalfX * 2, band.h, GFX_BLACK);
+      if (band.h > 0 && bandW > 0) {
+        gfxFillRect(bandL0, band.y0, bandW, band.h, GFX_BLACK);
         float line = buddyLidLineBottom(y, eyeExtentY[i], happyBottom);
-        ditherLidRow(x, y, eyeRx[i], baseRy, deg, bandHalfX, band.y0, color,
+        ditherLidRow(x, y, eyeRx[i], baseRy, deg, bandReach[i], band.y0, color,
                      1.0f - (line - floorf(line)));
       }
       continue;
@@ -1255,19 +1286,19 @@ static uint32_t drawEyes(const BuddyPose &pose, BuddyState state, bool poke,
     // the hot edge used to show above the lid. The two eyes can have different
     // lids (the EMO thinking wink) and a bottom lid cuts the tired look.
     float top = pose.lid + (i == 0 ? pose.lidL : pose.lidR);
-    int bandHalfX = eyeExtentX[i] + BUDDY_GLOW_PAD + 2;
     // The eyelid is a black block whose edge is parallel to the eye's top edge:
     // flat on a straight eye, slanted when the eye is turned. It also covers the
     // halo above it, so no tinted sliver survives.
     gfxLidCutRot(x, y, eyeRx[i], baseRy, deg, top, BUDDY_GLOW_PAD, GFX_BLACK);
+    const int bandL0 = bandL[i];
+    const int bandW = bandR[i] - bandL[i];
     BuddyLidBand bottomBand =
         buddyLidBandBottom(y, eyeExtentY[i], BUDDY_GLOW_PAD, pose.bottom);
-    if (bottomBand.h > 0) {
-      gfxFillRect(x - bandHalfX, bottomBand.y0, bandHalfX * 2, bottomBand.h,
-                  GFX_BLACK);
+    if (bottomBand.h > 0 && bandW > 0) {
+      gfxFillRect(bandL0, bottomBand.y0, bandW, bottomBand.h, GFX_BLACK);
       float line = buddyLidLineBottom(y, eyeExtentY[i], pose.bottom);
-      ditherLidRow(x, y, eyeRx[i], baseRy, deg, bandHalfX, bottomBand.y0, color,
-                   1.0f - (line - floorf(line)));
+      ditherLidRow(x, y, eyeRx[i], baseRy, deg, bandReach[i], bottomBand.y0,
+                   color, 1.0f - (line - floorf(line)));
     }
     if (state == BUDDY_ERROR) {
       // Two crossed black strokes inside the eye: the classic x x. Proportional

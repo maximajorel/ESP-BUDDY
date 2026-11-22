@@ -48,6 +48,7 @@ exactamente el que se dibujaba antes.
 | T7 | El baile aprobado: salto ("bote parejo") en `buddy_dance.h` con blend posterior al easing | S1, S2, S5 | inline | `35f1c63` |
 | T8 | Direcciones orgánicas D y E en el canvas, con selector de FPS | S1, S6 | inline | `077c8e3` |
 | T9 | Presupuesto de cuadro: blit sin switch por píxel, snapshot cada 250 ms, redondeo sub-píxel e instrumentación | S6 | inline | `077c8e3` |
+| T10 | Dirección E aprobada: flotación en `buddy_dance.h` y bandas de párpado que no pisan al otro ojo | S1, S5 | inline | `ff8aeb3` |
 
 ## Log
 
@@ -141,6 +142,22 @@ snapshot de Spotify pasó de 20 lecturas por segundo a una cada 250 ms (mutex +
 ~600 bytes de copia). Y `buddydraw` ahora imprime `frame draw=… push=…` con
 promedio y peor caso, que es el número que decide si el cuadro puede bajar de
 50 ms a 33 ms. Falta la placa enchufada para tener ese número.
+
+L14 (elección del dueño + una condición): eligió la 05, "Respiración con pulso",
+con "Ok solo asegurate que las franjas negras inferiores de un ojo no superpongan
+al otro" (comentario `qma32cdw` sobre `#big`). Aplicado en dos lados: la plancha
+ahora dibuja los párpados en espacio de pantalla y recorta el borde interno al
+punto medio del par o al borde del otro ojo, lo que quede más adentro; y
+`drawEyes` usa el mismo `bandL`/`bandR` para la banda inferior (y para la sonrisa
+del `happy`), con `bandReach` para que el borde dithered del párpado llegue al
+borde interno de la banda. Comentario resuelto con `gentle_design_comments`.
+
+L15 (el baile aprobado, en el firmware): `buddyDancePose` pasa del salto a la
+flotación: `bob` de 3 px con dos períodos distintos, `ry` 48→50 y `rx` 48→49 por
+un pulso con acento por tiempo (1.0 / 0.75 / 0.9 / 0.7), `bottom` 0.10..0.18,
+roll y órbita de un compás, y el párpado de arriba quieto en 0. El test nuevo mide
+la propiedad que el dueño pedía: **ningún canal se mueve más de un píxel entre
+cuadros a 20 fps** (bob ≤ 0.8 px, ry/rx ≤ 1 px, gaze ≤ 0.6 px por cuadro).
 
 L5 (evidencia en la placa, autorizada por el dueño en la sesión): firmware
 flasheado por COM5 y probeado con `tools/gadget_probe.py`.

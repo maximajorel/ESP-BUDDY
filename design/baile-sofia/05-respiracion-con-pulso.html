@@ -170,35 +170,55 @@
   function eyes(ctx, p, W, H) {
     ctx.fillStyle = "#000";
     ctx.fillRect(0, 0, W, H);
-    for (var i = 0; i < 2; i++) {
-      var x = 160 - 55 + i * 110 + p.gx;
-      var y = 88 + p.gy + p.bob;
+    var cx = [160 - 55 + p.gx, 160 + 55 + p.gx];
+    var cy = 88 + p.gy + p.bob;
+    // The pair's midpoint is the border no black band may cross: an eyelid is
+    // this eye's, and painting it over the other one cut the neighbour's glow.
+    var mid = (cx[0] + cx[1]) / 2;
+    var i, pads = [[10, 0.10], [7, 0.16], [4, 0.22]];
+    for (i = 0; i < 2; i++) {
+      var x = cx[i];
       var rx = p.rx, ry = p.ry;
-      var pads = [[10, 0.10], [7, 0.16], [4, 0.22]];
       for (var g = 0; g < pads.length; g++) {
         var pad = pads[g][0];
         ctx.fillStyle = rgba(EYE, pads[g][1]);
-        rr(ctx, x - rx - pad, y - ry - pad, 2 * (rx + pad), 2 * (ry + pad),
+        rr(ctx, x - rx - pad, cy - ry - pad, 2 * (rx + pad), 2 * (ry + pad),
            Math.min(rx, ry) * 0.38 + pad * 0.6);
         ctx.fill();
       }
       ctx.save();
-      ctx.translate(x, y);
+      ctx.translate(x, cy);
       ctx.rotate((p.rot + p.tilt) * Math.PI / 180);
       ctx.fillStyle = EYE;
       rr(ctx, -rx, -ry, 2 * rx, 2 * ry, Math.min(rx, ry) * 0.38);
       ctx.fill();
-      var lidY = -ry + 2 * ry * p.lid;
-      if (lidY > -ry + 0.5) {
-        ctx.fillStyle = "#000";
-        ctx.fillRect(-rx - 14, -ry - 14, 2 * rx + 28, lidY + ry + 14);
-      }
-      var botY = ry - 2 * ry * p.bottom;
-      if (botY < ry - 0.5) {
-        ctx.fillStyle = "#000";
-        ctx.fillRect(-rx - 14, botY, 2 * rx + 28, ry - botY + 14);
-      }
       ctx.restore();
+    }
+    // The lids go last and in screen space, clipped to their own side: the glow
+    // needs 10 px of cover, and 10 px is all it gets.
+    var cover = 11;
+    for (i = 0; i < 2; i++) {
+      var rx2 = p.rx, ry2 = p.ry;
+      // The inner edge is the pair's midpoint or the neighbour's own edge,
+      // whichever is further in: the band covers this eye's 10 px of halo and
+      // stops before the other eye's shape. The two halos already blend in the
+      // gap, so a couple of their faintest pixels may fall under it; the solid
+      // eye never does.
+      var neighbour = cx[1 - i] + (i === 0 ? -1 : 1) * (rx2 + 1);
+      var inner = i === 0 ? Math.min(mid, neighbour) : Math.max(mid, neighbour);
+      var left = i === 0 ? cx[i] - rx2 - cover : inner;
+      var right = i === 0 ? inner : cx[i] + rx2 + cover;
+      if (right <= left) continue;
+      var lidY = cy - ry2 + 2 * ry2 * p.lid;
+      if (lidY > cy - ry2 + 0.5) {
+        ctx.fillStyle = "#000";
+        ctx.fillRect(left, cy - ry2 - cover, right - left, lidY - (cy - ry2 - cover));
+      }
+      var botY = cy + ry2 - 2 * ry2 * p.bottom;
+      if (botY < cy + ry2 - 0.5) {
+        ctx.fillStyle = "#000";
+        ctx.fillRect(left, botY, right - left, (cy + ry2 + cover) - botY);
+      }
     }
   }
 

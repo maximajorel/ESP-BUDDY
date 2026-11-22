@@ -73,9 +73,9 @@ int main() {
   b = buddyDanceBeatAt(400, 1000);
   check("a nonsense tempo clamps to the ceiling", b.bpm == BUDDY_DANCE_BPM_MAX);
 
-  printf("-- the pose the rhythm paints: the hop\n");
-  // One beat at 120 bpm is 500 ms. Phase 0 is the floor (the hop begins), 0.31 is
-  // the top of the arc, 0.62 is the landing squash.
+  printf("-- the pose the rhythm paints: the float\n");
+  // One beat at 120 bpm is 500 ms. The point of this motion is small steps: a big
+  // periodic jump only looks smooth at a high frame rate, a <= 3 px one does not.
   BuddyPose p;
   p.hot = 0.8f;
   p.happy = true;
@@ -93,43 +93,67 @@ int main() {
         !p.happy && !p.closed && !p.surprise && !p.dim && p.hot == 0.0f &&
             p.lidL == 0.0f && p.tremble == 0.0f && p.glow == 1.0f &&
             p.eyeGazeL == 0.0f && p.grow == 1.0f);
-  check("on the floor the eye is the neutral squircle",
-        p.rx == 48 && p.ry == 48 && p.bob == 0.0f && p.lid == 0.0f);
 
-  BuddyPose top;
-  buddyDancePose(buddyDanceBeatAt(120, 155), 155, &top);
-  check("in the air the eye leaves the floor", top.bob <= -9.5f && top.bob >= -10.5f);
-  check("and it stretches taller", top.ry >= 53 && top.ry <= 55);
-  check("and it widens a little", top.rx >= 50 && top.rx <= 51);
-  check("the lids are open at the top", top.lid == 0.0f);
-  check("the joy is the lower eyelid", top.bottom > 0.18f && top.bottom <= 0.21f);
-  check("the gaze lifts with the jump", top.gazeY < -1.5f);
+  // The whole claim, measured over a bar at the panel's 20 fps: no channel may
+  // step more than a pixel or so between frames.
+  float maxBobStep = 0.0f, maxGazeStep = 0.0f;
+  int maxRyStep = 0, maxRxStep = 0;
+  float bobLo = 0.0f, bobHi = 0.0f, gxLo = 0.0f, gxHi = 0.0f;
+  float bottomLo = 9.0f, bottomHi = -9.0f;
+  bool lidsStill = true;
+  BuddyPose prev;
+  bool havePrev = false;
+  for (uint32_t ms = 0; ms <= 4000; ms += 50) {
+    BuddyPose q;
+    buddyDancePose(buddyDanceBeatAt(120, ms), ms, &q);
+    if (q.bob < bobLo) bobLo = q.bob;
+    if (q.bob > bobHi) bobHi = q.bob;
+    if (q.gazeX < gxLo) gxLo = q.gazeX;
+    if (q.gazeX > gxHi) gxHi = q.gazeX;
+    if (q.bottom < bottomLo) bottomLo = q.bottom;
+    if (q.bottom > bottomHi) bottomHi = q.bottom;
+    if (q.rx < 48 || q.rx > 50 || q.ry < 48 || q.ry > 50) lidsStill = false;
+    if (q.lid != 0.0f) lidsStill = false;
+    if (havePrev) {
+      float db = fabsf(q.bob - prev.bob);
+      if (db > maxBobStep) maxBobStep = db;
+      float dg = fabsf(q.gazeX - prev.gazeX);
+      if (dg > maxGazeStep) maxGazeStep = dg;
+      int dr = q.ry - prev.ry;
+      if (dr < 0) dr = -dr;
+      if (dr > maxRyStep) maxRyStep = dr;
+      int dx = q.rx - prev.rx;
+      if (dx < 0) dx = -dx;
+      if (dx > maxRxStep) maxRxStep = dx;
+    }
+    prev = q;
+    havePrev = true;
+  }
+  check("no frame moves the eye more than a pixel at 20 fps", maxBobStep <= 0.8f);
+  check("the eye height steps one pixel at most", maxRyStep <= 1);
+  check("so does the width", maxRxStep <= 1);
+  check("the gaze glides, it does not jump", maxGazeStep <= 0.6f);
+  check("the whole sway stays inside 4 px", bobLo > -4.0f && bobHi <= 0.1f);
+  check("the gaze stays inside its 3 px orbit", gxLo < -1.5f && gxHi > 1.5f &&
+                                                 gxHi <= 3.1f && gxLo >= -3.1f);
+  check("the eye keeps the neutral squircle", lidsStill);
+  check("the joy rides on the lower lid only",
+        bottomLo >= 0.09f && bottomHi <= 0.19f);
 
-  BuddyPose land;
-  buddyDancePose(buddyDanceBeatAt(120, 315), 315, &land);
-  check("landing squashes the eye", land.ry <= 45 && land.ry >= 43);
-  check("and drops the lid for an instant", land.lid > 0.05f);
-  check("with the body back on the floor", fabsf(land.bob) < 1.0f);
-
-  // The last beat of the bar is two small hops: at a quarter of it the pair is
-  // already coming down from the first one.
-  BuddyPose close;
-  buddyDancePose(buddyDanceBeatAt(120, 500 * 3 + 78), 1578, &close);
-  check("the last beat hops twice, smaller", close.bob < -4.5f && close.bob > -5.5f);
-
+  // The roll is a sine of the bar's orbit, so the two ends of a bar have
+  // opposite roll: that is the phrase the face follows.
   BuddyPose barA;
-  buddyDancePose(buddyDanceBeatAt(120, 500 * 2), 1000, &barA);
+  buddyDancePose(buddyDanceBeatAt(120, 150), 150, &barA);
   BuddyPose barB;
-  buddyDancePose(buddyDanceBeatAt(120, 500 * 6), 3000, &barB);
-  check("the pair rolls the other way on the next bar",
-        barA.rot > 0.0f && barB.rot < 0.0f);
-  check("and tips with the phrase", fabsf(barA.tilt) < 3.5f);
+  buddyDancePose(buddyDanceBeatAt(120, 1150), 1150, &barB);
+  check("the pair rolls with the bar, one way then the other",
+        barA.rot * barB.rot < 0.0f && fabsf(barA.rot) > 1.5f);
 
   BuddyPose blink;
-  buddyDancePose(buddyDanceBeatAt(120, 500 * 15 + 375), 7875, &blink);
+  buddyDancePose(buddyDanceBeatAt(120, 500 * 15 + 280), 7780, &blink);
   check("the dance blinks on its own count", blink.blink);
   BuddyPose noBlink;
-  buddyDancePose(buddyDanceBeatAt(120, 500 * 8 + 375), 4375, &noBlink);
+  buddyDancePose(buddyDanceBeatAt(120, 500 * 8 + 280), 4280, &noBlink);
   check("and stays open off the count", !noBlink.blink);
 
   printf("-- the blend\n");

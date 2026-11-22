@@ -30,6 +30,11 @@ gyro reactions or the idle ball. Read this before choosing an expression shape.
   `buddyLidLineBottom`; never hand-draw a new lid line in a state branch.
 - **Lid bands must cover the rotated extent plus `BUDDY_GLOW_PAD`.** A hot or
   tinted sliver above or below the band is a bug, not a style.
+- **A lid band belongs to its own eye.** The inner edge stops at the pair's
+  midpoint or the other eye's edge, whichever is further in (`bandL`/`bandR` in
+  `drawEyes`): the owner caught the neighbour eye being cut by a black band, and
+  covering your own halo is worth a couple of the other halo's faintest pixels,
+  never a pixel of its shape.
 - **No mouth, no text, no assets** on the glass. The face is eyes only; labels
   stay in the web panel. The one decoration allowed is the dance: procedural
   eighth notes (a dither-faded head, stem and flag, never an image) in the two
@@ -86,12 +91,15 @@ added: the idle face's microsaccades and glances would read as a twitch under a
 beat. A paused player is not a beat, so the dance stops and its notes die; the
 progress position is what phases the beat, so resuming lands on the song again.
 
-The motion is a hop, not a nod: the eye leaves the floor (`bob` 0 → −10 px),
-stretches in the air (`ry` 48 → 54), squashes on landing (44) and carries its joy
-in the lower lid (`bottom` 0 → 0.20). Never mark the beat by dropping the upper
-lid: on a face, a lid going down is tiredness, and the owner read the first
-version as sleepy. The hop is written **after** `buddyPoseFilterStep` and mixed in
-with `buddyPoseMix`, because a 100 ms ease flattens a 545 ms arc into a sway.
+The motion floats, and it never marks the beat by dropping the upper lid: on a
+face, a lid going down is tiredness, and the owner read the first hop version as
+sleepy. What ships (`design/baile-sofia/05-respiracion-con-pulso.html`) is ≤3 px of
+sway over a two-bar period, the eye growing 2 px on the beat and coming back, the
+joy on the lower lid (`bottom` 0.10..0.18) and the gaze orbiting once per bar.
+The small step per frame is the property that keeps it smooth at 20 fps; a big
+hop needs a higher frame rate before it reads as fluid. The dance is still mixed
+**after** `buddyPoseFilterStep` with `buddyPoseMix`, because a 100 ms ease would
+flatten a beat into a sway.
 
 `dance <seconds>` on the console and the "Bailando" chip in the panel pin the
 same reaction on a synthetic 112 BPM beat, so it can be dumped with `dump` and no
