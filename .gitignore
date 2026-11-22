@@ -41,3 +41,22 @@ esp32_gadget/admin_seed.h
 
 # --- Local tooling ----------------------------------------------------------
 .codegraph/
+
+# --- Tauri / Rust -----------------------------------------------------------
+# El target de Cargo y lo que deja al enlazar. `tray_buddy/.gitignore` ya cubre
+# su propio `src-tauri/target/` y `node_modules/`; esto es la red por si alguien
+# compila desde la raíz. `Cargo.lock` NO se ignora: es un binario, y el lock es
+# parte de la reproducibilidad del build.
+target/
+*.pdb
+
+# Los BMP del instalador (tray_buddy/installer/) sí se versionan: los genera
+# `tools/make_installer_art.py` y `tauri.conf.json` los referencia por ruta, así
+# que un clon sin ellos no compila el bundle.
+
+# --- Scratch de verificación ------------------------------------------------
+# Copias de `ui/` y capturas para mirar el popover sin compilar. Se recrean a
+# mano en cada sesión y nunca son fuente.
+.ui-shot/
+tb-shots/
+*.tmp
