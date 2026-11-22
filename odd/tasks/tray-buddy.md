@@ -319,3 +319,30 @@ L11. Evidencia de verificación de esta sesión (no son opiniones, son corridas)
 - **Sin probar contra el equipo físico**: no hay ESP32 alcanzable desde esta
   sesión, así que el diálogo real con el firmware (pantalla, pomodoro,
   calendario) queda para la prueba del dueño.
+
+L12. Primera prueba del dueño en la app real (captura de pantalla): "Mira asi
+queda, se transparenta, hagamos un analisis muy minucioso de la UI". El
+`z-index: 3` del asistente **no alcanzó**: la captura del WebView2 real seguía
+mostrando los tiles encima del formulario. Decisión de diseño, no parche: el
+asistente deja de ser una capa y pasa a **reemplazar** el contenido — al abrirse,
+las tres secciones del cuerpo se ocultan con el atributo `hidden`, así no hay
+superposición posible y la UI vieja tampoco queda clickeable detrás del
+formulario. Se descarta seguir peleando con el orden de pintado de un hijo
+absoluto de un contenedor grid.
+
+Del mismo análisis de la captura salieron tres desbordes reales que el render
+headless anterior había tapado como "artefacto":
+- `.body` era grid con una columna `auto`: el reloj del pomodoro (40 px) tenía
+  min-content mayor que los 358 px útiles, la columna crecía y **todo** el cuerpo
+  se salía de la ventana de 388. El sistema recortaba el reloj ("25:" sin los
+  segundos) y el último chip. Ahora la columna es `minmax(0, 1fr)` con
+  `overflow-x: hidden` y los tiles son `min-width: 0`.
+- La barra de título empujaba los botones de ventana fuera del recorte: el
+  estado es ahora el único elemento sacrificable (se recorta con puntos
+  suspensivos) y las etiquetas se acortaron (Offline / Conectando / En línea).
+- "TRAGAMONEDAS" no entraba en un tile de 4 columnas: 8 px sin letter-spacing,
+  gap de 6 y padding de 5, con `overflow-wrap: anywhere` como red para nombres
+  inventados por el dueño. Antes se partía "TRAGAMONED/AS".
+Verificación: capturas de Chrome headless con `.win-wrap` en flujo estático (para
+ver el popover entero, 380x660) en los dos estados, y la app de escritorio
+relanzada con el perfil de WebView2 borrado para descartar caché de assets.
