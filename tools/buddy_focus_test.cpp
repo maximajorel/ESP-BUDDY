@@ -12,6 +12,7 @@
 
 #include "buddy_face.h"
 #include "buddy_focus.h"
+#include "buddy_split.h"
 
 static int g_failures = 0;
 
@@ -187,33 +188,33 @@ int main() {
     check("it finishes after the wrap", f.finished);
   }
 
-  printf("-- the band under the eyes\n");
+  printf("-- the timer's column\n");
   {
-    // Concentración now owns the glass: small eyes on top, a slim progress mark
-    // under them, and the giant MM:SS below. Every bound is checked against the
-    // 320x172 panel so a geometry edit cannot silently push the number off it.
-    check("the small eyes stay in the upper band",
-          BUDDY_FOCUS_EYE_CY + BUDDY_FOCUS_EYE_RY + BUDDY_GLOW_PAD + 2 <=
-              BUDDY_FOCUS_BAR_Y);
-    check("the eyes are small: at most 60% of the normal half height",
-          BUDDY_FOCUS_EYE_RY * 100 <= 60 * 24);
-    check("the bar sits under the eyes and over the digits",
-          BUDDY_FOCUS_BAR_Y > BUDDY_FOCUS_EYE_CY &&
-              BUDDY_FOCUS_BAR_Y + BUDDY_FOCUS_BAR_H <=
-                  BUDDY_FOCUS_PLATE_Y);
-    check("the digits start on the plate",
-          BUDDY_FOCUS_BAND_Y >= BUDDY_FOCUS_PLATE_Y);
-    check("the timer is more than half the glasses height",
-          (BUDDY_FOCUS_DIGIT_H * 100) > (172 * 50));
-    check("the digits clear the bottom edge",
-          BUDDY_FOCUS_BAND_Y + BUDDY_FOCUS_DIGIT_H <= 172);
-    check("four digits plus the colon fit the width",
-          (BUDDY_FOCUS_DIGIT_W * 4 + BUDDY_FOCUS_DIGIT_GAP * 2 +
-           BUDDY_FOCUS_COLON_W + BUDDY_FOCUS_COLON_GAP * 2) <= 320);
-    check("the bar fits the width", BUDDY_FOCUS_BAR_W <= 320);
+    // Concentración is now a column in the split frame: the real face on the
+    // left (buddy_split.h) and the countdown on the right. Every bound is
+    // checked against that column so a geometry edit cannot push the number out.
+    const int columnRight = BUDDY_SPLIT_CONTENT_X + BUDDY_SPLIT_CONTENT_W;
+    check("the label fits the column",
+          (int)strlen(BUDDY_FOCUS_LABEL_TEXT) * 6 <= BUDDY_SPLIT_CONTENT_W);
+    check("the label sits above the number",
+          BUDDY_FOCUS_LABEL_Y + 7 <= BUDDY_FOCUS_DIGIT_Y);
+    check("four digits plus the colon fit the column",
+          BUDDY_FOCUS_DIGIT_TOTAL_W <= BUDDY_SPLIT_CONTENT_W);
+    check("the digits stay inside the glass",
+          BUDDY_SPLIT_CONTENT_X + BUDDY_FOCUS_DIGIT_TOTAL_W <= columnRight &&
+              BUDDY_FOCUS_DIGIT_Y + BUDDY_FOCUS_DIGIT_H <= BUDDY_SPLIT_H);
+    check("the digits do not cover the label",
+          BUDDY_FOCUS_DIGIT_Y > BUDDY_FOCUS_LABEL_Y);
+    check("the segment stroke leaves room inside the digit",
+          BUDDY_FOCUS_DIGIT_THICK * 3 < BUDDY_FOCUS_DIGIT_H);
+    check("each digit keeps two vertical segments",
+          (BUDDY_FOCUS_DIGIT_H - 3 * BUDDY_FOCUS_DIGIT_THICK) / 2 > 0);
+    check("LISTO fits the number's box",
+          5 * 6 * BUDDY_FOCUS_DONE_SCALE <= BUDDY_FOCUS_DIGIT_TOTAL_W);
     char label[BUDDY_FOCUS_LABEL_MAX];
     buddyFocusFormat(BUDDY_FOCUS_MAX_SECONDS * 1000u, label, sizeof(label));
-    check("the widest label fits the buffer", strlen(label) < BUDDY_FOCUS_LABEL_MAX);
+    check("the widest label fits the buffer",
+          strlen(label) < BUDDY_FOCUS_LABEL_MAX);
   }
 
   printf("-- the timer's own glances\n");
@@ -253,14 +254,6 @@ int main() {
           buddyFocusFinalBlink(BUDDY_FOCUS_FINAL_MS - 300u));
     check("no blink outside the window",
           !buddyFocusFinalBlink(BUDDY_FOCUS_FINAL_MS + 1000u));
-
-    // The eyes keep the full face's silhouette: the small pair is not detached.
-    const int compactGap = (BUDDY_FOCUS_EYE_CX - BUDDY_FOCUS_EYE_RX) * 2;
-    const int fullGap = (215 - 105) - 2 * 48;
-    check("the small pair keeps the full face's gap",
-          compactGap >= fullGap - 6 && compactGap <= fullGap + 6);
-    check("the segment stroke leaves room inside the digit",
-          BUDDY_FOCUS_DIGIT_THICK * 3 < BUDDY_FOCUS_DIGIT_H);
   }
 
   printf("-- the studious glance\n");

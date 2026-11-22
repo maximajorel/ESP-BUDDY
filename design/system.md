@@ -86,35 +86,43 @@ Dim face (no bridge): `buddyEyeScale(colour, 32)` (`buddy_face.h`).
 | Pose easing | `100 ms` time constant | `buddy_face.h` `BUDDY_EASE_TAU_MS` |
 | Face frame rate | `20 fps` (one state poll per 50 ms tick) | `screen_buddy.cpp` |
 
-### El vidrio mientras hay Concentración
+### El vidrio partido — evento del calendario y Concentración
 
-Sources: `esp32_gadget/buddy_focus.h` (all constants), `esp32_gadget/screen_buddy.cpp`
-(`drawFace` in compact mode, `drawFocusBand`).
+Sources: `esp32_gadget/buddy_split.h`, `esp32_gadget/buddy_focus.h`,
+`esp32_gadget/screen_buddy.cpp` (`drawEyes`, `drawSplitFrame`,
+`paintCalendarPane`, `paintFocusPane`).
 
-While a session runs, the timer owns the glass and the face shrinks into the top
-band. Nothing below may overlap; `tools/buddy_focus_test.cpp` pins the
-arithmetic.
+Both screens share one component: the real face in the left pane, a one-pixel
+rule at `x=159`, and a data column on the right. The face is not a lookalike —
+it goes through the same renderer as the full-screen face, at half scale, so
+lids, grow, turn, perspective, tilt, colour, dim/hot, blink and the error X all
+keep working. `tools/buddy_split_test.cpp` pins that the glow of every real
+expression stops before the divider; `tools/buddy_focus_test.cpp` pins the
+timer's column.
 
 | Token | Value | Usage |
 | --- | --- | --- |
-| `BUDDY_FOCUS_EYE_CY` / `_CX` | `34` / `±22` from centre | small eye centres; the pair keeps the full face's 14 px gap (12 px here) |
-| `BUDDY_FOCUS_EYE_RX` / `_RY` | `16 x 12` | small eye half extents (full-size default `48 x 48`) |
-| `BUDDY_FOCUS_EYE_SLACK_X` / `_Y` | `10` / `4` px | how far gaze, bob or a nod may push a small eye |
-| `BUDDY_FOCUS_BAR_Y` / `_H` / `_W` | `56` / `5` / `200` | slim progress mark between the eyes and the number |
-| `BUDDY_FOCUS_PLATE_Y` | `64` | black plate under the eyes; the number never shares a pixel with the face |
-| `BUDDY_FOCUS_BAND_Y` | `66` | top of the digits |
-| `BUDDY_FOCUS_DIGIT_W` / `_H` | `68 x 104` | one seven-segment digit; 60% of the 172 px height |
-| `BUDDY_FOCUS_DIGIT_THICK` | `13` | segment stroke; heavier than the clock screen's `10` |
-| `BUDDY_FOCUS_COLON_W` / gaps | `18`; `5` digit, `8` colon | four digits plus colon = `316` of `320` px |
-| `BUDDY_FOCUS_DONE_SCALE` | `6` | the achievement word (`LISTO`) in the 5x7 font |
+| `BUDDY_SPLIT_DIVIDER_X` | `159` | the one-pixel rule between the panes |
+| `BUDDY_SPLIT_FACE_CX` / `_CY` | `79` / `88` | centre of the face frame |
+| `BUDDY_SPLIT_EYE_HALF_GAP` | `32` | pane centre to each eye centre |
+| `BUDDY_SPLIT_FACE_SCALE` | `0.50` | eye size and every pose offset scale together |
+| `BUDDY_SPLIT_CONTENT_X` / `_W` | `176` / `136` | the data column, both screens |
+| `BUDDY_FOCUS_LABEL_Y` | `12` | `CONCENTRACION`, 5x7 at scale 1 |
+| `BUDDY_FOCUS_DIGIT_Y` | `48` | top of the timer's number |
+| `BUDDY_FOCUS_DIGIT_W` / `_H` | `27 x 64` | one seven-segment digit, in the column |
+| `BUDDY_FOCUS_DIGIT_THICK` | `6` | segment stroke; the clock screen uses `10` on a bigger digit |
+| `BUDDY_FOCUS_COLON_W` / gaps | `9`; `2` digit, `3` colon | four digits plus colon = `127` of the `136` px column |
+| `BUDDY_FOCUS_DONE_SCALE` | `3` | `LISTO` in the number's box, 5x7 at 3x |
 | `BUDDY_FOCUS_LAST_FIVE_MS` | `300000` | under five minutes the glance at the number doubles its rhythm (`4500` ms instead of `9000`) |
 | `BUDDY_FOCUS_FINAL_WINDOW_MS` | `900` | the last-minute window: two blinks 300 ms apart and a look up at the owner |
 
-Rules: while the timer is up, the eyes' gaze and bob are clamped, and the ball,
-the bug and the sleeping letters are not drawn — anything that could cover the
-number steps aside. The digits and the progress mark both wear `eyeRgb`, the
-colour the eyes resolved for this frame (owner colour, dim without a bridge, hot
-when angry); unlit segments are not drawn, which is the clock screen's rule.
+Rules: the pair is confined to the left pane by one symmetric shift, so a wide
+tilt or a saccade can never paint on the divider. While a split screen is up the
+ball, the bug, the sleeping letters and the corner HUD are not drawn: the glass
+belongs to the face and the column. The timer wears `eyeRgb`, the colour the
+face resolved for this frame (owner colour, dim without a bridge, hot when
+angry); unlit segments are not drawn, which is the clock screen's rule. The
+timer has no progress bar: label, number and `LISTO`.
 
 Rule: lids are black bands cut out of the eye plus its glow, and a band must
 always cover the rotated extent plus the glow pad. A tinted sliver outside the
@@ -139,10 +147,11 @@ Source: `esp32_gadget/web_ui/styles.css` (`--font`, `.body`, `.display`, `.nav-i
 
 The glass has no proportional text: labels use the built-in 5x7 bitmap font at
 `scale` 1, 2 or 3 (`gfxText`, `font5x7.h`). The face itself never shows text.
-The one exception is the study timer: its number is seven-segment, `64 x 100`
-digits with a `10` px stroke, using the same `gfxSegmentDigit` renderer as the
-clock screen (`screen_clock.cpp`). A countdown never renders in the 5x7 font:
-at that size nobody reads it from across the room.
+The one exception is the study timer: its number is seven-segment, `27 x 64`
+digits with a `6` px stroke, using the same `gfxSegmentDigit` renderer as the
+clock screen (`screen_clock.cpp`), sized to the split frame's right column. A
+countdown never renders in the 5x7 font: at that size nobody reads it from
+across the room.
 
 ## 5. Spacing, radius, elevation — web panel
 

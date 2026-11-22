@@ -1,10 +1,12 @@
 // The study countdown, pure and header-only.
 //
-// Concentración is a timer that lives on the SOFIA screen, under the eyes. This
-// header owns only the arithmetic: when it started, how much is left, when it is
-// finished. It knows nothing about the bridge, the mood, the face or the LED, and
-// that is the point (S4): there is no phase or mood parameter anywhere below, so
-// a bridge phase change or an /api/face mood cannot stop, restart or hide it.
+// Concentración is a timer that lives on the SOFIA screen. Its countdown is the
+// content column of the split frame (`buddy_split.h`); the real face keeps the
+// left pane. This header owns only the arithmetic: when it started, how much is
+// left, when it is finished, and how the eyes glance at it. It knows nothing
+// about the bridge, the mood, the face or the LED, and that is the point (S4):
+// there is no phase or mood parameter anywhere below, so a bridge phase change
+// or an /api/face mood cannot stop, restart or hide it.
 //
 // The remaining time is derived from an absolute deadline against millis(), never
 // accumulated tick by tick. The face loop can stop for minutes (another screen,
@@ -34,45 +36,31 @@
 #define BUDDY_FOCUS_SECOND_MS 1000u
 
 // Geometry of the study layout, on the 320x172 glass. Concentración no longer
-// shares the canvas with a full-size face: while a session is up the eyes are
-// small in the upper band and the timer owns the lower two thirds. Nothing here
-// may overlap: the checks in `tools/buddy_focus_test.cpp` pin the arithmetic.
+// owns the canvas: the countdown is the content column of the split frame
+// (`buddy_split.h`), with the real face on the left. Only the column's internal
+// geometry lives here, and `tools/buddy_focus_test.cpp` pins that the number and
+// the label fit the column the split frame gives them.
 //
-//   y  0..52   small eyes (cy 34, half height 12), 12 px apart like the full face
-//   y 56..61   slim progress mark, under the eyes
-//   y 64..172  black plate: four 68x104 digits plus a colon
+//   y  12..19   label
+//   y  48..112  the number: four digits plus a colon, 127 px of the 136 px column
+//   y  69..90   LISTO, in the number's box, when the timer reaches zero
 
-// The eye pair while a session runs: half the normal size, centred above the
-// number. `BUDDY_FOCUS_EYE_CX` is the offset from the glass centre, so the pair
-// keeps the same gap the full-size face has.
-#define BUDDY_FOCUS_EYE_CY 34
-#define BUDDY_FOCUS_EYE_CX 22
-#define BUDDY_FOCUS_EYE_RX 16
-#define BUDDY_FOCUS_EYE_RY 12
-// How far the gaze and the bob may push a small eye: past this the eye (and its
-// glow) would cross into the progress mark.
-#define BUDDY_FOCUS_EYE_SLACK_Y 4
-#define BUDDY_FOCUS_EYE_SLACK_X 10
-
-#define BUDDY_FOCUS_PLATE_Y 64
-#define BUDDY_FOCUS_BAND_Y 66
-#define BUDDY_FOCUS_DIGIT_W 68
-#define BUDDY_FOCUS_DIGIT_H 104
-#define BUDDY_FOCUS_DIGIT_THICK 13
-#define BUDDY_FOCUS_DIGIT_GAP 5
-#define BUDDY_FOCUS_COLON_W 18
-#define BUDDY_FOCUS_COLON_GAP 8
-// Four digits, two digit gaps, the colon and its two gaps: 310 px of 320.
+#define BUDDY_FOCUS_LABEL_TEXT "CONCENTRACION"
+#define BUDDY_FOCUS_LABEL_Y 12
+#define BUDDY_FOCUS_DIGIT_Y 48
+#define BUDDY_FOCUS_DIGIT_W 27
+#define BUDDY_FOCUS_DIGIT_H 64
+#define BUDDY_FOCUS_DIGIT_THICK 6
+#define BUDDY_FOCUS_DIGIT_GAP 2
+#define BUDDY_FOCUS_COLON_W 9
+#define BUDDY_FOCUS_COLON_GAP 3
+// Four digits, two digit gaps, the colon and its two gaps: 127 px of the column.
 #define BUDDY_FOCUS_DIGIT_TOTAL_W                            \
   (BUDDY_FOCUS_DIGIT_W * 4 + BUDDY_FOCUS_DIGIT_GAP * 2 +     \
    BUDDY_FOCUS_COLON_W + BUDDY_FOCUS_COLON_GAP * 2)
-// The achievement is a word, not a number: five 5x7 glyphs at 6x.
-#define BUDDY_FOCUS_DONE_SCALE 6
-
-// The progress mark sits between the small eyes and the plate.
-#define BUDDY_FOCUS_BAR_Y 56
-#define BUDDY_FOCUS_BAR_H 5
-#define BUDDY_FOCUS_BAR_W 200
+// The achievement is a word, not a number: five 5x7 glyphs at 3x.
+#define BUDDY_FOCUS_DONE_SCALE 3
+// Room for "MM:SS" plus the terminator. `buddyFocusFormat` never exceeds it.
 #define BUDDY_FOCUS_LABEL_MAX 8
 
 // The achievement colour: the glass's gold, the same one the splash uses.

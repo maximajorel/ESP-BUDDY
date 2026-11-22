@@ -55,7 +55,7 @@ gyro reactions or the idle ball. Read this before choosing an expression shape.
 | Geometry and easing | `buddy_face.h` | Squircle predicate, lid bands, extents, glow shades, `BuddyPoseFilter`. |
 | Physical reactions | `buddy_imu.h` | Shake → dizzy/anger, tilt, sleeping; `buddyImuCalm` for the ball. |
 | Idle toy physics | `buddy_ball.h` | Spawn, shake step, edge bounce, gaze mapping. |
-| Renderer | `screen_buddy.cpp` | `drawFace`: squircle + glow + lid bands + ball + HUD. |
+| Renderer | `screen_buddy.cpp` | `drawEyes`: squircle + glow + lid bands, shared by the full face and the split frame (`drawSplitFrame`). `drawFace` adds the ball, the bug and the Zzz; `buddyTick` adds the HUD. |
 
 ## Workflow
 

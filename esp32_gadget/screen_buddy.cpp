@@ -10,6 +10,7 @@
 #include "buddy_ball.h"
 #include "buddy_face.h"
 #include "buddy_focus_state.h"
+#include "buddy_split.h"
 #include "calendar.h"
 #include "calendar_plan.h"
 #include "calendar_time.h"
@@ -984,88 +985,25 @@ static void hudEvent(uint32_t nowMs) {
   gfxCircle(HUD_CX, HUD_CY, 8, gfxColor(70, 40, 110));
 }
 
-// Concentración, drawn on the band under the eyes. Kept out of the pose on
-// purpose: the number is the clock, not an expression, so no mood the bridge or
-// the web can push may change it, and a phase change cannot blank it.
-//
-// While a session is up the timer is the biggest thing on the glass: four
-// seven-segment digits, a slim progress mark under the small eyes and a black
-// plate behind the number. The number and the mark both wear `eyeRgb`, the colour
-// the eyes already resolved for this frame (owner colour, dim without a bridge,
-// hot when the face is angry), so the timer belongs to the face instead of
-// being a white widget. The digits reuse `gfxSegmentDigit`, the same renderer as
-// the clock screen: one seven-segment definition in the firmware.
-static void drawFocusBand(uint32_t nowMs, uint32_t eyeRgb) {
-  const BuddyFocus &f = buddyFocusView();
-  const bool done = buddyFocusDoneVisible(&f, nowMs);
-  if (!f.active && !done) return;
+// The eye pair, shared by the full face and the split glass (S2 of
+// `odd/tasks/temporizador-partido.md`). `frame` says where the pair sits and how
+// big it is: the full face passes scale 1, the split pane passes
+// buddySplitFaceFrame(), so the left half draws the same face and not a
+// lookalike. Every channel still goes through here: lids, grow, turn,
+// perspective, tilt, colour, dim/hot, blink and the error X.
+struct BuddyEyeFrame {
+  int cx[2];
+  int cy;
+  float scale;         // scales the eye size and every pose offset
+  bool confineToPane;  // slide the pair back so its glow never crosses the rule
+};
 
-  // The plate owns the bottom of the glass: the glow of a small eye, a dipped
-  // glance or the celebration can never cut through the number.
-  gfxFillRect(0, BUDDY_FOCUS_PLATE_Y, 320, 172 - BUDDY_FOCUS_PLATE_Y,
-              GFX_BLACK);
-
-  // The progress mark sits between the eyes and the number: the study fills it
-  // with the face's colour, and it wears the eye colour at low energy so it
-  // belongs to Sofía and not to a generic timer widget.
-  const int barX = (320 - BUDDY_FOCUS_BAR_W) / 2;
-  gfxRect(barX, BUDDY_FOCUS_BAR_Y, BUDDY_FOCUS_BAR_W, BUDDY_FOCUS_BAR_H,
-          gfxHex(buddyEyeScale(eyeRgb, 45)));
-  const int inner = BUDDY_FOCUS_BAR_W - 2;
-  const int filled = done ? inner
-                          : inner * (int)buddyFocusProgress(&f, nowMs) / 255;
-  if (filled > 0) {
-    gfxFillRect(barX + 1, BUDDY_FOCUS_BAR_Y + 1, filled,
-                BUDDY_FOCUS_BAR_H - 2,
-                done ? gfxHex(BUDDY_FOCUS_GOLD) : gfxHex(eyeRgb));
-  }
-
-  if (done) {
-    // The achievement is motion, not a label: the word blinks between white and
-    // gold twice and then settles in gold, with the bar already full.
-    const uint32_t age = nowMs - f.finishedAtMs;
-    const uint16_t ink = (age < 900u && ((age / 150u) % 2u) == 0u)
-                             ? GFX_WHITE
-                             : gfxHex(BUDDY_FOCUS_GOLD);
-    const int wordH = 7 * BUDDY_FOCUS_DONE_SCALE;
-    gfxTextCentered(BUDDY_FOCUS_BAND_Y + (BUDDY_FOCUS_DIGIT_H - wordH) / 2,
-                    BUDDY_FOCUS_DONE_SCALE, "LISTO", ink);
-    return;
-  }
-
-  // "MM:SS" with both minutes always present: the range is 00:01..99:59, so the
-  // number never changes width mid-session.
-  char label[BUDDY_FOCUS_LABEL_MAX];
-  buddyFocusFormat(buddyFocusRemainingMs(&f, nowMs), label, sizeof(label));
-  const int x0 = (320 - BUDDY_FOCUS_DIGIT_TOTAL_W) / 2;
-  const int x1 = x0 + BUDDY_FOCUS_DIGIT_W + BUDDY_FOCUS_DIGIT_GAP;
-  const int xColon = x1 + BUDDY_FOCUS_DIGIT_W + BUDDY_FOCUS_COLON_GAP;
-  const int x3 = xColon + BUDDY_FOCUS_COLON_W + BUDDY_FOCUS_COLON_GAP;
-  const int x4 = x3 + BUDDY_FOCUS_DIGIT_W + BUDDY_FOCUS_DIGIT_GAP;
-  const int xs[4] = {x0, x1, x3, x4};
-  for (int i = 0; i < 4; i++) {
-    // label[2] is the colon, which is not a digit.
-    const char digit = label[i < 2 ? i : i + 1];
-    gfxSegmentDigit(xs[i], BUDDY_FOCUS_BAND_Y, BUDDY_FOCUS_DIGIT_W,
-                    BUDDY_FOCUS_DIGIT_H, BUDDY_FOCUS_DIGIT_THICK, digit,
-                    gfxHex(eyeRgb), GFX_BLACK);
-  }
-  gfxSegmentColon(xColon, BUDDY_FOCUS_BAND_Y, BUDDY_FOCUS_COLON_W,
-                  BUDDY_FOCUS_DIGIT_H, BUDDY_FOCUS_DIGIT_THICK, gfxHex(eyeRgb));
-}
-
-static void drawFace(BuddyState state, const BuddyPose &pose, uint32_t nowMs,
-                     bool poke, bool ballVisible) {
-  gfxClear(GFX_BLACK);
-
-  const BuddyFocus &focus = buddyFocusView();
-  // While Concentración runs, the timer owns the glass: the eyes shrink into the
-  // upper band and the pair moves inwards so the number below keeps the full
-  // width. `timerUp` is pure and comes from `buddy_focus.h`.
-  const bool timerUp = buddyFocusCompact(&focus, nowMs);
-  const int eyeHalfGap = timerUp ? BUDDY_FOCUS_EYE_CX : 55;
-  const int cx[2] = {160 - eyeHalfGap, 160 + eyeHalfGap};
-  const int cy = timerUp ? BUDDY_FOCUS_EYE_CY : 88;
+// Returns the resolved eye colour, for the callers that paint the sleeping
+// letters (or a HUD mark) in the same colour as the face.
+static uint32_t drawEyes(const BuddyPose &pose, BuddyState state, bool poke,
+                         const BuddyEyeFrame &frame, float extraGazeX,
+                         float extraGazeY, bool extraBlink) {
+  const float s = frame.scale;
   bool happy = pose.happy || poke;
   // The owner's colour is read once per frame (the getter is cached in RAM).
   // Offline dims it; anger and dizziness blend it towards hot red on top, and
@@ -1080,44 +1018,27 @@ static void drawFace(BuddyState state, const BuddyPose &pose, uint32_t nowMs,
   if (energy < 100) eyeRgb = buddyEyeScale(eyeRgb, energy);
   uint16_t color = gfxHex(eyeRgb);
   uint16_t glowInner = gfxHex(buddyEyeScale(eyeRgb, BUDDY_GLOW_SHADE_INNER));
-  int bob = (int)pose.bob;
-  // While a session runs, the eyes drop towards the number once every cycle: a
-  // glance at the work. Added at draw time, after every pose source, so it can
-  // never fight the bridge, the game overlay or the ball for the gaze channel.
-  // Under five minutes the visit comes twice as often, and in the last minute
-  // the face looks up at the owner and blinks twice instead: "falta poco".
-  const uint32_t focusLeft = focus.active ? buddyFocusRemainingMs(&focus, nowMs) : 0u;
-  const float dip = focus.active ? buddyFocusGazeDipFor(nowMs, focusLeft) : 0.0f;
-  const bool finalMoment = focus.active && buddyFocusFinalMoment(focusLeft);
-  const bool finalBlink = focus.active && buddyFocusFinalBlink(focusLeft);
-  const float finalGazeX = finalMoment ? BUDDY_FOCUS_FINAL_GAZE_X : 0.0f;
-  const int gazeY =
-      (int)pose.gazeY + (int)(dip + 0.5f) +
-      (finalMoment ? (int)BUDDY_FOCUS_FINAL_GAZE_Y : 0);
+  int bob = (int)(pose.bob * s);
+  const int gazeY = (int)((pose.gazeY + extraGazeY) * s);
 
   // Where each eye lands, and how much screen it covers once rotated. The pair
   // is pushed apart when the surprise widens them or a tilt eats the gap; the
   // owner should never see the two eyes (or their glow) merge into one blob.
-  bool shut = pose.blink || pose.closed || finalBlink;
+  bool shut = pose.blink || pose.closed || extraBlink;
   int eyeX[2];
   int eyeRx[2];
   int eyeExtentX[2];
   int eyeExtentY[2];
   float eyeDeg[2];
   float grow = pose.grow > 0.2f ? pose.grow : 1.0f;
-  int baseRx;
-  int baseRy;
-  if (timerUp) {
-    // Small eyes, same shape language. The blink still wins: a shut eye is a bar
-    // whatever the size, because a lid closes and does not shrink.
-    baseRx = BUDDY_FOCUS_EYE_RX;
-    baseRy = (shut && !happy) ? 4 : BUDDY_FOCUS_EYE_RY;
-  } else {
-    baseRx = (int)lroundf((float)pose.rx * grow);
-    // A happy eye is never a blink bar: the joy is the squircle plus its lower
-    // lid, and a random idle blink landing inside the poke must not erase it.
-    baseRy = buddyEyeHalfH((float)pose.ry, grow, pose.open, shut && !happy);
-  }
+  // The blink bar keeps a floor after scaling: a 4 px lid is the full face's;
+  // a half-scale pane must not turn it into a one-pixel line.
+  int baseRx = (int)lroundf((float)pose.rx * grow * s);
+  int baseRy = (int)lroundf((float)buddyEyeHalfH((float)pose.ry, grow,
+                                                 pose.open, shut && !happy) *
+                            s);
+  if (baseRx < 2) baseRx = 2;
+  if (baseRy < 2) baseRy = 2;
   // A turned head, faked with two flat eyes: the eye on the side the head turns
   // away from gets narrower (a rotating sphere foreshortens) and the near eye
   // gets wider, so the pair visibly disagrees in size. `tilt` then rolls both
@@ -1136,8 +1057,9 @@ static void drawFace(BuddyState state, const BuddyPose &pose, uint32_t nowMs,
     eyeRx[i] = (int)lroundf((float)baseRx * widen * turnScale);
     // The whole pair also slides a couple of pixels the way the head turns.
     float turnX = 5.0f * turn;
-    eyeX[i] = cx[i] + (int)(pose.gazeX + lead + turnX + finalGazeX +
-                            (i == 0 ? pose.eyeGazeL : pose.eyeGazeR));
+    float offX = pose.gazeX + lead + turnX + extraGazeX +
+                 (i == 0 ? pose.eyeGazeL : pose.eyeGazeR);
+    eyeX[i] = frame.cx[i] + (int)(offX * s);
     eyeDeg[i] = pose.rot + pose.tilt + (i == 0 ? pose.rotL : pose.rotR);
     eyeExtentX[i] = (int)ceilf(
         buddyEyeExtentX((float)eyeRx[i], (float)baseRy, eyeDeg[i]));
@@ -1150,6 +1072,21 @@ static void drawFace(BuddyState state, const BuddyPose &pose, uint32_t nowMs,
       (float)(eyeExtentX[1] + BUDDY_GLOW_PAD), (float)BUDDY_EYE_GAP_MIN);
   eyeX[0] -= push;
   eyeX[1] += push;
+  // The split pane is a box: a wide tilt or a big saccade may not put the eye's
+  // glow on the divider. One shift for both eyes keeps the pair symmetric.
+  if (frame.confineToPane) {
+    int outerL = eyeX[0] - eyeExtentX[0] - BUDDY_GLOW_PAD;
+    int outerR = eyeX[0] + eyeExtentX[0] + BUDDY_GLOW_PAD;
+    for (int i = 1; i < 2; i++) {
+      int l = eyeX[i] - eyeExtentX[i] - BUDDY_GLOW_PAD;
+      int r = eyeX[i] + eyeExtentX[i] + BUDDY_GLOW_PAD;
+      if (l < outerL) outerL = l;
+      if (r > outerR) outerR = r;
+    }
+    const int shift = buddySplitPairShift(outerL, outerR);
+    eyeX[0] += shift;
+    eyeX[1] += shift;
+  }
   s_draw.have = true;
   s_draw.push = push;
   s_draw.grow = grow;
@@ -1169,15 +1106,7 @@ static void drawFace(BuddyState state, const BuddyPose &pose, uint32_t nowMs,
     // Solid eyes, no pupils: life comes from the gaze and the lids. The error
     // face adds a per-eye offset so the eyes point at each other.
     int x = eyeX[i];
-    int y = cy + bob + gazeY;
-    if (timerUp) {
-      // The small face is boxed into the top band: a big saccade, a side glance
-      // or a nod must not put an eye on the progress mark or on the number.
-      if (x < cx[i] - BUDDY_FOCUS_EYE_SLACK_X) x = cx[i] - BUDDY_FOCUS_EYE_SLACK_X;
-      if (x > cx[i] + BUDDY_FOCUS_EYE_SLACK_X) x = cx[i] + BUDDY_FOCUS_EYE_SLACK_X;
-      if (y < cy - BUDDY_FOCUS_EYE_SLACK_Y) y = cy - BUDDY_FOCUS_EYE_SLACK_Y;
-      if (y > cy + BUDDY_FOCUS_EYE_SLACK_Y) y = cy + BUDDY_FOCUS_EYE_SLACK_Y;
-    }
+    int y = frame.cy + bob + gazeY;
     if (happy) {
       // Joy comes from the lower eyelid, never from a brow or an extra line
       // above/below the eye: the squircle keeps its top shape and the bottom
@@ -1202,7 +1131,7 @@ static void drawFace(BuddyState state, const BuddyPose &pose, uint32_t nowMs,
     if (shut) {
       // A shut eye is a short rounded bar: it keeps the squircle language and
       // reads as a lid rather than a stray rectangle.
-      gfxFillSquircleRotAA(x, y, eyeRx[i], 4, 0, color, glowInner);
+      gfxFillSquircleRotAA(x, y, eyeRx[i], baseRy, 0, color, glowInner);
       continue;
     }
     gfxFillSquircleRotAA(x, y, eyeRx[i], baseRy, deg, color, glowInner);
@@ -1227,33 +1156,68 @@ static void drawFace(BuddyState state, const BuddyPose &pose, uint32_t nowMs,
                    1.0f - (line - floorf(line)));
     }
     if (state == BUDDY_ERROR) {
-      // Two crossed black strokes inside the eye: the classic x x. Proportional to
-      // the eye, so the small timer face gets the same expression at its size.
+      // Two crossed black strokes inside the eye: the classic x x. Proportional
+      // to the eye, so a small pane gets the same expression at its size.
       const int dxr = eyeRx[i] / 2;
       thickLine(x - dxr, y - baseRy, x + dxr, y + baseRy, GFX_BLACK);
       thickLine(x - dxr, y + baseRy, x + dxr, y - baseRy, GFX_BLACK);
     }
   }
-
-  // The two things that can share the glass with the eyes: the sleeping letters
-  // and the bug the face is watching. Both are drawn last, on top, and both step
-  // aside while the timer owns the glass: a bouncing ball over the number would
-  // make the clock unreadable.
-  if (s_zzz && !timerUp) drawZzz(nowMs, eyeRgb);
-  if (s_bug.active && !timerUp) drawBug(s_bug, nowMs);
-  if (ballVisible && !timerUp) drawBall(s_ball);
-  // Last, so the bug, the ball and the sleeping letters cannot cover the number.
-  drawFocusBand(nowMs, eyeRgb);
+  return eyeRgb;
 }
 
-// The calendar's frame: the glass split at x=160. The face keeps the left half
-// alive (same eyes, same colour, the phase opens them) and the right half is the
-// practical detail the owner needs once: when, what, how much warning, and how
-// much of the window is gone. No press hint: the gesture is documented, not a
-// label competing with the event.
-static void drawCalendarFrame(const BuddyView &view, const BuddyPose &pose,
-                              uint32_t nowMs) {
+static void drawFace(BuddyState state, const BuddyPose &pose, uint32_t nowMs,
+                     bool poke, bool ballVisible) {
   gfxClear(GFX_BLACK);
+  BuddyEyeFrame frame;
+  frame.cx[0] = 160 - 55;
+  frame.cx[1] = 160 + 55;
+  frame.cy = 88;
+  frame.scale = 1.0f;
+  frame.confineToPane = false;
+  uint32_t eyeRgb = drawEyes(pose, state, poke, frame, 0.0f, 0.0f, false);
+
+  // The two things that can share the glass with the eyes: the sleeping letters
+  // and the bug the face is watching. Both are drawn last, on top.
+  if (s_zzz) drawZzz(nowMs, eyeRgb);
+  if (s_bug.active) drawBug(s_bug, nowMs);
+  if (ballVisible) drawBall(s_ball);
+}
+
+// The split frame's right column, painted by each screen that uses it. The
+// component owns the canvas, the face and the rule; the painter owns its data.
+typedef void (*SplitPanePainter)(const BuddyView &view, uint32_t nowMs,
+                                 uint32_t eyeRgb);
+
+// One split glass: clear, the real face in the left pane, the rule, and the
+// caller's column on the right. The calendar event and the timer both go
+// through here, so the layout has one definition (S1).
+static void drawSplitFrame(const BuddyView &view, const BuddyPose &pose,
+                           BuddyState state, uint32_t nowMs, bool poke,
+                           float extraGazeX, float extraGazeY, bool extraBlink,
+                           SplitPanePainter paint) {
+  gfxClear(GFX_BLACK);
+  BuddySplitFaceFrame sf = buddySplitFaceFrame();
+  BuddyEyeFrame frame;
+  frame.cx[0] = sf.cx[0];
+  frame.cx[1] = sf.cx[1];
+  frame.cy = sf.cy;
+  frame.scale = sf.scale;
+  frame.confineToPane = true;
+  uint32_t eyeRgb =
+      drawEyes(pose, state, poke, frame, extraGazeX, extraGazeY, extraBlink);
+  gfxFillRect(BUDDY_SPLIT_DIVIDER_X, BUDDY_SPLIT_RULE_Y, 1, BUDDY_SPLIT_RULE_H,
+              gfxColor(0x33, 0x33, 0x33));
+  paint(view, nowMs, eyeRgb);
+}
+
+// The calendar's column: the practical detail the owner needs once — when, what,
+// how much warning, and how much of the window is gone. No press hint: the
+// gesture is documented, not a label competing with the event.
+static void paintCalendarPane(const BuddyView &view, uint32_t nowMs,
+                              uint32_t eyeRgb) {
+  (void)nowMs;
+  (void)eyeRgb;
   const uint16_t violet = gfxColor(0xAA, 0x50, 0xFF);
   const uint16_t gold = gfxColor(0xFF, 0xD7, 0x00);
   const uint16_t grey = gfxColor(0x8A, 0x8A, 0x8A);
@@ -1262,40 +1226,13 @@ static void drawCalendarFrame(const BuddyView &view, const BuddyPose &pose,
 
   const int level = view.calendarIntensity > 100 ? 100 : view.calendarIntensity;
   const bool started = view.calendarMsToStart <= 0;
-  const int rx = started ? 30 : 24 + level * 4 / 100;  // 24..28
-  const int ry = started ? 34 : 24 + level * 8 / 100;  // 24..32
-  int gx = 3 + level / 30;
-  int gy = 1 - level / 40;
-  if (pose.tremble > 0.01f) gx += (int)buddyTremble(nowMs, s_seed, 11u, 1.2f);
-  const bool blink = pose.blink || buddyBlinkAt(nowMs, s_seed);
-  const int bob = (int)pose.bob;
-  const int cx[2] = {42, 118};
-
-  const uint32_t owner = settingsGetBuddyEyeColor();
-  uint32_t eyeRgb = pose.dim ? buddyEyeDim(owner) : buddyEyeHot(owner, pose.hot);
-  const int energy = buddyGlowPercent(pose.glow);
-  if (energy < 100) eyeRgb = buddyEyeScale(eyeRgb, energy);
-  const uint16_t color = gfxHex(eyeRgb);
-  const uint16_t inner = gfxHex(buddyEyeScale(eyeRgb, BUDDY_GLOW_SHADE_INNER));
-
-  for (int i = 0; i < 2; i++) {
-    const int x = cx[i] + gx;
-    const int y = 88 + bob + gy;
-    drawEyeGlow(x, y, rx, ry, 0, eyeRgb);
-    if (blink) {
-      gfxFillSquircleRotAA(x, y, rx, 4, 0, color, inner);
-    } else {
-      gfxFillSquircleRotAA(x, y, rx, ry, 0, color, inner);
-    }
-  }
-
-  gfxFillRect(159, 10, 1, 152, rule);
+  const int x = BUDDY_SPLIT_CONTENT_X;
 
   char clock[8];
   calendarFormatClock(view.calendarStartEpoch, settingsGet().tzOffsetHours, clock,
                       sizeof(clock));
-  gfxText(176, 12, 1, "PROXIMAMENTE", violet);
-  gfxText(176, 26, 3, clock, GFX_WHITE);
+  gfxText(x, 12, 1, "PROXIMAMENTE", violet);
+  gfxText(x, 26, 3, clock, GFX_WHITE);
 
   char when[24];
   if (started) {
@@ -1304,35 +1241,107 @@ static void drawCalendarFrame(const BuddyView &view, const BuddyPose &pose,
     snprintf(when, sizeof(when), "EN %ld MIN",
              (long)((view.calendarMsToStart + 59999L) / 60000L));
   }
-  gfxText(176, 52, 1, when, gold);
-  gfxFillRect(176, 66, 128, 1, rule);
+  gfxText(x, 52, 1, when, gold);
+  gfxFillRect(x, 66, BUDDY_SPLIT_CONTENT_W, 1, rule);
 
   char folded[CALENDAR_SUMMARY_MAX * 2];
   char line1[32];
   char line2[32];
   textFoldAscii(view.label, folded, sizeof(folded));
   calendarWrapTwoLines(folded, 10, line1, sizeof(line1), line2, sizeof(line2));
-  gfxText(176, 76, 2, line1, GFX_WHITE);
-  if (line2[0]) gfxText(176, 92, 2, line2, GFX_WHITE);
+  gfxText(x, 76, 2, line1, GFX_WHITE);
+  if (line2[0]) gfxText(x, 92, 2, line2, GFX_WHITE);
 
   if (view.calendarLocation[0]) {
     textFoldAscii(view.calendarLocation, folded, sizeof(folded));
     folded[20] = '\0';
-    gfxText(176, 112, 1, folded, grey);
+    gfxText(x, 112, 1, folded, grey);
   }
 
   char aviso[24];
   snprintf(aviso, sizeof(aviso), "AVISO %d MIN", view.calendarLeadMin);
-  gfxText(176, 126, 1, aviso, bluegrey);
+  gfxText(x, 126, 1, aviso, bluegrey);
 
   char name[64];
   calendarSelectedName(name, sizeof(name));
   textFoldAscii(name, folded, sizeof(folded));
   folded[20] = '\0';
-  gfxText(176, 140, 1, folded, rule);
+  gfxText(x, 140, 1, folded, rule);
 
-  gfxFillRect(176, 169, 128, 2, rule);
-  gfxFillRect(176, 169, 128 * level / 100, 2, violet);
+  gfxFillRect(x, 169, BUDDY_SPLIT_CONTENT_W, 2, rule);
+  gfxFillRect(x, 169, BUDDY_SPLIT_CONTENT_W * level / 100, 2, violet);
+}
+
+// The timer's column: the label, the number and, at the end, LISTO. The number
+// is still seven-segment (the clock screen's renderer), rescaled to the column;
+// the owner asked for the typography change in the layout, not a new font.
+static void paintFocusPane(const BuddyView &view, uint32_t nowMs,
+                           uint32_t eyeRgb) {
+  (void)view;
+  const BuddyFocus &f = buddyFocusView();
+  const bool done = buddyFocusDoneVisible(&f, nowMs);
+  const int x = BUDDY_SPLIT_CONTENT_X;
+
+  gfxText(x, BUDDY_FOCUS_LABEL_Y, 1, BUDDY_FOCUS_LABEL_TEXT,
+          gfxColor(0xAA, 0x50, 0xFF));
+
+  if (done) {
+    // The achievement is motion, not a label: the word blinks between white and
+    // gold twice and then settles in gold, in the number's box.
+    const uint32_t age = nowMs - f.finishedAtMs;
+    const uint16_t ink = (age < 900u && ((age / 150u) % 2u) == 0u)
+                             ? GFX_WHITE
+                             : gfxHex(BUDDY_FOCUS_GOLD);
+    const int wordW = gfxTextWidth(BUDDY_FOCUS_DONE_SCALE, "LISTO");
+    const int wordH = 7 * BUDDY_FOCUS_DONE_SCALE;
+    gfxText(x + (BUDDY_SPLIT_CONTENT_W - wordW) / 2,
+            BUDDY_FOCUS_DIGIT_Y + (BUDDY_FOCUS_DIGIT_H - wordH) / 2,
+            BUDDY_FOCUS_DONE_SCALE, "LISTO", ink);
+    return;
+  }
+
+  // "MM:SS" with both minutes always present: the range is 00:01..99:59, so the
+  // number never changes width mid-session.
+  char label[BUDDY_FOCUS_LABEL_MAX];
+  buddyFocusFormat(buddyFocusRemainingMs(&f, nowMs), label, sizeof(label));
+  const int x0 = x + (BUDDY_SPLIT_CONTENT_W - BUDDY_FOCUS_DIGIT_TOTAL_W) / 2;
+  const int x1 = x0 + BUDDY_FOCUS_DIGIT_W + BUDDY_FOCUS_DIGIT_GAP;
+  const int xColon = x1 + BUDDY_FOCUS_DIGIT_W + BUDDY_FOCUS_COLON_GAP;
+  const int x3 = xColon + BUDDY_FOCUS_COLON_W + BUDDY_FOCUS_COLON_GAP;
+  const int x4 = x3 + BUDDY_FOCUS_DIGIT_W + BUDDY_FOCUS_DIGIT_GAP;
+  const int xs[4] = {x0, x1, x3, x4};
+  for (int i = 0; i < 4; i++) {
+    // label[2] is the colon, which is not a digit.
+    const char digit = label[i < 2 ? i : i + 1];
+    gfxSegmentDigit(xs[i], BUDDY_FOCUS_DIGIT_Y, BUDDY_FOCUS_DIGIT_W,
+                    BUDDY_FOCUS_DIGIT_H, BUDDY_FOCUS_DIGIT_THICK, digit,
+                    gfxHex(eyeRgb), GFX_BLACK);
+  }
+  gfxSegmentColon(xColon, BUDDY_FOCUS_DIGIT_Y, BUDDY_FOCUS_COLON_W,
+                  BUDDY_FOCUS_DIGIT_H, BUDDY_FOCUS_DIGIT_THICK, gfxHex(eyeRgb));
+}
+
+// The timer's glance at the number, added at draw time after every pose source
+// so it can never fight the bridge, the game overlay or the ball. Under five
+// minutes it comes twice as often; in the last minute the face looks up at the
+// owner and blinks twice instead.
+struct FocusGlance {
+  float gazeX;
+  float gazeY;
+  bool blink;
+};
+
+static FocusGlance focusGlance(const BuddyFocus &f, uint32_t nowMs) {
+  FocusGlance g = {0.0f, 0.0f, false};
+  if (!f.active) return g;
+  const uint32_t left = buddyFocusRemainingMs(&f, nowMs);
+  g.gazeY = buddyFocusGazeDipFor(nowMs, left);
+  if (buddyFocusFinalMoment(left)) {
+    g.gazeX = BUDDY_FOCUS_FINAL_GAZE_X;
+    g.gazeY += BUDDY_FOCUS_FINAL_GAZE_Y;
+  }
+  g.blink = buddyFocusFinalBlink(left);
+  return g;
 }
 
 // One sensor sample into the reaction machine. The live path and the debug pin
@@ -1684,10 +1693,19 @@ bool buddyTick(uint32_t nowMs) {
     eased.rot += buddyTremble(nowMs, s_seed, 37u, 2.2f);
   }
 
+  const BuddyFocus &focus = buddyFocusView();
   if (view.calendarActive && shown == BUDDY_UPCOMING) {
-    // The event owns the glass: no HUD, no timer band, no idle toys. The eyes
-    // and the event details are the whole screen, as the chosen direction asks.
-    drawCalendarFrame(view, eased, nowMs);
+    // The event owns the glass: no HUD, no idle toys. The split frame keeps the
+    // real face on the left and the event details on the right.
+    drawSplitFrame(view, eased, shown, nowMs, poke, 0.0f, 0.0f, false,
+                   paintCalendarPane);
+  } else if (buddyFocusCompact(&focus, nowMs)) {
+    // A session owns the glass the same way: the real face in the left pane, the
+    // countdown in the right column. The study glance is added on top of the
+    // pose, so no bridge event can fight it.
+    const FocusGlance glance = focusGlance(focus, nowMs);
+    drawSplitFrame(view, eased, shown, nowMs, poke, glance.gazeX, glance.gazeY,
+                   glance.blink, paintFocusPane);
   } else {
     drawFace(shown, eased, nowMs, poke, ballVisible);
     if (!linkDown) hudTrack(view.phase, nowMs);
