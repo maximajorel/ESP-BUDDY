@@ -33,8 +33,10 @@ gyro reactions or the idle ball. Read this before choosing an expression shape.
 - **No mouth, no text, no assets** on the glass. The face is eyes only; labels
   stay in the web panel. The one decoration allowed is the dance: procedural
   eighth notes (a dither-faded head, stem and flag, never an image) in the two
-  side fields `x 18-46` and `x 274-302`, the only columns the eye extents and
-  their glow cannot reach. A note may never overlap an eye.
+  side fields `x 12-30` and `x 291-308`, the only columns the eye extents and
+  their glow cannot reach once the dance swings the pair (measured on the panel:
+  the left eye never starts before x 42 and the right one never ends after 278,
+  glow included). A note may never overlap an eye or its halo.
 - **The idle ball belongs to idle.** It is drawn only when the shown state is
   idle/bored, the face is awake and the bridge phase is idle. While the ball is
   toggled on, the IMU shake channel is held calm (`buddyImuCalm`) so bouncing it

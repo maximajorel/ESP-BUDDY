@@ -64,15 +64,35 @@ L3 (decisiones de implementación, con su razón):
 - Una pausa no congela el gesto: para el baile y mata las notas, y el beat queda
   donde estaba el progreso, así que al reanudar vuelve a caer en el tema. Un
   gesto congelado en el vidrio se lee como una cara trabada, no como una pausa.
-- Las notas viven en las bandas laterales (x 18-46 y 274-302): el ojo izquierdo
-  ocupa 57-153 y el derecho 167-263, con su glow. Es el único espacio libre real
-  del vidrio y respeta S5.
+- Las notas viven en las bandas laterales (x 12-30 y 291-308). El baile mueve el
+  par de ojos, así que la banda se midió en la placa con el sway completo: el ojo
+  izquierdo nunca arranca antes de x 42 y el derecho nunca termina después de 278,
+  glow incluido. El sway se recortó a 7 px justamente para dejar esas dos columnas
+  libres: el compás ya se lee en los párpados, el roll y el rebote.
 - `web_assets.h` es generado y por eso el diff de la rama cuenta miles de líneas:
   el cambio escrito a mano ronda las 700.
 - Corte de slices: T1 (capa pura + test) y luego T2+T3 (render y disparador, un
   solo comportamiento) y T4 (consola, API y panel) en commits separados.
 
-L4 (verificación hasta acá): `python3 tools/run_tests.py` en verde (39 tests,
-incluye el nuevo `buddy_dance_test`), `tools/verify_assets.py` limpio y
-compilación del sketch con el FQBN de INSTALL.md §3 sin errores (1.574.998 bytes
-de flash, 22% de RAM).
+L4 (verificación host): `python3 tools/run_tests.py` en verde (39 tests, incluye
+el nuevo `buddy_dance_test`), `tools/verify_assets.py` limpio y compilación del
+sketch con el FQBN de INSTALL.md §3 sin errores (1.574.970 bytes de flash, 22% de
+RAM).
+
+L5 (evidencia en la placa, autorizada por el dueño en la sesión): firmware
+flasheado por COM5 y probeado con `tools/gadget_probe.py`.
+
+- `dance 16` sobre la pantalla SOFIA: `buddydraw` responde `dance on=1 bpm=112
+  beat=13 phase=0.30 bar=3 notes=2 pin=1` y la pose cambia cuadro a cuadro
+  (`lid` 0.07→0.13, `deg` -8.0→+5.5, los ojos se corren 104→86→102 px): el baile
+  late y los ojos se mueven a ritmo.
+- `dump 1` muestra una nota sólida en la banda derecha (cabeza 137-143, asta
+  126-136, banderola 126-131) y otra más arriba ya dithered, casi desvanecida;
+  las dos bandas quedan limpias de píxeles del ojo.
+- `dance 0` apaga el baile: `dance on=0 ... notes=0` y la bandera desaparece del
+  vidrio.
+- `api POST /api/face {"mood":"dance","ms":5000}` responde `HTTP 200 {"ok":true}`
+  y la cara baila: el chip del panel funciona contra el equipo real.
+- `spotify status`: `auth listo`, `token presente`, `feed cargando http=204` —
+  con nada sonando la cara no baila sola, que es exactamente S3. Queda pendiente
+  del dueño la prueba con un tema real andando.
