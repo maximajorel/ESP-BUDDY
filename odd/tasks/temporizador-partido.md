@@ -43,13 +43,13 @@ T2. `screen_buddy.cpp`: extraer el par de ojos de `drawFace` a `drawEyes`, el
 marco partido a `drawSplitFrame` con painter, migrar el evento del calendario y
 pintar la columna del temporizador; `buddy_focus.h` pasa a la geometría de su
 columna. Son un solo commit porque el renderer extraído y su primer segundo
-consumidor no se pueden compilar por separado: `refactor(screen): layout partido reutilizable`.
+consumidor no se pueden compilar por separado: `d340191`
+(`refactor(screen): share the split glass between calendar and timer`).
 
 T3. Pruebas de host: `tools/buddy_split_test.cpp` nuevo y
 `tools/buddy_focus_test.cpp` actualizado; `python3 tools/run_tests.py` y
 `arduino-cli compile` con el FQBN de `INSTALL.md` §3. La evidencia se registra
-en este documento y cierra la feature con el mismo commit, sin flashear: el
-dueño autoriza el flash aparte.
+en este documento, sin flashear: el dueño autoriza el flash aparte.
 
 ## Log
 
@@ -74,3 +74,20 @@ hacia el número se conserva tal cual (baja la mirada); adaptarla a la derecha
 sería otra spec, no esta. El HUD de la esquina se suprime mientras el vidrio
 está partido, igual que hace el evento: la columna derecha es del contenido y la
 regla ya separa las dos zonas.
+
+L4 (evidencia, `d340191`): `python3 tools/run_tests.py` → 38 pasaron, incluidos
+`buddy_split_test` (pane, marco, seis extremos reales en x e y, corrimiento del
+par) y `buddy_focus_test` (columna: etiqueta, dígitos, LISTO). Compilación
+`arduino-cli` con el FQBN de `INSTALL.md` §3, exit 0, sin warnings: sketch 49%,
+RAM global 22%. La preservación de la cara a escala 1 se verificó inline contra
+`git show HEAD:esp32_gadget/screen_buddy.cpp`: mismas fórmulas y redondeos en
+bob, gazeY, baseRx/baseRy, eyeX, eyeDeg, extents, push, color y párpados; el
+literal `4` del blink pasó a `baseRy`, que con `shut` sigue siendo 4. El
+verificador independiente de `gentle-ai-verify` no fue admitido por el
+mecanismo; queda reportado como no disponible, no reintentado.
+
+L5 (frontera de slice): la rama `feat/temporizador-partido` nace en `79d8929`
+(punta de `refactor/architecture-dedup`, 9 commits previos ajenos a esta
+feature). El slice de esta feature es el único commit `d340191`; para revisión,
+la PR se encadena con base `refactor/architecture-dedup`, no con `main`. No se
+flasheó ni se abrió PR: son decisiones del dueño.
