@@ -115,12 +115,19 @@ fn scale_of(win: &WebviewWindow) -> f64 {
     win.scale_factor().unwrap_or(1.0)
 }
 
-fn show_popover(app: &AppHandle) {
+fn show_popover(app: &AppHandle, anchor: Option<Rect>) {
     let Some(win) = popover(app) else {
         return;
     };
+    // La preferencia guardada (S5) manda sobre el tamaño de `tauri.conf.json`: si
+    // el dueño dejó el popover grande, se abre grande. Se aplica ANTES de
+    // anclar, porque `place_at` mide la ventana con `outer_size`.
+    if let Some(state) = app.try_state::<commands::AppState>() {
+        commands::apply_popover_size(&win, state.expanded());
+    }
+    let anchor = anchor.or_else(|| tray_rect(app));
     let scale = scale_of(&win);
-    place_at(&win, tray_rect(app).map(|r| to_physical(r, scale)));
+    place_at(&win, anchor.map(|rect| to_physical(rect, scale)));
     let _ = win.show();
     let _ = win.set_focus();
 }
@@ -132,7 +139,7 @@ fn toggle_popover(app: &AppHandle) {
     if win.is_visible().unwrap_or(false) {
         let _ = win.hide();
     } else {
-        show_popover(app);
+        show_popover(app, None);
     }
 }
 
@@ -152,12 +159,12 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
         // es lo que hace cualquier icono de bandeja en Windows.
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {
-            "open" => show_popover(app),
+            "open" => show_popover(app, None),
             // El asistente vive en el popover. El menú no puede abrir un diálogo
             // nativo propio sin duplicar el formulario, así que muestra el
             // popover y le avisa qué hacer.
             "setup" => {
-                show_popover(app);
+                show_popover(app, None);
                 let _ = app.emit(OPEN_SETUP, ());
             }
             "quit" => app.exit(0),
@@ -177,9 +184,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
                 let app = tray.app_handle();
                 if let Some(win) = popover(app) {
                     if !win.is_visible().unwrap_or(false) {
-                        place_at(&win, Some(to_physical(rect, scale_of(&win))));
-                        let _ = win.show();
-                        let _ = win.set_focus();
+                        show_popover(app, Some(rect));
                         return;
                     }
                 }
@@ -206,6 +211,13 @@ fn main() {
             let dir = app.path().app_config_dir()?;
             app.manage(commands::AppState::new(dir));
             build_tray(app.handle())?;
+            // El popover nace con el tamaño de `tauri.conf.json`; si el dueño lo
+            // dejó grande en la sesión anterior, se agranda antes de mostrarlo
+            // por primera vez (S5).
+            if let Some(win) = popover(app.handle()) {
+                let expanded = app.state::<commands::AppState>().expanded();
+                commands::apply_popover_size(&win, expanded);
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -218,6 +230,9 @@ fn main() {
             commands::panel_login,
             commands::panel_logout,
             commands::panel_calendar,
+            commands::panel_calendar_events,
+            commands::popover_state,
+            commands::popover_expand,
             commands::open_panel,
         ])
         // Cerrar la ventana no cierra el programa: la esconde. Con `prevent_close`

@@ -6,10 +6,11 @@
    los hijos que tocan el borde repiten ese radio un píxel menos (15) porque el
    borde de tinta ocupa el píxel de afuera.
 
-   La ventana del sistema es transparente y mide 388x660: los 8px de la derecha
-   y los 16px de abajo que sobran son la losa negra desplazada (7px) y el pico
-   que apunta al icono de la bandeja. Nada de eso puede quedar fuera del
-   rectángulo de la ventana o el sistema lo recorta. */
+   La ventana del sistema es transparente y mide 388x660 (o 520x820 con la
+   agenda desplegada, S5): los 8px de la derecha y los 16px de abajo que sobran
+   son la losa negra desplazada (7px) y el pico que apunta al icono de la
+   bandeja. Nada de eso puede quedar fuera del rectángulo de la ventana o el
+   sistema lo recorta. */
 
 :root {
   --paper: #ffffff;
@@ -54,6 +55,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
    z-index negativo del propio elemento: ese pseudo se pinta por ENCIMA del
    fondo cuando el elemento abre contexto de apilado, y deja el popover negro. */
 .win-wrap { position: fixed; right: 8px; bottom: 16px; width: 380px; }
+/* Agenda desplegada (S5): la ventana pasa a 520x820, así que la losa mide 512
+   (los 8px de la derecha siguen siendo la losa negra desplazada) y el alto lo
+   pone el rectángulo de la ventana: `.win` nunca pasa de `100vh - 16px`. */
+.win-wrap.is-expanded { width: 512px; }
 .win-wrap::before {
   content: "";
   position: absolute; inset: 0;
@@ -212,20 +217,26 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .next .hour { font-family: var(--mono); font-size: 15px; font-weight: 700; }
 .next .what { display: block; font-size: 14px; font-weight: 700; line-height: 1.25; }
-.next .where { display: block; font-size: 11px; opacity: 0.62; }
+.next .where, .agenda-row .where { display: block; font-size: 11px; opacity: 0.62; }
 .next .daytag {
   grid-column: 1 / -1; display: flex; align-items: center; gap: 6px;
   font-size: 9px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
 }
 .next .daytag .rule { flex: 1; height: 1px; background: rgba(0, 0, 0, 0.25); }
 .agenda { display: grid; }
-.agenda-row { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 10px; align-items: center; padding: 9px 12px; }
+.agenda-row { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 10px; align-items: center; padding: 9px 12px; }
 .agenda-row + .agenda-row { border-top: var(--hair); }
 .agenda-row .hour { font-family: var(--mono); font-size: 12px; font-weight: 700; }
+/* "todo el día" no entra en una columna de 58px en mono: se rotula en la
+   tipografía de texto, más angosta, y sólo para esos eventos. */
+.agenda-row .hour.is-allday { font-family: var(--font); font-size: 10px; font-weight: 700; }
 .agenda-row .what { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; }
+/* Un título o un lugar largo (una dirección de Zoom, por ejemplo) se parte en
+   vez de empujar la fila fuera de la ventana. */
+.agenda-row .what, .agenda-row .where { overflow-wrap: anywhere; }
 .agenda-empty { padding: 9px 12px; font-size: 12px; opacity: 0.55; }
 .swatch { width: 9px; height: 9px; border: 1px solid var(--ink); flex: 0 0 auto; }
-.cal-foot { display: flex; gap: 8px; padding: 10px 12px; border-top: var(--line); background: var(--mist); }
+.cal-foot { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 12px; border-top: var(--line); background: var(--mist); }
 .cal-foot .btn { min-height: 30px; }
 
 .foot {

@@ -5,12 +5,58 @@
 //! `Sync` con el guard vivo), y aunque compilara sería un deadlock esperando el
 //! turno.
 
-use crate::api::{Api, ApiError, Status};
+use crate::api::{Api, ApiError, CalendarEvents, Status};
 use crate::store::{self, Connection, Store};
+use serde::Serialize;
 use serde_json::Value;
 use std::path::PathBuf;
 use std::sync::Mutex;
-use tauri::State;
+use tauri::{LogicalSize, PhysicalPosition, State, WebviewWindow};
+
+/// Tamaños lógicos del popover: el de `tauri.conf.json` y el de la agenda
+/// desplegada (S5). La ventana mide 8px más de ancho que la losa porque la losa
+/// negra se dibuja desplazada 7px dentro del rectángulo transparente.
+pub const POPOVER_COMPACT: (f64, f64) = (388.0, 660.0);
+pub const POPOVER_EXPANDED: (f64, f64) = (520.0, 820.0);
+
+fn popover_logical_size(expanded: bool) -> LogicalSize<f64> {
+    let (width, height) = if expanded {
+        POPOVER_EXPANDED
+    } else {
+        POPOVER_COMPACT
+    };
+    LogicalSize::new(width, height)
+}
+
+/// Deja la ventana en el tamaño que pide la preferencia guardada. No la mueve:
+/// el popover se ancla y se muestra en `main.rs`, y ahí el pico se recoloca con
+/// el tamaño real recién leído.
+pub fn apply_popover_size(window: &WebviewWindow, expanded: bool) {
+    let _ = window.set_size(popover_logical_size(expanded));
+}
+
+/// Lo que devuelve `popover_expand`: el tamaño lógico aplicado.
+#[derive(Debug, Clone, Copy, Serialize)]
+pub struct PopoverSize {
+    pub width: f64,
+    pub height: f64,
+    pub expanded: bool,
+}
+
+impl PopoverSize {
+    fn of(expanded: bool) -> Self {
+        let (width, height) = if expanded {
+            POPOVER_EXPANDED
+        } else {
+            POPOVER_COMPACT
+        };
+        Self {
+            width,
+            height,
+            expanded,
+        }
+    }
+}
 
 pub struct AppState {
     dir: PathBuf,
@@ -24,6 +70,11 @@ impl AppState {
             dir,
             store: Mutex::new(store),
         }
+    }
+
+    /// Si el dueño dejó el popover grande (S5). `main.rs` lo consulta al abrir.
+    pub fn expanded(&self) -> bool {
+        self.lock().expanded
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, Store> {
@@ -149,6 +200,61 @@ pub async fn panel_calendar(state: State<'_, AppState>) -> Result<Value, ApiErro
     state.api()?.calendar().await
 }
 
+/// La agenda del día (S4) sale del mismo prefijo privado, así que un 401 también
+/// llega con `code: 401` y el popover pide la sesión en vez de inventar filas.
+#[tauri::command]
+pub async fn panel_calendar_events(
+    state: State<'_, AppState>,
+) -> Result<CalendarEvents, ApiError> {
+    state.api()?.events().await
+}
+
+/// Preferencia guardada, sin tocar la ventana: el popover la lee al arrancar para
+/// pintar el botón correcto antes de que el dueño lo toque.
+#[tauri::command]
+pub async fn popover_state(state: State<'_, AppState>) -> Result<PopoverSize, ApiError> {
+    Ok(PopoverSize::of(state.lock().expanded))
+}
+
+/// Agranda o achica el popover (S5) y recuerda la elección.
+///
+/// La esquina inferior derecha no se mueve, porque es donde vive el pico que
+/// apunta al icono de la bandeja: la ventana crece hacia arriba y hacia la
+/// izquierda. El delta se mide en píxeles físicos porque `outer_position` viene
+/// en físicos; mezclar unidades corre el pico varios píxeles con escalado 125%.
+#[tauri::command]
+pub async fn popover_expand(
+    state: State<'_, AppState>,
+    window: WebviewWindow,
+    expanded: bool,
+) -> Result<PopoverSize, ApiError> {
+    let target = popover_logical_size(expanded);
+    let scale = window.scale_factor().unwrap_or(1.0);
+    let target_px = target.to_physical::<u32>(scale);
+    let current_px = window.outer_size().map_err(resize_failed)?;
+    let origin = window.outer_position().map_err(resize_failed)?;
+
+    window.set_size(target).map_err(resize_failed)?;
+
+    let dx = target_px.width as i32 - current_px.width as i32;
+    let dy = target_px.height as i32 - current_px.height as i32;
+    let corner = PhysicalPosition::new(origin.x - dx, origin.y - dy);
+    window.set_position(corner).map_err(resize_failed)?;
+
+    {
+        let mut store = state.lock();
+        if store.expanded != expanded {
+            store.expanded = expanded;
+            state.persist(&store)?;
+        }
+    }
+    Ok(PopoverSize::of(expanded))
+}
+
+fn resize_failed(err: impl std::fmt::Display) -> ApiError {
+    ApiError::transport(format!("No pude cambiar el tamaño del popover: {err}"))
+}
+
 /// Abre `http://<ip>/admin` en el navegador del sistema (S7). Sin shell: el
 /// `rundll32` de Windows recibe la URL como argumento, no como línea de comando
 /// interpretada, así que un host raro no puede convertirse en ejecución.
@@ -220,6 +326,7 @@ mod tests {
         let mut store = Store {
             connection: Some(uno.clone()),
             session: Some("sid-vivo".to_string()),
+            expanded: false,
         };
 
         // Reconectar al mismo equipo no expulsa la sesión.

@@ -88,6 +88,41 @@ pub struct Sta {
     pub rssi: i32,
 }
 
+/// Un evento de la agenda tal como lo publica `GET /api/calendar/events` (S3).
+///
+/// Las horas viajan como epoch UTC y el formato lo pone la app con el `tz` del
+/// contador: el equipo no manda texto formateado ni la app inventa zonas.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CalendarEvent {
+    #[serde(default)]
+    pub summary: String,
+    #[serde(default)]
+    pub location: String,
+    pub start_epoch: i64,
+    pub end_epoch: i64,
+    #[serde(default)]
+    pub lead_min: i32,
+    #[serde(default)]
+    pub all_day: bool,
+}
+
+/// Lo que devuelve `GET /api/calendar/events`: los eventos que el equipo ya
+/// tiene en memoria y su offset horario. `count` es el del firmware; la app
+/// dibuja `events` en el orden que llega.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CalendarEvents {
+    #[serde(default)]
+    pub tz: i32,
+    #[serde(default)]
+    pub count: u32,
+    /// Ausente se lee como lista vacía: un equipo sin eventos no puede dejar el
+    /// popover sin tarjeta.
+    #[serde(default)]
+    pub events: Vec<CalendarEvent>,
+}
+
 pub struct Api {
     base: String,
     http: reqwest::Client,
@@ -201,6 +236,16 @@ impl Api {
     pub async fn calendar(&self) -> Result<Value, ApiError> {
         self.call(reqwest::Method::GET, "/api/calendar", None).await
     }
+
+    /// `GET /api/calendar/events` (S3): la agenda del día que el equipo tiene en
+    /// RAM. Cae bajo `/api/calendar`, así que también pide sesión del panel.
+    pub async fn events(&self) -> Result<CalendarEvents, ApiError> {
+        let value = self
+            .call(reqwest::Method::GET, "/api/calendar/events", None)
+            .await?;
+        serde_json::from_value(value)
+            .map_err(|_| ApiError::transport("El equipo contestó algo que no entiendo"))
+    }
 }
 
 /// El mensaje de error del equipo es texto para el dueño ("Falta el indice de
@@ -283,6 +328,49 @@ mod tests {
         assert!(status.names.is_empty());
     }
 
+    /// El JSON de S3, congelado: es la única interfaz entre el firmware y la
+    /// app, así que el nombre exacto de cada campo se prueba acá.
+    const EVENTS_JSON: &str = r#"{
+        "ok":true,"tz":-3,"count":2,
+        "events":[
+            {"summary":"Reunión","location":"Zoom","startEpoch":1764000000,
+             "endEpoch":1764003600,"leadMin":10,"allDay":false},
+            {"summary":"Feriado","location":"","startEpoch":1764000000,
+             "endEpoch":1764086400,"leadMin":0,"allDay":true}
+        ]
+    }"#;
+
+    #[test]
+    fn parsea_la_agenda_del_dia_del_firmware() {
+        let events: CalendarEvents = serde_json::from_str(EVENTS_JSON).expect("agenda");
+        assert_eq!(events.tz, -3);
+        assert_eq!(events.count, 2);
+        assert_eq!(events.events.len(), 2);
+
+        let first = &events.events[0];
+        assert_eq!(first.summary, "Reunión");
+        assert_eq!(first.location, "Zoom");
+        assert_eq!(first.start_epoch, 1_764_000_000);
+        assert_eq!(first.end_epoch, 1_764_003_600);
+        assert_eq!(first.lead_min, 10);
+        assert!(!first.all_day);
+        assert!(events.events[1].all_day);
+
+        // El popover recibe camelCase: `rename_all` tiene que seguir puesto.
+        let again = serde_json::to_value(&events).expect("serializar");
+        assert_eq!(again["events"][0]["startEpoch"], 1_764_000_000);
+        assert_eq!(again["events"][0]["leadMin"], 10);
+        assert_eq!(again["tz"], -3);
+    }
+
+    #[test]
+    fn una_agenda_sin_events_es_una_lista_vacia() {
+        let events: CalendarEvents =
+            serde_json::from_str(r#"{"ok":true,"tz":-3,"count":0}"#).expect("agenda");
+        assert_eq!(events.tz, -3);
+        assert!(events.events.is_empty());
+    }
+
     #[test]
     fn saca_el_sid_de_la_cookie() {
         assert_eq!(
@@ -342,6 +430,31 @@ mod tests {
         let port = fake_device(response);
         let status = api_for(port).status().await.expect("status");
         assert_eq!(status.screen_name, "RED");
+    }
+
+    #[tokio::test]
+    async fn lee_la_agenda_de_un_equipo_por_http() {
+        let response: &'static str = Box::leak(http_ok(EVENTS_JSON).into_boxed_str());
+        let port = fake_device(response);
+        let events = api_for(port).events().await.expect("agenda");
+        assert_eq!(events.events.len(), 2);
+        assert_eq!(events.events[0].summary, "Reunión");
+    }
+
+    #[tokio::test]
+    async fn la_agenda_sin_sesion_llega_como_401() {
+        let body = r#"{"ok":false,"error":"Necesita sesion"}"#;
+        let response: &'static str = Box::leak(
+            format!(
+                "HTTP/1.1 401 Unauthorized\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                body.len(),
+                body
+            )
+            .into_boxed_str(),
+        );
+        let port = fake_device(response);
+        let error = api_for(port).events().await.expect_err("401");
+        assert_eq!(error.code, 401);
     }
 
     #[tokio::test]

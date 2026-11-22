@@ -56,7 +56,7 @@ npm run dev      # abre la app en modo desarrollo
 npm run build    # genera el instalador NSIS en src-tauri/target/release/bundle/nsis/
 
 cd src-tauri
-cargo test       # 18 pruebas: store, parser de dirección y transporte HTTP
+cargo test       # 25 pruebas: store, parser de dirección y transporte HTTP
 cargo build      # el binario de desarrollo, sin instalador
 ```
 
@@ -76,7 +76,7 @@ tray_buddy/
 │   ├── src/main.rs        bandeja, ventana, salir vs. esconder
 │   ├── src/store.rs       IPv4 puerto + token de sesión en el store local
 │   ├── src/api.rs         el único HTTP: reqwest contra el equipo
-│   ├── src/commands.rs    los diez comandos que el popover llama con invoke
+│   ├── src/commands.rs    los comandos que el popover llama con invoke
 │   ├── tauri.conf.json    ventana 388x660 transparente, bundle NSIS
 │   ├── capabilities/      permisos: arrastrar, esconder, fijar arriba
 │   ├── icons/             generados, no dibujados a mano
@@ -100,6 +100,11 @@ de la derecha y los 16px de abajo que sobran son la losa negra desplazada 7px y
 el pico que apunta al icono: todo lo que se dibuja tiene que caer dentro de ese
 rectángulo, porque el sistema recorta lo que se sale.
 
+Con la agenda desplegada el control **Agenda / Achicar** de la tarjeta de
+calendario la lleva a 520x820. Al agrandar, la esquina inferior derecha —donde
+vive el pico— no se mueve: la ventana crece hacia arriba y hacia la izquierda.
+El tamaño elegido se guarda en el store local y se recuerda entre arranques.
+
 Cerrar y minimizar son lo mismo, esconder. Salir es una acción del menú de la
 bandeja: una app de bandeja que muere al cerrar su ventana no es una app de
 bandeja.
@@ -121,8 +126,18 @@ bandeja.
   sobre el restante informado.
 - **Calendario (S6), sólo lectura.** `GET /api/calendar` exige la sesión del
   panel, así que la tarjeta pide usuario y clave una vez, guarda **sólo el token
-  `sid`** y la clave no toca el disco. Si el equipo no publica la lista del día,
-  el popover lo dice.
+  `sid`** y la clave no toca el disco. Arriba sigue la próxima cita; debajo va la
+  **agenda del día** (`GET /api/calendar/events`): hora local calculada con el
+  `tz` que informa el equipo sobre los epochs UTC, título y lugar, en el orden
+  que manda el firmware. Un evento de todo el día se rotula "todo el día" en vez
+  de una hora. Sin sesión, sin autorización en Google o sin eventos, la tarjeta
+  lo dice en vez de inventar filas.
+- **Popover que crece (S5).** El botón **Agenda / Achicar** de la tarjeta de
+  calendario cambia la ventana entre 388x660 y 520x820 (`tauri::LogicalSize`)
+  sin mover la esquina inferior derecha, que es donde está el pico de la
+  bandeja. La preferencia se guarda como `expanded` en
+  `%APPDATA%\ar.esp32gadget.buddy\config.json` y se aplica al abrir el popover y
+  al arrancar la app.
 - **Panel (S7).** Abre `http://<ip>/admin` en el navegador del sistema con
   `rundll32 url.dll,FileProtocolHandler`: sin shell de por medio, la URL no se
   interpreta como línea de comandos.
@@ -138,9 +153,10 @@ bandeja.
   equipo y por ahora el popover no lo toca.
 - **Ta-te-ti (S5)** — el puerto del juego de `web_ui/landing.js` está pendiente:
   el transporte ya sabe mandar `POST /api/face`, falta la interfaz.
-- **La lista del día del calendario** no existe en el firmware: `GET
-  /api/calendar` publica la próxima cita y contadores, no los eventos. El
-  popover muestra lo que hay.
+- **El mes completo del calendario** queda para después de esta feature: ver un
+  mes exige cambiar la ventana de sync del equipo (hoy pide de -1 h a +26 h con
+  `maxResults=12`) y retener muchos más eventos en un equipo con poca RAM. Hoy
+  el popover muestra la próxima cita y la agenda del día.
 - **USB (S13)** queda anotado como requisito futuro, no implementado: hoy el
   único transporte es HTTP sobre la LAN.
 

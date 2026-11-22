@@ -35,6 +35,12 @@ pub struct Store {
     pub connection: Option<Connection>,
     /// Cookie `sid` del panel, opaca. Nunca se muestra ni se loguea.
     pub session: Option<String>,
+    /// Si el popover quedó grande (S5). Se recuerda entre arranques: el dueño
+    /// eligió ese tamaño y volver al chico en cada inicio sería deshacerle la
+    /// decisión. `#[serde(default)]` deja leer un `config.json` anterior a este
+    /// campo, que se interpreta como popover chico.
+    #[serde(default)]
+    pub expanded: bool,
 }
 
 /// Convierte lo que el dueño escribe en el asistente en una conexión.
@@ -181,6 +187,7 @@ mod tests {
         let original = Store {
             connection: Some(conn("10.0.0.7", 8080)),
             session: Some("a1b2c3".to_string()),
+            expanded: true,
         };
         save(&dir, &original).expect("guardar");
         assert_eq!(load(&dir), original);
@@ -209,5 +216,20 @@ mod tests {
         let store = parse(br#"{"connection":{"host":"192.168.4.1","port":80}}"#).unwrap();
         assert_eq!(store.session, None);
         assert_eq!(store.connection, Some(conn("192.168.4.1", 80)));
+    }
+
+    #[test]
+    fn un_config_sin_expanded_arranca_con_el_popover_chico() {
+        // El archivo anterior a S5 no tiene `expanded`: se lee sin romper y el
+        // popover arranca en 388x660, que es el tamaño de siempre.
+        let store = parse(br#"{"session":"a1b2c3"}"#).unwrap();
+        assert!(!store.expanded);
+
+        let guardado = Store {
+            expanded: true,
+            ..Store::default()
+        };
+        let vuelta = parse(&to_bytes(&guardado)).unwrap();
+        assert!(vuelta.expanded);
     }
 }

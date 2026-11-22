@@ -38,6 +38,10 @@ let selectedMinutes = 25;
 let connection = null;
 let wizardOpen = false;
 let calendarAsksSession = false;
+/** Último `GET /api/calendar`: la agenda lo usa para las palabras de S6. */
+let lastCalendar = null;
+/** Si el popover está agrandado (S5). Lo manda el backend, no se adivina. */
+let popoverExpanded = false;
 
 const $ = (id) => document.getElementById(id);
 
@@ -280,7 +284,8 @@ function minutesLabel(minutes) {
   return rest ? `en ${hours} h ${rest} min` : `en ${hours} h`;
 }
 
-function renderCalendar(data) {
+function renderCalendar(data, events) {
+  lastCalendar = data;
   $("calLogin").hidden = true;
   $("calNextWhat").textContent = data?.hasNext ? data.nextSummary || "Sin título" : "Sin citas próximas";
   $("calNextWhere").textContent = data?.hasNext
@@ -288,20 +293,100 @@ function renderCalendar(data) {
     : data?.authorized
       ? "Google Calendar no tiene nada a la vista"
       : "Google Calendar no está autorizado en el equipo";
-  $("calNextHour").textContent = data?.hasNext ? `${data.nextLeadMin ?? 0}′` : "--:--";
+  // La columna grande es una HORA, no un recordatorio: mostrar el aviso (10′)
+  // al lado de "en 12 min" repetía la misma información con otro número. Se usa
+  // el arranque del primer evento de la agenda, que es el mismo que el equipo
+  // llama "próxima cita"; si el evento es de todo el día, "hoy".
+  const first = (events?.events ?? [])[0];
+  const tz = events?.tz ?? 0;
+  $("calNextHour").textContent = data?.hasNext
+    ? first
+      ? first.allDay
+        ? "hoy"
+        : eventClock(first.startEpoch, tz)
+      : `${data.nextLeadMin ?? 0}′`
+    : "--:--";
   $("calNextDay").textContent = data?.hasNext ? "Próxima cita" : "Calendario";
   $("calMeta").textContent = data?.authorized ? `${data.eventCount ?? 0} eventos` : "sin sesión";
 
-  // El firmware publica la próxima cita y los contadores, no la lista del día:
-  // el popover dice lo que hay en vez de inventar una agenda.
+  // La lista del día viaja en otro endpoint (`GET /api/calendar/events`), que
+  // se pide después; acá se deja el espacio para no taparlo con un renglón
+  // provisorio.
+  $("calAgenda").textContent = "";
+}
+
+/**
+ * Hora local del evento a partir del epoch UTC y del offset del equipo.
+ *
+ * `tz` son horas (puede ser 5.5): se suma el offset en segundos y se leen los
+ * componentes en UTC, así el resultado no depende de la zona horaria del PC —
+ * el equipo es el que sabe dónde está el dueño.
+ */
+function eventClock(epoch, tz) {
+  const shifted = new Date((epoch + tz * 3600) * 1000);
+  const hours = String(shifted.getUTCHours()).padStart(2, "0");
+  const minutes = String(shifted.getUTCMinutes()).padStart(2, "0");
+  return `${hours}:${minutes}`;
+}
+
+/** El renglón de una agenda sin filas, con las palabras de S6. */
+function agendaEmptyText(failure) {
+  if (failure) return failure;
+  if (lastCalendar && lastCalendar.authorized === false) {
+    return lastCalendar.lastError || "El equipo no está conectado a Google.";
+  }
+  return "Sin eventos para hoy.";
+}
+
+function agendaRow(hourText, allDay, summary, location) {
+  const row = document.createElement("div");
+  row.className = "agenda-row";
+
+  const hour = document.createElement("span");
+  hour.className = allDay ? "hour is-allday" : "hour";
+  hour.textContent = hourText;
+
+  const text = document.createElement("span");
+  const what = document.createElement("span");
+  what.className = "what";
+  what.textContent = summary || "Sin título";
+  text.appendChild(what);
+  if (location) {
+    const where = document.createElement("span");
+    where.className = "where";
+    where.textContent = location;
+    text.appendChild(where);
+  }
+
+  row.append(hour, text);
+  return row;
+}
+
+/**
+ * Agenda del día (S4). El orden es el que manda el equipo: no se reordena ni se
+ * filtra acá. Sin datos no se inventa nada: un evento de todo el día se rotula
+ * "todo el día" en vez de una hora que no tiene.
+ */
+function renderAgenda(data, failure) {
   const agenda = $("calAgenda");
   agenda.textContent = "";
-  const row = document.createElement("div");
-  row.className = "agenda-empty";
-  row.textContent = data?.authorized
-    ? "El equipo no publica la lista del día."
-    : data?.lastError || "El equipo no está conectado a Google.";
-  agenda.appendChild(row);
+  const tz = data?.tz ?? 0;
+  const events = data?.events ?? [];
+
+  if (failure || !events.length) {
+    const empty = document.createElement("div");
+    empty.className = "agenda-empty";
+    empty.textContent = agendaEmptyText(failure);
+    agenda.appendChild(empty);
+    return;
+  }
+
+  events.forEach((event) => {
+    const hour = event.allDay ? "todo el día" : eventClock(event.startEpoch ?? 0, tz);
+    agenda.appendChild(
+      agendaRow(hour, Boolean(event.allDay), event.summary, event.location),
+    );
+  });
 }
 
 function showCalendarSession(message) {
@@ -314,27 +399,55 @@ function showCalendarSession(message) {
   $("calNextHour").textContent = "--:--";
   $("calNextDay").textContent = "Calendario";
   $("calMeta").textContent = "privado";
+  // La agenda no se inventa: sin sesión no hay lista, y el renglón usa las
+  // mismas palabras que la tarjeta.
   const agenda = $("calAgenda");
   agenda.textContent = "";
+  const row = document.createElement("div");
+  row.className = "agenda-empty";
+  row.textContent = "El equipo pide sesión del panel";
+  agenda.appendChild(row);
 }
 
 async function loadCalendar() {
   if (!status) return;
+  let next = null;
+  let events = null;
+  let failure = null;
+
   try {
-    const data = await invoke("panel_calendar");
-    calendarAsksSession = false;
-    renderCalendar(data);
+    next = await invoke("panel_calendar");
   } catch (error) {
-    if (error?.code === 401) {
-      calendarAsksSession = true;
-      showCalendarSession(null);
-    } else {
-      renderCalendar({ lastError: error?.message });
+    failure = error;
+  }
+  if (!failure) {
+    try {
+      events = await invoke("panel_calendar_events");
+    } catch (error) {
+      failure = error;
     }
   }
+
+  if (failure?.code === 401) {
+    calendarAsksSession = true;
+    lastCalendar = null;
+    showCalendarSession(null);
+    return;
+  }
+
+  calendarAsksSession = false;
+  if (failure) {
+    renderCalendar({ lastError: failure?.message }, null);
+    renderAgenda(null, failure?.message);
+    return;
+  }
+  renderCalendar(next, events);
+  renderAgenda(events, null);
 }
 
 function wireCalendar() {
+  $("btnCalAgenda").addEventListener("click", () => setPopoverExpanded(!popoverExpanded));
+
   $("calLogin").addEventListener("submit", async (event) => {
     event.preventDefault();
     const user = $("calUser").value.trim();
@@ -357,6 +470,52 @@ function wireCalendar() {
       showCalendarSession(error?.message ?? "No pude iniciar sesión");
     }
   });
+}
+
+// ── tamaño del popover (S5) ─────────────────────────────────────────────────
+
+/** Pinta el estado del botón y el ancho de la losa sin mover la ventana. */
+function paintPopoverSize(expanded) {
+  popoverExpanded = Boolean(expanded);
+  document.querySelector(".win-wrap").classList.toggle("is-expanded", popoverExpanded);
+  const button = $("btnCalAgenda");
+  button.textContent = popoverExpanded ? "Achicar" : "Agenda";
+  button.setAttribute("aria-pressed", popoverExpanded ? "true" : "false");
+  button.title = popoverExpanded ? "Volver al tamaño chico" : "Ver la agenda del día";
+}
+
+/**
+ * Agranda o achica la ventana. El redimensionado y el reposicionamiento los
+ * hace Rust (`popover_expand`): el frontend no puede mover la ventana sin
+ * permiso de Tauri, y la esquina inferior derecha la cuida el nativo.
+ */
+async function setPopoverExpanded(expanded) {
+  // Abierto en un navegador para iterar diseño no hay a quién pedirle la
+  // ventana: se cambia sólo la clase, que es lo que se quiere ver.
+  if (!invoke) {
+    paintPopoverSize(expanded);
+    return;
+  }
+  const button = $("btnCalAgenda");
+  button.disabled = true;
+  try {
+    const size = await invoke("popover_expand", { expanded });
+    paintPopoverSize(size?.expanded ?? expanded);
+  } catch (error) {
+    setOnline(false, "Error", error?.message);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function loadPopoverSize() {
+  if (!invoke) return;
+  try {
+    const size = await invoke("popover_state");
+    paintPopoverSize(size?.expanded);
+  } catch {
+    // El tamaño es cosmético: si el store no contesta, arranca chico.
+  }
 }
 
 // ── ciclo de vida ───────────────────────────────────────────────────────────
@@ -437,6 +596,7 @@ async function boot() {
   wireFocus();
   wireCalendar();
   wirePanel();
+  await loadPopoverSize();
 
   if (!invoke) {
     setOnline(false, "Sin conexión", "—");
