@@ -13,18 +13,17 @@
 <main class="login" id="contenido">
 
   <div class="login-brand">
-    <span class="logo">◆</span>
-    <h1>ESP32 Gadget</h1>
+    <span class="logo" aria-hidden="true"><span class="eye"></span><span class="eye"></span></span>
+    <h1>ESP BUDDY</h1>
     <p class="sub">Panel de administración</p>
   </div>
 
   <section class="card login-card">
-    <h2>Entrá para configurar el equipo</h2>
-    <p class="hint">El usuario y la contraseña salen del <code>.env</code> con el que se
-      compiló el firmware, y se pueden cambiar después desde el panel.</p>
+    <h2>Administrar Buddy</h2>
 
     <form id="loginForm" class="form" autocomplete="on">
       <label>Usuario
+        <!-- Sin type a propósito: el campo viaja así desde el firmware. -->
         <input id="loginUser" name="user" autocomplete="username" maxlength="32" required autofocus>
       </label>
       <label>Contraseña
@@ -38,7 +37,7 @@
   </section>
 
   <footer>
-    <p class="hint"><a href="/">Volver al inicio</a></p>
+    <p class="hint"><a class="link" href="/">Volver al inicio</a></p>
   </footer>
 
 </main>

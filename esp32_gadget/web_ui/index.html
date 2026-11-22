@@ -31,14 +31,6 @@
   <symbol id="i-display" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></symbol>
 </defs></svg>
 
-<!-- The only continuous motion in the system, straight from the reference. -->
-<div class="marquee" aria-hidden="true">
-  <div class="marquee-track">
-    <span>Sofía · ESP32 Gadget</span><span>◆</span><span>Sin internet</span><span>◆</span><span>Siete pantallas</span><span>◆</span>
-    <span>Sofía · ESP32 Gadget</span><span>◆</span><span>Sin internet</span><span>◆</span><span>Siete pantallas</span><span>◆</span>
-  </div>
-</div>
-
 <main class="landing" id="contenido">
 
   <!-- The eyes live on the glass, not here: this page is a control surface. -->
@@ -48,13 +40,10 @@
       <span class="sticker b"></span>
       <span class="sticker c"></span>
     </div>
-    <p class="hero-kicker">El equipo de siete pantallas</p>
-    <h1 class="display">Sofía</h1>
-    <p class="tagline">Elegí qué mira, jugá y mandá el equipo desde acá.</p>
+    <h1 class="display">ESP-BUDDY</h1>
   </header>
 
   <div class="statusbar">
-    <span class="live" id="connPill"><span class="dot" aria-hidden="true"></span><span id="connText">Conectando…</span></span>
     <button class="menu-btn" id="menuBtn" type="button" aria-expanded="false" aria-controls="launcher" aria-label="Abrir menú">
       <svg aria-hidden="true"><use href="#i-apps"/></svg>
     </button>
@@ -71,11 +60,10 @@
 
   <section class="focus-band" aria-labelledby="focusTitle">
     <div class="section-head">
-      <h2 id="focusTitle">Concentración</h2>
-      <span class="hint" id="focusState">Apagada</span>
+      <h2 id="focusTitle">Pomodoro</h2>
     </div>
     <div class="focus-card">
-      <p class="focus-lead">Sofía estudia con vos: el tiempo queda grande en su pantalla, debajo de los ojos.</p>
+      <p class="focus-lead">Sofía se concentra con vos.</p>
       <div class="chips" role="group" aria-label="Duración de la concentración">
         <button class="chip" type="button" data-focus-min="15" aria-pressed="false">15 min</button>
         <button class="chip" type="button" data-focus-min="25" aria-pressed="true">25 min</button>
@@ -112,10 +100,6 @@
     </button>
   </section>
 
-  <footer class="landing-foot">
-    <p class="hint">Este panel vive dentro del equipo: no necesita internet.</p>
-  </footer>
-
 </main>
 
 <!-- The menu: full screen, apps first, then the screens grid. -->
@@ -124,7 +108,6 @@
     <div class="launcher-head">
       <div>
         <h2 id="launcherTitle">Menú</h2>
-        <p class="hint">Apps y pantallas del equipo</p>
       </div>
       <button class="close-btn" type="button" data-close-menu aria-label="Cerrar menú">
         <svg aria-hidden="true"><use href="#i-close"/></svg>
@@ -132,28 +115,21 @@
     </div>
 
     <div class="section">
-      <div class="section-head"><h2>Aplicaciones</h2><span class="hint">Juegos primero</span></div>
+      <div class="section-head"><h2>Aplicaciones</h2></div>
       <div class="launch-grid">
-        <button class="launch accent wide" type="button" data-open-game>
+        <button class="launch accent" type="button" data-open-game>
           <svg aria-hidden="true"><use href="#i-game"/></svg>
-          <span>
-            <b>Juegos</b>
-            <small>Ta-te-ti · lo que se juega en la web</small>
-          </span>
+          <b>Juegos</b>
         </button>
-        <a class="launch" href="/admin#spotify">
-          <svg aria-hidden="true"><use href="#i-music"/></svg>
-          <b>Música</b><small>Spotify en el equipo</small>
-        </a>
         <a class="launch" href="/admin">
           <svg aria-hidden="true"><use href="#i-lock"/></svg>
-          <b>Ajustes</b><small>Pide sesión</small>
+          <b>Administración</b>
         </a>
       </div>
     </div>
 
     <div class="section">
-      <div class="section-head"><h2>Qué se ve en la pantalla</h2><span class="hint" id="screenCount">7 pantallas</span></div>
+      <div class="section-head"><h2>Qué se ve en la pantalla</h2></div>
       <div class="screens" id="screenGrid"></div>
     </div>
   </div>
@@ -183,11 +159,7 @@
       <div class="board" id="board" role="grid" aria-label="Tablero de ta-te-ti"></div>
     </div>
 
-    <p class="say" id="say" role="status" aria-live="polite"><span class="dot" aria-hidden="true"></span><span>Tu turno. Elegí una casilla.</span></p>
     <div class="game-foot">
-      <button class="icon-btn" type="button" id="againBtn" aria-label="Empezar de nuevo" title="Empezar de nuevo">
-        <svg aria-hidden="true"><use href="#i-play"/></svg>
-      </button>
       <span class="hint" id="record">Récord 0–0 · empates 0</span>
     </div>
   </div>

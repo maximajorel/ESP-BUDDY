@@ -22,9 +22,6 @@
     dockNow: document.getElementById("dockNow"),
     carousel: document.getElementById("carousel"),
     grid: document.getElementById("screenGrid"),
-    screenCount: document.getElementById("screenCount"),
-    pill: document.getElementById("connPill"),
-    pillText: document.getElementById("connText"),
     dockMsg: document.getElementById("dockMsg"),
     retry: document.getElementById("retryBtn")
   };
@@ -53,11 +50,14 @@
     });
   }
 
+  // A failed read is reported in the dock message, which is also the only
+  // control that can retry: the status bar carries just the menu button. Every
+  // node here is optional, so a trimmed page can never throw its way out of the
+  // wiring.
   function setConnected(ok, detail) {
-    ui.pill.classList.toggle("offline", !ok);
-    ui.pillText.textContent = ok ? "En línea" : "Sin conexión";
+    if (!ui.dockMsg) return;
     ui.dockMsg.hidden = ok;
-    if (!ok && detail) ui.dockMsg.firstChild.nodeValue = detail + " ";
+    if (!ok && detail && ui.dockMsg.firstChild) ui.dockMsg.firstChild.nodeValue = detail + " ";
   }
 
   function screenNameAt(index) {
@@ -66,6 +66,7 @@
   }
 
   function renderScreens() {
+    if (!ui.carousel || !ui.grid) return;
     var current = device.current;
     ui.carousel.innerHTML = device.order.map(function (id, position) {
       var on = id === current;
@@ -83,8 +84,7 @@
         '<b>' + screenNameAt(id).toUpperCase() + '</b></button>';
     }).join("");
 
-    ui.screenCount.textContent = device.order.length + " pantallas";
-    ui.dockNow.textContent = "Ahora: " + screenNameAt(current);
+    if (ui.dockNow) ui.dockNow.textContent = "Ahora: " + screenNameAt(current);
 
     // Bring the current screen into view without moving the page: the dock is
     // its own scroll container.
@@ -101,7 +101,7 @@
       button.setAttribute("aria-pressed", on);
       if (button.getAttribute("role") === "option") button.setAttribute("aria-selected", on);
     });
-    ui.dockNow.textContent = "Ahora: " + screenNameAt(device.current);
+    if (ui.dockNow) ui.dockNow.textContent = "Ahora: " + screenNameAt(device.current);
   }
 
   // ---------------------------------------------------------------------------
@@ -116,7 +116,6 @@
     seconds: document.getElementById("focusSeconds"),
     start: document.getElementById("focusStart"),
     stop: document.getElementById("focusStop"),
-    state: document.getElementById("focusState"),
     now: document.getElementById("focusNow")
   };
   var focusBusy = false;
@@ -154,7 +153,6 @@
     var f = status && status.focus;
     var active = !!(f && f.active);
     var finished = !!(f && f.finished);
-    focusUi.state.textContent = finished ? "Terminado" : (active ? "En curso" : "Apagada");
     if (active && f.remainingMs > 0) {
       focusUi.now.textContent = "Sofía está concentrada: quedan " +
         focusClock(f.remainingMs) + " en su pantalla.";
@@ -165,14 +163,14 @@
     } else {
       focusUi.now.hidden = true;
     }
-    focusUi.stop.hidden = !active;
-    focusUi.start.disabled = active || focusBusy;
+    if (focusUi.stop) focusUi.stop.hidden = !active;
+    if (focusUi.start) focusUi.start.disabled = active || focusBusy;
   }
 
   function sendFocus(seconds) {
     if (focusBusy) return;
     focusBusy = true;
-    focusUi.start.disabled = true;
+    if (focusUi.start) focusUi.start.disabled = true;
     api("POST", "/api/focus", { seconds: seconds })
       .then(function () { return api("GET", "/api/status"); })
       .then(renderFocus)
@@ -188,10 +186,14 @@
       });
   }
 
-  focusUi.start.addEventListener("click", function () {
-    sendFocus(focusRequestedSeconds());
-  });
-  focusUi.stop.addEventListener("click", function () { sendFocus(0); });
+  if (focusUi.start) {
+    focusUi.start.addEventListener("click", function () {
+      sendFocus(focusRequestedSeconds());
+    });
+  }
+  if (focusUi.stop) {
+    focusUi.stop.addEventListener("click", function () { sendFocus(0); });
+  }
   document.querySelectorAll("[data-focus-min]").forEach(function (chip) {
     chip.addEventListener("click", function () {
       focusUi.minutes.value = chip.dataset.focusMin;
@@ -261,17 +263,21 @@
     }).catch(function () {});
   }
 
-  ui.carousel.addEventListener("click", function (event) {
-    var button = event.target.closest("[data-screen]");
-    if (button) chooseScreen(Number(button.dataset.screen));
-  });
+  if (ui.carousel) {
+    ui.carousel.addEventListener("click", function (event) {
+      var button = event.target.closest("[data-screen]");
+      if (button) chooseScreen(Number(button.dataset.screen));
+    });
+  }
 
-  ui.grid.addEventListener("click", function (event) {
-    var button = event.target.closest("[data-screen]");
-    if (button) chooseScreen(Number(button.dataset.screen));
-  });
+  if (ui.grid) {
+    ui.grid.addEventListener("click", function (event) {
+      var button = event.target.closest("[data-screen]");
+      if (button) chooseScreen(Number(button.dataset.screen));
+    });
+  }
 
-  ui.retry.addEventListener("click", function () { loadStatus(); });
+  if (ui.retry) ui.retry.addEventListener("click", function () { loadStatus(); });
 
   // The glass can change with the button, so the dock follows the device. It is
   // a read; a poll never writes and never fights a selection in flight.
@@ -293,20 +299,25 @@
 
   function openMenu() {
     document.body.classList.add("menu-open");
-    menuBtn.setAttribute("aria-expanded", "true");
-    setTimeout(function () { document.querySelector("[data-close-menu]").focus(); }, 60);
+    if (menuBtn) menuBtn.setAttribute("aria-expanded", "true");
+    setTimeout(function () {
+      var closer = document.querySelector("[data-close-menu]");
+      if (closer) closer.focus();
+    }, 60);
   }
 
   function closeMenu() {
     if (!document.body.classList.contains("menu-open")) return;
     document.body.classList.remove("menu-open");
-    menuBtn.setAttribute("aria-expanded", "false");
-    if (!document.body.classList.contains("game-open")) menuBtn.focus();
+    if (menuBtn) menuBtn.setAttribute("aria-expanded", "false");
+    if (menuBtn && !document.body.classList.contains("game-open")) menuBtn.focus();
   }
 
-  menuBtn.addEventListener("click", function () {
-    if (document.body.classList.contains("menu-open")) closeMenu(); else openMenu();
-  });
+  if (menuBtn) {
+    menuBtn.addEventListener("click", function () {
+      if (document.body.classList.contains("menu-open")) closeMenu(); else openMenu();
+    });
+  }
   document.querySelectorAll("[data-close-menu]").forEach(function (button) {
     button.addEventListener("click", closeMenu);
   });
@@ -324,11 +335,15 @@
   var SLIP = { easy: 0.6, normal: 0.18, hard: 0 };
 
   var boardEl = document.getElementById("board");
-  var sayEl = document.getElementById("say");
   var recordEl = document.getElementById("record");
 
   var game = { cells: [], over: false, locked: false, diff: "normal" };
   var score = loadScore();
+  // A finished round holds its result long enough to be read, then the board
+  // clears itself and the next round starts at the same difficulty: there is no
+  // restart button, so a dead board never needs one.
+  var RESULT_HOLD_MS = 2200;
+  var restartTimer = null;
 
   function loadScore() {
     try {
@@ -351,6 +366,7 @@
   }
 
   function renderBoard() {
+    if (!boardEl) return;
     boardEl.innerHTML = "";
     game.cells.forEach(function (mark, index) {
       var cell = document.createElement("button");
@@ -385,13 +401,10 @@
     return open;
   }
 
-  function say(text, who, dim) {
-    sayEl.className = "say" + (who === "buddy" ? " buddy" : "") + (dim ? " dim" : "");
-    sayEl.innerHTML = '<span class="dot" aria-hidden="true"></span><span>' + text + "</span>";
-  }
-
   function refreshRecord() {
-    recordEl.textContent = "Récord " + score.you + "–" + score.buddy + " · empates " + score.draws;
+    if (recordEl) {
+      recordEl.textContent = "Récord " + score.you + "–" + score.buddy + " · empates " + score.draws;
+    }
   }
 
   function buddyPick() {
@@ -461,9 +474,10 @@
   }
 
   function reset() {
+    clearTimeout(restartTimer);
+    restartTimer = null;
     game = { cells: [null, null, null, null, null, null, null, null, null], over: false, locked: false, diff: game.diff };
     renderBoard();
-    say("Tu turno. Elegí una casilla.", "you");
     refreshRecord();
   }
 
@@ -472,24 +486,27 @@
     renderBoard();
     if (result.mark === "draw") {
       score.draws++;
-      say("Empate. Otra, dale.", "buddy", true);
       face("sleepy", 5000);
     } else if (result.mark === "x") {
       score.you++;
-      say("Me ganaste… otra vez no, ¿eh?", "buddy", true);
       face("happy", 5000);
     } else {
       score.buddy++;
-      say("¡Gané! Te leí la jugada.", "buddy", true);
       face("anger", 6000);
     }
     saveScore();
     refreshRecord();
-    var cells = boardEl.children;
+    var cells = boardEl ? boardEl.children : [];
     result.line.forEach(function (index) {
       cells[index].classList.add("win");
       if (result.mark === "o") cells[index].classList.add("o-win");
     });
+    // The result stays on screen while the device plays it, then the next round
+    // starts on its own.
+    restartTimer = setTimeout(function () {
+      restartTimer = null;
+      reset();
+    }, RESULT_HOLD_MS);
   }
 
   function place(index, mark) {
@@ -506,7 +523,6 @@
   function play(index) {
     if (game.over || game.locked || game.cells[index]) return;
     game.locked = true;
-    say("Mm…", "you");
     face("focus", 1500);
     if (place(index, "x")) {
       game.locked = false;
@@ -514,19 +530,12 @@
     }
     // Sofia answers after a beat, and the device is the one that shows her
     // thinking.
-    say("Dejame pensar…", "buddy", true);
     face("thinking", 1500);
     setTimeout(function () {
       var pick = buddyPick();
       face("alert", 1200);
       if (!place(pick, "o")) {
         game.locked = false;
-        var threats = LINES.filter(function (line) {
-          var mine = line.filter(function (k) { return game.cells[k] === "x"; }).length;
-          var hers = line.filter(function (k) { return game.cells[k] === "o"; }).length;
-          return mine === 2 && hers === 0;
-        }).length;
-        say(threats ? "Te vi venir. No tan rápido." : "Tu turno. Sorprendeme.", "you");
         // The cells were rebuilt while the board was still locked; without this
         // repaint every empty cell stays disabled and the game dead-ends after
         // one exchange.
@@ -541,12 +550,9 @@
         other.setAttribute("aria-pressed", other === button);
       });
       game.diff = button.dataset.diff;
-      say("Dificultad " + button.firstChild.textContent + ". Nueva partida.", "buddy");
-      setTimeout(reset, 700);
+      reset();
     });
   });
-
-  document.getElementById("againBtn").addEventListener("click", reset);
 
   var gameView = document.getElementById("gameView");
   var gameOpener = null;
@@ -561,7 +567,8 @@
     setDeviceScreen(BUDDY_SCREEN);
     face("focus", 4000);
     reset();
-    document.querySelector("[data-close-game]").focus();
+    var closer = document.querySelector("[data-close-game]");
+    if (closer) closer.focus();
   }
 
   function closeGame() {

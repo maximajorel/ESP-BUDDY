@@ -89,26 +89,6 @@ a { color: var(--ink); }
 
 .sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
 
-/* --- marquee: the one continuous motion in the system ------------------- */
-.marquee {
-  overflow: hidden;
-  background: var(--ink);
-  color: var(--paper);
-}
-.marquee-track {
-  display: flex;
-  gap: 18px;
-  width: max-content;
-  padding: 7px 0;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.032em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  animation: marquee-slide 26s linear infinite;
-}
-@keyframes marquee-slide { to { transform: translateX(-50%); } }
-
 /* --- top bar ------------------------------------------------------------ */
 .topbar {
   display: flex;
@@ -120,10 +100,14 @@ a { color: var(--ink); }
   border-bottom: var(--line);
 }
 .brand { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1 1 auto; }
+/* The mark is the buddy's eyes: a flex row of two black squircles on the sun
+   sticker, in both themes. No glow: no box-shadow here. */
 .logo {
   flex: 0 0 auto;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
   width: 34px;
   height: 34px;
   border: var(--line);
@@ -132,10 +116,6 @@ a { color: var(--ink); }
   font-size: 15px;
   line-height: 1;
 }
-/* The admin mark is the buddy's eyes: two black squircles on the sun sticker,
-   in both themes. Scoped to the top bar so the login, which uses the same
-   .logo with a glyph, keeps its centred look. No glow: no box-shadow here. */
-.topbar .logo { display: flex; justify-content: center; gap: 3px; }
 .logo .eye { width: 10px; height: 10px; border-radius: 38%; background: #000000; }
 .topbar h1 { margin: 0; font-size: 15px; letter-spacing: -0.01em; white-space: nowrap; }
 .sub { margin: 0; font-size: 11px; opacity: 0.7; }
@@ -359,8 +339,11 @@ main { padding: 16px 14px 40px; max-width: var(--page); }
 /* --- forms --------------------------------------------------------------- */
 .form { display: grid; gap: 14px; }
 .form label { display: grid; gap: 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.02em; }
+/* input:not([type]) is here on purpose: the login ships the username field
+   without a type attribute, so a selector list of type="..." never matched it
+   and the field rendered with the browser's default box. */
 input[type="text"], input[type="password"], input[type="number"], input[type="search"],
-select, textarea {
+input:not([type]), select, textarea {
   width: 100%;
   min-height: var(--tap);
   padding: 10px 13px;
@@ -734,9 +717,11 @@ input:disabled, select:disabled { background: var(--mist); opacity: 0.75; }
   padding: 20px;
   background: var(--sky);
 }
-.login { width: 100%; max-width: 420px; }
+/* Same as the landing: the body owns the 20px gutter, the <main> adds none. */
+.login { width: 100%; max-width: 420px; padding: 0; }
 .login-brand { display: grid; gap: 6px; justify-items: center; margin-bottom: 18px; text-align: center; }
 .login-brand .logo { width: 48px; height: 48px; font-size: 20px; }
+.login-brand .logo .eye { width: 13px; height: 13px; }
 .login h1 { margin: 0; font-size: 26px; font-weight: 900; letter-spacing: -0.04em; }
 .login-card { padding: 20px; }
 .login-card h2 { margin: 0 0 6px; font-size: 17px; }
@@ -746,20 +731,15 @@ input:disabled, select:disabled { background: var(--mist); opacity: 0.75; }
 
 /* --- public entrance ---------------------------------------------------- */
 .landing-body { background: var(--paper); }
-.landing { display: block; }
+/* The entrance is a full-bleed sheet, not the admin's padded <main>: the hero
+   and the bands paint edge to edge, and the breakpoints below set the width. */
+.landing { display: block; padding: 0; }
 
 .hero {
   position: relative;
   overflow: hidden;
   padding: 20px 16px 34px;
   background: var(--sky);
-}
-.hero-kicker {
-  margin: 0;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.032em;
-  text-transform: uppercase;
 }
 .display {
   margin: 4px 0 0;
@@ -769,7 +749,6 @@ input:disabled, select:disabled { background: var(--mist); opacity: 0.75; }
   letter-spacing: -0.05em;
   text-transform: uppercase;
 }
-.tagline { position: relative; margin: 10px 0 0; max-width: 22ch; font-size: 16px; font-weight: 500; letter-spacing: -0.01em; }
 
 /* The stickers live in the free corners, never over the wordmark. */
 .stickers { position: absolute; inset: 0; pointer-events: none; }
@@ -796,21 +775,11 @@ input:disabled, select:disabled { background: var(--mist); opacity: 0.75; }
 .statusbar {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 10px;
   padding: 14px 16px 18px;
   background: var(--sky);
 }
-.statusbar .now {
-  margin-left: auto;
-  padding: 0;
-  border: 0;
-  background: none;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.032em;
-  text-transform: uppercase;
-}
-.statusbar .now b { font-weight: 900; }
 
 .menu-btn {
   display: grid;
@@ -835,24 +804,7 @@ input:disabled, select:disabled { background: var(--mist); opacity: 0.75; }
   stroke-linejoin: round;
 }
 
-/* Connection state, not a promise of a live link to the firmware pose. */
-.live {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 7px 12px;
-  border: var(--line);
-  border-radius: var(--r-pill);
-  background: var(--paper);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.032em;
-  text-transform: uppercase;
-}
-.live .dot { width: 8px; height: 8px; border: var(--line); border-radius: 50%; background: var(--mint); }
-.live.offline { background: var(--ember); }
-.live.offline .dot { background: var(--paper); }
-
+/* Connection state is reported in the dock message, not in a pill. */
 .dock {
   padding: 18px 0 12px;
   border-bottom: var(--line);
@@ -1024,9 +976,6 @@ input:disabled, select:disabled { background: var(--mist); opacity: 0.75; }
   text-transform: uppercase;
 }
 
-.landing-foot { padding: 14px 16px 30px; background: var(--ink); color: var(--paper); }
-.landing-foot .hint { margin: 0; font-size: 11px; color: var(--paper); opacity: 1; }
-
 /* --- the full-screen menu ------------------------------------------------ */
 .launcher {
   position: fixed;
@@ -1107,7 +1056,6 @@ body.menu-open, body.game-open { overflow: hidden; }
   stroke-linejoin: round;
 }
 .launch b { font-size: 14px; letter-spacing: -0.01em; }
-.launch small { font-size: 11px; line-height: 1.3; opacity: 0.72; }
 .launch .chev { position: absolute; }
 
 /* The screen grid inside the menu: seven stickers, not a table. */
@@ -1166,6 +1114,9 @@ body.menu-open, body.game-open { overflow: hidden; }
   display: none;
   overflow-y: auto;
   background: var(--sky);
+  /* Reserve the scrollbar track: without this the board shrinks the moment the
+     page grows tall enough to scroll, and the grid jumps mid-game. */
+  scrollbar-gutter: stable;
 }
 body.game-open .game { display: block; }
 .game-ui {
@@ -1178,7 +1129,7 @@ body.game-open .game { display: block; }
 }
 .game-top { display: flex; align-items: center; gap: 10px; }
 .game-title { flex: 1; min-width: 0; }
-.game-title h1 { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -0.03em; }
+.game-title h1 { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -0.03em; text-transform: uppercase; }
 .versus { font-size: 10px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; }
 .versus b { font-weight: 900; }
 
@@ -1258,28 +1209,6 @@ body.game-open .game { display: block; }
 .cell.win { background: var(--mint); }
 .cell.o-win { background: var(--lav); }
 
-.say {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0;
-  padding: 10px 14px;
-  border: var(--line);
-  border-radius: var(--r-pill);
-  background: var(--paper);
-  font-size: 13px;
-  font-weight: 500;
-}
-.say .dot {
-  flex: 0 0 auto;
-  width: 8px;
-  height: 8px;
-  border: var(--line);
-  border-radius: 50%;
-  background: var(--sun);
-}
-.say.buddy { background: var(--lav); }
-.say.dim { opacity: 0.8; }
 .game-foot { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
 .game-foot .hint { margin: 0; font-size: 11px; }
 
@@ -1290,6 +1219,18 @@ body.game-open .game { display: block; }
   .screens { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .toast { left: 50%; right: auto; transform: translateX(-50%); max-width: 420px; }
   .landing { max-width: 720px; margin: 0 auto; border-left: var(--line); border-right: var(--line); }
+  /* Seven slides never fit a phone width, so on a phone the dock is a scroll
+     strip. From here they fit as a grid: nothing hidden, no scroll affordance to
+     discover. */
+  .carousel {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    overflow: visible;
+    padding-bottom: 14px;
+  }
+  .slide { flex: none; min-height: 96px; }
+  .statusbar, .dock-head, .dock-msg { padding-left: 20px; padding-right: 20px; }
 }
 
 /* The panel's own footer sits outside <main>, so it needs the same gutter. */
@@ -1301,6 +1242,23 @@ main + footer p, body > footer p { margin: 0 0 4px; }
   .display { font-size: 150px; }
   .launch-grid { grid-template-columns: repeat(3, 1fr); }
   .launch.wide { grid-column: auto; min-height: 108px; }
+
+  /* One wide sheet: the seven screens in a single row, and the paddings that a
+     960px column can carry without the stickers drifting into the type. */
+  .landing { max-width: 960px; }
+  .hero { padding: 34px 28px 46px; }
+  .statusbar { padding: 18px 28px 22px; }
+  .dock { padding-top: 22px; }
+  .dock-head, .dock-msg { padding-left: 28px; padding-right: 28px; }
+  .carousel { grid-template-columns: repeat(7, minmax(0, 1fr)); padding: 16px 28px 18px; }
+  .slide { min-height: 104px; padding: 11px; }
+  .focus-band, .games { padding: 24px 28px; }
+  .focus-card { padding: 22px; }
+  .cover { padding: 22px; }
+  .cover h3 { font-size: 52px; }
+  .board { width: min(100%, 420px); }
+  .cell { font-size: 60px; }
+  .login { max-width: 460px; }
 }
 
 /* Below 760px the aside does not fit: the same strip as before, scrollable. */
@@ -1328,7 +1286,6 @@ main + footer p, body > footer p { margin: 0 0 4px; }
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
   }
-  .marquee-track { animation: none; }
 }
 
 /* --- dark theme --------------------------------------------------------- */
