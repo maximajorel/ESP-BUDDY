@@ -144,3 +144,10 @@ god, mock compartido) queda para una feature posterior.
   argumento suelto se envía literal y la consola contesta `unknown: boot`. No
   rompe nada (el banner ya ocurrió al abrir el puerto), pero confunde al que
   ejecuta probes sueltos. Queda anotado; no se tocó.
+- **L15** Confirmado que el bloqueo de L12 no depende del candidato. Un segundo
+  target (`sha256:ac37ba00…`, el que agrega la evidencia de placa) falló idéntico:
+  `candidate-owner-parent-chmod-ineffective`, `lineage_created:false`,
+  `mutation_performed:false`. Dos targets distintos, el mismo error ⇒ es una
+  propiedad del montaje (`/mnt/c` drvfs sin `metadata`), no del código revisado ni
+  de la autoridad de review. Cualquier candidato futuro de este worktree va a
+  chocar con lo mismo hasta que se aplique una de las dos salidas de L12.
