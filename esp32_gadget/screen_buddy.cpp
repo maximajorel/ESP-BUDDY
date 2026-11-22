@@ -8,6 +8,7 @@
 #include "buddy_anim.h"
 #include "buddy_badge.h"
 #include "buddy_ball.h"
+#include "buddy_dance.h"
 #include "buddy_face.h"
 #include "buddy_focus_state.h"
 #include "buddy_split.h"
@@ -28,6 +29,7 @@
 #include "rgb.h"
 #include "rotation.h"
 #include "settings.h"
+#include "spotify.h"
 #include "tap_window.h"
 #include "text_fold.h"
 
@@ -141,6 +143,20 @@ static float s_accelRaw[3] = {0, 0, 0};
 static float s_ballTiltLat = 0.0f;
 static float s_ballTiltFwd = 0.0f;
 static bool s_ballPrimed = false;
+// The dance: the notes on the glass, the beat of the frame being drawn and
+// whether the owner pinned it from the console or the panel. The pin runs on a
+// synthetic position, so the dance can be proven without Spotify.
+static BuddyNoteField s_notes;
+static bool s_danceOn = false;
+static bool s_danceDrawing = false;
+static BuddyDanceBeat s_danceBeat;
+static uint32_t s_danceAt = 0;
+static uint32_t s_dancePinStart = 0;
+static uint32_t s_dancePinHold = 0;
+// What a pinned dance dances to when there is no track: a real tempo, so the pin
+// looks like the live one instead of a slow metronome.
+#define BUDDY_DANCE_PIN_BPM 112u
+
 // The one-tap/boop vs two-tap/ball decision. A touch panel would know the
 // difference at once; one button does not, so two presses inside this window
 // are the ball. It is measured release to release (the press duration is part of
@@ -584,6 +600,27 @@ void buddyPinFace(BuddyState state, uint32_t ageMs, uint32_t holdMs) {
   s_dirty = true;
 }
 
+// Console and panel: hold the dance on the glass for `holdMs` with no Spotify.
+// A zero releases it. It is a pin, not a state: nothing here reaches the bridge.
+void buddyPinDance(uint32_t holdMs) {
+  if (holdMs == 0) {
+    s_dancePinStart = 0;
+    s_dancePinHold = 0;
+    s_danceOn = false;
+    s_danceDrawing = false;
+    buddyDanceNotesClear(&s_notes);
+    s_danceAt = 0;
+    s_dirty = true;
+    return;
+  }
+  if (holdMs < 1000) holdMs = 1000;
+  s_dancePinStart = millis();
+  s_dancePinHold = holdMs;
+  buddyDanceNotesClear(&s_notes);
+  s_danceAt = 0;
+  s_dirty = true;
+}
+
 void buddyShortPress() {
   // While the calendar frame owns the glass, the press means "read". It is
   // consumed here, before the double-tap window, so the screen goes away in the
@@ -825,6 +862,53 @@ static void drawZzz(uint32_t nowMs, uint32_t eyeRgb) {
     int x = 0, y = 0, alpha = 0;
     buddyZzz(nowMs, i, &x, &y, &alpha);
     gfxChar(x, y, 2, 'Z', gfxHex(buddyEyeScale(eyeRgb, alpha)));
+  }
+}
+
+// --- the dance's notes -------------------------------------------------------
+//
+// One eighth note: a filled head, a stem and a flag, drawn pixel by pixel. The
+// panel has no alpha, so the fade is an ordered dither of the owner's eye colour
+// (the same trick as the glow and the lid edge) and the colour loses brightness
+// as the note leaves. They live in the two side fields the eyes never reach, so
+// nothing of the face is ever covered.
+static void drawMusicNote(const BuddyNote &n, uint32_t eyeRgb) {
+  if (!n.active || !(n.alpha > 0.02f)) return;
+  const float s = n.size;
+  const int headRx = (int)lroundf(4.2f * s);
+  const int headRy = (int)lroundf(3.2f * s);
+  if (headRx < 2) return;
+  const int stemH = (int)lroundf(15.0f * s);
+  const int cx = (int)lroundf(n.x);
+  const int cy = (int)lroundf(n.y);
+  const int stemX = cx + headRx - 1;
+  const int top = cy - stemH;
+  const int flagLen = (int)lroundf(5.0f * s);
+  // A note that has almost faded is a dimmer colour, not only a sparser dither:
+  // a 30% dither of a full-brightness pixel still reads as a solid speck.
+  uint16_t color = gfxHex(buddyEyeScale(eyeRgb, 45 + (int)(55.0f * n.alpha)));
+  for (int y = top - 1; y <= cy + headRy + 1; y++) {
+    if (y < 0 || y >= DISPLAY_H) continue;
+    for (int x = cx - headRx - 1; x <= stemX + flagLen + 1; x++) {
+      if (x < 0 || x >= DISPLAY_W) continue;
+      const float dx = (float)(x - cx) / (float)headRx;
+      const float dy = (float)(y - cy) / (float)headRy;
+      const bool head = dx * dx + dy * dy <= 1.0f;
+      const bool stem = x == stemX && y <= cy && y >= top;
+      // The flag is a small triangle hanging off the stem's top: the one stroke
+      // that makes the shape read as a note and not as a lollipop.
+      const bool flag = y >= top && y <= top + flagLen && x > stemX &&
+                        x <= stemX + 1 + (y - top);
+      if (!head && !stem && !flag) continue;
+      if (n.alpha < 0.999f && !buddyDitherLit(n.alpha, x, y)) continue;
+      gfxPixel(x, y, color);
+    }
+  }
+}
+
+static void drawMusicNotes(const BuddyNoteField &field, uint32_t eyeRgb) {
+  for (int i = 0; i < BUDDY_NOTE_COUNT; i++) {
+    drawMusicNote(field.notes[i], eyeRgb);
   }
 }
 
@@ -1182,6 +1266,9 @@ static void drawFace(BuddyState state, const BuddyPose &pose, uint32_t nowMs,
   if (s_zzz) drawZzz(nowMs, eyeRgb);
   if (s_bug.active) drawBug(s_bug, nowMs);
   if (ballVisible) drawBall(s_ball);
+  // The dance's notes go last and never touch the eyes: they live in the side
+  // fields the eye extents cannot reach.
+  if (s_danceDrawing) drawMusicNotes(s_notes, eyeRgb);
 }
 
 // The split frame's right column, painted by each screen that uses it. The
@@ -1400,6 +1487,43 @@ static void ballInputs(float *gravityX, float *gravityY, float *shakeX,
 }
 
 bool buddyTick(uint32_t nowMs) {
+  // A pinned dance runs on a synthetic position from its own start, so the
+  // console (`dance 10`) and the panel chip can prove the body without Spotify.
+  if ((int32_t)(s_dancePinStart + s_dancePinHold - nowMs) > 0) {
+    if ((uint32_t)(nowMs - s_lastDraw) < BUDDY_FRAME_MS) return false;
+    uint32_t pos = nowMs - s_dancePinStart;
+    BuddyDanceBeat beat = buddyDanceBeatAt(BUDDY_DANCE_PIN_BPM, pos);
+    uint32_t dt = s_danceAt ? (nowMs - s_danceAt) : BUDDY_FRAME_MS;
+    if (dt > 250) dt = 250;
+    BuddyPose pose = buddyPose(BUDDY_IDLE, pos, nowMs, s_seed);
+    buddyDancePose(beat, nowMs, &pose);
+    buddyDanceNotesStep(&s_notes, beat, nowMs, dt);
+    s_danceAt = nowMs;
+    s_danceBeat = beat;
+    s_danceOn = true;
+    s_danceDrawing = true;
+    s_bug.active = false;
+    s_zzz = false;
+    s_mood = BUDDY_MOOD_CALM;
+    drawFace(BUDDY_IDLE, pose, nowMs, false, false);
+    s_lastDraw = nowMs;
+    s_dirty = false;
+    return true;
+  }
+  if (s_dancePinHold) {
+    // The pin ended: hand the glass back to the real face without easing in from
+    // a dance pose that no longer means anything.
+    s_dancePinHold = 0;
+    s_dancePinStart = 0;
+    buddyDanceNotesClear(&s_notes);
+    s_danceAt = 0;
+    s_danceOn = false;
+    s_danceDrawing = false;
+    buddyPoseFilterReset(&s_filter);
+    s_filterAt = 0;
+    s_dirty = true;
+  }
+
   if (s_pin) {
     if ((int32_t)(s_pinStart + s_pinHold - nowMs) <= 0) {
       s_pin = false;
@@ -1432,6 +1556,13 @@ bool buddyTick(uint32_t nowMs) {
 
   BuddyView view;
   buddyGetView(&view);
+
+  // The music, read once per frame. The snapshot is already fresh: the Spotify
+  // poller runs from boot (`spotify.cpp`), so the face costs no extra request.
+  SpotifySnapshot music;
+  spotifySnapshot(&music);
+  const bool musicPlaying =
+      music.feed == SPOTIFY_FEED_TRACK && music.track.isPlaying;
 
   // The web game's overlay, read once: it decides whether the badge is allowed
   // to cover the eyes and, further down, which mood the pose carries.
@@ -1488,6 +1619,11 @@ bool buddyTick(uint32_t nowMs) {
   // toque": the server no longer has a vote on when the body is tired.
   BuddyImuPose ip = readImu(nowMs, s_ballOn);
   if (ip.wake) buddySleepStimulus(&s_sleep, nowMs);
+  // A song the owner put on is a stimulus like a shake: the music wakes the face
+  // so it can dance (S2). Only a real track counts, not a paused player.
+  if (musicPlaying && (shown == BUDDY_IDLE || shown == BUDDY_DONE)) {
+    buddySleepStimulus(&s_sleep, nowMs);
+  }
 
   // Sleeping is patience, and patience is local: MIN(the bridge's silence, the
   // board's silence) from buddy_sleep.h. Only a state that is not asking for
@@ -1661,6 +1797,51 @@ bool buddyTick(uint32_t nowMs) {
     s_ballPrimed = false;
   }
 
+  // --- the dance -------------------------------------------------------------
+  //
+  // The music owns the body only when nothing else is asking for the face: a tap,
+  // a working state, the ball, the calendar, the study countdown or the web game
+  // all keep their own reaction (S2). The pose is written, not added: the idle
+  // face has its own microsaccades and glances, and a dance that merely added to
+  // those would read as a twitch instead of a beat.
+  const BuddyFocus &focus = buddyFocusView();
+  const bool dancing =
+      (musicPlaying || (int32_t)(s_dancePinStart + s_dancePinHold - nowMs) > 0) &&
+      shown == BUDDY_IDLE && !asleepNow && !pose.closed && !poke &&
+      !ballGame && !s_ballOn && !view.calendarActive && !gameFace &&
+      !buddyFocusCompact(&focus, nowMs) &&
+      (int32_t)(s_listenUntil - nowMs) <= 0;
+  if (dancing) {
+    uint32_t bpm = BUDDY_DANCE_PIN_BPM;
+    uint32_t positionMs;
+    if (musicPlaying) {
+      bpm = buddyDanceBpm(music.track.trackId);
+      // The snapshot carries the position at the moment of the poll, so the time
+      // that has played since is added: the beat stays on the song instead of on
+      // the frame clock, and a pause freezes it where it was.
+      positionMs = music.track.progressMs + (nowMs - music.fetchedAtMs);
+    } else {
+      positionMs = nowMs - s_dancePinStart;
+    }
+    BuddyDanceBeat beat = buddyDanceBeatAt(bpm, positionMs);
+    uint32_t dt = s_danceAt ? (nowMs - s_danceAt) : BUDDY_FRAME_MS;
+    if (dt > 250) dt = 250;
+    buddyDancePose(beat, nowMs, &pose);
+    buddyDanceNotesStep(&s_notes, beat, nowMs, dt);
+    s_danceAt = nowMs;
+    s_danceBeat = beat;
+    // The bug is the idle face's toy: while the music plays the glass belongs to
+    // the dance, and a second moving thing would only fight it.
+    s_bug.active = false;
+  } else {
+    s_danceAt = 0;
+    // Notes do not survive a pause: a note born for a song that stopped would
+    // appear in the middle of the glass the next time the music starts.
+    buddyDanceNotesClear(&s_notes);
+  }
+  s_danceOn = dancing;
+  s_danceDrawing = dancing;
+
   // The web game's overlay wins while it lasts: the browser cannot describe a
   // pose, it names a mood, and buddy_game.h owns what that mood means.
   if (gameMood != s_gameDrawn) {
@@ -1693,7 +1874,6 @@ bool buddyTick(uint32_t nowMs) {
     eased.rot += buddyTremble(nowMs, s_seed, 37u, 2.2f);
   }
 
-  const BuddyFocus &focus = buddyFocusView();
   if (view.calendarActive && shown == BUDDY_UPCOMING) {
     // The event owns the glass: no HUD, no idle toys. The split frame keeps the
     // real face on the left and the event details on the right.
@@ -1821,6 +2001,16 @@ void buddyDumpDraw() {
   Serial.printf("ball on=%d active=%d x=%.1f y=%.1f vx=%.1f vy=%.1f\n",
                 s_ballOn, s_ball.active, s_ball.x, s_ball.y, s_ball.vx,
                 s_ball.vy);
+  int notes = 0;
+  for (int i = 0; i < BUDDY_NOTE_COUNT; i++) {
+    if (s_notes.notes[i].active) notes++;
+  }
+  Serial.printf(
+      "dance on=%d bpm=%u beat=%u phase=%.2f bar=%u notes=%d pin=%d\n",
+      s_danceOn ? 1 : 0, (unsigned)s_danceBeat.bpm,
+      (unsigned)s_danceBeat.beatIndex, (double)s_danceBeat.beatPhase,
+      (unsigned)s_danceBeat.barIndex, notes,
+      (int32_t)(s_dancePinStart + s_dancePinHold - millis()) > 0 ? 1 : 0);
   for (int i = 0; i < 2; i++) {
     Serial.printf("eye%d x=%d rx=%d ry=%d extY=%d deg=%.1f\n", i, s_draw.x[i],
                   s_draw.rx[i], s_draw.ry[i], s_draw.extentY[i],
