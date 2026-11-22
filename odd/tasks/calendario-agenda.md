@@ -51,7 +51,7 @@ palabras que hoy.
 
 | ID | Spec | Ruta | Commit |
 |----|------|------|--------|
-| C1 | S3 | worker (firmware): accesor de eventos + `calendar_events.cpp` + handler en `net.cpp` + test de host | `feat(calendar): publicar los eventos del día por HTTP` |
+| C1 | S3 | worker (firmware, verificado) | `4562b95` |
 | C2 | S4, S5, S6 | worker (app): comando de tamaño, flag en el store y la tarjeta con la agenda | `feat(tray): agenda del día y popover que crece` |
 
 ## Log
@@ -66,3 +66,14 @@ la próxima cita. El costo es serializar, no pedirle memoria al equipo.
 L3. Contrato congelado antes de repartir: los dos workers no se ven entre sí, así
 que el JSON de S3 es la única interfaz y ninguno de los dos puede cambiarlo sin
 romper al otro.
+
+L4. C1 cerrado y verificado. Evidencia real, no del informe del worker:
+- `python3 tools/run_tests.py` → **42 passed** (suite de host completa, con el
+  `calendar_events_test` nuevo entre ellos).
+- `arduino-cli compile` con el FQBN del `Makefile` → **exit 0**, 1.611.146 bytes
+  (51% de flash) y 74.132 bytes de globales (22% de RAM). El endpoint compila
+  para la placa, no sólo en host.
+- El handler copia los 12 eventos en la pila (~2,6 KB). Descartado como riesgo:
+  `build_opt.h` fija `ARDUINO_LOOP_STACK_SIZE=16384` y el `WebServer` es
+  síncrono sobre la tarea de loop.
+- `adminRequiresSession` no se tocó: el prefijo `/api/calendar` ya exige sesión.
