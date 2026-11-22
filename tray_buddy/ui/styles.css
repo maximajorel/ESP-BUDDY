@@ -227,6 +227,58 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .foot .addr { font-family: var(--mono); font-size: 11px; opacity: 0.6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .foot .btn { margin-left: auto; }
 
+/* ── Asistente de conexión (S3) ──────────────────────────────────────────── */
+/* Tapa el cuerpo, no la barra de título: la ventana se sigue arrastrando y
+   cerrando igual, que es lo que evita sentirla como un modal del sistema. */
+.wizard {
+  position: absolute; inset: 41px 1px 57px 1px;
+  display: grid; place-items: center; padding: 14px;
+  background: var(--paper);
+  /* El `z-index` no es decorativo: sin él, este hijo absoluto de un contenedor
+     grid se pinta ANTES de los otros ítems del grid y los tiles del cuerpo
+     quedaban encima del formulario, como si el asistente fuera transparente. */
+  z-index: 3;
+}
+.wizard[hidden] { display: none; }
+.wizard-card { display: grid; gap: 10px; width: 100%; }
+.wizard-kicker { font-size: 9px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.55; }
+.wizard-card h2 { font-size: 20px; font-weight: 900; letter-spacing: -0.02em; line-height: 1.1; }
+.wizard-help { font-size: 12px; line-height: 1.45; opacity: 0.7; }
+.wizard-note { font-size: 11px; line-height: 1.45; opacity: 0.55; }
+.wizard-actions { display: flex; gap: 8px; }
+.wizard-actions .btn { flex: 1; }
+
+.field { display: grid; gap: 4px; }
+.field span { font-size: 9px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; opacity: 0.6; }
+.field input {
+  height: 38px; padding: 0 12px;
+  background: var(--paper); color: var(--ink);
+  border: var(--line); border-radius: var(--r-in);
+  font: 600 15px/1 var(--mono);
+  /* La app no selecciona texto, pero un campo sí: sin esto no se puede
+     corregir la dirección con el mouse. */
+  user-select: text;
+}
+.field input::placeholder { color: rgba(0, 0, 0, 0.3); }
+.field input:focus-visible { outline: 2px solid var(--violet); outline-offset: 1px; }
+.field-narrow { max-width: 120px; }
+.wizard-err {
+  padding: 8px 10px; background: var(--ember); color: #ffffff;
+  border: var(--line); border-radius: var(--r-in);
+  font-size: 11px; font-weight: 700; line-height: 1.35;
+}
+.wizard-err[hidden] { display: none; }
+
+.focus-custom { display: flex; align-items: flex-end; gap: 8px; }
+.focus-custom[hidden] { display: none; }
+
+.cal-login { display: grid; gap: 8px; padding: 12px; border-top: var(--line); }
+.cal-login[hidden] { display: none; }
+
+/* El pie tiene el botón del equipo como disparador del asistente. */
+.foot .pill { background: var(--paper); }
+.foot .pill:hover { background: var(--mist); }
+
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }

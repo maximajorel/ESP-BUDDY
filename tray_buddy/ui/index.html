@@ -29,6 +29,39 @@
     </header>
 
     <div class="body">
+      <!-- 0 · asistente de conexión (S3): tapa el cuerpo hasta que haya un
+           equipo validado, y vuelve a abrirse desde el pie o el menú. -->
+      <section class="wizard" id="wizard" hidden aria-labelledby="wizTitle">
+        <form class="wizard-card" id="wizardForm" novalidate>
+          <p class="wizard-kicker">Conexión</p>
+          <h2 id="wizTitle">¿Dónde está el Buddy?</h2>
+          <p class="wizard-help">La IPv4 que muestra la pantalla del equipo. Si está en tu
+          red, la ves en el panel del router.</p>
+
+          <label class="field">
+            <span>Dirección IPv4</span>
+            <input id="wizAddr" name="addr" inputmode="decimal" placeholder="192.168.4.1"
+                   autocomplete="off" spellcheck="false" required>
+          </label>
+
+          <label class="field field-narrow">
+            <span>Puerto</span>
+            <input id="wizPort" name="port" inputmode="numeric" placeholder="80"
+                   autocomplete="off" spellcheck="false">
+          </label>
+
+          <p class="wizard-err" id="wizErr" role="alert" hidden></p>
+
+          <div class="wizard-actions">
+            <button class="btn" type="submit" id="wizGo">Conectar</button>
+            <button class="btn ghost" type="button" id="wizCancel" hidden>Cancelar</button>
+          </div>
+
+          <p class="wizard-note">El puerto de fábrica es <b>80</b>. La dirección se guarda
+          en este equipo y se puede cambiar después.</p>
+        </form>
+      </section>
+
       <!-- 1 · pantalla del LCD -->
       <section aria-labelledby="s-screens">
         <div class="sec-head" id="s-screens">Pantalla del LCD <span class="meta" id="screenNow">—</span></div>
@@ -47,7 +80,14 @@
             <button class="chip" type="button" data-min="10">10 min</button>
             <button class="chip" type="button" data-min="25" aria-pressed="true">25 min</button>
             <button class="chip" type="button" data-min="45">45 min</button>
-            <button class="chip" type="button" data-min="custom">Personalizado</button>
+            <button class="chip" type="button" data-min="custom" id="chipCustom">Personalizado</button>
+          </div>
+          <div class="focus-custom" id="focusCustom" hidden>
+            <label class="field field-narrow">
+              <span>Minutos</span>
+              <input id="focusMinutes" inputmode="numeric" placeholder="15" min="1" max="240">
+            </label>
+            <button class="btn" type="button" id="btnFocusCustom">Arrancar</button>
           </div>
           <div class="focus-actions">
             <button class="btn" type="button" id="btnFocusStop">Parar</button>
@@ -69,6 +109,19 @@
             </span>
           </div>
           <div class="agenda" id="calAgenda"></div>
+          <form class="cal-login" id="calLogin" hidden>
+            <p class="wizard-help">El calendario es privado: el equipo pide la sesión del panel.</p>
+            <label class="field">
+              <span>Usuario</span>
+              <input id="calUser" autocomplete="username" spellcheck="false">
+            </label>
+            <label class="field">
+              <span>Clave</span>
+              <input id="calPass" type="password" autocomplete="current-password">
+            </label>
+            <p class="wizard-err" id="calErr" role="alert" hidden></p>
+            <button class="btn" type="submit">Iniciar sesión</button>
+          </form>
           <div class="cal-foot">
             <button class="btn ghost" type="button" id="btnCalMonth" disabled>Ver el mes</button>
             <button class="btn ghost" type="button" id="btnCalNew" disabled>Nuevo evento</button>
@@ -78,7 +131,9 @@
     </div>
 
     <footer class="foot">
-      <span class="pill" id="connPill"><span class="dot"></span><span id="connText">Sin conectar</span></span>
+      <button class="pill" id="connPill" type="button" title="Cambiar la dirección del equipo">
+        <span class="dot"></span><span id="connText">Sin conectar</span>
+      </button>
       <span class="addr" id="connAddr">—</span>
       <button class="btn ghost" type="button" id="btnPanel">Panel</button>
     </footer>
