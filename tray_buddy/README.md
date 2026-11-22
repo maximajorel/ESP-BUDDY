@@ -29,12 +29,17 @@ frontend sólo llama `invoke`.
 | Node.js 18+ | sólo el CLI de Tauri (`@tauri-apps/cli`) |
 | WebView2 Runtime | ya viene con Windows 11; el instalador lo verifica |
 
-En Windows, una sola vez y con permisos de administrador:
+En Windows, una sola vez y desde una consola **como administrador**:
 
 ```powershell
-winget install --id Rustlang.Rustup -e
-winget install --id Microsoft.VisualStudio.2022.BuildTools -e --override "--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\setup-toolchain.ps1
 ```
+
+El script instala Rust (toolchain MSVC) y Build Tools con la carga de C++, y
+al final verifica que existan `cargo` y `link.exe`. Existe porque pegar los
+argumentos del instalador de VS a mano es frágil: PowerShell conserva el salto
+de línea dentro de las comillas, y un argumento partido en dos líneas hace que
+`setup.exe` responda 87 (parámetro inválido).
 
 Después, en una terminal nueva, `cargo --version` tiene que responder.
 
