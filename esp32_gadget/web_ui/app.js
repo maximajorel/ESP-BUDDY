@@ -7,11 +7,16 @@
   'use strict';
 
   var POLL_MS = 2000;
-  // Shipped names, used only while the device has not answered yet and by the
-  // "original names" button. The device is the source of truth after that.
+  // Shipped names, used only while the device has not answered yet. The device
+  // is the source of truth after that.
   var DEFAULT_NAMES = ['RELOJ', 'TRAGAMONEDAS', 'METEORITOS', 'RED', 'MUSICA', 'SOFIA', 'CONFIG'];
   // Must match SCREEN_NAME_MAX in the firmware: longer names come back cut.
   var SCREEN_NAME_MAX = 12;
+  // The moods POST /api/face accepts (buddyGameMoodFromName in buddy_game.h). The
+  // panel never invents a state: the buttons carry one of these wire names.
+  var SOFIA_MOODS = ['focus', 'thinking', 'alert', 'happy', 'anger', 'sleepy', 'sad'];
+  // How long the face holds the simulated mood before falling back on its own.
+  var SOFIA_HOLD_MS = 8000;
   // Tiles and toasts follow the names the device reports, so a rename shows up
   // everywhere in the panel and not only in the order list.
   var screenNames = DEFAULT_NAMES.slice();
@@ -25,6 +30,15 @@
   var draftDirty = false;
 
   function $(id) { return document.getElementById(id); }
+
+  // Attach a listener only when the element is in the page. The markup changes
+  // more often than this file, and one missing id used to throw inside wire()
+  // and take every listener after it down with the error.
+  function on(id, type, handler, options) {
+    var el = $(id);
+    if (el) el.addEventListener(type, handler, options);
+    return el;
+  }
 
   // Any control the owner changes stays theirs until the card is applied.
   ['input', 'change'].forEach(function (type) {
@@ -103,10 +117,15 @@
 
   // Runs a mutating request with a busy button and a toast on the outcome.
   // The pick order and the name of every screen, edited together: the row shows
-  // the screen where the menu reaches it, with the name it will show. Rendered
-  // as a list with arrows rather than drag and drop: this panel runs in a phone
-  // browser and must work with one thumb.
+  // the screen where the menu reaches it, with the name it will show. The rows
+  // are reordered by dragging the grip; the pointer moves the real <li>.
+  // A drag in progress must not be rebuilt by the status poll, so the flag below
+  // makes renderOrder() a no-op until dragend writes the new order into the
+  // draft.
+  var orderDragging = false;
+
   function renderOrder(status) {
+    if (orderDragging) return;
     if (status && Array.isArray(status.order) && Array.isArray(status.names) &&
         !draftDirty) {
       orderDraft = status.order.slice();
@@ -125,25 +144,25 @@
     list.innerHTML = '';
     orderDraft.forEach(function (id, pos) {
       var li = document.createElement('li');
-      var up = document.createElement('button');
-      up.type = 'button';
-      up.textContent = '↑';
-      up.setAttribute('aria-label', 'Subir ' + (namesDraft[id] || id));
-      up.disabled = pos === 0;
-      up.addEventListener('click', function () { moveOrder(pos, -1); });
-      var down = document.createElement('button');
-      down.type = 'button';
-      down.textContent = '↓';
-      down.setAttribute('aria-label', 'Bajar ' + (namesDraft[id] || id));
-      down.disabled = pos === orderDraft.length - 1;
-      down.addEventListener('click', function () { moveOrder(pos, 1); });
+      // The id travels with the row: after a drag the DOM order is read back and
+      // becomes the new orderDraft, so a row cannot lose its screen.
+      li.setAttribute('data-id', String(id));
+      var grip = document.createElement('span');
+      grip.className = 'grip';
+      grip.draggable = true;
+      grip.textContent = '\u283f';
+      grip.setAttribute('aria-label', 'Arrastrar para reordenar');
+      grip.title = 'Arrastrar para reordenar';
+      var num = document.createElement('span');
+      num.className = 'num';
+      num.textContent = String(pos + 1);
       var name = document.createElement('input');
       name.type = 'text';
       name.value = namesDraft[id] || '';
       name.maxLength = SCREEN_NAME_MAX;
       name.autocomplete = 'off';
       name.spellcheck = false;
-      name.setAttribute('aria-label', 'Nombre de la pantalla');
+      name.setAttribute('aria-label', 'Nombre de la pantalla ' + (pos + 1));
       // Typing marks the draft dirty but does not touch the stored value until
       // blur, so the poll never rebuilds the list and steals the focus.
       name.addEventListener('input', function () { draftDirty = true; });
@@ -151,21 +170,66 @@
         namesDraft[id] = name.value;
         draftDirty = true;
       });
-      li.appendChild(up);
-      li.appendChild(down);
+      li.appendChild(grip);
+      li.appendChild(num);
       li.appendChild(name);
       list.appendChild(li);
     });
   }
 
-  function moveOrder(pos, delta) {
-    var to = pos + delta;
-    if (!orderDraft || to < 0 || to >= orderDraft.length) return;
-    var tmp = orderDraft[pos];
-    orderDraft[pos] = orderDraft[to];
-    orderDraft[to] = tmp;
-    draftDirty = true;
-    renderOrder(null);
+  // Drag to reorder: the grip is the drag source, the row is what moves, and the
+  // new position is read from the DOM on dragend. The save path is untouched:
+  // orderDraft is all /api/screens/order ever receives.
+  function wireOrderDrag() {
+    var list = $('orderList');
+    if (!list) return;
+    var dragging = null;
+
+    list.addEventListener('dragstart', function (event) {
+      var grip = event.target.closest ? event.target.closest('.grip') : null;
+      if (!grip) { event.preventDefault(); return; }
+      dragging = grip.closest('li');
+      if (!dragging) return;
+      orderDragging = true;
+      dragging.classList.add('dragging');
+      if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', '');
+      }
+    });
+
+    list.addEventListener('dragover', function (event) {
+      if (!dragging) return;
+      event.preventDefault();
+      var row = event.target.closest ? event.target.closest('li') : null;
+      if (!row || row === dragging) return;
+      var box = row.getBoundingClientRect();
+      var after = event.clientY > box.top + box.height / 2;
+      list.insertBefore(dragging, after ? row.nextSibling : row);
+      Array.prototype.forEach.call(list.children, function (li) {
+        li.classList.toggle('over', li === row);
+      });
+    });
+
+    list.addEventListener('drop', function (event) { event.preventDefault(); });
+
+    list.addEventListener('dragend', function () {
+      if (!dragging) return;
+      Array.prototype.forEach.call(list.children, function (li) {
+        li.classList.remove('dragging', 'over');
+      });
+      // The list's order is the order the owner just dropped.
+      var next = [];
+      Array.prototype.forEach.call(list.children, function (li) {
+        var id = Number(li.getAttribute('data-id'));
+        if (!isNaN(id)) next.push(id);
+      });
+      dragging = null;
+      orderDragging = false;
+      if (orderDraft && next.length === orderDraft.length) orderDraft = next;
+      draftDirty = true;
+      renderOrder(null);
+    });
   }
 
   function submit(button, path, body, okMessage, busyLabel) {
@@ -297,8 +361,9 @@
       input.checked = ((mask >> index) & 1) !== 0;
       var text = document.createElement('span');
       text.textContent = name || ('Pantalla ' + index);
-      label.appendChild(input);
+      // Text first, checkbox last: the row reads as a setting, not a form.
       label.appendChild(text);
+      label.appendChild(input);
       box.appendChild(label);
     });
   }
@@ -340,6 +405,38 @@
     root.setProperty('--gold-soft', mixHex(hex, '#0e1015', 0.82));
   }
 
+  // --- dark theme -----------------------------------------------------------
+  // Light paper is the default; the dark theme is a per-browser choice and the
+  // device stores nothing about it. localStorage can throw (private mode, a
+  // locked profile), so every access is guarded and the panel still toggles for
+  // the session.
+  var THEME_KEY = 'espbuddy-theme';
+
+  function paintTheme(dark) {
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    var btn = $('themeBtn');
+    if (!btn) return;
+    btn.setAttribute('aria-pressed', String(dark));
+    btn.setAttribute('aria-label', dark ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro');
+    btn.title = dark ? 'Tema claro' : 'Tema oscuro';
+    var use = btn.querySelector('use');
+    if (use) use.setAttribute('href', dark ? '#i-sun' : '#i-moon');
+  }
+
+  function wireTheme() {
+    var saved = null;
+    try { saved = localStorage.getItem(THEME_KEY); } catch (error) { saved = null; }
+    paintTheme(saved === 'dark');
+
+    var btn = $('themeBtn');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      var dark = document.documentElement.getAttribute('data-theme') !== 'dark';
+      paintTheme(dark);
+      try { localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light'); } catch (error) { /* private mode */ }
+    });
+  }
+
   function isEditing(el) {
     if (!el) return false;
     if (document.activeElement === el) return true;
@@ -366,15 +463,13 @@
   // --- rendering ------------------------------------------------------------
 
   function renderStatus(status) {
-    setText('firmwareLine', status.firmware + ' ' + status.version);
-
     var pill = $('connPill');
     var online = !!(status.sta && status.sta.connected) || !!(status.ap && status.ap.ssid);
     // The pill describes the phone <-> device link, which is up by definition if
     // this code is running. A failed home-WiFi join is a different thing and is
     // reported on its own row; using this pill for both produced a red dot next
     // to the words "En línea".
-    pill.className = 'pill ' + (online ? 'online' : 'offline');
+    if (pill) pill.className = 'pill ' + (online ? 'online' : 'offline');
     setText('connText', online ? 'En línea' : 'Sin conexión');
 
     var ap = status.ap || {};
@@ -424,6 +519,7 @@
     if (display.uiColor) {
       if (!isEditing($('uiColor'))) applyAccent(display.uiColor);
       setValue('uiColor', display.uiColor);
+      setText('uiColorHex', display.uiColor.toUpperCase());
     }
 
     var rotationMode = $('rotationMode');
@@ -451,16 +547,8 @@
     if (clock24 && !isEditing(clock24)) clock24.checked = !!time.clock24h;
 
     var buddy = status.buddy || {};
-    var buddyNames = {
-      idle: 'En calma', bored: 'Aburrida', thinking: 'Pensando', tool: 'Trabajando',
-      waiting: 'Esperando', error: 'Error', done: 'Listo', upcoming: 'Se viene algo',
-      offline: 'Sin señal', unconfigured: 'Sin configurar'
-    };
-    setText('buddyState', buddyNames[buddy.state] || buddy.state || '—');
-    setText('buddyLabel', buddy.label || '—');
-    setText('buddyActive', String(buddy.active || 0));
-    setText('buddyOnline', buddy.online ? 'En línea'
-      : (buddy.configured ? 'Sin respuesta' : 'Sin configurar'));
+    // The bridge state is one pill at the right end of the Sofía section head;
+    // the sentence that explains the cause rides on it as a tooltip.
     // One sentence per cause the firmware reports. "Sin respuesta" was the only
     // thing the panel could say when the transport hid the reason; now a rejected
     // certificate, a missing clock and a Cloudflare block read differently.
@@ -470,11 +558,12 @@
       blocked: 'Bloqueado por Cloudflare', unauthorized: 'Token rechazado',
       http: 'El bridge respondió un error', offline: 'Sin respuesta'
     };
-    var buddyLink = $('buddyLink');
-    if (buddyLink) {
-      var link = buddy.link || '';
-      buddyLink.textContent = buddyLinks[link] || '—';
-      buddyLink.title = buddy.linkDetail || '';
+    var bridgePill = $('bridgePill');
+    if (bridgePill) {
+      bridgePill.className = 'pill ' + (buddy.online ? 'online' : 'offline');
+      setText('bridgeState', buddy.online ? 'En línea'
+        : (buddy.configured ? 'Sin respuesta' : 'Sin configurar'));
+      bridgePill.title = buddyLinks[buddy.link || ''] || '';
     }
     if (buddy.url) setValue('buddyUrl', buddy.url);
     if (buddy.eyeColor) setValue('buddyEyeColor', buddy.eyeColor);
@@ -487,7 +576,11 @@
 
     var rgb = status.rgb || {};
     if (rgb.r !== undefined) {
-      if (!isEditing($('rgbColor'))) setValue('rgbColor', rgbToHex(rgb));
+      var rgbHex = rgbToHex(rgb);
+      if (!isEditing($('rgbColor'))) {
+        setValue('rgbColor', rgbHex);
+        setText('rgbColorHex', rgbHex.toUpperCase());
+      }
       var levelPercent = levelToPercent(rgb.level);
       if (!isEditing($('rgbLevel'))) {
         setValue('rgbLevel', levelPercent);
@@ -496,7 +589,9 @@
       if (!isEditing($('rgbEffect'))) setValue('rgbEffect', String(rgb.effect));
     }
 
-    var tiles = $('screenPicker').querySelectorAll('.tile');
+    var picker = $('screenPicker');
+    if (!picker) return;
+    var tiles = picker.querySelectorAll('.tile');
     for (var i = 0; i < tiles.length; i++) {
       var index = Number(tiles[i].getAttribute('data-screen'));
       var active = index === status.screen;
@@ -525,7 +620,7 @@
       function () {
         pollInFlight = false;
         var pill = $('connPill');
-        pill.className = 'pill offline';
+        if (pill) pill.className = 'pill offline';
         setText('connText', 'Sin conexión');
       }
     );
@@ -688,6 +783,14 @@
   var spotifyInFlight = false;
   var spotifyPrefilled = false;
 
+  // The Client ID counter: the field is capped at 63 and the number in the box
+  // says how much of that is used, the same way a native field shows its limit.
+  var SPOTIFY_CLIENT_ID_MAX = 63;
+
+  function renderClientCount(value) {
+    setText('spotifyCount', (value || '').length + '/' + SPOTIFY_CLIENT_ID_MAX);
+  }
+
   function setSpotifyState(kind, title, hint) {
     var box = $('spotifyStateBox');
     if (box) box.className = 'sp-state' + (kind ? ' ' + kind : '');
@@ -715,10 +818,12 @@
 
     // The stored Client ID is shown once; after that the field belongs to the
     // person typing, so a poll must not put back what they just erased.
-    if (!spotifyPrefilled && data.configured && data.clientId) {
-      $('spotifyClientId').value = data.clientId;
+    var clientField = $('spotifyClientId');
+    if (!spotifyPrefilled && data.configured && data.clientId && clientField) {
+      clientField.value = data.clientId;
       spotifyPrefilled = true;
     }
+    if (clientField) renderClientCount(clientField.value);
     setText('spotifyRedirect', data.redirectUri || SPOTIFY_REDIRECT);
 
     var feed = Number(data.feed);
@@ -728,19 +833,26 @@
 
     if (feed === 4) {
       var detail = data.error || 'El equipo no pudo hablar con Spotify';
-      error.textContent = 'El último intento falló: ' + detail + '.' +
-        (data.httpStatus ? ' El servidor de Spotify respondió ' + data.httpStatus + '.' : '') +
-        ' Revisá que el equipo tenga internet y que tu app siga existiendo en el panel de Spotify.';
-      error.hidden = false;
-    } else {
+      if (error) {
+        error.textContent = 'El último intento falló: ' + detail + '.' +
+          (data.httpStatus ? ' El servidor de Spotify respondió ' + data.httpStatus + '.' : '') +
+          ' Revisá que el equipo tenga internet y que tu app siga existiendo en el panel de Spotify.';
+        error.hidden = false;
+      }
+    } else if (error) {
       error.hidden = true;
     }
 
     if (feed === 2) {
       var track = data.track || {};
       setText('spotifyTitle', track.title || 'Sin título');
-      setText('spotifyArtist', (track.artist || 'Artista desconocido') +
-        (track.album ? ' · ' + track.album : ''));
+      setText('spotifyArtist', track.artist || 'Artista desconocido');
+      // The album gets its own line, the one the cover was designed around.
+      var album = $('spotifyAlbum');
+      if (album) {
+        album.textContent = track.album || '';
+        album.hidden = !track.album;
+      }
       setText('spotifyPlay', track.isPlaying ? 'Reproduciendo' : 'En pausa');
 
       var duration = Number(track.durationMs) || 0;
@@ -751,12 +863,12 @@
       var bar = $('spotifyBar');
       if (bar) bar.style.width = percent.toFixed(1) + '%';
       setText('spotifyTime', spotifyClock(progress) + ' de ' + spotifyClock(duration));
-      trackBox.hidden = false;
-      note.hidden = true;
+      if (trackBox) trackBox.hidden = false;
+      if (note) note.hidden = true;
       return;
     }
 
-    trackBox.hidden = true;
+    if (trackBox) trackBox.hidden = true;
     var message;
     if (feed === 1) {
       message = 'Buscando qué está sonando…';
@@ -767,6 +879,7 @@
     } else {
       message = 'Esperando el primer dato del equipo…';
     }
+    if (!note) return;
     note.textContent = message;
     note.hidden = false;
   }
@@ -1002,7 +1115,11 @@
   // link and the browser's back button all land on the same section.
   function wireTabs() {
     var nav = $('nav');
-    var tabs = Array.prototype.slice.call(document.querySelectorAll('[role="tab"]'));
+    // Only the panel's own navigation: the integration and network sub-tabs are
+    // also role="tab" but they live inside a section and switch cards there.
+    var tabs = nav
+      ? Array.prototype.slice.call(nav.querySelectorAll('[role="tab"]'))
+      : [];
     if (!nav || !tabs.length) return;
 
     function panelOf(tab) {
@@ -1057,9 +1174,13 @@
       tab.addEventListener('keydown', function (event) {
         var index = tabs.indexOf(tab);
         var next = null;
-        if (event.key === 'ArrowRight') next = tabs[(index + 1) % tabs.length];
-        else if (event.key === 'ArrowLeft') next = tabs[(index - 1 + tabs.length) % tabs.length];
-        else if (event.key === 'Home') next = tabs[0];
+        // The column reads top to bottom, and below 760px the same strip scrolls
+        // sideways: both pairs are live so the keys match what the eye sees.
+        if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+          next = tabs[(index + 1) % tabs.length];
+        } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+          next = tabs[(index - 1 + tabs.length) % tabs.length];
+        } else if (event.key === 'Home') next = tabs[0];
         else if (event.key === 'End') next = tabs[tabs.length - 1];
         if (!next) return;
         event.preventDefault();
@@ -1082,10 +1203,29 @@
 
   // --- wiring ---------------------------------------------------------------
 
-  function wire() {
-    $('scanBtn').addEventListener('click', runScan);
+  // Sub-tabs inside one section: the strip shows one card at a time. The cards
+  // carry data-subpanel and the button's aria-controls names the one to show.
+  function wireSubtabs() {
+    Array.prototype.forEach.call(document.querySelectorAll('.subtabs'), function (strip) {
+      strip.addEventListener('click', function (event) {
+        var btn = event.target.closest ? event.target.closest('.subtab') : null;
+        if (!btn) return;
+        var region = strip.parentElement;
+        if (!region) return;
+        Array.prototype.forEach.call(strip.querySelectorAll('.subtab'), function (item) {
+          item.setAttribute('aria-selected', String(item === btn));
+        });
+        Array.prototype.forEach.call(region.querySelectorAll('[data-subpanel]'), function (panel) {
+          panel.hidden = panel.id !== btn.getAttribute('aria-controls');
+        });
+      });
+    });
+  }
 
-    $('wifiForm').addEventListener('submit', function (event) {
+  function wire() {
+    on('scanBtn', 'click', runScan);
+
+    on('wifiForm', 'submit', function (event) {
       event.preventDefault();
       var ssid = $('wifiSsid').value.trim();
       if (!ssid) {
@@ -1100,11 +1240,11 @@
       ).then(function (ok) { if (ok) refresh(); });
     });
 
-    $('wifiDiagBtn').addEventListener('click', function (event) {
+    on('wifiDiagBtn', 'click', function (event) {
       diagnoseWifi(event.target);
     });
 
-    $('wifiForget').addEventListener('click', function (event) {
+    on('wifiForget', 'click', function (event) {
       if (!confirm('¿Olvidar la red de casa? El equipo deja de intentar conectarse.')) {
         return;
       }
@@ -1121,8 +1261,9 @@
     // toast and the draft state that live in this closure. Two requests, order
     // first: a name-only save leaves a working menu, while an order-only save
     // with renamed screens would look half applied.
+    wireOrderDrag();
     if ($('orderSave')) {
-      $('orderSave').addEventListener('click', function (event) {
+      on('orderSave', 'click', function (event) {
         if (!orderDraft || !namesDraft) return;
         // Read the live inputs as well: if the owner typed and hit Save with the
         // keyboard, the blur-triggered change event may not have run yet.
@@ -1153,17 +1294,8 @@
         );
       });
     }
-    if ($('orderReset')) {
-      $('orderReset').addEventListener('click', function () {
-        orderDraft = [0, 1, 2, 3, 4];
-        namesDraft = DEFAULT_NAMES.slice();
-        draftDirty = true;
-        renderOrder(null);
-        toast('Nombres y orden originales en pantalla; tocá Guardar cambios', 'ok');
-      });
-    }
 
-    $('apForm').addEventListener('submit', function (event) {
+    on('apForm', 'submit', function (event) {
       event.preventDefault();
       var ssid = $('apSsid').value.trim();
       var pass = $('apPass').value;
@@ -1188,10 +1320,10 @@
     });
 
     ['apSsid', 'apPass'].forEach(function (id) {
-      $(id).addEventListener('input', function () { $('apWarn').hidden = false; });
+      on(id, 'input', function () { $('apWarn').hidden = false; });
     });
 
-    $('screenPicker').addEventListener('click', function (event) {
+    on('screenPicker', 'click', function (event) {
       var tile = event.target.closest('.tile');
       if (!tile) return;
       var index = Number(tile.getAttribute('data-screen'));
@@ -1199,26 +1331,27 @@
         'Cambiando…').then(function (ok) { if (ok) refresh(); });
     });
 
-    $('brightness').addEventListener('input', function (event) {
+    on('brightness', 'input', function (event) {
       setText('brightnessOut', event.target.value + ' %');
     });
-    $('brightness').addEventListener('change', function (event) {
+    on('brightness', 'change', function (event) {
       submit(event.target, '/api/settings',
         { brightness: Number(event.target.value) }, 'Brillo actualizado');
     });
 
     if ($('uiColor')) {
-      $('uiColor').addEventListener('input', function (event) {
+      on('uiColor', 'input', function (event) {
+        setText('uiColorHex', event.target.value.toUpperCase());
         applyAccent(event.target.value);
       });
-      $('uiColor').addEventListener('change', function (event) {
+      on('uiColor', 'change', function (event) {
         submit(event.target, '/api/settings', { uiColor: event.target.value },
           'Color de interfaz guardado');
       });
     }
 
     if ($('panelColors')) {
-      $('panelColors').addEventListener('click', function (event) {
+      on('panelColors', 'click', function (event) {
         // The board paints four full-screen colours before answering, so the
         // button stays busy for a couple of seconds on purpose.
         submit(event.target, '/api/panel/colors', {},
@@ -1227,7 +1360,7 @@
     }
 
     if ($('buddyForm')) {
-      $('buddyForm').addEventListener('submit', function (event) {
+      on('buddyForm', 'submit', function (event) {
         event.preventDefault();
         var url = $('buddyUrl').value.trim();
         var token = $('buddyToken').value.trim();
@@ -1253,13 +1386,13 @@
     if ($('buddyEyeColor')) {
       // No live preview: the panel is not the glass. The colour takes effect on
       // the next face frame and is stored in NVS by the device.
-      $('buddyEyeColor').addEventListener('change', function (event) {
+      on('buddyEyeColor', 'change', function (event) {
         submit(event.target, '/api/settings',
           { buddyEyeColor: event.target.value }, 'Color de ojos guardado');
       });
     }
     if ($('buddyEyeSwatches')) {
-      $('buddyEyeSwatches').addEventListener('click', function (event) {
+      on('buddyEyeSwatches', 'click', function (event) {
         var swatch = event.target.closest('button[data-color]');
         if (!swatch) return;
         var color = swatch.getAttribute('data-color');
@@ -1272,7 +1405,7 @@
       });
     }
     if ($('buddyEyeReset')) {
-      $('buddyEyeReset').addEventListener('click', function (event) {
+      on('buddyEyeReset', 'click', function (event) {
         $('buddyEyeColor').value = '#00b4ff';
         markDirty('buddyEyeColor');
         submit(event.target, '/api/settings', { buddyEyeColor: '' },
@@ -1281,30 +1414,57 @@
     }
 
     if ($('buddyForget')) {
-      $('buddyForget').addEventListener('click', function (event) {
+      on('buddyForget', 'click', function (event) {
         submit(event.target, '/api/settings', { buddyToken: '' },
           'Token del buddy olvidado');
       });
     }
-    if ($('buddyAskForm')) {
-      $('buddyAskForm').addEventListener('submit', function (event) {
-        event.preventDefault();
-        var prompt = $('buddyPrompt').value.trim();
-        if (!prompt) { toast('Escribí qué querés pedirle', 'err'); return; }
-        submit(event.target.querySelector('button[type="submit"]'),
-          '/api/buddy/ask', { prompt: prompt }, 'Pedido enviado a Sofía',
-          'Enviando…').then(function (ok) {
-          if (ok) $('buddyPrompt').value = '';
-        });
+    // Simular un estado: los chips son de a uno y mueven la cara de verdad.
+    // El equipo sostiene el gesto y después vuelve solo a su estado real; el
+    // endpoint es el que ya usa el juego, /api/face.
+    function selectMood(active) {
+      var group = $('buddyStates');
+      if (!group) return;
+      Array.prototype.forEach.call(group.querySelectorAll('.chip'), function (chip) {
+        chip.setAttribute('aria-pressed', String(chip === active));
       });
     }
+
+    on('buddyStates', 'click', function (event) {
+      var chip = event.target.closest ? event.target.closest('.chip') : null;
+      if (!chip) return;
+      var mood = chip.getAttribute('data-mood');
+      if (SOFIA_MOODS.indexOf(mood) < 0) return;
+      var label = (chip.textContent || mood).trim();
+      busy(chip, null, function () {
+        return api('POST', '/api/face', { mood: mood, ms: SOFIA_HOLD_MS });
+      }).then(
+        function () {
+          selectMood(chip);
+          toast('Sofía: ' + label + ' en el equipo', 'ok');
+        },
+        function (error) { toast(error.message, 'err'); }
+      );
+    });
+
+    on('buddyStateClear', 'click', function (event) {
+      busy(event.target, 'Volviendo…', function () {
+        return api('POST', '/api/face', { mood: '' });
+      }).then(
+        function () {
+          selectMood(null);
+          toast('Sofía vuelve al estado real', 'ok');
+        },
+        function (error) { toast(error.message, 'err'); }
+      );
+    });
 
     // --- integraciones: Google Calendar -------------------------------------
     //
     // Todo esto es de la placa: guarda las credenciales, pide el código del
     // device flow y elige el calendario. El bridge no participa.
     if ($('calForm')) {
-      $('calForm').addEventListener('submit', function (event) {
+      on('calForm', 'submit', function (event) {
         event.preventDefault();
         var body = {};
         [['calClientId', 'clientId'], ['calClientSecret', 'clientSecret']]
@@ -1341,7 +1501,7 @@
       });
     }
     if ($('calConnect')) {
-      $('calConnect').addEventListener('click', function (event) {
+      on('calConnect', 'click', function (event) {
         submit(event.target, '/api/calendar/connect', {},
           'Código pedido: aprobalo en Google').then(function (ok) {
           if (ok) refreshCalendar();
@@ -1349,7 +1509,7 @@
       });
     }
     if ($('calCancel')) {
-      $('calCancel').addEventListener('click', function (event) {
+      on('calCancel', 'click', function (event) {
         submit(event.target, '/api/calendar/cancel', {},
           'Conexión cancelada').then(function (ok) {
           if (ok) refreshCalendar();
@@ -1357,7 +1517,7 @@
       });
     }
     if ($('calSelectSave')) {
-      $('calSelectSave').addEventListener('click', function (event) {
+      on('calSelectSave', 'click', function (event) {
         var select = $('calSelect');
         if (!select || !select.value) {
           toast('Elegí un calendario', 'err');
@@ -1374,7 +1534,7 @@
       });
     }
     if ($('calRefresh')) {
-      $('calRefresh').addEventListener('click', function (event) {
+      on('calRefresh', 'click', function (event) {
         submit(event.target, '/api/calendar/refresh', {},
           'Actualizando el calendario').then(function (ok) {
           if (ok) refreshCalendar();
@@ -1382,7 +1542,7 @@
       });
     }
     if ($('calForget')) {
-      $('calForget').addEventListener('click', function (event) {
+      on('calForget', 'click', function (event) {
         if (!confirm('Se borran el Client ID, el secreto, el permiso y el ' +
                      'calendario elegido. Para volver a usarlo hay que configurar ' +
                      'todo otra vez. ¿Seguir?')) {
@@ -1398,7 +1558,7 @@
     }
 
     if ($('timeoutScreens')) {
-      $('timeoutScreens').addEventListener('change', function (event) {
+      on('timeoutScreens', 'change', function (event) {
         if (!event.target.hasAttribute('data-sleep-screen')) return;
         submit(event.target, '/api/settings',
           { screenTimeoutMask: currentTimeoutMask() },
@@ -1407,7 +1567,7 @@
     }
 
     if ($('screenTimeout')) {
-      $('screenTimeout').addEventListener('change', function (event) {
+      on('screenTimeout', 'change', function (event) {
         submit(event.target, '/api/settings',
           { screenTimeoutSec: Number(event.target.value) },
           Number(event.target.value) === 0
@@ -1415,48 +1575,45 @@
       });
     }
 
-    $('steerInvert').addEventListener('change', function (event) {
+    on('steerInvert', 'change', function (event) {
       submit(event.target, '/api/settings',
         { steerSign: event.target.checked ? -1 : 1 },
         event.target.checked ? 'Izquierda/derecha invertidos'
                              : 'Izquierda/derecha normales');
     });
 
-    $('steerInvertY').addEventListener('change', function (event) {
+    on('steerInvertY', 'change', function (event) {
       submit(event.target, '/api/settings',
         { steerSignY: event.target.checked ? -1 : 1 },
         event.target.checked ? 'Arriba/abajo invertidos' : 'Arriba/abajo normales');
     });
 
-    $('rotationMode').addEventListener('change', function (event) {
+    on('rotationMode', 'change', function (event) {
       submit(event.target, '/api/settings',
         { rotationMode: event.target.value }, 'Rotación actualizada');
     });
 
-    $('rotationLock').addEventListener('change', function (event) {
+    on('rotationLock', 'change', function (event) {
       submit(event.target, '/api/settings',
         { rotationLocked: event.target.checked },
         event.target.checked ? 'Rotación bloqueada' : 'Rotación libre');
     });
 
-    $('clock24').addEventListener('change', function (event) {
+    on('clock24', 'change', function (event) {
       submit(event.target, '/api/settings',
         { clock24h: event.target.checked },
         event.target.checked ? 'Reloj en 24 horas' : 'Reloj en 12 horas');
     });
 
-    $('rgbLevel').addEventListener('input', function (event) {
+    on('rgbLevel', 'input', function (event) {
       setText('rgbLevelOut', event.target.value + ' %');
     });
 
-    $('swatches').addEventListener('click', function (event) {
-      var swatch = event.target.closest('button[data-color]');
-      if (!swatch) return;
-      $('rgbColor').value = swatch.getAttribute('data-color');
-      markDirty('rgbColor');
+    on('rgbColor', 'input', function (event) {
+      setText('rgbColorHex', event.target.value.toUpperCase());
     });
 
-    $('rgbApply').addEventListener('click', function (event) {
+    on('rgbApply', 'click', function (event) {
       // Only the intensity when Sofía owns the bead: sending a colour would be a
       // request the firmware immediately undoes, and the card would report a value
       // the light never shows.
@@ -1471,7 +1628,7 @@
       submit(event.target, '/api/settings', { rgb: body }, 'Luz actualizada');
     });
 
-    $('setTime').addEventListener('click', function (event) {
+    on('setTime', 'click', function (event) {
       // The browser's clock is a UTC epoch, which is exactly what the device
       // needs; it applies its own UTC offset on top.
       submit(event.target, '/api/time',
@@ -1479,26 +1636,30 @@
         'Hora del equipo actualizada').then(function (ok) { if (ok) refresh(); });
     });
 
-    $('pressShort').addEventListener('click', function (event) {
+    on('pressShort', 'click', function (event) {
       submit(event.target, '/api/press', { long: false }, 'Toque enviado');
     });
 
-    $('pressLong').addEventListener('click', function (event) {
+    on('pressLong', 'click', function (event) {
       submit(event.target, '/api/press', { long: true }, 'Mantenido enviado: cambia de pantalla');
     });
 
-    $('steerRecal').addEventListener('click', function (event) {
+    on('steerRecal', 'click', function (event) {
       submit(event.target, '/api/steer/reset', undefined,
         'Listo: te llevé a CONFIG y abrí la calibración guiada').then(
         function (ok) { if (ok) refresh(); });
     });
 
-    $('steerSwap').addEventListener('click', function (event) {
+    on('steerSwap', 'click', function (event) {
       submit(event.target, '/api/steer/swap', undefined,
         'Eje del control cambiado').then(function (ok) { if (ok) refresh(); });
     });
 
-    $('spotifyForm').addEventListener('submit', function (event) {
+    on('spotifyClientId', 'input', function (event) {
+      renderClientCount(event.target.value);
+    });
+
+    on('spotifyForm', 'submit', function (event) {
       event.preventDefault();
       var clientId = $('spotifyClientId').value.trim();
       if (!clientId) {
@@ -1517,7 +1678,7 @@
       });
     });
 
-    $('spotifyAuthBtn').addEventListener('click', function (event) {
+    on('spotifyAuthBtn', 'click', function (event) {
       busy(event.target, 'Preparando…', function () {
         return api('POST', '/api/spotify/url');
       }).then(
@@ -1533,7 +1694,7 @@
       );
     });
 
-    $('spotifyCodeForm').addEventListener('submit', function (event) {
+    on('spotifyCodeForm', 'submit', function (event) {
       event.preventDefault();
       // Send exactly what was pasted. The firmware parses the whole callback URL,
       // the `code=...` fragment or a bare code (spotifyExtractCode), and doing the
@@ -1557,7 +1718,7 @@
       });
     });
 
-    $('spotifyForget').addEventListener('click', function (event) {
+    on('spotifyForget', 'click', function (event) {
       if (!confirm('¿Olvidar la autorización? El Client ID queda guardado y hay que autorizar de nuevo.')) {
         return;
       }
@@ -1565,13 +1726,13 @@
         .then(function (ok) { if (ok) refreshSpotify(); });
     });
 
-    $('resetScores').addEventListener('click', function (event) {      if (!confirm('¿Borrar los récords de ambos juegos?')) return;
+    on('resetScores', 'click', function (event) {      if (!confirm('¿Borrar los récords de ambos juegos?')) return;
       submit(event.target, '/api/scores/reset', undefined, 'Récords borrados')
         .then(function (ok) { if (ok) refresh(); });
     });
 
     if ($('accountForm')) {
-      $('accountForm').addEventListener('submit', function (event) {
+      on('accountForm', 'submit', function (event) {
         event.preventDefault();
         var pass = $('acctPass').value;
         if (pass !== $('acctRepeat').value) {
@@ -1602,18 +1763,18 @@
     }
 
     if ($('logoutBtn')) {
-      $('logoutBtn').addEventListener('click', function (event) { logout(event.target); });
+      on('logoutBtn', 'click', function (event) { logout(event.target); });
     }
     if ($('logoutBtnCard')) {
-      $('logoutBtnCard').addEventListener('click', function (event) { logout(event.target); });
+      on('logoutBtnCard', 'click', function (event) { logout(event.target); });
     }
 
-    $('restartBtn').addEventListener('click', function (event) {
+    on('restartBtn', 'click', function (event) {
       if (!confirm('¿Reiniciar el equipo? No se borra nada.')) return;
       submit(event.target, '/api/restart', undefined, 'Reiniciando… recargá en unos 10 segundos');
     });
 
-    $('factoryBtn').addEventListener('click', function (event) {
+    on('factoryBtn', 'click', function (event) {
       if (!confirm('Esto borra el WiFi de casa y los récords. ¿Restablecer de fábrica?')) return;
       submit(event.target, '/api/factory', undefined,
         'Restableciendo… reconectate a la red ESP32-GADGET');
@@ -1678,7 +1839,9 @@
 
   function init() {
     if (!$('toast')) return;
+    wireTheme();
     wireTabs();
+    wireSubtabs();
     wire();
     loadSession();
     refresh();

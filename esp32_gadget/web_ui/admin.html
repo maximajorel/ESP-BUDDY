@@ -4,9 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#ffffff">
-<title>ESP32 Gadget · Administración</title>
+<title>ESP BUDDY · Administración</title>
 <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNyIgZmlsbD0iI2ZmZmZmZiIgc3Ryb2tlPSIjMDAwIi8+PHBhdGggZD0iTTE2IDQgTDI4IDE2IEwxNiAyOCBMNCAxNiBaIiBmaWxsPSIjMDAwIi8+PC9zdmc+">
 <link rel="stylesheet" href="/styles.css">
+<!-- Antes del primer pintado: el tema guardado en el navegador, sin destello
+     blanco para quien eligió el oscuro. app.js hace lo mismo después. -->
+<script>try{if(localStorage.getItem('espbuddy-theme')==='dark'){document.documentElement.setAttribute('data-theme','dark');}}catch(e){}</script>
 </head>
 <body>
 
@@ -28,17 +31,18 @@
   <symbol id="i-slot" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/><circle cx="8" cy="15" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="15" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="15" r="1" fill="currentColor" stroke="none"/></symbol>
   <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><circle cx="12" cy="15.5" r="1.2" fill="currentColor" stroke="none"/></symbol>
   <symbol id="i-rocket" viewBox="0 0 24 24"><path d="M12 3c3 2 4.5 5 4.5 9L14 15h-4l-2.5-3C7.5 8 9 5 12 3z"/><path d="M9.5 16.5 7 20l4-1M14.5 16.5 17 20l-4-1"/><circle cx="12" cy="9" r="1.4"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M4.2 4.2l1.6 1.6M18.2 18.2l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.2 19.8l1.6-1.6M18.2 5.8l1.6-1.6"/></symbol>
 </defs></svg>
 
 <header class="topbar">
   <div class="brand">
-    <span class="logo">◆</span>
-    <div>
-      <h1>ESP32 Gadget</h1>
-      <p class="sub" id="firmwareLine">Administración</p>
-    </div>
+    <!-- The mark is the buddy's eyes: two black squircles on the yellow sticker. -->
+    <span class="logo" aria-hidden="true"><span class="eye"></span><span class="eye"></span></span>
+    <h1>ESP BUDDY</h1>
   </div>
   <div class="topbar-end">
+    <button class="icon-btn" id="themeBtn" type="button" aria-pressed="false" aria-label="Cambiar a tema oscuro" title="Tema oscuro"><svg aria-hidden="true"><use href="#i-moon"/></svg></button>
     <div class="pill" id="connPill"><span class="dot"></span><span id="connText">Conectando…</span></div>
     <div class="who" id="whoChip" hidden>
       <span class="who-user" id="whoUser">—</span>
@@ -49,8 +53,8 @@
 
 <div class="shell">
 
-  <!-- One tab per section. The ids are the ones the old sidebar used, so
-       /admin#spotify and every in-page link keep working. -->
+  <!-- One tab per section, as a column on the left. The ids are the ones the old
+       sidebar used, so /admin#spotify and every in-page link keep working. -->
   <nav class="tabs" id="nav" role="tablist" aria-label="Secciones del panel">
     <button class="nav-item" id="tab-aplicaciones" type="button" role="tab" aria-selected="true" aria-controls="aplicaciones" tabindex="0"><svg class="nav-ico" aria-hidden="true"><use href="#i-apps"/></svg><span>Aplicaciones</span></button>
     <button class="nav-item" id="tab-pantalla" type="button" role="tab" aria-selected="false" aria-controls="pantalla" tabindex="-1"><svg class="nav-ico" aria-hidden="true"><use href="#i-display"/></svg><span>Pantalla</span></button>
@@ -81,8 +85,6 @@
     <!-- ── Aplicaciones: la acción principal del panel ─────────────────── -->
     <div class="region" id="aplicaciones" role="tabpanel" aria-labelledby="tab-aplicaciones" tabindex="0">
       <div class="region-head">
-        <p class="eyebrow">Uso diario</p>
-        <h2>Aplicaciones</h2>
         <p class="lead">Elegí qué se ve en la pantalla del equipo. <span class="now" id="nowScreen">Ahora: —</span></p>
       </div>
 
@@ -132,13 +134,12 @@
           </button>
         </div>
 
-        <details class="fold">
+        <details class="fold" open>
           <summary>Nombres y orden del menú del equipo</summary>
-          <p class="hint">Elegí cómo se llama cada pantalla (hasta 12 letras) y en qué orden aparecen al mantener el botón 1 segundo. Los cambios quedan guardados en el equipo.</p>
+          <p class="hint">Elegí cómo se llama cada pantalla (hasta 12 letras) y arrastrá las filas con el mouse para cambiar el orden en que aparecen al mantener el botón 1 segundo. Los cambios quedan guardados en el equipo.</p>
           <ul class="order" id="orderList"></ul>
           <div class="actions">
             <button class="btn" id="orderSave" type="button">Guardar nombres y orden</button>
-            <button class="btn ghost" id="orderReset" type="button">Nombres y orden originales</button>
           </div>
         </details>
       </section>
@@ -147,68 +148,82 @@
     <!-- ── Pantalla ─────────────────────────────────────────────────────── -->
     <div class="region" id="pantalla" role="tabpanel" aria-labelledby="tab-pantalla" tabindex="0" hidden>
       <div class="region-head">
-        <p class="eyebrow">Uso diario</p>
-        <h2>Pantalla</h2>
         <p class="lead">Brillo, color y comportamiento de la pantalla del equipo.</p>
       </div>
 
       <section class="card">
-        <h3>Aspecto</h3>
-        <label class="slider">Brillo
-          <input type="range" id="brightness" min="5" max="100" step="5">
-          <output id="brightnessOut">—</output>
-        </label>
 
-        <label>Color de la interfaz <span class="tag">el acento del equipo y del panel</span>
-          <input type="color" id="uiColor" value="#ffd700">
-        </label>
+        <details class="fold" open>
+          <summary>Brillo</summary>
+          <label class="slider">Brillo de la pantalla
+            <input type="range" id="brightness" min="5" max="100" step="5">
+            <output id="brightnessOut">—</output>
+          </label>
+        </details>
 
-        <label>Rotación de la pantalla <span class="tag">según cómo apoyes el equipo</span>
-          <select id="rotationMode">
-            <option value="auto">Automática</option>
-            <option value="horizontal">Horizontal</option>
-            <option value="inverted">Horizontal invertida</option>
-          </select>
-        </label>
+        <details class="fold">
+          <summary>Color de la interfaz</summary>
+          <label class="field">
+            <span class="field-label">Color de la interfaz <span class="tag">el acento del equipo y del panel</span></span>
+            <span class="color-row">
+              <input type="color" id="uiColor" value="#ffd700">
+              <span class="hex" id="uiColorHex">#FFD700</span>
+            </span>
+          </label>
+        </details>
 
-        <label class="switch">
-          <input type="checkbox" id="rotationLock">
-          <span>Bloquear la rotación actual</span>
-        </label>
-        <p class="hint">Acostado de espaldas, el sensor no puede notar el giro: el equipo
-          se queda con la última orientación. Bloqueá para fijarla vos.</p>
+        <details class="fold">
+          <summary>Rotación de la pantalla</summary>
+          <label>Rotación <span class="tag">según cómo apoyes el equipo</span>
+            <select id="rotationMode">
+              <option value="auto">Automática</option>
+              <option value="horizontal">Horizontal</option>
+              <option value="inverted">Horizontal invertida</option>
+            </select>
+          </label>
 
-        <h3>Reloj</h3>
-        <label class="switch">
-          <input type="checkbox" id="clock24">
-          <span>Reloj en formato 24 horas</span>
-        </label>
-        <div class="row">
-          <button class="btn ghost" id="setTime" type="button">Usar la hora de este teléfono</button>
-        </div>
+          <label class="switch">
+            <span>Bloquear la rotación actual</span>
+            <input type="checkbox" id="rotationLock">
+          </label>
+          <p class="hint">Acostado de espaldas, el sensor no puede notar el giro: el equipo
+            se queda con la última orientación. Bloqueá para fijarla vos.</p>
+        </details>
 
-        <h3>Apagado automático</h3>
-        <p class="hint">Sin usar el equipo, la pantalla y la luz de atrás se apagan solas. Elegí después de cuánto y en qué pantallas; un toque en el botón las vuelve a prender.</p>
-        <label>Apagar después de
-          <select id="screenTimeout">
-            <option value="0">Nunca</option>
-            <option value="30">30 segundos</option>
-            <option value="60">1 minuto</option>
-            <option value="120">2 minutos</option>
-            <option value="300">5 minutos</option>
-            <option value="600">10 minutos</option>
-            <option value="1800">30 minutos</option>
-          </select>
-        </label>
-        <div class="row" id="timeoutScreens"></div>
+        <details class="fold">
+          <summary>Reloj</summary>
+          <label class="switch">
+            <span>Reloj en formato 24 horas</span>
+            <input type="checkbox" id="clock24">
+          </label>
+          <div class="row">
+            <button class="btn ghost" id="setTime" type="button">Usar la hora de este teléfono</button>
+          </div>
+        </details>
+
+        <details class="fold">
+          <summary>Apagado automático</summary>
+          <p class="hint">Sin usar el equipo, la pantalla y la luz de atrás se apagan solas. Elegí después de cuánto y en qué pantallas; un toque en el botón las vuelve a prender.</p>
+          <label>Apagar después de
+            <select id="screenTimeout">
+              <option value="0">Nunca</option>
+              <option value="30">30 segundos</option>
+              <option value="60">1 minuto</option>
+              <option value="120">2 minutos</option>
+              <option value="300">5 minutos</option>
+              <option value="600">10 minutos</option>
+              <option value="1800">30 minutos</option>
+            </select>
+          </label>
+          <div class="row" id="timeoutScreens"></div>
+        </details>
+
       </section>
     </div>
 
     <!-- ── Luz RGB ──────────────────────────────────────────────────────── -->
     <div class="region" id="luz" role="tabpanel" aria-labelledby="tab-luz" tabindex="0" hidden>
       <div class="region-head">
-        <p class="eyebrow">Uso diario</p>
-        <h2>Luz RGB</h2>
         <p class="lead">La luz que está detrás del equipo. En el tragamonedas se enciende sola cuando ganás.</p>
       </div>
 
@@ -217,14 +232,13 @@
           luz para mostrar su estado: el color y el modo los decide ella. El brillo
           sí se ajusta desde acá.</p>
         <div class="row" id="rgbColorRow">
-          <input type="color" id="rgbColor" value="#ffd700">
-          <div class="swatches" id="swatches">
-            <button type="button" data-color="#ffd700" style="--c:#ffd700" title="Oro"></button>
-            <button type="button" data-color="#dc143c" style="--c:#dc143c" title="Carmesí"></button>
-            <button type="button" data-color="#00a86b" style="--c:#00a86b" title="Esmeralda"></button>
-            <button type="button" data-color="#ffa500" style="--c:#ffa500" title="Ámbar"></button>
-            <button type="button" data-color="#ffffff" style="--c:#ffffff" title="Blanco"></button>
-          </div>
+          <label class="field">
+            <span class="field-label">Color de la luz <span class="tag">el que se usa en el modo color fijo</span></span>
+            <span class="color-row">
+              <input type="color" id="rgbColor" value="#ffd700">
+              <span class="hex" id="rgbColorHex">#FFD700</span>
+            </span>
+          </label>
         </div>
         <label class="slider">Intensidad
           <input type="range" id="rgbLevel" min="0" max="100" step="5">
@@ -246,8 +260,6 @@
     <!-- ── Juegos ───────────────────────────────────────────────────────── -->
     <div class="region" id="juegos" role="tabpanel" aria-labelledby="tab-juegos" tabindex="0" hidden>
       <div class="region-head">
-        <p class="eyebrow">Uso diario</p>
-        <h2>Juegos</h2>
         <p class="lead">Récords y controles del sensor para Meteoritos.</p>
       </div>
 
@@ -265,13 +277,13 @@
         </div>
 
         <label class="switch">
-          <input type="checkbox" id="steerInvert">
           <span>Invertir izquierda/derecha del juego (si la nave va al revés)</span>
+          <input type="checkbox" id="steerInvert">
         </label>
 
         <label class="switch">
-          <input type="checkbox" id="steerInvertY">
           <span>Invertir arriba/abajo del juego (si la nave sube cuando querés bajar)</span>
+          <input type="checkbox" id="steerInvertY">
         </label>
 
         <h3>Récords</h3>
@@ -283,12 +295,6 @@
 
     <!-- ── Música (Spotify) ─────────────────────────────────────────────── -->
     <div class="region" id="spotify" role="tabpanel" aria-labelledby="tab-spotify" tabindex="0" hidden>
-      <div class="region-head">
-        <p class="eyebrow">Uso diario</p>
-        <h2>Música</h2>
-        <p class="lead">Lo que está sonando en Spotify, en la pantalla del equipo. Se configura una sola vez.</p>
-      </div>
-
       <section class="card">
         <h3>Estado en vivo</h3>
         <div class="sp-state" id="spotifyStateBox">
@@ -297,33 +303,55 @@
         <p class="hint" id="spotifyStateHint">Todavía no hablamos con el equipo.</p>
         <p class="sp-error" id="spotifyError" hidden></p>
         <div class="sp-panel" id="spotifyTrack" hidden>
-          <p class="sp-title" id="spotifyTitle">—</p>
-          <p class="sp-artist" id="spotifyArtist">—</p>
+          <!-- Portada dibujada, no descargada: el panel vive en la placa. -->
+          <div class="sp-cover" aria-hidden="true">
+            <svg viewBox="0 0 100 100" focusable="false">
+              <rect width="100" height="100" fill="#e9ccff"/>
+              <path d="M0 68h100v32H0z" fill="#e9e9e9"/>
+              <circle cx="34" cy="58" r="21" fill="#55db9c" stroke="#000" stroke-width="2"/>
+              <path d="M60 14h26v48L60 74z" fill="#5c4ade" stroke="#000" stroke-width="2"/>
+              <circle cx="73" cy="21" r="8" fill="#ffd731" stroke="#000" stroke-width="2"/>
+              <path d="M12 16h28v9H12z" fill="#000"/>
+              <path d="M12 31h18v5H12z" fill="#000"/>
+            </svg>
+          </div>
+          <div class="sp-meta">
+            <p class="sp-title" id="spotifyTitle">—</p>
+            <p class="sp-artist" id="spotifyArtist">—</p>
+            <p class="sp-album" id="spotifyAlbum" hidden>—</p>
+          </div>
           <div class="sp-bar"><span id="spotifyBar"></span></div>
           <p class="sp-time"><span id="spotifyPlay">—</span> · <span id="spotifyTime">—</span></p>
         </div>
-        <p class="hint" id="spotifyFeedNote"></p>
-
-        <p class="hint inline">La cuenta de Spotify se conecta en <a href="#integraciones">Integraciones</a>, junto con Hermes y Google Calendar.</p>
+        <!-- Lo que el equipo dice cuando no hay canción: vive oculto y sólo se
+             muestra cuando hay algo que contar. -->
+        <p class="hint" id="spotifyFeedNote" hidden></p>
       </section>
     </div>
 
     <!-- ── Integraciones: todo lo que habla con algo de afuera ──────────── -->
     <div class="region" id="integraciones" role="tabpanel" aria-labelledby="tab-integraciones" tabindex="0" hidden>
       <div class="region-head">
-        <p class="eyebrow">Integraciones</p>
-        <h2>Integraciones</h2>
         <p class="lead">Las tres cosas con las que habla el equipo, configuradas desde acá. Spotify manda la música a la pantalla, Hermes le presta la cabeza a Sofía y Google Calendar le avisa cuándo se viene un evento.</p>
       </div>
 
-      <section class="card" id="intSpotify">
-        <h3>Spotify</h3>
+      <div class="subtabs" role="tablist" aria-label="Integraciones">
+        <button class="subtab" type="button" role="tab" aria-selected="true" aria-controls="intSpotify">Spotify</button>
+        <button class="subtab" type="button" role="tab" aria-selected="false" aria-controls="intHermes">Hermes</button>
+        <button class="subtab" type="button" role="tab" aria-selected="false" aria-controls="intCalendar">Google Calendar</button>
+      </div>
+
+      <section class="card" id="intSpotify" data-subpanel role="tabpanel" aria-label="Spotify">
         <p class="hint inline">Lo que está sonando, en la pantalla MUSICA.</p>
         <h3>Conectar tu cuenta</h3>
 
         <form id="spotifyForm" class="form">
-          <label>Client ID de tu app
-            <input id="spotifyClientId" name="clientId" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="63" required placeholder="Pegá el Client ID acá">
+          <label class="field" for="spotifyClientId">
+            <span class="field-label">Client ID de tu app</span>
+            <span class="field-input">
+              <input id="spotifyClientId" name="clientId" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="63" required placeholder="Pegá el Client ID acá">
+              <span class="field-count" id="spotifyCount">0/63</span>
+            </span>
           </label>
           <div class="actions">
             <button class="btn" type="submit">Guardar Client ID</button>
@@ -369,8 +397,7 @@
         </form>
       </section>
 
-      <section class="card" id="intHermes">
-        <h3>Hermes (bridge)</h3>
+      <section class="card" id="intHermes" data-subpanel role="tabpanel" aria-label="Hermes" hidden>
         <p class="hint inline">El bridge es el que sabe qué está haciendo Hermes y el que guarda las credenciales de Google.</p>
         <form id="buddyForm" class="form">
           <label>URL del bridge
@@ -390,8 +417,7 @@
         </form>
       </section>
 
-      <section class="card" id="intCalendar">
-        <h3>Google Calendar</h3>
+      <section class="card" id="intCalendar" data-subpanel role="tabpanel" aria-label="Google Calendar" hidden>
         <p class="hint inline">La placa habla con Google por su cuenta: no necesita el bridge. Cuando se viene un evento, los ojos cambian según el recordatorio que tenga <em>ese</em> evento en tu calendario, y la luz se pone violeta.</p>
 
         <div class="sp-state" id="calStateBox"><span class="dot"></span><span id="calState">Consultando…</span></div>
@@ -462,13 +488,16 @@
     <!-- ── Red ──────────────────────────────────────────────────────────── -->
     <div class="region" id="red" role="tabpanel" aria-labelledby="tab-red" tabindex="0" hidden>
       <div class="region-head">
-        <p class="eyebrow">Conectividad</p>
-        <h2>Red</h2>
         <p class="lead">Conectá el equipo a tu WiFi de casa y ajustá la red que crea para este panel.</p>
       </div>
 
-      <section class="card" id="wifi">
-        <h3>WiFi de casa</h3>
+      <div class="subtabs" role="tablist" aria-label="Red">
+        <button class="subtab" type="button" role="tab" aria-selected="true" aria-controls="wifi">Red remota</button>
+        <button class="subtab" type="button" role="tab" aria-selected="false" aria-controls="acceso">Punto de acceso</button>
+      </div>
+
+      <section class="card" id="wifi" data-subpanel role="tabpanel" aria-label="Conectarse a una red">
+        <h3>Conectarse a una red</h3>
         <p class="hint">Con esto el reloj se pone en hora solo. Si no lo configurás, el equipo igual funciona y muestra la hora cuando lo conectes.</p>
         <div class="row">
           <button class="btn ghost" id="scanBtn" type="button">Buscar redes</button>
@@ -491,7 +520,7 @@
         </form>
       </section>
 
-      <section class="card" id="acceso">
+      <section class="card" id="acceso" data-subpanel role="tabpanel" aria-label="Punto de acceso" hidden>
         <h3>Punto de acceso del equipo</h3>
         <p class="hint">Es la red que crea el equipo para que te conectes a este panel. El nombre y la contraseña se muestran en la pantalla RED.</p>
         <form id="apForm" class="form">
@@ -511,24 +540,13 @@
 
     <!-- ── Sofía ────────────────────────────────────────────────────────── -->
     <div class="region" id="sofia" role="tabpanel" aria-labelledby="tab-sofia" tabindex="0" hidden>
-      <div class="region-head">
-        <p class="eyebrow">Conectividad</p>
-        <h2>Sofía (buddy)</h2>
+      <div class="region-head row">
         <p class="lead">La cara de la pantalla SOFIA reacciona a lo que hace Hermes, consultando el bridge. Acepta la dirección de tu LAN o una URL pública con HTTPS.</p>
+        <div class="pill" id="bridgePill"><span class="dot"></span><span id="bridgeState">—</span></div>
       </div>
 
       <section class="card">
         <p class="hint inline">La URL del bridge y los tokens se cargan en <a href="#integraciones">Integraciones</a>.</p>
-
-
-        <h3>Estado en vivo</h3>
-        <div class="grid">
-          <div class="stat"><span class="k">Estado</span><span class="v" id="buddyState">—</span></div>
-          <div class="stat"><span class="k">Etiqueta</span><span class="v" id="buddyLabel">—</span></div>
-          <div class="stat"><span class="k">Runs activos</span><span class="v" id="buddyActive">—</span></div>
-          <div class="stat"><span class="k">Bridge</span><span class="v" id="buddyOnline">—</span></div>
-          <div class="stat"><span class="k">Enlace</span><span class="v" id="buddyLink">—</span></div>
-        </div>
 
         <h3>Color de los ojos</h3>
         <div class="row">
@@ -542,29 +560,33 @@
           </div>
         </div>
         <div class="actions">
-          <button class="btn ghost" id="buddyEyeReset" type="button">Volver al cyan original</button>
+          <button class="btn ghost" id="buddyEyeReset" type="button">Restablecer color</button>
         </div>
         <p class="hint">Se guarda en el equipo y sobrevive a un reinicio. El enojo y el mareo lo tiñen un momento y después vuelve a tu color; la luz RGB sigue el estado del bridge.</p>
 
         <h3>Calendario</h3>
         <p class="hint inline">Los eventos los baja la placa directo de Google Calendar. Se configuran en <a href="#integraciones">Integraciones → Google Calendar</a>; cuando falta poco para un evento, los ojos cambian solos.</p>
 
-        <form id="buddyAskForm" class="form">
-          <label>Pedirle algo a Sofía <span class="tag">se ve en la cara</span>
-            <input id="buddyPrompt" autocomplete="off" maxlength="200" placeholder="Resumí las novedades del repo">
-          </label>
-          <div class="actions">
-            <button class="btn" type="submit">Pedir</button>
-          </div>
-        </form>
+        <h3>Simular un estado</h3>
+        <p class="hint">Para probar la cara sin esperar a que pase: elegí un estado y el equipo lo muestra unos segundos en la pantalla SOFIA. Después vuelve solo al estado real.</p>
+        <div class="chips" id="buddyStates" role="group" aria-label="Estados de Sofía">
+          <button class="chip" type="button" data-mood="focus" aria-pressed="false">Concentrada</button>
+          <button class="chip" type="button" data-mood="thinking" aria-pressed="false">Pensando</button>
+          <button class="chip" type="button" data-mood="alert" aria-pressed="false">Alerta</button>
+          <button class="chip" type="button" data-mood="happy" aria-pressed="false">Feliz</button>
+          <button class="chip" type="button" data-mood="anger" aria-pressed="false">Enojo</button>
+          <button class="chip" type="button" data-mood="sleepy" aria-pressed="false">Con sueño</button>
+          <button class="chip" type="button" data-mood="sad" aria-pressed="false">Triste</button>
+        </div>
+        <div class="actions">
+          <button class="btn ghost" id="buddyStateClear" type="button">Volver al estado real</button>
+        </div>
       </section>
     </div>
 
     <!-- ── Sistema: estado y mantenimiento al final ─────────────────────── -->
     <div class="region" id="sistema" role="tabpanel" aria-labelledby="tab-sistema" tabindex="0" hidden>
       <div class="region-head">
-        <p class="eyebrow">Sistema</p>
-        <h2>Sistema</h2>
         <p class="lead">Estado del equipo y mantenimiento. No hace falta entrar acá para el uso diario.</p>
       </div>
 
@@ -607,8 +629,6 @@
     <!-- ── Cuenta: con qué se entra al panel ───────────────────────────── -->
     <div class="region" id="cuenta" role="tabpanel" aria-labelledby="tab-cuenta" tabindex="0" hidden>
       <div class="region-head">
-        <p class="eyebrow">Acceso</p>
-        <h2>Cuenta</h2>
         <p class="lead">Con qué usuario y contraseña se entra a este panel. El equipo guarda un hash con sal, así que la contraseña no se puede leer desde acá.</p>
       </div>
 
@@ -641,8 +661,7 @@
 </div>
 
 <footer>
-  <p>ESP32 Gadget · Waveshare ESP32-S3-LCD-1.47B</p>
-  <p class="hint">Este panel vive dentro del equipo: no necesita internet.</p>
+  <p>ESP BUDDY · Waveshare ESP32-S3-LCD-1.47B</p>
 </footer>
 
 <div class="toast" id="toast" hidden></div>

@@ -132,6 +132,11 @@ a { color: var(--ink); }
   font-size: 15px;
   line-height: 1;
 }
+/* The admin mark is the buddy's eyes: two black squircles on the sun sticker,
+   in both themes. Scoped to the top bar so the login, which uses the same
+   .logo with a glyph, keeps its centred look. No glow: no box-shadow here. */
+.topbar .logo { display: flex; justify-content: center; gap: 3px; }
+.logo .eye { width: 10px; height: 10px; border-radius: 38%; background: #000000; }
 .topbar h1 { margin: 0; font-size: 15px; letter-spacing: -0.01em; white-space: nowrap; }
 .sub { margin: 0; font-size: 11px; opacity: 0.7; }
 .topbar-end { display: flex; align-items: center; gap: 8px; margin-left: auto; flex: 0 0 auto; }
@@ -175,27 +180,34 @@ a { color: var(--ink); }
 }
 
 /* --- tabs: the whole panel navigation ----------------------------------- */
-/* One row, one tab per section, the section ids kept from the old sidebar so
-   /admin#spotify keeps working. */
+/* The navigation is a left aside: sections in a column, content on the right.
+   The column is as wide as the longest label and every pill fills it, so the
+   menu reads as one block instead of a ragged stack. Section ids are the ones
+   the old sidebar used, so /admin#spotify keeps working. */
+.shell {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: stretch;
+}
 .tabs {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  overflow-x: auto;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 10px;
   background: var(--paper);
-  border-bottom: var(--line);
-  scrollbar-width: none;
+  border-right: var(--line);
 }
-.tabs::-webkit-scrollbar { display: none; }
 
 .nav-item {
   flex: 0 0 auto;
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 7px;
-  min-height: 38px;
-  padding: 8px 13px;
+  width: 100%;
+  min-height: 36px;
+  padding: 7px 11px;
   border: var(--line);
   border-radius: var(--r-pill);
   background: var(--paper);
@@ -222,8 +234,8 @@ a { color: var(--ink); }
 .tab-sep {
   flex: 0 0 auto;
   align-self: stretch;
-  width: 1px;
-  margin: 6px 2px;
+  height: 1px;
+  margin: 8px 2px;
   background: var(--ink);
   opacity: 0.2;
 }
@@ -261,20 +273,14 @@ main { padding: 16px 14px 40px; max-width: var(--page); }
 .region { display: grid; gap: 14px; scroll-margin-top: 12px; }
 .region[hidden] { display: none; }
 .region-head { padding: 0 2px; }
-.eyebrow {
-  margin: 0;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.032em;
-  text-transform: uppercase;
+.region-head.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px 14px;
 }
-.region-head h2 {
-  margin: 2px 0 0;
-  font-size: clamp(30px, 8vw, 40px);
-  font-weight: 900;
-  line-height: 0.9;
-  letter-spacing: -0.04em;
-}
+.region-head.row .lead { margin: 0; }
 .lead { margin: 8px 0 0; font-size: 13px; max-width: 62ch; }
 
 .now {
@@ -433,7 +439,9 @@ input:disabled, select:disabled { background: var(--mist); opacity: 0.75; }
   padding: 0;
   border: var(--line);
   border-radius: var(--r-pill);
-  background: var(--mist);
+  /* The colour travels in --c from the markup: without it the five shortcuts
+     were five grey circles. */
+  background: var(--c, var(--mist));
   cursor: pointer;
 }
 .swatches button[aria-pressed="true"] { outline: 2px solid var(--ink); outline-offset: 2px; }
@@ -453,6 +461,90 @@ input:disabled, select:disabled { background: var(--mist); opacity: 0.75; }
 .switch:last-child { border-bottom: 0; }
 .switch input { width: 22px; height: 22px; accent-color: var(--ink); }
 .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+
+/* Chips: one sticker button per choice, the pressed one filled with ink. The
+   landing already has .chip and .chips, so only the panel's regions get the
+   interactive size, the hover and the pressed fill; nothing here changes how
+   the landing looks. */
+.region .chips { margin-bottom: 12px; }
+.region .chip {
+  padding: 8px 12px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.region .chip:hover { background: var(--mist); }
+.region .chip[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+
+/* Field: a labelled control whose box is part of the design, not the browser's.
+   The value is mono so a Client ID or a hex colour never shifts. */
+.field { display: grid; gap: 6px; }
+.field-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.field-input {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--tap);
+  padding: 0 12px;
+  border: var(--line);
+  border-radius: var(--r-in);
+  background: var(--mist);
+}
+.field-input:focus-within { outline: 2px solid var(--violet); outline-offset: 2px; }
+.field-input input[type="text"] {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: var(--mono);
+  font-size: 13px;
+}
+.field-input input[type="text"]:focus-visible { outline: 0; }
+.field-count { flex: 0 0 auto; font-family: var(--mono); font-size: 11px; opacity: 0.55; }
+
+/* Colour field: the swatch plus its hex, so it never sits alone. */
+.color-row { display: flex; align-items: center; gap: 12px; }
+.color-row input[type="color"] {
+  flex: 0 0 auto;
+  width: 76px;
+  height: 44px;
+  padding: 3px;
+  border: var(--line);
+  border-radius: var(--r-in);
+  background: var(--paper);
+  cursor: pointer;
+}
+.color-row .hex { font-family: var(--mono); font-size: 13px; letter-spacing: 0.02em; }
+
+/* Sub-tabs: one card at a time inside a section that holds several. */
+.subtabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.subtab {
+  min-height: 38px;
+  padding: 7px 13px;
+  border: var(--line);
+  border-radius: var(--r-pill);
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.032em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.subtab:hover { background: var(--mist); }
+.subtab[aria-selected="true"] { background: var(--ink); color: var(--paper); }
+.region > [hidden] { display: none; }
 
 /* --- lists: networks and screen order ----------------------------------- */
 .netlist { display: grid; gap: 8px; margin: 10px 0; }
@@ -486,22 +578,32 @@ input:disabled, select:disabled { background: var(--mist); opacity: 0.75; }
   border-radius: var(--r-in);
   background: var(--paper);
 }
-.order button {
+.order li.dragging { background: var(--sun); opacity: 0.9; }
+.order li.over { outline: 2px solid var(--violet); outline-offset: 2px; }
+.order .grip {
+  flex: 0 0 auto;
   display: grid;
   place-items: center;
-  width: 38px;
+  width: 30px;
   height: 38px;
-  padding: 0;
   border: var(--line);
-  border-radius: var(--r-pill);
+  border-radius: var(--r-in);
   background: var(--mist);
-  color: var(--ink);
-  font: inherit;
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  letter-spacing: -0.06em;
+  cursor: grab;
+  user-select: none;
 }
-.order button:disabled { opacity: 0.35; cursor: default; }
+.order .grip:active { cursor: grabbing; }
+.order .num {
+  flex: 0 0 auto;
+  width: 1.4em;
+  font-family: var(--mono);
+  font-size: 11px;
+  opacity: 0.6;
+  text-align: right;
+}
 .order input { flex: 1; min-width: 0; min-height: 38px; padding: 6px 10px; font-size: 13px; }
 
 /* --- spotify, calendar, integrations ------------------------------------ */
@@ -546,14 +648,30 @@ input:disabled, select:disabled { background: var(--mist); opacity: 0.75; }
 
 .sp-panel {
   display: grid;
-  grid-template-columns: 56px 1fr;
-  gap: 12px;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 14px;
   align-items: center;
   margin: 12px 0;
   padding: 12px;
   border: var(--line);
   border-radius: var(--r-in);
   background: var(--lav);
+}
+.sp-cover {
+  border: var(--line);
+  border-radius: var(--r-in);
+  overflow: hidden;
+  background: var(--paper);
+}
+.sp-cover svg { display: block; width: 100%; height: auto; }
+.sp-meta { min-width: 0; }
+.sp-album {
+  margin: 6px 0 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.032em;
+  text-transform: uppercase;
+  opacity: 0.62;
 }
 .sp-title { margin: 0; font-size: 14px; font-weight: 700; overflow-wrap: anywhere; }
 .sp-artist { margin: 2px 0 0; font-size: 12px; opacity: 0.75; overflow-wrap: anywhere; }
@@ -1086,6 +1204,15 @@ body.game-open .game { display: block; }
   stroke-linejoin: round;
 }
 
+/* The admin theme switch: the only icon-only control in the panel, and the only
+   round button at 34px. The game's close buttons keep their 44px target. */
+#themeBtn {
+  width: 34px;
+  height: 34px;
+}
+#themeBtn[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+#themeBtn svg { width: 18px; height: 18px; }
+
 .diff { display: flex; gap: 8px; margin: 14px 0; }
 .diff button {
   flex: 1;
@@ -1171,10 +1298,27 @@ main + footer p, body > footer p { margin: 0 0 4px; }
 
 @media (min-width: 980px) {
   .topbar { padding: 12px 20px; }
-  .tabs { padding: 12px 20px; }
   .display { font-size: 150px; }
   .launch-grid { grid-template-columns: repeat(3, 1fr); }
   .launch.wide { grid-column: auto; min-height: 108px; }
+}
+
+/* Below 760px the aside does not fit: the same strip as before, scrollable. */
+@media (max-width: 759px) {
+  .shell { grid-template-columns: minmax(0, 1fr); }
+  .tabs {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 10px 14px;
+    border-right: 0;
+    border-bottom: var(--line);
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab-sep { width: 1px; height: auto; margin: 6px 2px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1186,6 +1330,36 @@ main + footer p, body > footer p { margin: 0 0 4px; }
   }
   .marquee-track { animation: none; }
 }
+
+/* --- dark theme --------------------------------------------------------- */
+/* The stickers keep their colour in both themes: they are the system, not a
+   tint. Paper, ink and the three neutral surfaces flip; anything painted on a
+   sticker keeps black text, so contrast stays the same in both themes. The
+   choice lives in localStorage, so the attribute can also be set before paint. */
+[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #16171a;
+  --sky: #0e0f12;
+  --gray: #23252a;
+  --mist: #22242a;
+  --ink: #f1f1f3;
+  --ok-ink: #58d99b;
+  --bad-ink: #ff8f66;
+}
+[data-theme="dark"] :is(.now, .pill.online, .pill.offline, .warn, .sp-state.ok,
+  .sp-state.warn, .sp-state.bad, .sp-panel, .sp-error, .btn.danger, .toast.ok,
+  .toast.err, .tile.active, .tile:nth-child(4n + 2), .order li.dragging,
+  .skip) { color: #000000; }
+/* Stickers read black, including their flat icons. */
+[data-theme="dark"] :is(.tile.active, .tile:nth-child(4n + 2)) svg { stroke: #000000; }
+[data-theme="dark"] .banner a { color: #000000; }
+[data-theme="dark"] .banner svg { stroke: #000000; }
+[data-theme="dark"] input::placeholder, [data-theme="dark"] textarea::placeholder { color: rgba(255, 255, 255, 0.42); }
+/* Only the ink-filled buttons need the lighter hover; the ghost and danger
+   buttons carry their own fill and would lose their text on plain white. */
+[data-theme="dark"] .btn:not(.ghost):not(.danger):hover { background: #ffffff; }
+[data-theme="dark"] .btn.ghost:hover { background: var(--mist); }
+[data-theme="dark"] .btn.danger:hover { background: #e04200; }
 
 /* El código del device flow de Google: se lee desde el otro lado del cuarto y
    se copia a mano en el teléfono, así que va grande y espaciado. */
