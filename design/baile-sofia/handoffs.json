@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "chosen": "01-bote-parejo.html",
+  "chosen": "05-respiracion-con-pulso.html",
   "handoffs": {
     "01-bote-parejo.html": {
       "status": "implemented",
@@ -10,6 +10,15 @@
       "implementedAt": "2026-11-22T04:05:35.135Z",
       "feature": "odd/tasks/baile-spotify.md",
       "note": "Implementado en la placa: curva de vuelo de 10 px por tiempo, estiramiento y aplaste, alegría en el párpado inferior. El salto va después del filtro de pose porque el easing aplanaba el arco. Probado con dance 20 + buddydraw (bob 0..-7.5, bottom hasta 0.15) y con dump de las notas."
+    },
+    "05-respiracion-con-pulso.html": {
+      "status": "in_progress",
+      "queued": false,
+      "sentAt": "2026-11-22T04:28:49.249Z",
+      "startedAt": "2026-11-22T04:29:01.259Z",
+      "implementedAt": null,
+      "feature": "odd/tasks/baile-spotify.md",
+      "note": "Dirección E en el firmware: flotación de 3 px con dos períodos, pulso de tamaño con acento por tiempo, alegría en el párpado inferior y el de arriba quieto. La banda negra de cada párpado ahora para en el punto medio del par o en el borde del otro ojo (el comentario qma32cdw era un bug real del render). 40 tests host en verde, compila; falta flashear porque la placa está desconectada."
     }
   }
 }

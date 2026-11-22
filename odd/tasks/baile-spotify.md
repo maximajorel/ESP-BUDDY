@@ -152,6 +152,12 @@ punto medio del par o al borde del otro ojo, lo que quede más adentro; y
 del `happy`), con `bandReach` para que el borde dithered del párpado llegue al
 borde interno de la banda. Comentario resuelto con `gentle_design_comments`.
 
+L16 (handoff del diseño): `gentle_design` marcó `design/baile-sofia/05-respiracion-con-pulso.html`
+como la plancha elegida del diseño y el handoff quedó en `in_progress` a
+propósito: el código está implementado y probado en host (T10, commit `cd0a206`),
+pero todavía no se vio en el vidrio. Se marca `implemented` cuando esté flasheada
+y el `dump`/`buddydraw` muestren la flotación.
+
 L15 (el baile aprobado, en el firmware): `buddyDancePose` pasa del salto a la
 flotación: `bob` de 3 px con dos períodos distintos, `ry` 48→50 y `rx` 48→49 por
 un pulso con acento por tiempo (1.0 / 0.75 / 0.9 / 0.7), `bottom` 0.10..0.18,
