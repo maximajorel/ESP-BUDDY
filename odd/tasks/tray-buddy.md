@@ -111,7 +111,7 @@ S12. Sin CORS — el equipo no manda `Access-Control-Allow-Origin`, así que nin
 
 | ID | Spec | Ruta | Commit |
 |----|------|------|--------|
-| T0 | — | **local, pendiente de elección (L8)**: toolchain descargable sin instalador pesado — A MinGW (~380 MB, sin admin) o B VS Build Tools mínimo (~2,2 GB, con admin) | — |
+| T0 | — | **decidido B en L9**: herramientas oficiales de Microsoft. `tray_buddy/tools/setup-toolchain.ps1` como administrador (workload VCTools + `--includeRecommended`, con `--passive` para ver progreso) | `chore(tray): script de setup del toolchain de Windows` |
 | T1 | S1, S11 | inline (parent): esqueleto `tray_buddy/` + ventana sin bordes + bandeja · commit `e9cdae6` (1190 líneas: proyecto nuevo, HTML/CSS/Rust/iconos; queda in_progress sin compilar) | `chore(tray): esqueleto de la app de bandeja con Tauri` |
 | T2 | S3, S12 | inline (parent): transporte Rust + store + asistente de IPv4 con validación contra `/api/status` | `feat(tray): asistente de conexión por IPv4` |
 | T3 | S1, S11 | inline (parent): icono de ojos, anclaje del popover con el `rect` del evento de bandeja, atajo global, autostart | `feat(tray): bandeja, anclaje y atajo` |
@@ -233,3 +233,12 @@ sólo con VC.Tools + SDK, con admin). D queda descartada como camino, no como
 alternativa futura: el motivo del rechazo no se registró, pero el costo
 declarado en L7 (iterar por push, verificación manual del artifact) es la
 hipótesis.
+
+L9. El dueño rechazó MinGW: "Nono pero las herramientas oficiales quiero
+instalar". Se quitó el target GNU (`rustup target remove
+x86_64-pc-windows-gnu`) y queda **B**, el camino soportado: Build Tools de
+Microsoft con el workload VCTools. El script `tools/setup-toolchain.ps1` pasa
+los argumentos como arreglo (inmune al salto de línea que produjo los dos
+errores 87) y ahora usa `--passive` para que el dueño vea la barra de progreso
+en vez de 20 minutos de silencio. A y D quedan descartadas por decisión del
+dueño, no por inviabilidad técnica.

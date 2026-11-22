@@ -85,8 +85,10 @@ if (-not $hasVC) {
     # Un arreglo, no una cadena: así ningún salto de línea puede romper un
     # argumento (el error 87 de la instalación hecha a mano).
     # --includeRecommended trae el Windows SDK, que Rust necesita para enlazar.
+    # --passive muestra la ventana de progreso del instalador (sin preguntas):
+    # 20 minutos de silencio total se leen como un colgado.
     $installArgs = @(
-        '--quiet'
+        '--passive'
         '--wait'
         '--norestart'
         '--nocache'
