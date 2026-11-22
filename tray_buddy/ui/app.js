@@ -55,8 +55,18 @@ function setOnline(online, label, addr) {
   $("connAddr").textContent = addr || "—";
 }
 
+/** Las tres tarjetas del popover, que se ocultan mientras el asistente manda. */
+function sections() {
+  return Array.from(document.querySelectorAll(".body > section:not(.wizard)"));
+}
+
 function openWizard() {
   wizardOpen = true;
+  // Se ocultan, no se tapan: un formulario encima de botones vivos invita a
+  // tocar lo que hay detrás y a ver la UI vieja a través de los bordes.
+  sections().forEach((section) => {
+    section.hidden = true;
+  });
   $("wizard").hidden = false;
   $("wizErr").hidden = true;
   // El botón de cancelar sólo tiene sentido si ya hay un equipo guardado: en el
@@ -73,6 +83,9 @@ function openWizard() {
 function closeWizard() {
   wizardOpen = false;
   $("wizard").hidden = true;
+  sections().forEach((section) => {
+    section.hidden = false;
+  });
 }
 
 function wizError(message) {
@@ -346,7 +359,7 @@ function wireCalendar() {
 
 async function refresh() {
   if (!connection) {
-    setOnline(false, "Sin conectar", "—");
+    setOnline(false, "Offline", "—");
     renderScreens();
     renderFocus();
     return;
@@ -361,7 +374,7 @@ async function refresh() {
     // Un fallo no borra el último estado bueno: se marca sin conexión y se dice
     // por qué. Los tiles quedan deshabilitados porque no hay a quién mandarles.
     status = null;
-    setOnline(false, "Sin conexión", error?.message ?? "—");
+    setOnline(false, "Caído", error?.message ?? "—");
     renderScreens();
     renderFocus();
   }
@@ -433,12 +446,12 @@ async function boot() {
   }
 
   if (!connection) {
-    setOnline(false, "Sin conectar", "—");
+    setOnline(false, "Offline", "—");
     openWizard();
     return;
   }
 
-  setOnline(false, "Conectando…", connection.host);
+  setOnline(false, "Conectando", connection.host);
   await refresh();
 
   // Diez segundos: el mismo ritmo que usa la landing del equipo. Con el

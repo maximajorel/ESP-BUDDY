@@ -86,11 +86,12 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .titlebar {
   display: flex; align-items: center; gap: 8px;
   flex: 0 0 auto;
+  min-width: 0;
   height: 40px; padding-left: 10px;
   border-bottom: var(--line);
   border-radius: 15px 15px 0 0;
 }
-.brand { display: flex; align-items: center; gap: 8px; }
+.brand { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
 .brand .logo {
   width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
   gap: 2px; border: var(--line); border-radius: var(--r-pill); background: var(--sun);
@@ -100,13 +101,18 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .brand h1 span { font-weight: 400; opacity: 0.55; }
 .win-status {
   margin-left: auto; display: flex; align-items: center; gap: 5px;
+  /* El estado es lo único sacrificable de la barra: si el nombre de la pantalla
+     del equipo es largo, se recorta con puntos suspensivos antes que empujar
+     los tres botones de la ventana fuera del recorte del sistema. */
+  min-width: 0; overflow: hidden;
   font-size: 9px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase;
-  white-space: nowrap;
+  white-space: nowrap; text-overflow: ellipsis;
 }
+.win-status #winStatusText { overflow: hidden; text-overflow: ellipsis; }
 .win-status .dot { width: 6px; height: 6px; border-radius: 50%; border: 1px solid var(--ink); background: var(--mist); }
 .win-status[data-online="true"] .dot { background: var(--mint); }
 .win-status[data-online="false"] .dot { background: var(--ember); }
-.caption { display: flex; }
+.caption { display: flex; flex: 0 0 auto; }
 .caption button {
   width: 40px; height: 40px; display: grid; place-items: center;
   background: var(--paper); border: 0; border-left: var(--line);
@@ -118,7 +124,17 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .caption button[aria-pressed="true"] { background: var(--sky); }
 .caption svg { width: 12px; height: 12px; fill: none; stroke: var(--ink); stroke-width: 1.6; stroke-linecap: round; }
 
-.body { padding: 14px; display: grid; gap: 12px; background: var(--paper); overflow-y: auto; min-height: 0; }
+.body {
+  padding: 14px; display: grid; gap: 12px;
+  /* Una sola columna que NUNCA crece por su contenido: sin `minmax(0, 1fr)` un
+     hijo con min-content grande (el reloj del pomodoro) ensanchaba la columna,
+     el popover se salía de la ventana de 388 px y el sistema recortaba los
+     chips y el reloj. */
+  grid-template-columns: minmax(0, 1fr);
+  background: var(--paper);
+  overflow-y: auto; overflow-x: hidden; min-height: 0;
+}
+.body > section { min-width: 0; }
 .body::-webkit-scrollbar { width: 8px; }
 .body::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.2); border-radius: var(--r-pill); }
 
@@ -129,9 +145,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .sec-head .meta { margin-left: auto; font-weight: 700; opacity: 0.5; white-space: nowrap; }
 
 /* 1 · pantalla del LCD */
-.screens { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.screens { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .tile {
-  min-height: 52px; padding: 7px 6px 6px;
+  min-width: 0; min-height: 52px; padding: 7px 5px 6px;
   display: grid; gap: 4px; justify-items: center; align-content: center;
   background: var(--paper);
   border: var(--line);
@@ -145,6 +161,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .tile[aria-pressed="true"] svg { stroke: var(--paper); }
 .tile[aria-pressed="true"] .flag { display: block; }
 .tile .flag { display: none; font-size: 8px; opacity: 0.7; letter-spacing: 0.06em; }
+/* "TRAGAMONEDAS" no entra en un tile de 83 px con la tipografía aplastada. Antes
+   de recortar la palabra como hacía `overflow: hidden`, se la deja partir en dos
+   líneas: el nombre del equipo lo elige el dueño y tiene que leerse entero. */
+.tile .label { font-size: 8px; letter-spacing: 0; overflow-wrap: anywhere; }
 .tile:disabled { opacity: 0.45; cursor: default; }
 
 /* 2 · temporizador */
@@ -154,11 +174,13 @@ button { font: inherit; color: inherit; cursor: pointer; }
   border: var(--line);
   border-radius: var(--r-card);
 }
-.focus-top { display: flex; align-items: flex-start; gap: 10px; }
+.focus-top { display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
 .focus-label { font-size: 10px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; }
 .focus-clock {
   margin-left: auto;
-  font-family: var(--mono); font-size: 40px; font-weight: 700;
+  /* 34px y no 40: `26:00` en mono de 40 px más la etiqueta se pasaba de los
+     358 px útiles del cuerpo y el reloj se recortaba contra el borde. */
+  font-family: var(--mono); font-size: 34px; font-weight: 700;
   letter-spacing: -0.03em; line-height: 0.85;
   font-variant-numeric: tabular-nums;
 }
@@ -185,7 +207,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 /* 3 · calendario */
 .cal-card { border: var(--line); border-radius: var(--r-card); overflow: hidden; background: var(--paper); }
 .next {
-  display: grid; grid-template-columns: 52px 1fr; gap: 10px;
+  display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 10px;
   padding: 12px; background: var(--lav); border-bottom: var(--line);
 }
 .next .hour { font-family: var(--mono); font-size: 15px; font-weight: 700; }
@@ -197,7 +219,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .next .daytag .rule { flex: 1; height: 1px; background: rgba(0, 0, 0, 0.25); }
 .agenda { display: grid; }
-.agenda-row { display: grid; grid-template-columns: 42px 1fr; gap: 10px; align-items: center; padding: 9px 12px; }
+.agenda-row { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 10px; align-items: center; padding: 9px 12px; }
 .agenda-row + .agenda-row { border-top: var(--hair); }
 .agenda-row .hour { font-family: var(--mono); font-size: 12px; font-weight: 700; }
 .agenda-row .what { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; }
@@ -207,13 +229,14 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .cal-foot .btn { min-height: 30px; }
 
 .foot {
-  display: flex; align-items: center; gap: 8px;
+  display: flex; align-items: center; gap: 8px; min-width: 0;
   flex: 0 0 auto;
   padding: 10px 14px; border-top: var(--line); background: var(--paper);
   border-radius: 0 0 15px 15px;
 }
 .pill {
   display: inline-flex; align-items: center; gap: 6px;
+  min-width: 0; overflow: hidden;
   padding: 4px 9px; background: var(--paper);
   border: var(--line); border-radius: var(--r-pill);
   font-size: 9px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase;
@@ -225,19 +248,21 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .pill.offline { background: var(--paper); }
 .pill.offline .dot { background: var(--ember); }
 .foot .addr { font-family: var(--mono); font-size: 11px; opacity: 0.6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.foot .btn { margin-left: auto; }
+.foot .btn { margin-left: auto; flex: 0 0 auto; }
+.foot .pill #connText { overflow: hidden; text-overflow: ellipsis; }
 
 /* ── Asistente de conexión (S3) ──────────────────────────────────────────── */
-/* Tapa el cuerpo, no la barra de título: la ventana se sigue arrastrando y
-   cerrando igual, que es lo que evita sentirla como un modal del sistema. */
+/* El asistente NO es una capa encima del popover: cuando está abierto, las tres
+   secciones del cuerpo se ocultan con el atributo `hidden` y esto queda como
+   único hijo del cuerpo. Superponerlo con `position: absolute` se pintaba mal
+   (un hijo absoluto de un contenedor grid sale antes que los demás ítems y el
+   formulario aparecía debajo de los tiles), y además dejaba la UI vieja
+   cliqueable detrás de un formulario. Sin superposición no hay nada que se
+   transparente. */
 .wizard {
-  position: absolute; inset: 41px 1px 57px 1px;
-  display: grid; place-items: center; padding: 14px;
+  display: grid; place-items: start stretch; gap: 10px;
+  padding: 14px 14px 20px;
   background: var(--paper);
-  /* El `z-index` no es decorativo: sin él, este hijo absoluto de un contenedor
-     grid se pinta ANTES de los otros ítems del grid y los tiles del cuerpo
-     quedaban encima del formulario, como si el asistente fuera transparente. */
-  z-index: 3;
 }
 .wizard[hidden] { display: none; }
 .wizard-card { display: grid; gap: 10px; width: 100%; }
