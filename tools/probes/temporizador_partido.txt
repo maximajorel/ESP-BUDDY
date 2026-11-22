@@ -1,0 +1,18 @@
+# Temporizador en el vidrio partido (odd/tasks/temporizador-partido.md).
+#
+# La pantalla no tiene MISO, así que la prueba honesta sin cámara es `dump`.
+# Se verifica: arranque sano, la cara en el panel izquierdo con la escala del
+# marco partido (`buddydraw`: eye0 x≈47, eye1 x≈111, rx≈24), la columna derecha
+# con CONCENTRACION y MM:SS, y que cancelar devuelve la cara a pantalla completa.
+boot 4
+status
+screen 5
+sleep 1000
+api POST /api/focus {"seconds":65}
+sleep 800
+buddydraw
+dump 4
+api GET /api/status
+api POST /api/focus {"seconds":0}
+sleep 600
+buddydraw

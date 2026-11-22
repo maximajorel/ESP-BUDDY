@@ -91,3 +91,13 @@ L5 (frontera de slice): la rama `feat/temporizador-partido` nace en `79d8929`
 feature). El slice de esta feature es el único commit `d340191`; para revisión,
 la PR se encadena con base `refactor/architecture-dedup`, no con `main`. No se
 flasheó ni se abrió PR: son decisiones del dueño.
+
+L6 (flash y prueba en la placa, autorizados por el dueño): `arduino-cli upload`
+a COM5 con el binario de `.build-split`, hash verificado. Probe nuevo
+`tools/probes/temporizador_partido.txt`; resultados: con la sesión activa
+`buddydraw` reporta `eye0 x=43 rx=24 ry=24` / `eye1 x=113 rx=24` (marco partido,
+media escala) y `dump 4` muestra la cara a la izquierda y, en la columna derecha,
+`CONCENTRACION` con cuatro dígitos de siete segmentos y dos puntos. Tras
+`{"seconds":0}`, `buddydraw` vuelve a `eye0 x=112 rx=49` / `eye1 x=229 rx=46`
+(pantalla completa). `tools/probes/calendario_local.txt` sigue pasando: el
+evento usa el mismo componente y la ficha derecha se dibuja igual.

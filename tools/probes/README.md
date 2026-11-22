@@ -36,6 +36,7 @@ cámara es el comando `dump`, que escribe el framebuffer en ASCII.
 | `buddy_sleep_events.txt` | Sueño local y `/events`: el reloj de silencio, el reset por IMU, `sleep_hint`, el cursor y un run de punta a punta. |
 | `buddy_sleep_shake.txt` | La sacudida contra el reloj de sueño, sin `sleep` de por medio (el `wakeUntil` dura 4 s y una espera larga lo tapa). |
 | `calendario_pantalla.txt` | La pantalla partida del evento: la ficha de la derecha, los ojos a la izquierda y el toque que descarta (con el `startEpoch` para que el mismo evento no vuelva); espera 6 s al despertar de arranque antes de tocar. |
+| `temporizador_partido.txt` | El temporizador en el vidrio partido: la cara real a media escala en el panel izquierdo (`buddydraw` da `eye0 x≈43`, `rx=24`), la columna derecha con `CONCENTRACION` y `MM:SS`, y la vuelta a pantalla completa al cancelar. |
 | `calendario_local.txt` | El calendario local sin Google ni NTP: `calendar fake` inyecta eventos a 20, 2 y -1 minutos, se verifica la fase en `calendar` y el estado `upcoming` en `/api/status`, y `dump 4` muestra la cara y el título. |
 | `buddy_wake.txt` | El despertar de arranque, repetido con `wake`: negro, la ranura que crece, el ojo entero, el sacudón y la sonrisa, medidos con `buddydraw` (`open`, `glow`) y `dump`. |
 | `buddy_ball.txt` | La cara feliz con squircle y curva bajo los ojos, la pelotita roja empujada por `imufake`, sus rebotes y el doble toque que la prende y apaga. Requiere el bridge en idle. |
