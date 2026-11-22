@@ -134,7 +134,7 @@ Cada punto es un candidato de review independiente y en ese orden:
 | S2 | icono amarillo y remuestreo arreglado (T11) | `50bbe44` |
 | S3 | transporte HTTP + store + comandos (T2, base de T4/T5/T7/T9) | `2b133e2` |
 | S4 | asistente de conexión y popover conectado (T2, T4, T5, T7, T9) | `b65c2ce` |
-| S5 | instalador NSIS con las imágenes del diseño (T10) | pendiente |
+| S5 | instalador NSIS con las imágenes del diseño (T10) | `83fef0b` |
 
 Un PR por slice cuando el dueño lo pida; no se abren solos. Los pendientes
 declarados (T6 ta-te-ti, T8 brillo/LED/colores, S13 USB) no entran en ninguno.
@@ -300,3 +300,22 @@ integración del punto 3. Bloqueante encontrado y resuelto en esta sesión:
 del build script; el dueño decidió sacar la clave ("saquemos eso del macros, asi
 arrancamos de ultima primero con windows"), y `cargo build` quedó verde
 (`tray-buddy.exe`, 14 MB, arranca y crea la bandeja).
+
+L11. Evidencia de verificación de esta sesión (no son opiniones, son corridas):
+- `cargo test`: **20 pruebas, 0 fallos** (store, parser de dirección, parseo de
+  `/api/status` con campos faltantes, cookie `sid`, y tres de coherencia del
+  instalador). El transporte se prueba contra un servidor HTTP falso en
+  `127.0.0.1`, así que no hace falta el equipo para correrlas.
+- `npm run build`: instalador generado, `Buddy_0.1.0_x64-setup.exe`, 1.373.688
+  bytes, exit code 0. El `installer.nsi` generado referencia `SIDEBARIMAGE` y
+  `HEADERIMAGE` y makensis corre después, así que las imágenes viajan dentro.
+- Verificación visual del popover y del asistente: Edge headless
+  (`--headless=new --screenshot --force-device-scale-factor=1`) sobre
+  `ui/index.html`. De ahí salió el bug del asistente "transparente": un hijo
+  `position: absolute` de un contenedor `display: grid` se pintaba debajo de los
+  otros ítems; se arregló con `z-index: 3` y se volvió a capturar.
+- El icono se verificó leyendo los píxeles del PNG generado: papel
+  `(255,215,49,255)` y ojos `(0,0,0,255)` a 128 y a 32 px.
+- **Sin probar contra el equipo físico**: no hay ESP32 alcanzable desde esta
+  sesión, así que el diálogo real con el firmware (pantalla, pomodoro,
+  calendario) queda para la prueba del dueño.

@@ -52,9 +52,17 @@ acá.
 ```bash
 cd tray_buddy
 npm install
-npm run dev     # abre la app en modo desarrollo
-npm run build   # genera el instalador NSIS en src-tauri/target/release/bundle/nsis/
+npm run dev      # abre la app en modo desarrollo
+npm run build    # genera el instalador NSIS en src-tauri/target/release/bundle/nsis/
+
+cd src-tauri
+cargo test       # 18 pruebas: store, parser de dirección y transporte HTTP
+cargo build      # el binario de desarrollo, sin instalador
 ```
+
+`cargo test` no necesita el equipo: levanta un servidor HTTP falso en
+`127.0.0.1` y le habla con el cliente real, así el transporte (URL, método,
+cuerpo, cookies y parseo) se prueba sin un ESP32 conectado.
 
 El popover también se puede abrir directo en un navegador
 (`ui/index.html`) para iterar el diseño sin compilar: `app.js` detecta que no
@@ -66,12 +74,18 @@ existe la API de Tauri y se queda con una cáscara inerte.
 tray_buddy/
 ├── src-tauri/
 │   ├── src/main.rs        bandeja, ventana, salir vs. esconder
+│   ├── src/store.rs       IPv4 puerto + token de sesión en el store local
+│   ├── src/api.rs         el único HTTP: reqwest contra el equipo
+│   ├── src/commands.rs    los diez comandos que el popover llama con invoke
 │   ├── tauri.conf.json    ventana 388x660 transparente, bundle NSIS
 │   ├── capabilities/      permisos: arrastrar, esconder, fijar arriba
 │   ├── icons/             generados, no dibujados a mano
 │   └── Cargo.toml
 ├── ui/                    HTML/CSS/JS sin framework y sin lógica de red
-└── tools/make_icons.py    icono desde la geometría del diseño
+├── installer/             cabecera y lateral del NSIS, generados
+└── tools/
+    ├── make_icons.py           icono desde la geometría del diseño
+    └── make_installer_art.py   cabecera y lateral del instalador
 ```
 
 Los iconos se regeneran con `python3 tools/make_icons.py`: el cuadrado de papel
@@ -90,7 +104,44 @@ Cerrar y minimizar son lo mismo, esconder. Salir es una acción del menú de la
 bandeja: una app de bandeja que muere al cerrar su ventana no es una app de
 bandeja.
 
-## Estado
+## Qué hace hoy
 
-En construcción. El plan, las specs y las decisiones están en
-`../odd/tasks/tray-buddy.md`.
+- **Asistente de conexión (S3).** Primer arranque, cambio de dirección desde el
+  pie del popover o desde el menú de la bandeja. Pide la IPv4 y un puerto
+  opcional (80 por defecto), prueba `GET /api/status` y **sólo entonces** guarda
+  en `%APPDATA%\ar.esp32gadget.buddy\config.json`. Una dirección que no
+  contesta no se escribe.
+- **Pantalla del LCD (S9).** Los tiles salen de `names` y `order` de
+  `GET /api/status`, así que respetan el renombre y el orden que el dueño puso
+  en el panel. Elegir manda `POST /api/screen {"index": n}` y después **lee** el
+  estado otra vez en vez de suponer que salió bien.
+- **Pomodoro (S4).** Chips 10/25/45/personalizado. Arrancar manda
+  `POST /api/focus {"seconds": n}`; el reloj que se dibuja es el `remainingMs`
+  que informa el equipo, no un contador propio. Parar manda `0`. **+5 MIN** suma
+  sobre el restante informado.
+- **Calendario (S6), sólo lectura.** `GET /api/calendar` exige la sesión del
+  panel, así que la tarjeta pide usuario y clave una vez, guarda **sólo el token
+  `sid`** y la clave no toca el disco. Si el equipo no publica la lista del día,
+  el popover lo dice.
+- **Panel (S7).** Abre `http://<ip>/admin` en el navegador del sistema con
+  `rundll32 url.dll,FileProtocolHandler`: sin shell de por medio, la URL no se
+  interpreta como línea de comandos.
+- **Icono amarillo (S14).** El cuadrado es `--sun` (#ffd731) con ojos de tinta,
+  generado por `tools/make_icons.py`, que es la única fuente de los iconos de la
+  bandeja y del instalador.
+- **Instalador NSIS (S2)** por usuario, sin pedir administrador, con cabecera y
+  lateral en papel y tinta generados por `tools/make_installer_art.py`.
+
+## Lo que todavía no
+
+- **Brillo, LED y colores (S8)** — `POST /api/settings` escribe configuración del
+  equipo y por ahora el popover no lo toca.
+- **Ta-te-ti (S5)** — el puerto del juego de `web_ui/landing.js` está pendiente:
+  el transporte ya sabe mandar `POST /api/face`, falta la interfaz.
+- **La lista del día del calendario** no existe en el firmware: `GET
+  /api/calendar` publica la próxima cita y contadores, no los eventos. El
+  popover muestra lo que hay.
+- **USB (S13)** queda anotado como requisito futuro, no implementado: hoy el
+  único transporte es HTTP sobre la LAN.
+
+El plan, las specs y las decisiones están en `../odd/tasks/tray-buddy.md`.
