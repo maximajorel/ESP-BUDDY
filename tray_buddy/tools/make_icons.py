@@ -2,9 +2,9 @@
 """Genera los iconos del Buddy desde la geometría del diseño, no desde un PNG
 dibujado a mano.
 
-El icono de la bandeja es la marca que ya usa el panel web: cuadrado de papel de
-26 unidades con borde de tinta de 1 unidad y dos ojos negros de 6x7 con las
-esquinas redondeadas al 38%. Ver `design/tray-buddy/01-popover-bandeja.html`
+El icono de la bandeja es la marca que ya usa el panel web: cuadrado amarillo
+(`--sun`, #ffd731) de 26 unidades con borde de tinta de 1 unidad y dos ojos
+negros de 6x7 con las esquinas redondeadas al 38%. Ver `design/tray-buddy/01-popover-bandeja.html`
 (bloque `.tray-buddy`).
 
 Se dibuja un maestro de 1024x1024 y se reduce por promedio de caja, así los
@@ -25,7 +25,10 @@ EYE_W, EYE_H = 6.0, 7.0
 EYE_GAP = 3.0
 EYE_R = 0.38  # border-radius: 38%
 
-PAPER = (255, 255, 255, 255)
+# El papel del icono no es blanco: es el amarillo del sistema (--sun,
+# #ffd731), el mismo que ya pinta `.brand .logo` en el popover y el logo del
+# panel web. El dueño lo pidió así y con los ojos negros, que ya lo eran.
+PAPER = (255, 215, 49, 255)  # --sun
 INK = (0, 0, 0, 255)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -91,7 +94,7 @@ def downsample(rows, size):
                     g += src[i + 1]
                     b += src[i + 2]
                     a += src[i + 3]
-            n = step * step * 4  # cuatro canales por píxel sumado
+            n = step * step  # un promedio por canal: píxeles sumados
             row += bytes((r // n, g // n, b // n, a // n))
         out.append(bytes(row))
     return bytes(b"".join(out))
