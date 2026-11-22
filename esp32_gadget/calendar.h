@@ -54,6 +54,13 @@ CalendarStatusInfo calendarStatusInfo();
 // Copies one calendar of the list. Returns false past the end.
 bool calendarCalendarAt(size_t index, CalendarInfo *out);
 
+// Copies up to `cap` stored events into `out`, in the order the device keeps
+// them, and returns how many were copied. It copies instead of lending the
+// internal array because the sync tick rewrites that array with a memcpy under
+// the lock: a pointer would dangle the moment the next fetch lands, and the web
+// task serializes the events long after it took them.
+size_t calendarEventsCopy(CalendarEvent *out, size_t cap);
+
 // The selected calendar's display name, for the split frame's footer. Empty
 // selection reports "PRINCIPAL" so the line never reads as a missing label.
 void calendarSelectedName(char *out, size_t cap);

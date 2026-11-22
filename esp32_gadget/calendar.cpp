@@ -287,6 +287,15 @@ bool calendarCalendarAt(size_t index, CalendarInfo *out) {
   return ok;
 }
 
+size_t calendarEventsCopy(CalendarEvent *out, size_t cap) {
+  if (!out || cap == 0) return 0;
+  lock();
+  const size_t count = s_eventCount < cap ? s_eventCount : cap;
+  if (count > 0) memcpy(out, s_events, count * sizeof(CalendarEvent));
+  unlock();
+  return count;
+}
+
 void calendarSelectedName(char *out, size_t cap) {
   if (!out || cap == 0) return;
   lock();

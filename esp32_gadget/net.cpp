@@ -16,6 +16,7 @@
 #include "buddy_face.h"
 #include "buddy_focus_state.h"
 #include "calendar.h"
+#include "calendar_events.h"
 #include "calendar_plan.h"
 #include "calendar_store.h"
 #include "buddy_url.h"
@@ -27,6 +28,9 @@
 #include "spotify_auth.h"
 #include "spotify_store.h"
 #include "ui_color.h"
+#include "weather.h"
+#include "weather_code.h"
+#include "weather_parse.h"
 #include "web_assets.h"
 
 #define FIRMWARE_NAME "esp32-gadget"
@@ -171,6 +175,10 @@ static bool parseRequiredJson(const String &body, JsonDocument &doc) {
   return deserializeJson(doc, body) == DeserializationError::Ok;
 }
 
+// Defined with the weather handlers below; `buildStatusJson` is above them and
+// only needs the kind's wire name.
+static const char *weatherKindName(WeatherStatusKind kind);
+
 static void buildStatusJson(String &out) {
   refreshStatus();
   const Settings &cfg = settingsGet();
@@ -241,7 +249,6 @@ static void buildStatusJson(String &out) {
   JsonObject t = doc["time"].to<JsonObject>();
   t["synced"] = st.timeSynced;
   t["tz"] = (int)cfg.tzOffsetHours;
-  t["clock24h"] = cfg.clock24h;
   char stamp[24] = "--";
   time_t now = time(nullptr);
   if (now > 1600000000) {
@@ -250,6 +257,23 @@ static void buildStatusJson(String &out) {
     strftime(stamp, sizeof(stamp), "%Y-%m-%d %H:%M:%S", &tmNow);
   }
   t["local"] = stamp;
+
+  {
+    // Compact weather summary so the panel's first paint and a serial `api` dump
+    // can see the state without a second request. The full detail (search,
+    // detect, refresh) lives in `/api/weather`.
+    const WeatherStatusInfo w = weatherStatusInfo();
+    JsonObject obj = doc["weather"].to<JsonObject>();
+    obj["configured"] = w.configured;
+    obj["hasData"] = w.hasData;
+    obj["syncing"] = w.syncing;
+    obj["kind"] = weatherKindName(w.kind);
+    obj["place"] = String(w.place.name);
+    obj["lastError"] = String(w.lastError);
+    obj["refreshMin"] = w.refreshMin;
+    obj["tempC"] = w.now.tempC;
+    obj["label"] = weatherCodeLabel(w.now.code);
+  }
 
   JsonObject disp = doc["display"].to<JsonObject>();
   disp["brightness"] = displayGetBacklight();
@@ -402,8 +426,6 @@ static ApiResult apiSettings(const String &body) {
       tzChanged = true;
     }
   }
-  if (doc["clock24h"].is<bool>()) cfg.clock24h = doc["clock24h"];
-
   if (!doc["uiColor"].isNull()) {
     uint32_t rgb = 0;
     if (!doc["uiColor"].is<const char*>() ||
@@ -861,6 +883,19 @@ static ApiResult apiCalendarCalendars() {
   return r;
 }
 
+// The day's agenda, as the device already has it in memory. The copy lives here,
+// in the same scope as `serializeJson`, so every string ArduinoJson points at is
+// still valid when the body is written.
+static ApiResult apiCalendarEvents() {
+  ApiResult r;
+  CalendarEvent events[CALENDAR_MAX_EVENTS];
+  const size_t count = calendarEventsCopy(events, CALENDAR_MAX_EVENTS);
+  JsonDocument doc;
+  calendarEventsJson(events, count, settingsGet().tzOffsetHours, doc);
+  serializeJson(doc, r.body);
+  return r;
+}
+
 // Empty means "leave what is stored", exactly like the Spotify card: the panel
 // never gets a secret back, so it cannot resend it. A changed client pair drops
 // the old grant, because a refresh token belongs to the client that minted it.
@@ -942,6 +977,137 @@ static ApiResult apiCalendarRefresh() {
     return apiFail(409, "Falta conectar Google");
   }
   return apiOk();
+}
+
+// --- weather ----------------------------------------------------------------
+//
+// The weather card lives in Integraciones. The place is the owner's, so every
+// handler needs a session; Open-Meteo itself is keyless, which is why there is no
+// credential to store or hide here.
+static const char *weatherKindName(WeatherStatusKind kind) {
+  switch (kind) {
+    case WEATHER_UNCONFIGURED: return "unconfigured";
+    case WEATHER_NO_DATA: return "no_data";
+    case WEATHER_ERROR: return "error";
+    case WEATHER_READY: break;
+  }
+  return "ready";
+}
+
+// Received by reference on purpose: ArduinoJson keeps pointers to the `char[]`
+// inside, so the struct has to stay alive until `serializeJson` runs.
+static void fillWeatherJson(JsonDocument &doc, const WeatherStatusInfo &w) {
+  doc["ok"] = true;
+  doc["kind"] = weatherKindName(w.kind);
+  doc["configured"] = w.configured;
+  doc["hasData"] = w.hasData;
+  doc["syncing"] = w.syncing;
+  doc["refreshMin"] = w.refreshMin;
+  doc["lastAttemptMs"] = w.lastAttemptMs;
+  doc["lastSuccessMs"] = w.lastSuccessMs;
+  doc["lastError"] = String(w.lastError);
+
+  JsonObject place = doc["place"].to<JsonObject>();
+  place["valid"] = w.place.valid;
+  place["name"] = String(w.place.name);
+  place["lat"] = w.place.lat;
+  place["lon"] = w.place.lon;
+
+  JsonObject now = doc["now"].to<JsonObject>();
+  now["valid"] = w.hasData;
+  now["tempC"] = w.now.tempC;
+  now["feelsC"] = w.now.feelsC;
+  now["humidity"] = w.now.humidity;
+  now["windKph"] = w.now.windKph;
+  now["tmaxC"] = w.now.tmaxC;
+  now["tminC"] = w.now.tminC;
+  now["code"] = w.now.code;
+  now["label"] = weatherCodeLabel(w.now.code);
+  now["icon"] = weatherCodeIcon(w.now.code);
+  now["isDay"] = w.now.isDay;
+}
+
+static ApiResult apiWeatherStatus() {
+  ApiResult r;
+  JsonDocument doc;
+  const WeatherStatusInfo w = weatherStatusInfo();
+  fillWeatherJson(doc, w);
+  serializeJson(doc, r.body);
+  return r;
+}
+
+static ApiResult apiWeatherLocation(const String &body) {
+  JsonDocument doc;
+  if (!parseRequiredJson(body, doc)) return apiFail(400, API_BAD_JSON);
+  if (!doc["lat"].is<float>() || !doc["lon"].is<float>()) {
+    return apiFail(400, "Faltan las coordenadas");
+  }
+  const char *name = doc["name"] | "";
+  char error[96];
+  if (!weatherSavePlace(doc["lat"].as<float>(), doc["lon"].as<float>(), name,
+                        error, sizeof(error))) {
+    return apiFail(400, error[0] ? error : "No pude guardar la ubicacion");
+  }
+  return apiWeatherStatus();
+}
+
+static ApiResult apiWeatherDetect() {
+  char error[96];
+  if (!weatherDetectPlace(error, sizeof(error))) {
+    return apiFail(502, error[0] ? error : "No pude detectar la ubicacion");
+  }
+  return apiWeatherStatus();
+}
+
+static ApiResult apiWeatherSearch(const String &body) {
+  JsonDocument doc;
+  if (!parseRequiredJson(body, doc)) return apiFail(400, API_BAD_JSON);
+  const char *query = doc["q"] | "";
+  WeatherGeoResult results[WEATHER_GEOCODE_MAX];
+  char error[96];
+  const size_t count =
+      weatherSearch(query, results, WEATHER_GEOCODE_MAX, error, sizeof(error));
+  if (count == 0) {
+    return apiFail(404, error[0] ? error : "No encontre esa ciudad");
+  }
+  ApiResult r;
+  JsonDocument out;
+  out["ok"] = true;
+  JsonArray items = out["results"].to<JsonArray>();
+  for (size_t i = 0; i < count; i++) {
+    JsonObject item = items.add<JsonObject>();
+    // Copies, not pointers: the same struct would be reused for every result.
+    item["name"] = String(results[i].name);
+    item["region"] = String(results[i].region);
+    item["country"] = String(results[i].country);
+    item["lat"] = results[i].lat;
+    item["lon"] = results[i].lon;
+  }
+  serializeJson(out, r.body);
+  return r;
+}
+
+static ApiResult apiWeatherRefresh() {
+  if (!weatherRequestRefresh()) {
+    return apiFail(409, "Falta guardar la ubicacion");
+  }
+  return apiWeatherStatus();
+}
+
+static ApiResult apiWeatherConfig(const String &body) {
+  JsonDocument doc;
+  if (!parseOptionalJson(body, doc)) return apiFail(400, API_BAD_JSON);
+  if (doc["refreshMin"].is<int>()) {
+    if (!weatherSetRefreshMin(doc["refreshMin"] | 0)) {
+      return apiFail(400, "El refresco va de 5 a 180 minutos");
+    }
+  }
+  return apiWeatherStatus();
+}
+
+static ApiResult apiWeatherForget() {
+  weatherForget();
+  return apiWeatherStatus();
 }
 
 // The panel needs to know what is missing, not just that something failed: the
@@ -1113,6 +1279,8 @@ static const char *const POST_PATHS[] = {
     "/api/panel/colors", "/api/buddy/ask", "/api/admin/credentials",
     "/api/calendar/config", "/api/calendar/connect", "/api/calendar/cancel",
     "/api/calendar/select", "/api/calendar/refresh", "/api/calendar/forget",
+    "/api/weather/location", "/api/weather/detect", "/api/weather/search",
+    "/api/weather/refresh", "/api/weather/config", "/api/weather/forget",
 };
 static const uint32_t POST_PATH_COUNT = sizeof(POST_PATHS) / sizeof(POST_PATHS[0]);
 
@@ -1123,7 +1291,8 @@ static bool isPostOnlyPath(const char *path) {
   return false;
 }
 
-ApiResult netHandleApi(const char *method, const char *path, const String &body) {
+static ApiResult dispatchApi(const char *method, const char *path,
+                             const String &body) {
   const bool isPost = strcmp(method, "POST") == 0;
 
   // The only endpoint reachable without a session, because it is the one that
@@ -1141,7 +1310,9 @@ ApiResult netHandleApi(const char *method, const char *path, const String &body)
 
   if (!strcmp(path, "/api/status") || !strcmp(path, "/api/spotify") ||
       !strcmp(path, "/api/calendar") ||
-      !strcmp(path, "/api/calendar/calendars")) {
+      !strcmp(path, "/api/calendar/calendars") ||
+      !strcmp(path, "/api/calendar/events") ||
+      !strcmp(path, "/api/weather")) {
     if (isPost) return apiFail(405, "Metodo no permitido");
     if (!strcmp(path, "/api/status")) {
       ApiResult r;
@@ -1150,6 +1321,8 @@ ApiResult netHandleApi(const char *method, const char *path, const String &body)
     }
     if (!strcmp(path, "/api/calendar")) return apiCalendarStatus();
     if (!strcmp(path, "/api/calendar/calendars")) return apiCalendarCalendars();
+    if (!strcmp(path, "/api/calendar/events")) return apiCalendarEvents();
+    if (!strcmp(path, "/api/weather")) return apiWeatherStatus();
     return apiSpotifyStatus();
   }
 
@@ -1168,6 +1341,12 @@ ApiResult netHandleApi(const char *method, const char *path, const String &body)
   if (!strcmp(path, "/api/calendar/select")) return apiCalendarSelect(body);
   if (!strcmp(path, "/api/calendar/refresh")) return apiCalendarRefresh();
   if (!strcmp(path, "/api/calendar/forget")) return apiCalendarForget();
+  if (!strcmp(path, "/api/weather/location")) return apiWeatherLocation(body);
+  if (!strcmp(path, "/api/weather/detect")) return apiWeatherDetect();
+  if (!strcmp(path, "/api/weather/search")) return apiWeatherSearch(body);
+  if (!strcmp(path, "/api/weather/refresh")) return apiWeatherRefresh();
+  if (!strcmp(path, "/api/weather/config")) return apiWeatherConfig(body);
+  if (!strcmp(path, "/api/weather/forget")) return apiWeatherForget();
   if (!strcmp(path, "/api/panel/colors")) {
     // Panel self-test on demand. It blocks for ~5 s while the three colour bars
     // are shown, then the current screen is painted back.
@@ -1245,6 +1424,19 @@ ApiResult netHandleApi(const char *method, const char *path, const String &body)
     return r;
   }
   return apiFail(404, "No existe ese recurso");
+}
+
+ApiResult netHandleApi(const char *method, const char *path, const String &body) {
+  ApiResult result = dispatchApi(method, path, body);
+  // The one place the POST router's outcome is known, so no branch can forget it
+  // and none can count a request that was rejected. A POST that went through is
+  // the owner using the board (playing the web game, picking a screen), which is
+  // a stimulus like a shake. A GET never is: the landing polls /api/status every
+  // ten seconds, and a poll is not a person.
+  if (strcmp(method, "POST") == 0 && result.code == 200) {
+    buddyNoteUserActivity();
+  }
+  return result;
 }
 
 // --- transport --------------------------------------------------------------
@@ -1539,6 +1731,7 @@ void netBegin() {
   s_server.on("/api/spotify", HTTP_GET, handleApi);
   s_server.on("/api/calendar", HTTP_GET, handleApi);
   s_server.on("/api/calendar/calendars", HTTP_GET, handleApi);
+  s_server.on("/api/weather", HTTP_GET, handleApi);
 
   // The two session endpoints the dispatcher does not own. Logging in is the one
   // POST that has to work without a session, and the state call answers from the
