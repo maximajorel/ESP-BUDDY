@@ -565,6 +565,13 @@ static ApiResult apiFace(const String &body) {
   if (!parseOptionalJson(body, doc)) return apiFail(400, API_BAD_JSON);
   const char *mood = doc["mood"] | "";
   uint32_t holdMs = doc["ms"] | 0u;
+  // The dance is not a game mood: it is a pin on the body with its own synthetic
+  // beat, so the panel can prove the music reaction without a track playing.
+  if (!strcmp(mood, "dance")) {
+    buddyPinDance(holdMs ? holdMs : 8000u);
+    return apiOk();
+  }
+  if (!mood[0]) buddyPinDance(0);
   buddyGameFaceMood(mood, holdMs);
   return apiOk();
 }
