@@ -1,0 +1,313 @@
+{
+  "version": 1,
+  "comments": [
+    {
+      "id": "ohkn4ekz",
+      "file": "01-inicio.html",
+      "selector": "body > div > div",
+      "excerpt": "SOFÍA · ESP32 GADGET ◆ SIN INTERNET ◆ SIETE PANTALLAS ◆ SOFÍA · ESP32 GADGET ◆ SIN INTERNET ◆ SIETE PANTALLAS ◆",
+      "comment": "Saquemos esto",
+      "createdAt": "2026-11-22T02:54:56.939Z",
+      "status": "resolved",
+      "sentAt": "2026-11-22T02:59:26.180Z",
+      "resolvedAt": "2026-11-22T03:00:52.809Z"
+    },
+    {
+      "id": "w4ty2q06",
+      "file": "01-inicio.html",
+      "selector": "#connPill",
+      "excerpt": "EN LÍNEA",
+      "comment": "Saqumos esto",
+      "createdAt": "2026-11-22T02:55:02.677Z",
+      "status": "resolved",
+      "sentAt": "2026-11-22T02:59:26.180Z",
+      "resolvedAt": "2026-11-22T03:00:52.810Z"
+    },
+    {
+      "id": "i6maklm1",
+      "file": "01-inicio.html",
+      "selector": "#contenido > header > h1",
+      "excerpt": "SOFÍA",
+      "comment": "Aqui que diga ESP-BUDDY",
+      "createdAt": "2026-11-22T02:55:16.472Z",
+      "status": "resolved",
+      "sentAt": "2026-11-22T02:59:26.180Z",
+      "resolvedAt": "2026-11-22T03:00:52.810Z"
+    },
+    {
+      "id": "o6vn7a4z",
+      "file": "01-inicio.html",
+      "selector": "#contenido > header > h1",
+      "excerpt": "SOFÍA",
+      "comment": "Saquemos el equipo de siete pantallas",
+      "createdAt": "2026-11-22T02:55:33.741Z",
+      "status": "resolved",
+      "sentAt": "2026-11-22T02:59:26.180Z",
+      "resolvedAt": "2026-11-22T03:00:52.810Z"
+    },
+    {
+      "id": "qynqezyw",
+      "file": "01-inicio.html",
+      "selector": "#contenido > section:nth-of-type(2) > div:nth-of-type(2) > p:nth-of-type(1)",
+      "excerpt": "Sofía estudia con vos: el tiempo queda grande en su pantalla, debajo de los ojos.",
+      "comment": "Titulo que diga POMODORO",
+      "createdAt": "2026-11-22T02:55:59.800Z",
+      "status": "resolved",
+      "sentAt": "2026-11-22T02:59:26.180Z",
+      "resolvedAt": "2026-11-22T03:00:52.810Z"
+    },
+    {
+      "id": "j4sbg9bg",
+      "file": "01-inicio.html",
+      "selector": "#focusStart",
+      "excerpt": "Arrancar",
+      "comment": "Boton usando el lenguaje de diseño actual",
+      "createdAt": "2026-11-22T02:56:12.370Z",
+      "status": "resolved",
+      "sentAt": "2026-11-22T02:59:26.180Z",
+      "resolvedAt": "2026-11-22T03:00:52.810Z"
+    },
+    {
+      "id": "cgz2zyq2",
+      "file": "01-inicio.html",
+      "selector": "#contenido > footer > p",
+      "excerpt": "Este panel vive dentro del equipo: no necesita internet.",
+      "comment": "Saca esto",
+      "createdAt": "2026-11-22T02:56:26.798Z",
+      "status": "resolved",
+      "sentAt": "2026-11-22T02:59:26.180Z",
+      "resolvedAt": "2026-11-22T03:00:52.810Z"
+    },
+    {
+      "id": "mvc3wl9d",
+      "file": "02-menu.html",
+      "selector": "#launcher > div > div:nth-of-type(2) > div:nth-of-type(1) > span",
+      "excerpt": "JUEGOS PRIMERO",
+      "comment": "Saca esto",
+      "createdAt": "2026-11-22T02:56:48.045Z",
+      "status": "resolved",
+      "sentAt": "2026-11-22T02:59:26.180Z",
+      "resolvedAt": "2026-11-22T03:00:52.810Z"
+    },
+    {
+      "id": "dkeuliww",
+      "file": "02-menu.html",
+      "selector": "#screenCount",
+      "excerpt": "7 PANTALLAS",
+      "comment": "saca esto",
+      "createdAt": "2026-11-22T02:56:53.576Z",
+      "status": "resolved",
+      "sentAt": "2026-11-22T02:59:26.180Z",
+      "resolvedAt": "2026-11-22T03:00:52.810Z"
+    },
+    {
+      "id": "9ejpgqpb",
+      "file": "02-menu.html",
+      "selector": "#launcher > div > div:nth-of-type(1) > div > p",
+      "excerpt": "Apps y pantallas del equipo",
+      "comment": "saca esto",
+      "createdAt": "2026-11-22T02:56:57.724Z",
+      "status": "resolved",
+      "sentAt": "2026-11-22T02:59:26.180Z",
+      "resolvedAt": "2026-11-22T03:00:52.810Z"
+    },
+    {
+      "id": "la6njagg",
+      "file": "02-menu.html",
+      "selector": "#launcher > div > div:nth-of-type(2) > div:nth-of-type(2) > button > span > small",
+      "excerpt": "Ta-te-ti · lo que se juega en la web",
+      "comment": "Saca esto",
+      "createdAt": "2026-11-22T02:57:17.080Z",
+      "status": "resolved",
+      "sentAt": "2026-11-22T02:59:26.180Z",
+      "resolvedAt": "2026-11-22T03:00:52.810Z"
+    },
+    {
+      "id": "yd6mgl4r",
+      "file": "02-menu.html",
+      "selector": "#launcher > div > div:nth-of-type(2) > div:nth-of-type(2) > a:nth-of-type(1)",
+      "excerpt": "Música Spotify en el equipo",
+      "comment": "Saca esto no va aqui",
+      "createdAt": "2026-11-22T02:57:26.985Z",
+      "status": "resolved",
+      "sentAt": "2026-11-22T02:59:26.180Z",
+      "resolvedAt": "2026-11-22T03:00:52.810Z"
+    },
+    {
+      "id": "lmafyze6",
+      "file": "02-menu.html",
+      "selector": "#launcher > div > div:nth-of-type(2) > div:nth-of-type(2) > a:nth-of-type(2) > b",
+      "excerpt": "Ajustes",
+      "comment": "Administracion",
+      "createdAt": "2026-11-22T02:57:32.366Z",
+      "status": "resolved",
+      "sentAt": "2026-11-22T02:59:26.180Z",
+      "resolvedAt": "2026-11-22T03:00:52.810Z"
+    },
+    {
+      "id": "t826b8cu",
+      "file": "02-menu.html",
+      "selector": "#launcher > div > div:nth-of-type(2) > div:nth-of-type(2) > a:nth-of-type(2) > small",
+      "excerpt": "Pide sesión",
+      "comment": "Saca esto",
+      "createdAt": "2026-11-22T02:57:36.934Z",
+      "status": "resolved",
+      "sentAt": "2026-11-22T02:59:26.180Z",
+      "resolvedAt": "2026-11-22T03:00:52.810Z"
+    },
+    {
+      "id": "pf964j4x",
+      "file": "03-juego.html",
+      "selector": "#board > button:nth-of-type(9)",
+      "excerpt": "Casilla 9",
+      "comment": "Los cudrados hoy en dia cambia de tamaño cuando juego",
+      "createdAt": "2026-11-22T02:58:43.963Z",
+      "status": "resolved",
+      "sentAt": "2026-11-22T02:59:26.180Z",
+      "resolvedAt": "2026-11-22T03:00:52.810Z"
+    },
+    {
+      "id": "gmw4jlng",
+      "file": "03-juego.html",
+      "selector": "#say",
+      "excerpt": "Tu turno. Elegí una casilla.",
+      "comment": "Eliminemos esto",
+      "createdAt": "2026-11-22T02:58:53.215Z",
+      "status": "resolved",
+      "sentAt": "2026-11-22T02:59:26.180Z",
+      "resolvedAt": "2026-11-22T03:00:52.810Z"
+    },
+    {
+      "id": "4jq8z8zz",
+      "file": "03-juego.html",
+      "selector": "#againBtn",
+      "excerpt": "",
+      "comment": "El juego se tiene que resetear solo una vez termina la partida, asi que saquemos esto",
+      "createdAt": "2026-11-22T02:59:11.871Z",
+      "status": "resolved",
+      "sentAt": "2026-11-22T02:59:26.180Z",
+      "resolvedAt": "2026-11-22T03:00:52.810Z"
+    },
+    {
+      "id": "9ghit893",
+      "file": "03-juego.html",
+      "selector": "#gameTitle",
+      "excerpt": "Ta-te-ti",
+      "comment": "mayusculas",
+      "createdAt": "2026-11-22T02:59:22.760Z",
+      "status": "resolved",
+      "sentAt": "2026-11-22T02:59:26.180Z",
+      "resolvedAt": "2026-11-22T03:00:52.810Z"
+    },
+    {
+      "id": "8d2is3vz",
+      "file": "02-menu.html",
+      "selector": "#launcher > div > div:nth-of-type(2) > div:nth-of-type(2)",
+      "excerpt": "Juegos Administración",
+      "comment": "stos deben quedar in-line del mismo tamaño",
+      "createdAt": "2026-11-22T03:05:01.576Z",
+      "status": "resolved",
+      "sentAt": "2026-11-22T03:07:17.938Z",
+      "resolvedAt": "2026-11-22T03:07:42.701Z"
+    },
+    {
+      "id": "eja7te8d",
+      "file": "01-inicio.html",
+      "selector": "#contenido > header > p",
+      "excerpt": "Elegí qué mira, jugá y mandá el equipo desde acá.",
+      "comment": "eliminemos esto",
+      "createdAt": "2026-11-22T03:05:17.994Z",
+      "status": "resolved",
+      "sentAt": "2026-11-22T03:07:17.938Z",
+      "resolvedAt": "2026-11-22T03:07:42.701Z"
+    },
+    {
+      "id": "ko9xyaji",
+      "file": "01-inicio.html",
+      "selector": "#contenido > section:nth-of-type(2) > div:nth-of-type(2) > p:nth-of-type(1)",
+      "excerpt": "Sofía estudia con vos: el tiempo queda grande en su pantalla, debajo de los ojos.",
+      "comment": "En vez de Sofi estudia con vos: Sofi se concentra con vos. y nadas mas",
+      "createdAt": "2026-11-22T03:05:43.432Z",
+      "status": "resolved",
+      "sentAt": "2026-11-22T03:07:17.938Z",
+      "resolvedAt": "2026-11-22T03:07:42.701Z"
+    },
+    {
+      "id": "6jsk2d59",
+      "file": "01-inicio.html",
+      "selector": "#focusState",
+      "excerpt": "APAGADA",
+      "comment": "No dibujaremos el estado",
+      "createdAt": "2026-11-22T03:05:54.721Z",
+      "status": "resolved",
+      "sentAt": "2026-11-22T03:07:17.938Z",
+      "resolvedAt": "2026-11-22T03:07:42.701Z"
+    },
+    {
+      "id": "da65u8bb",
+      "file": "04-login.html",
+      "selector": "#contenido > div",
+      "excerpt": "◆ ESP32 Gadget Panel de administración",
+      "comment": "Aca al igual que pusimos en /admin es esp buddy y ponemos los ojitos, ya lo hiciste reutiliza el estilo",
+      "createdAt": "2026-11-22T03:06:28.504Z",
+      "status": "resolved",
+      "sentAt": "2026-11-22T03:07:17.938Z",
+      "resolvedAt": "2026-11-22T03:07:42.701Z"
+    },
+    {
+      "id": "924n3t9m",
+      "file": "04-login.html",
+      "selector": "#contenido > section",
+      "excerpt": "Entrá para configurar el equipo El usuario y la contraseña salen del .env con el que se compiló el firmware, y se pueden cambiar después desde el panel. Usuario Contraseña ENTRAR",
+      "comment": "Hoy por hoy el input de texto no aplican los estilos, lo veamos",
+      "createdAt": "2026-11-22T03:06:43.371Z",
+      "status": "resolved",
+      "sentAt": "2026-11-22T03:07:17.938Z",
+      "resolvedAt": "2026-11-22T03:07:42.701Z"
+    },
+    {
+      "id": "jtnai96p",
+      "file": "04-login.html",
+      "selector": "#contenido > section > p",
+      "excerpt": "El usuario y la contraseña salen del .env con el que se compiló el firmware, y se pueden cambiar después desde el panel.",
+      "comment": "Esto chau",
+      "createdAt": "2026-11-22T03:06:52.916Z",
+      "status": "resolved",
+      "sentAt": "2026-11-22T03:07:17.938Z",
+      "resolvedAt": "2026-11-22T03:07:42.701Z"
+    },
+    {
+      "id": "pctd65z6",
+      "file": "04-login.html",
+      "selector": "#contenido > section > h2",
+      "excerpt": "Entrá para configurar el equipo",
+      "comment": "\"Administrar Buddy\"",
+      "createdAt": "2026-11-22T03:06:59.567Z",
+      "status": "resolved",
+      "sentAt": "2026-11-22T03:07:17.938Z",
+      "resolvedAt": "2026-11-22T03:07:42.701Z"
+    },
+    {
+      "id": "mv88d17c",
+      "file": "04-login.html",
+      "selector": "#contenido > footer > p > a",
+      "excerpt": "Volver al inicio",
+      "comment": "Esto que cumpla con el lenguaje de diseño",
+      "createdAt": "2026-11-22T03:07:12.790Z",
+      "status": "resolved",
+      "sentAt": "2026-11-22T03:07:17.938Z",
+      "resolvedAt": "2026-11-22T03:07:42.701Z"
+    },
+    {
+      "id": "8nz783wj",
+      "file": "01-inicio.html",
+      "selector": "#contenido > div",
+      "excerpt": "",
+      "comment": "Pongamos ese boton a la derecha",
+      "createdAt": "2026-11-22T03:09:51.187Z",
+      "status": "resolved",
+      "sentAt": "2026-11-22T03:10:01.765Z",
+      "resolvedAt": "2026-11-22T03:10:09.308Z"
+    }
+  ]
+}

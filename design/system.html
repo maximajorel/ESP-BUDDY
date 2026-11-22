@@ -48,6 +48,24 @@
   .tabs { display: flex; gap: 8px; padding: 10px 14px; border: var(--line); border-radius: var(--r-card); background: var(--paper); overflow-x: auto; }
   .tab { flex: 0 0 auto; padding: 8px 13px; border: var(--line); border-radius: var(--r-pill); background: var(--paper); font-size: 11px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; }
   .tab.on { background: var(--ink); color: var(--paper); }
+
+  /* Admin shell pieces, copied from styles.css (aside, field, sub-tabs, chips,
+     drag rows and the theme switch), not re-authored. */
+  .aside { display: flex; flex-direction: column; gap: 6px; padding: 10px; border: var(--line); border-radius: var(--r-card); background: var(--paper); }
+  .aside .tab { width: 100%; }
+  .sep { height: 1px; margin: 8px 2px; background: var(--ink); opacity: .2; }
+  .themebtn { display: grid; place-items: center; width: 34px; height: 34px; border: var(--line); border-radius: var(--r-pill); background: var(--paper); color: var(--ink); }
+  .themebtn.on { background: var(--ink); color: var(--paper); }
+  .themebtn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .field { display: grid; gap: 6px; }
+  .field-label { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.02em; }
+  .field-input { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 12px; border: var(--line); border-radius: var(--r-in); background: var(--mist); }
+  .field-count { flex: 0 0 auto; font-family: var(--mono); font-size: 11px; opacity: .55; }
+  .mono { font-family: var(--mono); font-size: 13px; }
+  .tag { display: inline-block; padding: 3px 9px; border: var(--line); border-radius: var(--r-pill); background: var(--mist); font-size: 10px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; }
+  .color-row { display: flex; align-items: center; gap: 12px; }
+  .swatch { width: 76px; height: 44px; border: var(--line); border-radius: var(--r-in); background: var(--sun); }
+  .grip { display: grid; place-items: center; width: 30px; height: 38px; border: var(--line); border-radius: var(--r-in); background: var(--mist); font-size: 15px; cursor: grab; }
   .inputs { display: flex; gap: 10px; flex-wrap: wrap; }
   input { min-height: 44px; padding: 10px 13px; border: var(--line); border-radius: var(--r-in); background: var(--paper); font: inherit; font-size: 15px; }
   .radii { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -102,7 +120,7 @@
   <div><span>display 900 / 0.8</span><b class="display">Sofía</b></div>
   <div><span>section 900 / 0.9</span><b class="sect">Concentración</b></div>
   <div><span>card title 700</span><b class="card-t">Qué se ve ahora</b></div>
-  <div><span>label 700 / 0.032em</span><b class="label">Uso diario</b></div>
+  <div><span>label / sub-tab 700</span><b class="label">Red remota</b></div>
   <div><span>body 16 / 1.5</span><span class="body" style="flex:1;font-family:var(--font);font-size:16px">Elegí qué mira, jugá y mandá el equipo desde acá.</span></div>
 </div>
 <p class="note">El efecto display aplastado se hace con peso 900, tracking −0.05em y caja alta; no hay fuente display disponible en el equipo.</p>
@@ -183,19 +201,103 @@
   </div>
 </div>
 
-<h2>Admin: una tira de pestañas</h2>
-<div class="tabs" role="tablist" aria-label="Ejemplo de pestañas">
-  <span class="tab on" role="tab" aria-selected="true">Aplicaciones</span>
-  <span class="tab" role="tab" aria-selected="false">Pantalla</span>
-  <span class="tab" role="tab" aria-selected="false">Luz RGB</span>
-  <span class="tab" role="tab" aria-selected="false">Juegos</span>
-  <span class="tab" role="tab" aria-selected="false">Música</span>
-  <span class="tab" role="tab" aria-selected="false">Red</span>
-  <span class="tab" role="tab" aria-selected="false">Sofía</span>
-  <span class="tab" role="tab" aria-selected="false">Sistema</span>
-  <span class="tab" role="tab" aria-selected="false">Cuenta</span>
+<h2>Admin: la navegación es un aside</h2>
+<div class="row">
+  <div class="aside" role="tablist" aria-label="Ejemplo de navegación">
+    <span class="tab on" role="tab" aria-selected="true">Aplicaciones</span>
+    <span class="tab" role="tab" aria-selected="false">Pantalla</span>
+    <span class="tab" role="tab" aria-selected="false">Luz RGB</span>
+    <span class="tab" role="tab" aria-selected="false">Juegos</span>
+    <span class="tab" role="tab" aria-selected="false">Música</span>
+    <span class="sep"></span>
+    <span class="tab" role="tab" aria-selected="false">Integraciones</span>
+    <span class="sep"></span>
+    <span class="tab" role="tab" aria-selected="false">Red</span>
+    <span class="tab" role="tab" aria-selected="false">Sofía</span>
+  </div>
+  <div class="card" style="flex:1;min-width:260px">
+    <b class="card-t">Contenido</b>
+    <p class="note">La columna mide lo que mide su etiqueta más larga (INTEGRACIONES) y todos los botones la llenan: mismo ancho, sin aire muerto. Debajo de 760 px la grilla colapsa y la navegación vuelve a ser la tira horizontal con scroll.</p>
+    <p class="note">Roving tabindex con flechas en los dos ejes, Home/End, y el hash es la sección activa: <code>/admin#spotify</code> sigue entrando a Música.</p>
+  </div>
 </div>
-<p class="note">Roving tabindex, flechas ←/→, Home/End, y el hash es la sección activa: <code>/admin#spotify</code> sigue entrando a Música.</p>
+
+<h2>Tema oscuro</h2>
+<div class="row">
+  <div class="sw"><i style="background:#16171a"></i><b>paper</b><code>#16171a</code></div>
+  <div class="sw"><i style="background:#0e0f12"></i><b>sky</b><code>#0e0f12</code></div>
+  <div class="sw"><i style="background:#23252a"></i><b>gray</b><code>#23252a</code></div>
+  <div class="sw"><i style="background:#22242a"></i><b>mist</b><code>#22242a</code></div>
+  <div class="sw"><i style="background:#f1f1f3"></i><b>ink</b><code>#f1f1f3</code></div>
+  <div class="sw"><i style="background:#58d99b"></i><b>ok-ink</b><code>#58d99b</code></div>
+  <div class="sw"><i style="background:#ff8f66"></i><b>bad-ink</b><code>#ff8f66</code></div>
+</div>
+<div class="row" style="margin-top:12px;align-items:flex-start">
+  <div class="card" style="width:320px;background:#16171a;border-color:#f1f1f3;color:#f1f1f3">
+    <b class="card-t">Card en oscuro</b>
+    <p class="note" style="color:#f1f1f3;opacity:.72">Solo dan vuelta papel, tinta y las tres superficies neutras. El borde pasa a tinta clara.</p>
+    <div class="row" style="margin-top:10px">
+      <span class="pill online" style="color:#000"><span class="dot"></span>En línea</span>
+      <span class="warn" style="padding:6px 10px;border:1px solid #f1f1f3;border-radius:16px;background:#ffd731;color:#000">Aviso</span>
+    </div>
+  </div>
+  <div style="max-width:460px">
+    <p class="note" style="margin-top:0">Los stickers conservan su color en los dos temas: son el sistema, no un tinte. Todo lo que se pinta encima de un sticker mantiene texto y trazos negros, así el contraste es el mismo en claro y en oscuro.</p>
+    <p class="note"><code>color-scheme: dark</code> acompaña a los controles nativos (color picker, range, checkbox) y los placeholders se invierten a blanco al 42%.</p>
+    <p class="note">El tema lo elige el dueño desde el header del admin y se recuerda en <code>localStorage</code> (<code>espbuddy-theme</code>). La landing y el login no cambian de tema.</p>
+  </div>
+</div>
+
+<h2>Componentes del panel</h2>
+<div class="row" style="align-items:flex-start">
+  <div class="card" style="width:320px">
+    <b class="card-t">Interruptor de tema</b>
+    <p class="note">Redondo de 34 px, único control sólo-icono del panel: luna en claro, sol en oscuro, <code>aria-pressed</code> con el estado.</p>
+    <div class="row" style="margin-top:10px">
+      <span class="themebtn" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></svg></span>
+      <span class="themebtn on" aria-pressed="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M4.2 4.2l1.6 1.6M18.2 18.2l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.2 19.8l1.6-1.6M18.2 5.8l1.6-1.6"/></svg></span>
+    </div>
+  </div>
+  <div class="card" style="width:360px">
+    <b class="card-t">Campo con contador</b>
+    <p class="note">La caja es parte del diseño: relleno <code>mist</code>, borde de tinta, valor en mono y contador a la derecha.</p>
+    <div class="field">
+      <span class="field-label">Client ID de tu app</span>
+      <span class="field-input"><span class="mono">4f9c1ab2e7d84a0f9b3c5d6e7f8a9b0c</span><span class="field-count">32/63</span></span>
+    </div>
+    <div class="field" style="margin-top:12px">
+      <span class="field-label">Color de la luz <span class="tag">modo color fijo</span></span>
+      <span class="color-row"><span class="swatch"></span><span class="mono">#FFD700 · oro</span></span>
+    </div>
+  </div>
+</div>
+
+<div class="row" style="margin-top:12px">
+  <div class="card" style="width:520px">
+    <b class="card-t">Sub-pestañas: una card por vez</b>
+    <p class="note">Misma píldora que la navegación; la elegida se rellena de tinta. Integraciones y Red las usan.</p>
+    <div class="row" style="margin-top:10px">
+      <span class="tab on">Spotify</span>
+      <span class="tab">Hermes</span>
+      <span class="tab">Google Calendar</span>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <b class="card-t" style="width:100%">Chips: elección única</b>
+      <span class="chip" aria-pressed="true">Concentrada</span>
+      <span class="chip" aria-pressed="false">Pensando</span>
+      <span class="chip" aria-pressed="false">Feliz</span>
+    </div>
+    <p class="note">En el panel crecen hasta el target táctil; en la landing conservan los 10 px de la tarjeta de Concentración.</p>
+  </div>
+  <div class="card" style="width:300px">
+    <b class="card-t">Filas que se arrastran</b>
+    <p class="note">El grip es el asa, la fila se mueve y el número la sigue.</p>
+    <ul class="order" style="list-style:none;margin:10px 0 0;padding:0;display:grid;gap:8px">
+      <li style="display:flex;align-items:center;gap:8px;padding:8px;border:1px solid var(--ink);border-radius:16px;background:var(--paper)"><span class="grip">⣿</span><span class="mono" style="opacity:.6;font-size:11px">1</span><span>RELOJ</span></li>
+      <li style="display:flex;align-items:center;gap:8px;padding:8px;border:1px solid var(--ink);border-radius:16px;background:#ffd731"><span class="grip">⣿</span><span class="mono" style="opacity:.6;font-size:11px">2</span><span>SOFIA</span></li>
+    </ul>
+  </div>
+</div>
 
 <h2>Vidrio del equipo · el resto de las pantallas</h2>
 <div class="card" style="width:340px;background:#000;color:#fff;border-color:#000">

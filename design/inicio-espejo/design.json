@@ -1,0 +1,42 @@
+{
+  "title": "Espejo del inicio",
+  "brief": "Réplica fiel de las pantallas de entrada del equipo (esp32_gadget/web_ui/index.html y login.html) con su propia hoja de estilos recortada: el inicio, el menú a pantalla completa, el ta-te-ti y el login. Es una copia para pedir cambios sección por sección, no una dirección nueva; el admin queda fuera porque tiene su propio espejo en design/admin-espejo.",
+  "feature": "odd/tasks/web-redesign.md",
+  "artboards": [
+    {
+      "file": "01-inicio.html",
+      "title": "Inicio",
+      "tradeoff": "La página completa a 390 px, ya sin marquesina ni footer: hero, botón de menú, carrusel de siete pantallas, Pomodoro y Juegos.",
+      "width": 390,
+      "height": 1240
+    },
+    {
+      "file": "02-menu.html",
+      "title": "Menú abierto",
+      "tradeoff": "El menú a pantalla completa con apps y la grilla de pantallas; tapa la página, que asoma detrás.",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "file": "03-juego.html",
+      "title": "Ta-te-ti",
+      "tradeoff": "El tablero con una partida a medias, dificultad y mensaje de Sofía; el resto de la página queda oculto.",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "file": "04-login.html",
+      "title": "Login",
+      "tradeoff": "La puerta de entrada con el logo, el formulario y la vuelta al inicio; el estado de error no se ve.",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "file": "05-inicio-desktop.html",
+      "title": "Inicio en escritorio",
+      "tradeoff": "La misma página a 1440 px: hoja de 960, siete pantallas en una fila y tarjetas más aireadas. El dock deja de scrollear.",
+      "width": 1440,
+      "height": 1120
+    }
+  ]
+}

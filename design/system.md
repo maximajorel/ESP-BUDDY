@@ -41,6 +41,31 @@ anywhere; elevation is colour plus a black outline. Black text on any sticker
 fill; white text only on `--ink` and `--violet`. `--blue` is decorative, never an
 action colour.
 
+### Tema oscuro — the same system, inverted paper
+
+Source: `styles.css:1329-1360` (`[data-theme="dark"]`). The attribute lives on
+`<html>`; the admin sets it from the header switch and remembers the choice in
+`localStorage` (`espbuddy-theme`). The landing and the login stay light.
+
+| Token | Light | Dark | Usage |
+| --- | --- | --- | --- |
+| `--paper` | `#ffffff` | `#16171a` | Cards, inputs, pill fills |
+| `--sky` | `#dceeff` | `#0e0f12` | Page background |
+| `--gray` | `#cccccc` | `#23252a` | Secondary band |
+| `--mist` | `#e9e9e9` | `#22242a` | Stat cells, hover fills, fields |
+| `--ink` | `#000000` | `#f1f1f3` | Text, every 1px outline |
+| `--ok-ink` | `#0f7a45` | `#58d99b` | Success text |
+| `--bad-ink` | `#b32b00` | `#ff8f66` | Danger text |
+
+Rules: the sticker accents (`--blue`, `--mint`, `--lav`, `--ember`, `--sun`,
+`--violet`) **keep their value in both themes** — they are the system, not a
+tint. Anything painted on a sticker keeps `#000000` text and strokes
+(`:is(.now, .pill.online, .pill.offline, .warn, .sp-state.*, .sp-panel,
+.btn.danger, .toast.ok, .toast.err, .tile.active, .skip)`), so contrast is the
+same in both themes. `color-scheme: dark` follows, so native pickers, ranges and
+checkboxes render dark. Input placeholders invert to `rgba(255,255,255,0.42)`.
+No page sets a theme the owner did not ask for.
+
 Two deliberate deviations, both forced by where this runs (S1b): system font
 stacks instead of the commercial Lateral / Aeonik Pro, and flat SVG stickers
 instead of the 3D ribbons, since the board serves no fonts and stores no raster
@@ -167,6 +192,10 @@ Source: `esp32_gadget/web_ui/styles.css`.
 - Touch target: `--tap: 44px`.
 - Page width: `--page: 1080px` for the admin, `720px` for the centred landing at
   `>=620px`.
+- The admin shell is a two-column grid: `max-content` for the navigation aside
+  (as wide as its longest label, `INTEGRACIONES`) and the rest for `<main>`
+  (`styles.css:186-190`). Below `760px` the grid collapses to one column and the
+  navigation becomes the horizontal strip again.
 - Elevation: no `box-shadow` anywhere; hierarchy comes from the 1px `--ink`
   outline and the `--paper` / `--mist` / `--sky` surface steps.
 
@@ -181,9 +210,30 @@ serves.
   fill `--mint`, `.offline` fills `--ember`; the dot goes white in both.
 - Cards (`.card`) are `--paper` with a `1px` `--ink` border and `--r-card`.
   Tints are opt-in (`.tint-lav`, `.tint-mist`, `.tint-sky`), never automatic.
-- The admin navigation is a single `role="tablist"` strip: one pill per
-  section, `--paper` normally, `--ink` fill with `--paper` text when active.
-  Roving tabindex, Arrow/Home/End, and the hash is the active section.
+- The admin navigation is a left aside, not a strip: one pill per section in a
+  column, every `nav-item` at `width: 100%` so all of them share the width of the
+  longest label, `--paper` normally, `--ink` fill with `--paper` text when active,
+  and a 1px hairline `tab-sep` between groups. Roving tabindex with
+  Arrow/Home/End (both axis pairs, because the narrow strip scrolls sideways),
+  and the hash is the active section.
+- The theme switch is the only icon-only control in the panel: a round 34px
+  button (`#themeBtn`) in the top bar, moon when light and sun when dark,
+  `aria-pressed` carrying the state.
+- The admin mark is the buddy's eyes: two black squircles (38% of the half-axis)
+  on the `--sun` sticker, no glow, in both themes.
+- Fields (`.field` > `.field-label` + `.field-input` + `.field-count`): the box is
+  part of the design, not the browser's — `--mist` fill, ink outline, `--r-in`,
+  the value in `--mono`, and an optional counter such as `32/63`. Colour fields
+  use `.color-row`: the swatch plus its hex in `--mono`, so it is never alone.
+- Sub-tabs (`.subtabs` > `.subtab`) split one section into several cards, one at a
+  time: same pill as the navigation, `--ink` fill when selected, the card carries
+  `data-subpanel`. Used by Integraciones and Red.
+- Chips (`.chip`) are single-choice stickers inside a `.chips` group; the chosen
+  one fills with `--ink`. The landing's duration chips keep their 10px size; only
+  `.region .chip` grows to a touch target.
+- The screen order in Aplicaciones is reordered by dragging the grip
+  (`span.grip`, `draggable`), never by arrows: the row moves, the position number
+  follows, and the dragged row is `--sun` while it travels.
 - Buttons (`.btn`) are `--ink` fill with `--paper` text, or `.ghost` (`--paper`
   fill, `--ink` text). Never `--blue`. Danger is `--ember` with `--ink` text.
 - Focus is always visible: `:focus-visible` gets a `2px --violet` outline with a

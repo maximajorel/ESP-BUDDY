@@ -177,3 +177,41 @@ L10: Sofía ya no tiene el formulario "Pedirle algo a Sofía". En su lugar hay u
 selector de estados simulados (chips `.chip`, uno activo con relleno de tinta:
 en calma, aburrida, pensando, trabajando, esperando, listo, se viene algo, error)
 más "Volver al estado real" para soltar la simulación.
+
+L11: Espejo del inicio. `design/inicio-espejo/` replica la entrada pública en
+tres planchas: `01-inicio` (página completa a 390 px), `02-menu` (el menú a
+pantalla completa) y `03-juego` (el ta-te-ti con una partida a medias). Usa la
+parte de landing de `styles.css`, con los valores sin tocar, y el sprite real;
+`_src/` guarda la hoja recortada, la plantilla, las tres partes y el mismo
+esquema de build que el espejo del admin. Quedan fuera el admin y el login.
+Antes de diseñarlo se sincronizó `design/system.md` y `design/system.html` con
+`styles.css` (tema oscuro, aside, campos, sub-pestañas, chips y filas
+arrastrables), que estaban viejos desde la implementación del panel.
+
+L12: Primer lote de comentarios del canvas sobre `design/inicio-espejo/` (18).
+Inicio: fuera la marquesina, el pill de conexión, el kicker y el footer; el
+display dice ESP-BUDDY; la sección pasa a llamarse Pomodoro y el botón de
+arrancar usa el `.btn` del sistema (faltaba en la hoja recortada). Menú: fuera el
+subtítulo, los contadores, el hint "Juegos primero", el acceso a Música y los
+`<small>`; "Ajustes" pasa a "Administración". Juego: fuera el mensaje y el botón
+de reinicio (la partida se resetea sola), el título va en mayúsculas y el tablero
+deja de encogerse con `scrollbar-gutter: stable`. Además se sumó `04-login.html`
+al diseño, con la hoja de login recortada de `styles.css`.
+
+L13: Implementación del espejo del inicio y del login (planchas
+`design/inicio-espejo/`, que ya llevan los dos lotes de comentarios). Entrada:
+fuera marquesina, pill de conexión, kicker, tagline y footer; el display dice
+ESP-BUDDY; Pomodoro sin estado y con el texto corto; menú sin subtítulo,
+contadores, hint, Música ni `<small>`, con Juegos y Administración en la misma
+fila. Juego: fuera el mensaje y el botón de reinicio (la partida se resetea sola
+a los 2,2 s), título en mayúsculas y `scrollbar-gutter: stable` para que los
+casilleros no cambien de tamaño. Login: ojos de Sofía, ESP BUDDY, "Administrar
+Buddy", sin el párrafo del `.env`, link del sistema y `input:not([type])` para el
+campo de usuario que se servía sin `type`. Escritorio: hoja de 960 a partir de
+980 px, las siete pantallas en una fila, tarjetas más aireadas; desde 620 px el
+dock deja de scrollear y pasa a grilla de cuatro columnas.
+Slice: la implementación entra en un solo commit de código (`1ad3646`) porque la
+entrada, el login y el plan de escritorio comparten la misma hoja y los mismos
+componentes; las ~330 líneas de autoría se reparten entre `index.html`,
+`login.html`, `landing.js` y `styles.css`. El diseño va en su commit aparte
+(`abcad88`), como en el panel.

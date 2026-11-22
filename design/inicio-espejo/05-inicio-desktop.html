@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#dceeff">
+<title>Sofía · Inicio en escritorio</title>
+<style>
+/* Landing subset of esp32_gadget/web_ui/styles.css: the public entrance and its
+   two overlays (menu and ta-te-ti). Every value is the shipped one; nothing here
+   is re-authored. The admin-only rules are intentionally absent. */
+
+:root {
+  --paper: #ffffff;
+  --sky: #dceeff;
+  --gray: #cccccc;
+  --mist: #e9e9e9;
+  --ink: #000000;
+  --blue: #4da2ff;
+  --mint: #55db9c;
+  --lav: #e9ccff;
+  --ember: #fb4903;
+  --sun: #ffd731;
+  --violet: #5c4ade;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --line: 1px solid var(--ink);
+  --hair: 1px solid rgba(0, 0, 0, 0.16);
+  --r-card: 20px;
+  --r-lg: 40px;
+  --r-in: 16px;
+  --r-pill: 1600px;
+  --tap: 44px;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 16px; }
+body { margin: 0; background: var(--sky); color: var(--ink); font: 16px/1.5 var(--font); -webkit-text-size-adjust: 100%; }
+h1, h2, h3 { font-family: var(--font); }
+a { color: var(--ink); }
+
+.skip { position: absolute; left: -9999px; top: 0; z-index: 60; padding: 10px 14px; border: var(--line); border-radius: var(--r-pill); background: var(--sun); font-size: 13px; font-weight: 700; text-decoration: none; }
+.skip:focus { left: 12px; top: 12px; }
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible { outline: 2px solid var(--violet); outline-offset: 2px; }
+.sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+/* --- shared basics (landing and login both use them) --------------------- */
+.card { padding: 16px; border: var(--line); border-radius: var(--r-card); background: var(--paper); }
+.hint { margin: 0 0 14px; font-size: 12px; opacity: 0.72; }
+.sub { margin: 0; font-size: 11px; opacity: 0.7; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.form { display: grid; gap: 14px; }
+.form label { display: grid; gap: 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.02em; }
+/* input:not([type]) is here on purpose: the panel's login ships the username
+   field without a type attribute, so the selector list never matched it and the
+   field rendered unstyled. Either the attribute or this rule fixes it. */
+input[type="text"], input[type="password"], input[type="number"], input[type="search"], input:not([type]), select, textarea { width: 100%; min-height: var(--tap); padding: 10px 13px; border: var(--line); border-radius: var(--r-in); background: var(--paper); color: var(--ink); font: inherit; font-size: 15px; }
+input::placeholder, textarea::placeholder { color: rgba(0, 0, 0, 0.42); }
+.warn { margin: 10px 0 0; padding: 10px 12px; border: var(--line); border-radius: var(--r-in); background: var(--sun); font-size: 12px; }
+.logo { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; gap: 3px; width: 34px; height: 34px; border: var(--line); border-radius: var(--r-pill); background: var(--sun); font-size: 15px; line-height: 1; }
+.logo .eye { width: 10px; height: 10px; border-radius: 38%; background: #000000; }
+.link { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 8px 14px; border: var(--line); border-radius: var(--r-pill); background: var(--paper); color: var(--ink); font-size: 12px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; text-decoration: none; }
+.link:hover { background: var(--mist); }
+
+/* --- login -------------------------------------------------------------- */
+.login-body { display: grid; place-items: center; min-height: 100vh; padding: 20px; background: var(--sky); }
+.login { width: 100%; max-width: 420px; }
+.login-brand { display: grid; gap: 6px; justify-items: center; margin-bottom: 18px; text-align: center; }
+.login-brand .logo { width: 48px; height: 48px; font-size: 20px; }
+.login-brand .logo .eye { width: 13px; height: 13px; }
+.login h1 { margin: 0; font-size: 26px; font-weight: 900; letter-spacing: -0.04em; }
+.login-card { padding: 20px; }
+.login-card h2 { margin: 0 0 6px; font-size: 17px; }
+.login-card .btn { width: 100%; margin-top: 4px; }
+.login footer { margin-top: 16px; text-align: center; }
+.login footer .hint { font-size: 11px; }
+
+/* --- public entrance ---------------------------------------------------- */
+.landing-body { background: var(--paper); }
+.landing { display: block; }
+
+.hero { position: relative; overflow: hidden; padding: 20px 16px 34px; background: var(--sky); }
+.display { margin: 4px 0 0; font-size: clamp(72px, 27vw, 118px); font-weight: 900; line-height: 0.8; letter-spacing: -0.05em; text-transform: uppercase; }
+
+.stickers { position: absolute; inset: 0; pointer-events: none; }
+.sticker { position: absolute; border: var(--line); border-radius: var(--r-card); background: var(--paper); }
+.sticker svg { width: 100%; height: 100%; padding: 6px; fill: none; stroke: var(--ink); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.sticker.a { right: 14px; top: 6px; width: 38px; height: 38px; background: var(--ember); transform: rotate(8deg); }
+.sticker.b { right: 16px; bottom: 12px; width: 36px; height: 36px; border-radius: var(--r-pill); background: var(--sun); transform: rotate(-12deg); }
+.sticker.c { right: 58px; bottom: 20px; width: 44px; height: 32px; background: var(--violet); transform: rotate(5deg); }
+
+/* The bar holds one control now: the menu button, pushed to the right. */
+.statusbar { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 14px 16px 18px; background: var(--sky); }
+.statusbar .now { margin-left: auto; padding: 0; border: 0; background: none; font-size: 11px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; }
+.statusbar .now b { font-weight: 900; }
+
+.menu-btn { display: grid; place-items: center; width: var(--tap); height: var(--tap); padding: 0; border: var(--line); border-radius: var(--r-pill); background: var(--paper); color: var(--ink); cursor: pointer; }
+.menu-btn[aria-expanded="true"] { background: var(--sun); }
+.menu-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+.dock { padding: 18px 0 12px; border-bottom: var(--line); background: var(--paper); }
+.dock-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 0 16px; }
+.dock-head h2 { margin: 0; font-size: 24px; font-weight: 900; letter-spacing: -0.03em; }
+.dock-head .now { padding: 0; border: 0; background: none; font-size: 10px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; }
+.dock-head .now b { font-weight: 900; }
+
+.carousel { display: flex; gap: 10px; overflow-x: auto; padding: 14px 16px 6px; scroll-snap-type: x mandatory; scrollbar-width: none; }
+.carousel::-webkit-scrollbar { display: none; }
+.slide { scroll-snap-align: start; flex: 0 0 116px; display: grid; gap: 6px; justify-items: start; min-height: 108px; padding: 12px; border: var(--line); border-radius: var(--r-card); background: var(--paper); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.slide:nth-child(3n + 1) { transform: rotate(-1.2deg); }
+.slide:nth-child(3n + 2) { transform: rotate(1deg); }
+.slide:hover { background: var(--mist); }
+.slide svg { width: 24px; height: 24px; fill: none; stroke: var(--ink); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.slide .num { font-size: 10px; opacity: 0.65; font-variant-numeric: tabular-nums; }
+.slide b { margin-top: auto; font-size: 11px; letter-spacing: 0.032em; text-transform: uppercase; overflow-wrap: break-word; }
+.slide[aria-pressed="true"] { background: var(--sun); }
+
+.dock-msg { margin: 0; padding: 0 16px 8px; font-size: 12px; }
+.linkish { padding: 0; border: 0; background: none; color: var(--ink); font: inherit; font-size: 12px; font-weight: 700; text-decoration: underline; cursor: pointer; }
+
+/* --- concentration ------------------------------------------------------ */
+.focus-band { padding: 20px 16px; background: var(--sky); border-bottom: var(--line); }
+.focus-band .section-head { margin-bottom: 12px; }
+.focus-card { display: grid; gap: 14px; padding: 18px; border: var(--line); border-radius: var(--r-lg); background: var(--mint); }
+.focus-lead { margin: 0; max-width: 34ch; font-size: 13px; }
+.focus-card .chips { margin: 0; }
+.focus-card .chip { cursor: pointer; background: var(--paper); color: var(--ink); }
+.focus-card .chip[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.focus-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.focus-field { display: grid; gap: 4px; font-size: 10px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; }
+.focus-field input { width: 96px; }
+.focus-now { margin: 0; font-size: 12px; font-weight: 700; }
+
+/* --- games -------------------------------------------------------------- */
+.games { padding: 20px 16px 8px; background: var(--gray); border-bottom: var(--line); }
+.section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.section-head h2 { margin: 0; font-size: 24px; font-weight: 900; letter-spacing: -0.03em; }
+.section-head .hint { margin: 0; font-size: 10px; letter-spacing: 0.032em; text-transform: uppercase; }
+.cover { position: relative; overflow: hidden; display: grid; gap: 8px; width: 100%; padding: 18px; border: var(--line); border-radius: var(--r-lg); background: var(--violet); color: var(--paper); text-align: left; font: inherit; cursor: pointer; }
+.cover-tag { font-size: 10px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; }
+.cover h3 { margin: 0; font-size: 40px; font-weight: 900; line-height: 0.85; letter-spacing: -0.05em; text-transform: uppercase; }
+.cover p { margin: 0; max-width: 32ch; font-size: 13px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.chip { padding: 5px 10px; border: var(--line); border-radius: var(--r-pill); background: var(--paper); color: var(--ink); font-size: 10px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; font-family: inherit; }
+/* --- the full-screen menu ------------------------------------------------ */
+.launcher { position: fixed; inset: 0; z-index: 30; overflow-y: auto; background: var(--sky); transform: translateY(100%); visibility: hidden; transition: transform 0.28s ease, visibility 0.28s ease; }
+body.menu-open .launcher { transform: none; visibility: visible; }
+body.menu-open, body.game-open { overflow: hidden; }
+.launcher-inner { padding: 16px 16px 40px; }
+.launcher-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding-bottom: 14px; border-bottom: var(--line); }
+.launcher-head h2 { margin: 0; font-size: 34px; font-weight: 900; letter-spacing: -0.04em; line-height: 0.9; }
+.launcher-head .hint { margin: 6px 0 0; font-size: 11px; }
+.close-btn { display: grid; place-items: center; width: var(--tap); height: var(--tap); padding: 0; border: var(--line); border-radius: var(--r-pill); background: var(--paper); color: var(--ink); cursor: pointer; }
+.close-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.section { padding: 18px 0 0; }
+.launcher .section + .section { margin-top: 6px; }
+.launch-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.launch { display: grid; gap: 8px; align-content: start; min-height: 108px; padding: 14px; border: var(--line); border-radius: var(--r-card); background: var(--paper); color: var(--ink); font: inherit; text-align: left; text-decoration: none; cursor: pointer; }
+.launch:hover { background: var(--mist); }
+.launch.wide { grid-column: 1 / -1; min-height: 0; }
+.launch.accent { background: var(--ember); }
+.launch svg { width: 24px; height: 24px; fill: none; stroke: var(--ink); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.launch b { font-size: 14px; letter-spacing: -0.01em; }
+.launch small { font-size: 11px; line-height: 1.3; opacity: 0.72; }
+
+/* The screen grid inside the menu: seven stickers, not a table. */
+.screens { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.tile { display: grid; gap: 6px; align-content: start; padding: 13px; border: var(--line); border-radius: var(--r-in); background: var(--paper); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.tile:nth-child(4n + 1) { background: var(--paper); }
+.tile:nth-child(4n + 2) { background: var(--lav); }
+.tile:nth-child(4n + 3) { background: var(--paper); }
+.tile:nth-child(4n) { background: var(--mist); }
+.tile:hover { outline: 2px solid var(--ink); outline-offset: -2px; }
+.tile svg { width: 22px; height: 22px; fill: none; stroke: var(--ink); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.tile b { font-size: 11px; letter-spacing: 0.032em; text-transform: uppercase; }
+.tile[aria-pressed="true"] { background: var(--sun); }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: var(--tap); padding: 10px 16px; border: var(--line); border-radius: var(--r-pill); background: var(--ink); color: var(--paper); font: inherit; font-size: 12px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; text-decoration: none; cursor: pointer; }
+.btn:hover { background: #1a1a1a; }
+.btn.ghost { background: var(--paper); color: var(--ink); }
+.btn.ghost:hover { background: var(--mist); }
+
+/* --- the game ----------------------------------------------------------- */
+.game { position: fixed; inset: 0; z-index: 35; display: none; overflow-y: auto; background: var(--sky); scrollbar-gutter: stable; }
+body.game-open .game { display: block; }
+.game-ui { display: flex; flex-direction: column; min-height: 100%; max-width: 520px; margin: 0 auto; padding: 14px 16px 24px; }
+.game-top { display: flex; align-items: center; gap: 10px; }
+.game-title { flex: 1; min-width: 0; }
+.game-title h1 { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -0.03em; text-transform: uppercase; }
+.versus { font-size: 10px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; }
+.versus b { font-weight: 900; }
+.icon-btn { display: grid; place-items: center; width: var(--tap); height: var(--tap); padding: 0; border: var(--line); border-radius: var(--r-pill); background: var(--paper); color: var(--ink); cursor: pointer; }
+.icon-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.diff { display: flex; gap: 8px; margin: 14px 0; }
+.diff button { flex: 1; padding: 9px 6px; border: var(--line); border-radius: var(--r-pill); background: var(--paper); color: var(--ink); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.diff button small { display: block; font-size: 9px; font-weight: 500; letter-spacing: 0; opacity: 0.7; }
+.diff button[aria-pressed="true"] { background: var(--sun); }
+.board-wrap { flex: 1; display: grid; place-items: center; min-height: 0; padding: 8px 0 14px; }
+.board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: min(100%, 330px); aspect-ratio: 1; }
+.cell { display: grid; place-items: center; padding: 0; border: var(--line); border-radius: var(--r-in); background: var(--paper); color: var(--ink); font: inherit; font-size: clamp(34px, 12vw, 52px); font-weight: 900; line-height: 1; cursor: pointer; }
+.cell:hover:not(:disabled) { background: var(--lav); }
+.cell:disabled { cursor: default; }
+.cell .mark.o { color: var(--violet); }
+.cell.win { background: var(--mint); }
+.cell.o-win { background: var(--lav); }
+.say { display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px 14px; border: var(--line); border-radius: var(--r-pill); background: var(--paper); font-size: 13px; font-weight: 500; }
+.say .dot { flex: 0 0 auto; width: 8px; height: 8px; border: var(--line); border-radius: 50%; background: var(--sun); }
+.say.buddy { background: var(--lav); }
+.game-foot { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.game-foot .hint { margin: 0; font-size: 11px; }
+
+/* --- tablet: the dock stops scrolling sideways --------------------------- */
+/* Seven slides never fit a phone width, so on a phone the dock is a scroll
+   strip. From 620px they fit as a grid: nothing hidden, no scroll affordance to
+   discover. */
+@media (min-width: 620px) {
+  .landing { max-width: 720px; margin: 0 auto; border-left: var(--line); border-right: var(--line); }
+  .carousel { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; overflow: visible; padding-bottom: 14px; }
+  .slide { flex: none; min-height: 96px; }
+  .statusbar, .dock-head, .dock-msg { padding-left: 20px; padding-right: 20px; }
+}
+
+/* --- desktop: one wide sheet, the seven screens in a single row ---------- */
+@media (min-width: 980px) {
+  .landing { max-width: 960px; }
+  .hero { padding: 34px 28px 46px; }
+  .display { font-size: 150px; }
+  .statusbar { padding: 18px 28px 22px; }
+  .dock { padding-top: 22px; }
+  .dock-head, .dock-msg { padding-left: 28px; padding-right: 28px; }
+  .carousel { grid-template-columns: repeat(7, minmax(0, 1fr)); padding: 16px 28px 18px; }
+  .slide { min-height: 104px; padding: 11px; }
+  .focus-band, .games { padding: 24px 28px; }
+  .focus-card { padding: 22px; }
+  .cover { padding: 22px; }
+  .cover h3 { font-size: 52px; }
+  .board { width: min(100%, 420px); }
+  .cell { font-size: 60px; }
+  .launch-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .launch.wide { grid-column: auto; min-height: 108px; }
+  .login { max-width: 460px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
+}
+</style>
+</head>
+<body class="landing-body">
+
+<a class="skip" href="#contenido">Saltar al contenido</a>
+
+<svg class="sprite" aria-hidden="true" focusable="false"><defs>
+  <symbol id="i-apps" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-slot" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/><circle cx="8" cy="15" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="15" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="15" r="1" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-rocket" viewBox="0 0 24 24"><path d="M12 3c3 2 4.5 5 4.5 9L14 15h-4l-2.5-3C7.5 8 9 5 12 3z"/><path d="M9.5 16.5 7 20l4-1M14.5 16.5 17 20l-4-1"/><circle cx="12" cy="9" r="1.4"/></symbol>
+  <symbol id="i-wifi" viewBox="0 0 24 24"><path d="M2 8.5a15 15 0 0 1 20 0M5 12a10.5 10.5 0 0 1 14 0M8.5 15.5a6 6 0 0 1 7 0"/><circle cx="12" cy="19" r="1"/></symbol>
+  <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V6l10-2v12"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/></symbol>
+  <symbol id="i-smile" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2.5 4 2.5 4-2.5 4-2.5"/><circle cx="9" cy="10" r=".7" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r=".7" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="2" fill="currentColor" stroke="none"/><circle cx="8" cy="18" r="2" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><circle cx="12" cy="15.5" r="1.2" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-game" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="11" rx="4"/><path d="M7 11v3M5.5 12.5h3"/><circle cx="16" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="18.5" cy="14.5" r="1" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z"/></symbol>
+  <symbol id="i-trophy" viewBox="0 0 24 24"><path d="M8 4h8v4a4 4 0 0 1-8 0V4z"/><path d="M8 5H5v2a3 3 0 0 0 3 3M16 5h3v2a3 3 0 0 1-3 3"/><path d="M12 12v4M9 20h6l-1-4h-4z"/></symbol>
+  <symbol id="i-display" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></symbol>
+</defs></svg>
+
+<main class="landing" id="contenido">
+
+  <!-- The eyes live on the glass, not here: this page is a control surface. -->
+  <header class="hero">
+    <div class="stickers" aria-hidden="true">
+      <span class="sticker a"><svg viewBox="0 0 24 24"><path d="M12 3c3 2 4.5 5 4.5 9L14 15h-4l-2.5-3C7.5 8 9 5 12 3z"/><path d="M9.5 16.5 7 20l4-1M14.5 16.5 17 20l-4-1"/></svg></span>
+      <span class="sticker b"></span>
+      <span class="sticker c"></span>
+    </div>
+    <h1 class="display">ESP-BUDDY</h1>
+  </header>
+
+  <div class="statusbar">
+    <button class="menu-btn" id="menuBtn" type="button" aria-expanded="false" aria-controls="launcher" aria-label="Abrir menú">
+      <svg aria-hidden="true"><use href="#i-apps"/></svg>
+    </button>
+  </div>
+
+  <section class="dock" aria-labelledby="screensTitle">
+    <div class="dock-head">
+      <h2 id="screensTitle">Pantallas</h2>
+      <span class="now" id="dockNow">Ahora: RELOJ</span>
+    </div>
+    <div class="carousel" id="carousel" role="listbox" aria-label="Pantallas del equipo">
+      <button class="slide" type="button" role="option" data-screen="0" aria-selected="true" aria-pressed="true">
+        <svg aria-hidden="true"><use href="#i-clock"/></svg><span class="num">01</span><b>RELOJ</b>
+      </button>
+      <button class="slide" type="button" role="option" data-screen="1" aria-selected="false" aria-pressed="false">
+        <svg aria-hidden="true"><use href="#i-slot"/></svg><span class="num">02</span><b>TRAGAMONEDAS</b>
+      </button>
+      <button class="slide" type="button" role="option" data-screen="2" aria-selected="false" aria-pressed="false">
+        <svg aria-hidden="true"><use href="#i-rocket"/></svg><span class="num">03</span><b>METEORITOS</b>
+      </button>
+      <button class="slide" type="button" role="option" data-screen="3" aria-selected="false" aria-pressed="false">
+        <svg aria-hidden="true"><use href="#i-wifi"/></svg><span class="num">04</span><b>RED</b>
+      </button>
+      <button class="slide" type="button" role="option" data-screen="4" aria-selected="false" aria-pressed="false">
+        <svg aria-hidden="true"><use href="#i-music"/></svg><span class="num">05</span><b>MUSICA</b>
+      </button>
+      <button class="slide" type="button" role="option" data-screen="5" aria-selected="false" aria-pressed="false">
+        <svg aria-hidden="true"><use href="#i-smile"/></svg><span class="num">06</span><b>SOFIA</b>
+      </button>
+      <button class="slide" type="button" role="option" data-screen="6" aria-selected="false" aria-pressed="false">
+        <svg aria-hidden="true"><use href="#i-settings"/></svg><span class="num">07</span><b>CONFIG</b>
+      </button>
+    </div>
+    <p class="dock-msg" id="dockMsg" role="status" hidden>No pude leer el equipo. <button class="linkish" id="retryBtn" type="button">Reintentar</button></p>
+  </section>
+
+  <section class="focus-band" aria-labelledby="focusTitle">
+    <div class="section-head">
+      <h2 id="focusTitle">Pomodoro</h2>
+    </div>
+    <div class="focus-card">
+      <p class="focus-lead">Sofía se concentra con vos.</p>
+      <div class="chips" role="group" aria-label="Duración de la concentración">
+        <button class="chip" type="button" data-focus-min="15" aria-pressed="false">15 min</button>
+        <button class="chip" type="button" data-focus-min="25" aria-pressed="true">25 min</button>
+        <button class="chip" type="button" data-focus-min="45" aria-pressed="false">45 min</button>
+        <button class="chip" type="button" data-focus-min="60" aria-pressed="false">60 min</button>
+      </div>
+      <div class="focus-row">
+        <label class="focus-field" for="focusMinutes">Minutos
+          <input id="focusMinutes" type="number" min="0" max="99" step="1" value="25" inputmode="numeric">
+        </label>
+        <label class="focus-field" for="focusSeconds">Segundos
+          <input id="focusSeconds" type="number" min="0" max="59" step="1" value="0" inputmode="numeric">
+        </label>
+        <button class="btn solid" id="focusStart" type="button">Arrancar</button>
+        <button class="btn ghost" id="focusStop" type="button" hidden>Cancelar</button>
+      </div>
+      <p class="focus-now" id="focusNow" role="status" hidden></p>
+    </div>
+  </section>
+
+  <section class="games" aria-labelledby="gamesTitle">
+    <div class="section-head">
+      <h2 id="gamesTitle">Juegos</h2>
+    </div>
+    <button class="cover" type="button" data-open-game>
+      <span class="cover-tag">1v1 contra Sofía</span>
+      <h3>Ta-te-ti</h3>
+      <p>Elegí dificultad y jugá. Tres niveles, del más blando al que no perdona.</p>
+      <span class="chips">
+        <span class="chip">Fácil</span>
+        <span class="chip">Normal</span>
+        <span class="chip">Difícil</span>
+      </span>
+    </button>
+  </section>
+
+
+</main>
+
+</body>
+</html>

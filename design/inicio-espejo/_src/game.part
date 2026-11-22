@@ -1,0 +1,39 @@
+<!-- The game: just the board. The device moves its eyes; this surface stays
+     minimal on purpose. -->
+<section class="game" id="gameView" role="dialog" aria-modal="true" aria-labelledby="gameTitle">
+  <div class="game-ui">
+    <div class="game-top">
+      <button class="icon-btn" type="button" data-close-game aria-label="Volver">
+        <svg aria-hidden="true"><use href="#i-back"/></svg>
+      </button>
+      <div class="game-title">
+        <h1 id="gameTitle">Ta-te-ti</h1>
+      </div>
+      <span class="versus"><b>Vos</b> · Sofía</span>
+    </div>
+
+    <div class="diff" role="group" aria-label="Dificultad">
+      <button type="button" data-diff="easy" aria-pressed="false">Fácil<small>se distrae</small></button>
+      <button type="button" data-diff="normal" aria-pressed="true">Normal<small>juega en serio</small></button>
+      <button type="button" data-diff="hard" aria-pressed="false">Difícil<small>no perdona</small></button>
+    </div>
+
+    <div class="board-wrap">
+      <div class="board" id="board" role="grid" aria-label="Tablero de ta-te-ti">
+        <button class="cell" type="button" aria-label="Casilla 1" disabled><span class="mark x">×</span></button>
+        <button class="cell" type="button" aria-label="Casilla 2"></button>
+        <button class="cell" type="button" aria-label="Casilla 3" disabled><span class="mark o">○</span></button>
+        <button class="cell" type="button" aria-label="Casilla 4"></button>
+        <button class="cell" type="button" aria-label="Casilla 5" disabled><span class="mark x">×</span></button>
+        <button class="cell" type="button" aria-label="Casilla 6"></button>
+        <button class="cell" type="button" aria-label="Casilla 7" disabled><span class="mark o">○</span></button>
+        <button class="cell" type="button" aria-label="Casilla 8"></button>
+        <button class="cell" type="button" aria-label="Casilla 9"></button>
+      </div>
+    </div>
+
+    <div class="game-foot">
+      <span class="hint" id="record">Récord 3–2 · empates 1</span>
+    </div>
+  </div>
+</section>

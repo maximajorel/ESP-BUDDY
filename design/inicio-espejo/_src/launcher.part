@@ -1,0 +1,40 @@
+<!-- The menu: full screen, apps first, then the screens grid. -->
+<section class="launcher" id="launcher" role="dialog" aria-modal="true" aria-labelledby="launcherTitle">
+  <div class="launcher-inner">
+    <div class="launcher-head">
+      <div>
+        <h2 id="launcherTitle">Menú</h2>
+      </div>
+      <button class="close-btn" type="button" data-close-menu aria-label="Cerrar menú">
+        <svg aria-hidden="true"><use href="#i-close"/></svg>
+      </button>
+    </div>
+
+    <div class="section">
+      <div class="section-head"><h2>Aplicaciones</h2></div>
+      <div class="launch-grid">
+        <button class="launch accent" type="button" data-open-game>
+          <svg aria-hidden="true"><use href="#i-game"/></svg>
+          <b>Juegos</b>
+        </button>
+        <a class="launch" href="/admin">
+          <svg aria-hidden="true"><use href="#i-lock"/></svg>
+          <b>Administración</b>
+        </a>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head"><h2>Qué se ve en la pantalla</h2></div>
+      <div class="screens" id="screenGrid">
+        <button class="tile" type="button" data-screen="0" aria-pressed="true"><svg aria-hidden="true"><use href="#i-clock"/></svg><b>RELOJ</b></button>
+        <button class="tile" type="button" data-screen="1" aria-pressed="false"><svg aria-hidden="true"><use href="#i-slot"/></svg><b>TRAGAMONEDAS</b></button>
+        <button class="tile" type="button" data-screen="2" aria-pressed="false"><svg aria-hidden="true"><use href="#i-rocket"/></svg><b>METEORITOS</b></button>
+        <button class="tile" type="button" data-screen="3" aria-pressed="false"><svg aria-hidden="true"><use href="#i-wifi"/></svg><b>RED</b></button>
+        <button class="tile" type="button" data-screen="4" aria-pressed="false"><svg aria-hidden="true"><use href="#i-music"/></svg><b>MUSICA</b></button>
+        <button class="tile" type="button" data-screen="5" aria-pressed="false"><svg aria-hidden="true"><use href="#i-smile"/></svg><b>SOFIA</b></button>
+        <button class="tile" type="button" data-screen="6" aria-pressed="false"><svg aria-hidden="true"><use href="#i-settings"/></svg><b>CONFIG</b></button>
+      </div>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,31 @@
+<main class="login" id="contenido">
+
+  <div class="login-brand">
+    <span class="logo" aria-hidden="true"><span class="eye"></span><span class="eye"></span></span>
+    <h1>ESP BUDDY</h1>
+    <p class="sub">Panel de administración</p>
+  </div>
+
+  <section class="card login-card">
+    <h2>Administrar Buddy</h2>
+
+    <form id="loginForm" class="form" autocomplete="on">
+      <label>Usuario
+        <!-- Sin type: el panel real lo manda así, y por eso hoy no toma los estilos. -->
+        <input id="loginUser" name="user" autocomplete="username" maxlength="32" required autofocus>
+      </label>
+      <label>Contraseña
+        <input id="loginPass" name="pass" type="password" autocomplete="current-password" maxlength="64" required>
+      </label>
+      <div class="actions">
+        <button class="btn" type="submit" id="loginBtn">Entrar</button>
+      </div>
+      <p class="warn" id="loginError" role="alert" hidden></p>
+    </form>
+  </section>
+
+  <footer>
+    <p class="hint"><a class="link" href="/">Volver al inicio</a></p>
+  </footer>
+
+</main>
