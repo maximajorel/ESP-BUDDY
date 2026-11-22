@@ -67,6 +67,9 @@ function openWizard() {
   sections().forEach((section) => {
     section.hidden = true;
   });
+  // El pie también: sin conexión validada, "Panel" no lleva a ningún lado y la
+  // píldora de estado repetiría lo que el formulario ya dice.
+  document.querySelector(".foot").hidden = true;
   $("wizard").hidden = false;
   $("wizErr").hidden = true;
   // El botón de cancelar sólo tiene sentido si ya hay un equipo guardado: en el
@@ -86,6 +89,7 @@ function closeWizard() {
   sections().forEach((section) => {
     section.hidden = false;
   });
+  document.querySelector(".foot").hidden = false;
 }
 
 function wizError(message) {
