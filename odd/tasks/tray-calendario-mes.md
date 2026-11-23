@@ -176,3 +176,23 @@ El arnés quedó fuera del repo a propósito: es una copia temporal con un stub,
 un artefacto del producto, y meterlo obligaría a mantener un Chrome y un script
 por plataforma. Queda como receta acá, y como candidato a herramienta si la
 interfaz del tray crece.
+
+L14 (el presupuesto del mes, medido): el objetivo pide "buffer sizing in the
+calendar event builder" y el mes no lo tenía. Agregado a `calendar_month_test`:
+arma el peor cuerpo que Google podría mandar (150 eventos con id, título y lugar
+largos, start/end con zona) y el peor payload que el equipo podría devolver.
+
+Números medidos: cuerpo del peor caso **123.311 B** contra un presupuesto de
+**157.696 B**; payload del peor caso **71.686 B** contra un techo de **98.304 B**.
+
+La medición forzó dos correcciones que no eran cosméticas:
+- `CALENDAR_MONTH_MAX_EVENTS` **200 → 150**. Con 200 el payload del peor caso daba
+  89.136 B: 7 KB de margen contra un techo que se arma en `String` sobre RAM
+  interna. El número no es redondo a propósito: 150 es el tope más grande cuyo
+  peor caso todavía tiene margen, y el test falla si eso deja de ser cierto.
+- `CALENDAR_EVENT_ID_MAX` **128 → 160**, y el parse ahora **descarta** un id que
+  no entra en vez de recortarlo. Google arma los ids de instancia recurrente como
+  `<id>_<YYYYMMDD>T<HHMMSS>Z`, así que un id base largo pasa los 128; recortado
+  direcciona otro evento (o ninguno) y el dueño se enteraría recién al guardar,
+  con un "ese evento ya no existe" que no explica nada. El costo es que un evento
+  con un id imposible no se muestra; con 160 ese caso es prácticamente inexistente.

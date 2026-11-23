@@ -47,15 +47,30 @@
 // open, only lives for the length of one request, and lives in PSRAM. It is also
 // the one that the tray edits, which is why it is the one that carries Google's
 // `id` and `etag`: without them nothing can be updated or deleted.
-#define CALENDAR_EVENT_ID_MAX 128
+// Google's own id is ~26-102 chars, but a recurring instance is
+// `<id>_<YYYYMMDD>T<HHMMSS>Z`: up to ~130 for a long base id. 160 covers that
+// without ever cutting one, and cutting an id is not cosmetic — a truncated id
+// is an event the owner can see and cannot edit, and the failure only shows up
+// as "ese evento ya no existe" after he typed the change.
+#define CALENDAR_EVENT_ID_MAX 160
 #define CALENDAR_EVENT_ETAG_MAX 64
 // Google ids are ~26-102 chars and an etag is a quoted tick (`"3201234567890"`).
-// A week of a busy calendar is ~20 events; 200 covers a month with room to spare
-// and costs ~84 KB of PSRAM in the worst case.
-#define CALENDAR_MONTH_MAX_EVENTS 200
+// A week of a busy calendar is ~20 events; 150 covers a month with room to spare
+// and costs ~70 KB of PSRAM in the worst case. The number is not round on
+// purpose: it is the largest cap whose worst-case *response* still fits
+// `CALENDAR_MONTH_RESPONSE_BUDGET` with margin, and
+// `tools/calendar_month_test.cpp` fails if that stops being true.
+#define CALENDAR_MONTH_MAX_EVENTS 150
 #define CALENDAR_MONTH_EVENT_BODY_BYTES 1024
 #define CALENDAR_MONTH_BODY_BYTES \
   (4096 + CALENDAR_MONTH_MAX_EVENTS * CALENDAR_MONTH_EVENT_BODY_BYTES)
+// El techo de la respuesta que el equipo arma en RAM interna: 200 filas con el
+// id y el titulo enteros son el peor caso, y ese numero esta medido por
+// `tools/calendar_month_test.cpp` sobre el payload serializado. No es un limite
+// que se aplique en runtime (serializar a `String` no se puede cortar a mitad),
+// es el presupuesto contra el que se elige `CALENDAR_MONTH_MAX_EVENTS`: si el peor
+// caso no entra, se baja el tope de eventos, no se reza.
+#define CALENDAR_MONTH_RESPONSE_BUDGET (96 * 1024)
 
 // Google accepts reminders up to four weeks ahead. A face that stays alert for
 // a month is not a warning any more, so the reaction caps the lead at one day.

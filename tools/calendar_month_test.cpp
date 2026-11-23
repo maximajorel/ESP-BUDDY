@@ -19,6 +19,7 @@
 
 #include <cstdio>
 #include <cstring>
+#include <string>
 
 #include <ArduinoJson.h>
 
@@ -123,7 +124,7 @@ static void testPath() {
       "the exact Google page", path,
       "/calendar/v3/calendars/primary/events?timeMin=2026-10-26T03:00:00Z"
       "&timeMax=2026-12-07T03:00:00Z&singleEvents=true&orderBy=startTime"
-      "&maxResults=200&fields=items(id,etag,status,summary,location,start,end)");
+      "&maxResults=150&fields=items(id,etag,status,summary,location,start,end)");
 
   // The day page is a frozen contract: an old client must keep receiving the same
   // bytes after this firmware update.
@@ -231,7 +232,7 @@ static void testParse() {
       "\"start\":{\"dateTime\":\"no es una fecha\"}}"
       "]}";
 
-  CalendarMonthEvent events[CALENDAR_MONTH_MAX_EVENTS];
+  static CalendarMonthEvent events[CALENDAR_MONTH_MAX_EVENTS];
   const size_t count =
       calendarParseMonthEvents(json, events, CALENDAR_MONTH_MAX_EVENTS, -3,
                                nullptr);
@@ -258,6 +259,74 @@ static void testParse() {
   checkInt("no room", calendarParseMonthEvents(json, events, 1, -3, nullptr), 1);
 }
 
+// Lo peor que puede mandar Google para un mes con los campos que pedimos, y lo
+// peor que el equipo puede devolver: el cuerpo se descarta entero si pasa el
+// presupuesto (`CALENDAR_HTTP_BODY_TOO_LARGE`), asi que quedarse corto deja al
+// dueño sin mes, no con menos filas.
+static void testMonthBodyBudget() {
+  printf("-- the month budget has to fit a full month of long events\n");
+  char longText[201];
+  memset(longText, 'x', 200);
+  longText[200] = '\0';
+  // El id más largo que entra: uno más se descarta (hay un caso abajo).
+  char longId[CALENDAR_EVENT_ID_MAX + 1];
+  memset(longId, 'a', CALENDAR_EVENT_ID_MAX - 1);
+  longId[CALENDAR_EVENT_ID_MAX - 1] = '\0';
+
+  JsonDocument doc;
+  JsonArray items = doc["items"].to<JsonArray>();
+  for (size_t i = 0; i < CALENDAR_MONTH_MAX_EVENTS; i++) {
+    JsonObject item = items.add<JsonObject>();
+    item["id"] = longId;
+    item["etag"] = "\"3221234567890123\"";
+    item["status"] = "confirmed";
+    item["summary"] = longText;
+    item["location"] = longText;
+    JsonObject start = item["start"].to<JsonObject>();
+    start["dateTime"] = "2026-11-23T15:00:00-03:00";
+    start["timeZone"] = "America/Argentina/Tucuman";
+    JsonObject end = item["end"].to<JsonObject>();
+    end["dateTime"] = "2026-11-23T16:00:00-03:00";
+    end["timeZone"] = "America/Argentina/Tucuman";
+  }
+  std::string body;
+  serializeJson(doc, body);
+  printf("     worst case: %u bytes for %d events, budget %d\n",
+         (unsigned)body.size(), CALENDAR_MONTH_MAX_EVENTS,
+         (int)CALENDAR_MONTH_BODY_BYTES);
+  checkInt("the worst case fits the budget",
+           body.size() < (size_t)CALENDAR_MONTH_BODY_BYTES, true);
+
+  static CalendarMonthEvent events[CALENDAR_MONTH_MAX_EVENTS];
+  const size_t n = calendarParseMonthEvents(body.c_str(), events,
+                                            CALENDAR_MONTH_MAX_EVENTS, -3,
+                                            nullptr);
+  checkInt("and all of them parse", n, CALENDAR_MONTH_MAX_EVENTS);
+  checkInt("the id survives whole", strlen(events[0].id),
+           CALENDAR_EVENT_ID_MAX - 1);
+  checkInt("the title is cut to the device buffer", strlen(events[0].summary),
+           CALENDAR_SUMMARY_MAX - 1);
+
+  // La respuesta que el equipo arma en RAM interna tampoco puede crecer sin
+  // techo: 200 filas con id, etag, titulo y lugar largos son el peor caso.
+  JsonDocument out;
+  CalendarMonthInfo info{};
+  info.year = 2026;
+  info.month = 11;
+  info.tzOffsetHours = -3;
+  info.truncated = n >= CALENDAR_MONTH_MAX_EVENTS;
+  calendarMonthJson(events, n, info, out);
+  std::string payload;
+  serializeJson(out, payload);
+  printf("     worst payload: %u bytes for %d rows, ceiling %d\n",
+         (unsigned)payload.size(), CALENDAR_MONTH_MAX_EVENTS,
+         (int)CALENDAR_MONTH_RESPONSE_BUDGET);
+  checkInt("the payload fits the response ceiling",
+           payload.size() < (size_t)CALENDAR_MONTH_RESPONSE_BUDGET, true);
+  checkInt("a full month reports itself truncated",
+           out["truncated"].as<bool>(), true);
+}
+
 int main() {
   testWindow();
   testWindowRejects();
@@ -265,6 +334,7 @@ int main() {
   testEmptyMonth();
   testEventsPayload();
   testParse();
+  testMonthBodyBudget();
   printf("\n%d failure(s)\n", g_failures);
   return g_failures == 0 ? 0 : 1;
 }

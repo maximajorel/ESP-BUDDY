@@ -175,9 +175,12 @@ size_t monthRows(JsonDocument &doc, CalendarMonthEvent *out, size_t cap,
     JsonObjectConst entry = item.as<JsonObjectConst>();
     if (entry.isNull()) continue;
     // No id means nothing can be edited or deleted, so the row is not honest to
-    // show: the tray would offer an action the device cannot carry out.
+    // show: the tray would offer an action the device cannot carry out. The same
+    // goes for an id longer than the buffer: a cut id addresses a different event
+    // (or none), and the owner would only find out after typing the change.
     const char *id = entry["id"] | "";
     if (!*id) continue;
+    if (strlen(id) >= sizeof(out[0].id)) continue;
     if (isCancelled(entry)) continue;
 
     int64_t startEpoch = 0;
