@@ -571,6 +571,59 @@ static ApiResult apiSettings(const String &body) {
   return apiOk();
 }
 
+// The two writes the tray needs without a session: the glass's brightness and the
+// RGB bead.
+//
+// Both are cosmetic and reversible, like the screen picker and the face, and both
+// are deliberately narrower than `/api/settings`: that endpoint also stores the
+// timezone, the buddy URL and two tokens, so publishing it to save a login would
+// hand those out as well. Unknown fields are ignored here, never forwarded.
+static ApiResult apiLcd(const String &body) {
+  JsonDocument doc;
+  if (!parseOptionalJson(body, doc)) return apiFail(400, API_BAD_JSON);
+  if (!doc["brightness"].is<int>()) return apiFail(400, "Falta el brillo");
+
+  // The range lives in `config_value.h` and nowhere else, exactly as in
+  // `/api/settings`: a second copy of "5..100" would drift.
+  settingsSetLcdBrightness(cfgClampLcd(doc["brightness"] | 0));
+  displaySetBacklight(settingsGet().brightness);
+  screensGoTo(screensCurrent());  // a brightness change needs a repaint
+  return apiOk();
+}
+
+static ApiResult apiLed(const String &body) {
+  JsonDocument doc;
+  if (!parseOptionalJson(body, doc)) return apiFail(400, API_BAD_JSON);
+
+  bool touched = false;
+  if (doc["r"].is<int>() && doc["g"].is<int>() && doc["b"].is<int>()) {
+    rgbSetColor(cfgClampByte(doc["r"] | 0), cfgClampByte(doc["g"] | 0),
+                cfgClampByte(doc["b"] | 0));
+    touched = true;
+  }
+  if (doc["level"].is<int>()) {
+    const uint8_t level = cfgClampByte(doc["level"] | 0);
+    rgbSetLevel(level);
+    // The level survives a power cycle, like the panel's slider: the CONFIG
+    // screen shows the same number and the two cannot disagree after a reboot.
+    settingsSetRgbLevel(level);
+    touched = true;
+  }
+  if (doc["effect"].is<int>()) {
+    const int value = doc["effect"];
+    if (value < 0 || value > 2) return apiFail(400, "Efecto de LED invalido");
+    rgbSetEffect((uint8_t)value);
+    touched = true;
+  }
+  if (!touched) return apiFail(400, "Falta el color, el nivel o el efecto");
+
+  // The bead answers before the response goes out, and it wakes: a level that is
+  // stored while the bead stays dark from the sleep timer reads as a slider that
+  // does nothing.
+  rgbApplyNow();
+  return apiOk();
+}
+
 static ApiResult apiScreen(const String &body) {
   JsonDocument doc;
   if (!parseOptionalJson(body, doc)) return apiFail(400, API_BAD_JSON);
@@ -1316,6 +1369,7 @@ static const char *const POST_PATHS[] = {
     "/api/ap",             "/api/settings",    "/api/screen",
     "/api/face",
     "/api/focus",
+    "/api/lcd",            "/api/led",
     "/api/press",          "/api/scores/reset", "/api/steer/reset",
     "/api/steer/swap",     "/api/restart",     "/api/factory",
     "/api/spotify/config", "/api/spotify/url", "/api/spotify/code",
@@ -1413,6 +1467,8 @@ static ApiResult dispatchApi(const char *method, const char *path,
   }
   if (!strcmp(path, "/api/ap")) return apiAp(body);
   if (!strcmp(path, "/api/settings")) return apiSettings(body);
+  if (!strcmp(path, "/api/lcd")) return apiLcd(body);
+  if (!strcmp(path, "/api/led")) return apiLed(body);
   if (!strcmp(path, "/api/screen")) return apiScreen(body);
   if (!strcmp(path, "/api/face")) return apiFace(body);
   if (!strcmp(path, "/api/focus")) return apiFocus(body);

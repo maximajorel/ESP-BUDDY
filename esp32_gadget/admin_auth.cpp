@@ -288,6 +288,12 @@ bool adminIsPublicWrite(const char *method, const char *path) {
   // What the glass shows, and the face the web game makes it react with: both
   // are cosmetic, reversible and carry no credentials.
   if (!strcmp(path, "/api/focus")) return true;
+  // El brillo del LCD y el LED RGB: cosméticos y reversibles, y por eso el tray
+  // los maneja sin la sesión del panel. Son endpoints propios y no
+  // `/api/settings` porque ese también guarda la zona horaria, la URL del buddy y
+  // dos tokens: publicarlo para ahorrar un login sería entregarlos.
+  if (!strcmp(path, "/api/lcd")) return true;
+  if (!strcmp(path, "/api/led")) return true;
   return !strcmp(path, "/api/screen") || !strcmp(path, "/api/face");
 }
 

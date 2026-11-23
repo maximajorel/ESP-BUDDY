@@ -29,6 +29,15 @@ static inline uint8_t cfgClamp(int value, uint8_t min, uint8_t max) {
   return (uint8_t)value;
 }
 
+// A raw byte, for the values whose whole range is the wire's: a colour channel and
+// the bead's 0..255 level, which `/api/status` already publishes unstretched. One
+// clamp for every caller, the same reason as `cfgClampLcd` below.
+static inline uint8_t cfgClampByte(int value) {
+  if (value < 0) return 0;
+  if (value > 255) return 255;
+  return (uint8_t)value;
+}
+
 // The LCD percent, from any caller. The panel's slider, the CONFIG screen and the
 // serial console all reach brightness through storage, and the HTTP transport in
 // front of them used to clamp to a 0..255 range that exists nowhere else in the
