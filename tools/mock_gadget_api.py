@@ -103,13 +103,19 @@ CALENDAR = {
 }
 
 
-def calendar_payload():
-    # El mock aprueba solo después de unos segundos, para poder mirar el flujo
-    # completo en el navegador sin una cuenta de Google real.
+def calendar_tick():
+    # El mock aprueba solo despues de unos segundos, para poder mirar el flujo
+    # completo en el navegador sin una cuenta de Google real. Lo llaman los dos
+    # endpoints del calendario: si lo hiciera uno solo, la agenda diria "sin
+    # eventos" mientras el estado ya dice "listo".
     if CALENDAR["pending"] and time.time() - CALENDAR["pendingSince"] > 4:
         CALENDAR["pending"] = False
         CALENDAR["authorized"] = True
         CALENDAR["userCode"] = ""
+
+
+def calendar_payload():
+    calendar_tick()
     if not CALENDAR["clientId"]:
         kind = "unconfigured"
     elif CALENDAR["pending"]:
@@ -142,7 +148,9 @@ def calendar_payload():
         "lastError": CALENDAR["lastError"],
         "lastSyncMs": 12000 if CALENDAR["authorized"] else 0,
         "calendarCount": len(CALENDAR["calendars"]) if CALENDAR["authorized"] else 0,
-        "eventCount": 3 if CALENDAR["authorized"] else 0,
+        # Coherente con `GET /api/calendar/events`: el contador de la
+        # cabecera es el del mismo dia que sirve la agenda.
+        "eventCount": calendar_events_payload()["count"],
         "hasNext": bool(CALENDAR["authorized"]),
         "nextSummary": next_summary if CALENDAR["authorized"] else "",
         "nextInMin": in_min if CALENDAR["authorized"] else 0,
@@ -203,6 +211,44 @@ def focus_payload():
     }
 
 
+def calendar_events_payload():
+    """La agenda que publica `GET /api/calendar/events`.
+
+    Se arma relativa a la medianoche local del equipo (tz -3) y al momento de
+    la consulta, asi que el popover ve siempre el mismo dia: un evento de todo el
+    dia, uno ya terminado, el proximo (dentro de media hora) y uno de manana. El
+    dia viaja como `dayStart`/`dayEnd`, igual que en el firmware.
+    """
+    calendar_tick()
+    tz = STATE["time"]["tz"]
+    offset = tz * 3600
+    now = int(time.time())
+    local = now + offset
+    day_start = local - (local % 86400) - offset
+    day_end = day_start + 86400
+
+    def event(summary, location, start, end, lead=10, all_day=False):
+        return {"summary": summary, "location": location,
+                "startEpoch": start, "endEpoch": end,
+                "leadMin": lead, "allDay": all_day}
+
+    events = [
+        event("Feriado municipal", "", day_start, day_end, -1, True),
+        event("Daily con el equipo", "Meet", day_start + 8 * 3600,
+              day_start + 8 * 3600 + 2700, 5),
+        event("Reunion con el disenador", "Zoom", now + 30 * 60,
+              now + 90 * 60),
+        event("Turno con la Dra. Paz", "Consultorio", day_start + 15 * 3600,
+              day_start + 16 * 3600, 20),
+        event("Cumpleanos de Ana", "", day_end + 10 * 3600,
+              day_end + 11 * 3600, 30),
+    ]
+    events.sort(key=lambda item: item["startEpoch"])
+    return {"ok": True, "tz": tz, "dayStart": day_start, "dayEnd": day_end,
+            "count": len(events) if CALENDAR["authorized"] else 0,
+            "events": events if CALENDAR["authorized"] else []}
+
+
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
@@ -253,15 +299,18 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/spotify":
             self._json(200, spotify_payload())
             return
-        if path in ("/api/calendar", "/api/calendar/calendars"):
-            # En el firmware el calendario pide sesión incluso para leer.
+        if path in ("/api/calendar", "/api/calendar/calendars",
+                    "/api/calendar/events"):
+            # En el firmware el calendario pide sesion incluso para leer.
             if not self._authed():
                 self._unauthorized()
                 return
             if path == "/api/calendar":
                 self._json(200, calendar_payload())
-            else:
+            elif path == "/api/calendar/calendars":
                 self._json(200, {"items": CALENDAR["calendars"]})
+            else:
+                self._json(200, calendar_events_payload())
             return
         if path == "/api/session":
             payload = {"ok": True, "authenticated": self._authed()}
