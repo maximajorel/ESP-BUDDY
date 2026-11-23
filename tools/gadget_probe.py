@@ -18,6 +18,16 @@ import time
 
 import serial
 
+# La pantalla del equipo y los títulos del calendario son UTF-8 (un evento puede
+# llamarse "🧪 prueba"), pero la consola de Windows es cp1252 y `print` explota
+# con un `UnicodeEncodeError` que corta la sonda a la mitad. Se fuerza UTF-8 y,
+# si el terminal igual no puede, se reemplaza el carácter en vez de abortar.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 PORT = "COM5"
 BAUD = 115200
 OUT = "tools/gadget_probe.log"
