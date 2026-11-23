@@ -111,7 +111,10 @@ def main(argv):
         port.write((command + "\r\n").encode("ascii", "replace"))
         port.flush()
         time.sleep(0.15)
-        drain(port, silence_s=0.8, max_s=8.0, log=log)
+        # 20 s de techo, no 8: un `api` que habla con Google puede reintentar y
+        # tardar dos timeouts de TLS. El drain vuelve en cuanto hay 0.8 s de
+        # silencio, así que el techo alto no cuesta nada en el caso normal.
+        drain(port, silence_s=0.8, max_s=20.0, log=log)
 
     port.close()
     log.close()

@@ -425,9 +425,29 @@ bool calendarFetchMonth(int year, int month, CalendarMonthEvent *out, size_t cap
     return false;
   }
 
+  // El primer intercambio TLS despues de arrancar falla de vez en cuando en esta
+  // placa (el WiFi todavia se esta asentando) y el mes no tiene un poll detras que
+  // lo reintente como lo tiene el dia: se vio en la placa, el primer pedido de mes
+  // despues del reset contestaba "no respondio" y el siguiente ya andaba. Un
+  // segundo intento, solo ante un error de transporte, convierte ese tropiezo en
+  // una espera en vez de en un error que el dueño tiene que volver a tocar.
   CalendarHttpBigBody body;
-  if (!calendarHttpGetBig(CALENDAR_API_HOST, path, calendarAuthAccessToken(),
-                          CALENDAR_MONTH_BODY_BYTES, &body)) {
+  bool fetched = calendarHttpGetBig(CALENDAR_API_HOST, path,
+                                    calendarAuthAccessToken(),
+                                    CALENDAR_MONTH_BODY_BYTES, &body);
+  if (fetched && body.transportError != 0 && body.status == 0) {
+    Serial.printf("[calendar] mes: reintento tras transport=%d\n",
+                  body.transportError);
+    // Medido en la placa: con el enlace debil (-85 dBm) el primer intento
+    // despues de un reset se rechaza y el segundo, medio segundo despues,
+    // contesta. Reintentar en el mismo instante repite el mismo error.
+    vTaskDelay(pdMS_TO_TICKS(500));
+    calendarHttpFreeBigBody(&body);
+    fetched = calendarHttpGetBig(CALENDAR_API_HOST, path,
+                                 calendarAuthAccessToken(),
+                                 CALENDAR_MONTH_BODY_BYTES, &body);
+  }
+  if (!fetched) {
     if (err && errCap) snprintf(err, errCap, "No pude pedir el mes a Google");
     return false;
   }
@@ -444,8 +464,12 @@ bool calendarFetchMonth(int year, int month, CalendarMonthEvent *out, size_t cap
     return false;
   }
   if (body.transportError != 0) {
+    // El codigo de transporte va al puerto serie, no a la cara del dueño: en el
+    // popover "-1" no le dice nada y "proba de nuevo" sí es la accion que sirve.
+    Serial.printf("[calendar] mes: transport=%d\n", body.transportError);
     if (err && errCap) {
-      snprintf(err, errCap, "Google no respondio (%d)", body.transportError);
+      snprintf(err, errCap,
+               "Google no respondio: proba de nuevo en unos segundos");
     }
     return false;
   }

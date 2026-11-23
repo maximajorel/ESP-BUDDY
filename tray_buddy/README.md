@@ -84,7 +84,7 @@ node tools/preview.js late-night   # busy, multiday, late-night
 ## Instalación
 
 El instalador es NSIS, **en español**, y sale de `npm run build`:
-`src-tauri/target/release/bundle/nsis/Buddy_0.1.0_x64-setup.exe` (~1,4 MB). Es
+`src-tauri/target/release/bundle/nsis/Buddy_0.2.0_x64-setup.exe` (~1,5 MB). Es
 **por usuario**: instala en `%LOCALAPPDATA%\Buddy` y escribe todo en `HKCU`. No
 pide administrador salvo que falte WebView2, que se instala con el bootstrapper
 oficial (esa vez sí lo pide). El autor que muestra Agregar o quitar programas es

@@ -216,3 +216,42 @@ incluidos), el mes sin parámetros (tiene que ser 400, no un mes inventado), los
 secuencia que convierte la verificación bloqueada en un comando de una línea:
 
     python tools\gadget_probe.py @tools\probes\calendario_mes.txt
+
+L16 (verificación en la placa, con el dueño habilitando el flasheo): `make flash
+PORT=COM5` → `Hash of data verified.`, 51% de flash, RAM estático igual.
+
+Sondeo por consola (`tools/probes/calendario_mes.txt` y `calendario_escritura.txt`):
+
+| Qué | Resultado medido |
+| --- | --- |
+| `GET /api/calendar/month?y=2026&m=11` | **200**, 44 eventos reales, `gridStart` 1792983600 (lunes) y `gridEnd` 1796612400 (42 días) |
+| `?y=2026&m=12` | **200**, 57 eventos, instancias recurrentes con id de ~45 chars y `etag` |
+| `?y=2030&m=1` | **200**, 4 eventos: el rango llega más allá de hoy |
+| `?y=2026` y sin parámetros | **400** "Falta el mes": no inventa un mes |
+| `?y=2026&m=13` | **400** por rango validado |
+| `POST /api/lcd {"brightness":70}` | **200**, y `/api/status` pasa de `brightness: 15` a `70`; después 55 |
+| `POST /api/led {…,"level":128,"effect":1}` | **200**, y `/api/status` pasa de `level: 51` a `128` |
+| `POST /api/led {"effect":9}` | **400** "Efecto de LED invalido" |
+| `POST /api/calendar/events` (permiso viejo) | **403** "El permiso guardado es de solo lectura: reconectá la cuenta en el panel para poder editar" y **no creó nada** |
+| `POST /api/calendar/events/delete` sin etag | **428** "Falta la version del evento: recarga el mes y volve a intentar" |
+| `GET /api/calendar/events` (el día) | **200**, `dayStart`/`dayEnd` y los 5 eventos de siempre: el payload viejo sigue intacto en la placa |
+
+`psramFree` se mantuvo en ~8.14 MB a través de tres pedidos de mes (8140564 →
+8145088 → 8147704): el allocator de PSRAM libera todo. El heap interno bajó a
+59 KB durante la respuesta de 57 eventos y volvió a 102 KB.
+
+Dos defectos que sólo se ven con la placa, corregidos:
+- El primer pedido de mes después de un reset contestaba `502 {"error":"Google no
+  respondio (-1)"}`: un código de transporte en la cara del dueño y ningún
+  reintento. Ahora reintenta una vez con 500 ms de espera (el fallo medido es el
+  enlace débil, −85 dBm, asentándose) y el mensaje es "Google no respondio: proba
+  de nuevo en unos segundos", con el código sólo en el puerto serie.
+- `gadget_probe.py` cortaba el `drain` a los 8 s y un pedido de mes con reintento
+  puede tardar dos timeouts de TLS: el comando siguiente se escribía con la placa
+  ocupada y su respuesta se perdía. Techo a 20 s (vuelve igual en cuanto hay
+  silencio).
+
+Lo único que queda de S2b es el alta → lectura → edición → baja reales, y no
+depende de mí: el permiso guardado es el viejo y hay que **reconectar la cuenta en
+el panel** una vez. La secuencia ya está escrita (`calendario_escritura.txt`) y
+falla hoy en el primer paso con la frase correcta, que es justo lo que se quería.

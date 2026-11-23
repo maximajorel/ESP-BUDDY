@@ -1,6 +1,6 @@
 [package]
 name = "tray-buddy"
-version = "0.1.0"
+version = "0.2.0"
 description = "Buddy en la bandeja: pantalla, pomodoro y calendario del equipo ESP32"
 authors = ["Máximo Majorel"]
 edition = "2021"
