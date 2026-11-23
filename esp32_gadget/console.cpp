@@ -31,7 +31,14 @@
 
 static uint32_t s_synthDownUntil = 0;
 
-static char s_line[128];
+// La línea que se escribe por el puerto serie. 256 y no 128 porque `api` es la
+// herramienta de verificación del proyecto y un cuerpo de escritura del calendario
+// no entra en 128 bytes: `{"id":"...","etag":"\"...\"","summary":"...",
+// "startEpoch":...,"endEpoch":...}` ya pasa los 130. Medido en la placa: con 128
+// el `api POST` se truncaba y el equipo contestaba "Los datos enviados no son
+// validos", que es correcto pero deja la edición sin poder probarse sin abrir una
+// sesión del panel. Cuesta 128 bytes de RAM estática.
+static char s_line[256];
 static size_t s_lineLen = 0;
 
 // --- helpers ----------------------------------------------------------------

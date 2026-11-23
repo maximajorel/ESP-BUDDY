@@ -255,3 +255,17 @@ Lo único que queda de S2b es el alta → lectura → edición → baja reales, 
 depende de mí: el permiso guardado es el viejo y hay que **reconectar la cuenta en
 el panel** una vez. La secuencia ya está escrita (`calendario_escritura.txt`) y
 falla hoy en el primer paso con la frase correcta, que es justo lo que se quería.
+
+L17 (última pieza del instrumento): la consola leía líneas de 128 bytes y el
+cuerpo de una **edición** no entra: `{"id":"…","etag":"\"…\"","summary":"…",
+"startEpoch":…,"endEpoch":…}` pasa los 130 con el prefijo del comando. Con 128 el
+`api POST` se truncaba y el equipo contestaba "Los datos enviados no son validos":
+correcto, pero dejaba la edición sin poder probarse sin abrir sesión del panel
+—justo lo que el sondeo no puede hacer—. `s_line` pasa a 256 (128 bytes de RAM
+estática) y el sondeo de escritura quedó completo, con el `id` y el `etag` del
+paso de lectura para completar los dos últimos.
+
+Estado medido hoy, con el firmware ya en la placa: el alta sigue contestando
+**403 "El permiso guardado es de solo lectura: reconectá la cuenta en el panel"**,
+o sea que la reconexión de Google todavía no ocurrió. Es el único paso que queda y
+necesita al dueño con el navegador.

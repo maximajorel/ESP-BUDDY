@@ -3,26 +3,32 @@
 # Es la secuencia que cierra S2b. El evento de prueba va a 2030 a propósito: si
 # algo se crea de más, queda lejos de la agenda real y a la vista para borrarlo.
 #
-# Los cuerpos van cortos y en ASCII por dos motivos medidos en la placa:
-#   - la consola lee líneas de 128 bytes (`console.cpp`, `s_line`): un JSON más
-#     largo se trunca y el equipo contesta "Los datos enviados no son validos",
-#     que es lo correcto pero no lo que se quiere probar acá;
-#   - `gadget_probe.py` escribe en ASCII, así que un emoji llega como `?` y rompe
-#     el JSON (y, en la prueba, se comió el comando siguiente).
-# `location` y `allDay` son opcionales y el equipo los asume vacíos.
+# Los cuerpos van en ASCII (`gadget_probe.py` escribe en ASCII: un emoji llega
+# como `?` y rompe el JSON) y en una sola línea de consola, que ahora es de 256
+# bytes (`console.cpp`, `s_line`). Con 128 el cuerpo de la edición no entraba y
+# esta prueba no se podía hacer sin abrir sesión del panel.
 #
-# Qué se verifica:
+# Qué se verifica, en orden:
 #   1. sin el permiso de escritura reconectado, el alta se **niega** con una frase
 #      que dice qué hacer ("reconectá la cuenta en el panel") y no crea nada: un
 #      permiso viejo no puede terminar en un éxito callado;
-#   2. con el permiso reconectado, el alta contesta `ok`, y el mes de 2030 trae el
+#   2. con el permiso reconectado, el alta contesta `ok` y el mes de 2030 trae el
 #      evento con su `id` y su `etag` —la lectura de vuelta es el punto—;
-#   3. la edición manda ese `id` y ese `etag`: si el etag está viejo, Google
-#      contesta 412 y el equipo lo dice en vez de pisar el cambio;
-#   4. la baja sin `etag` se niega (428) y con `etag` borra, y el mes de 2030 deja
+#   3. la edición manda ese `id` y ese `etag`, y el mes vuelve a traer el título
+#      nuevo: sin la lectura de vuelta no hay prueba;
+#   4. la baja sin `etag` se niega (428), con `etag` borra, y el mes de 2030 deja
 #      de traerlo.
+#
+# El `id` y el `etag` del paso 3 y 4 son los que devuelve el paso 2: hay que
+# copiarlos del log. Si el evento no se creó (paso 1 negado), los pasos 3 y 4 se
+# saltan: no hay nada que editar.
 boot 4
 sleep 40000
 api POST /api/calendar/events {"summary":"Prueba tray","startEpoch":1893589200,"endEpoch":1893592800}
 api GET /api/calendar/month?y=2030&m=1
 api POST /api/calendar/events/delete {"id":"inexistente","etag":""}
+# Con el id y el etag del paso 2, completar y correr:
+#   api POST /api/calendar/events/update {"id":"<ID>","etag":"\"<ETAG>\"","summary":"Prueba editada","startEpoch":1893589200,"endEpoch":1893592800}
+#   api GET /api/calendar/month?y=2030&m=1
+#   api POST /api/calendar/events/delete {"id":"<ID>","etag":"\"<ETAG>\""}
+#   api GET /api/calendar/month?y=2030&m=1
