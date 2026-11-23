@@ -19,10 +19,10 @@ use std::time::Duration;
 /// cuelgue. El equipo contesta en milisegundos en la LAN.
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
-/// El mes es el único pedido que puede tardar: el equipo pide a Google el mes
-/// entero mientras el popover espera, con su propio timeout de TLS de 8 s. Un
-/// tope de 5 s cortaba una respuesta que iba a llegar bien.
-const MONTH_TIMEOUT: Duration = Duration::from_secs(25);
+/// Los pedidos que hacen que el equipo hable con Google: pedir un mes y guardar
+/// un evento. Los dos pueden tardar un handshake de TLS más la respuesta, y el
+/// tope de 5 s cortaba respuestas que iban a llegar bien.
+const SLOW_CALL_TIMEOUT: Duration = Duration::from_secs(25);
 
 /// Error de una llamada al equipo, tal como lo va a leer el popover.
 #[derive(Debug, Clone, Serialize)]
@@ -218,6 +218,26 @@ pub struct CalendarMonth {
     pub events: Vec<CalendarMonthEvent>,
 }
 
+/// Lo que el popover manda para crear o cambiar un evento (S2b). `id` y `etag`
+/// vacíos significan alta: un evento que el equipo todavía no conoce no tiene ni
+/// una cosa ni la otra.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CalendarEventInput {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub etag: String,
+    #[serde(default)]
+    pub summary: String,
+    #[serde(default)]
+    pub location: String,
+    pub start_epoch: i64,
+    pub end_epoch: i64,
+    #[serde(default)]
+    pub all_day: bool,
+}
+
 pub struct Api {
     base: String,
     http: reqwest::Client,
@@ -298,6 +318,64 @@ impl Api {
         self.call(reqwest::Method::POST, "/api/lcd", Some(&body))
             .await
             .map(|_| ())
+    }
+
+    /// `POST /api/calendar/events` (S2b): alta en el calendario elegido. El
+    /// equipo es el que habla con Google, así que acá no hay credenciales: sólo
+    /// el evento.
+    pub async fn create_event(&self, event: &CalendarEventInput) -> Result<(), ApiError> {
+        let body = serde_json::json!({
+            "summary": event.summary,
+            "location": event.location,
+            "startEpoch": event.start_epoch,
+            "endEpoch": event.end_epoch,
+            "allDay": event.all_day,
+        });
+        self.call_bounded(
+            reqwest::Method::POST,
+            "/api/calendar/events",
+            Some(&body),
+            SLOW_CALL_TIMEOUT,
+        )
+        .await
+        .map(|_| ())
+    }
+
+    /// `POST /api/calendar/events/update`: cambio de un evento existente. El
+    /// `etag` viaja porque es lo que convierte "otro lo cambió" en un 412 que el
+    /// dueño entiende, en vez de pisar el cambio ajeno sin avisar.
+    pub async fn update_event(&self, event: &CalendarEventInput) -> Result<(), ApiError> {
+        let body = serde_json::json!({
+            "id": event.id,
+            "etag": event.etag,
+            "summary": event.summary,
+            "location": event.location,
+            "startEpoch": event.start_epoch,
+            "endEpoch": event.end_epoch,
+            "allDay": event.all_day,
+        });
+        self.call_bounded(
+            reqwest::Method::POST,
+            "/api/calendar/events/update",
+            Some(&body),
+            SLOW_CALL_TIMEOUT,
+        )
+        .await
+        .map(|_| ())
+    }
+
+    /// `POST /api/calendar/events/delete`: baja. Manda el `etag` por el mismo
+    /// motivo que la edición.
+    pub async fn delete_event(&self, id: &str, etag: &str) -> Result<(), ApiError> {
+        let body = serde_json::json!({ "id": id, "etag": etag });
+        self.call_bounded(
+            reqwest::Method::POST,
+            "/api/calendar/events/delete",
+            Some(&body),
+            SLOW_CALL_TIMEOUT,
+        )
+        .await
+        .map(|_| ())
     }
 
     /// `POST /api/led` (S3): color, nivel y efecto de la tira RGB, también sin
@@ -386,7 +464,7 @@ impl Api {
     pub async fn month(&self, year: i32, month: i32) -> Result<CalendarMonth, ApiError> {
         let path = format!("/api/calendar/month?y={year}&m={month}");
         let value = self
-            .call_bounded(reqwest::Method::GET, &path, None, MONTH_TIMEOUT)
+            .call_bounded(reqwest::Method::GET, &path, None, SLOW_CALL_TIMEOUT)
             .await?;
         serde_json::from_value(value)
             .map_err(|_| ApiError::transport("El equipo contestó algo que no entiendo"))
@@ -657,6 +735,103 @@ mod tests {
         assert_eq!(month.events[0].id, "abc123");
         assert_eq!(month.events[0].etag, "\"3201\"");
         assert!(!month.events[0].all_day);
+    }
+
+    /// El alta va a `/api/calendar/events` con las horas en epoch y sin `id`: el
+    /// equipo todavía no lo conoce.
+    #[tokio::test]
+    async fn el_alta_va_a_api_calendar_events_sin_id() {
+        let response: &'static str = Box::leak(http_ok("{\"ok\":true}").into_boxed_str());
+        let (port, seen) = fake_device_with_request(response);
+        let event = CalendarEventInput {
+            summary: "Dentista".to_string(),
+            location: "Palermo".to_string(),
+            start_epoch: 1795284000,
+            end_epoch: 1795287600,
+            all_day: false,
+            ..Default::default()
+        };
+
+        api_for(port).create_event(&event).await.expect("alta");
+
+        let request = seen.lock().expect("visto").clone();
+        assert!(request.starts_with("POST /api/calendar/events "), "fue: {request}");
+        assert!(request.contains(r#""summary":"Dentista""#), "fue: {request}");
+        assert!(request.contains(r#""startEpoch":1795284000"#), "fue: {request}");
+        assert!(request.contains(r#""allDay":false"#), "fue: {request}");
+        assert!(!request.contains(r#""id""#), "un alta no lleva id: {request}");
+    }
+
+    /// La edición manda `id` y `etag`: el segundo es lo que evita pisar un cambio
+    /// hecho en otro lado sin que el dueño se entere.
+    #[tokio::test]
+    async fn la_edicion_manda_id_y_etag() {
+        let response: &'static str = Box::leak(http_ok("{\"ok\":true}").into_boxed_str());
+        let (port, seen) = fake_device_with_request(response);
+        let event = CalendarEventInput {
+            id: "abc123".to_string(),
+            etag: "\"3201\"".to_string(),
+            summary: "Dentista".to_string(),
+            start_epoch: 1795284000,
+            end_epoch: 1795287600,
+            ..Default::default()
+        };
+
+        api_for(port).update_event(&event).await.expect("edicion");
+
+        let request = seen.lock().expect("visto").clone();
+        assert!(
+            request.starts_with("POST /api/calendar/events/update "),
+            "fue: {request}"
+        );
+        assert!(request.contains(r#""id":"abc123""#), "fue: {request}");
+        assert!(request.contains(r#""etag":"\"3201\"""#), "fue: {request}");
+    }
+
+    /// El borrado manda sólo lo que identifica al evento.
+    #[tokio::test]
+    async fn el_borrado_manda_id_y_etag_sin_campos_de_mas() {
+        let response: &'static str = Box::leak(http_ok("{\"ok\":true}").into_boxed_str());
+        let (port, seen) = fake_device_with_request(response);
+
+        api_for(port).delete_event("abc123", "\"3201\"").await.expect("baja");
+
+        let request = seen.lock().expect("visto").clone();
+        assert!(
+            request.starts_with("POST /api/calendar/events/delete "),
+            "fue: {request}"
+        );
+        assert!(request.contains(r#""id":"abc123""#), "fue: {request}");
+        assert!(!request.contains("summary"), "fue: {request}");
+    }
+
+    /// Un 412 del equipo ("cambió en otro lado") llega con su frase y su código:
+    /// el popover la muestra tal cual y no la convierte en "no se pudo".
+    #[tokio::test]
+    async fn un_conflicto_del_equipo_conserva_codigo_y_mensaje() {
+        let body = r#"{"ok":false,"error":"Ese evento cambio en otro lado: recarga el mes y volve a intentar"}"#;
+        let response: &'static str = Box::leak(
+            format!(
+                "HTTP/1.1 412 Precondition Failed\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                body.len(),
+                body
+            )
+            .into_boxed_str(),
+        );
+        let port = fake_device(response);
+        let event = CalendarEventInput {
+            id: "abc".to_string(),
+            etag: "\"1\"".to_string(),
+            start_epoch: 1,
+            end_epoch: 2,
+            ..Default::default()
+        };
+        let error = api_for(port)
+            .update_event(&event)
+            .await
+            .expect_err("412");
+        assert_eq!(error.code, 412);
+        assert!(error.message.contains("cambio en otro lado"), "{}", error.message);
     }
 
     /// El brillo va a `/api/lcd`, sin cookie de sesión: es la mitad del pedido

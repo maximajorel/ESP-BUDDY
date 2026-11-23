@@ -145,6 +145,46 @@
             <div class="agenda" id="calAgenda"></div>
           </div>
 
+          <!-- El editor de eventos (S2b): alta, edición y baja. Las fechas van
+               en la hora del EQUIPO, no en la de la PC; el popover las convierte
+               con el `tz` que manda el firmware. -->
+          <form class="cal-editor" id="calEditor" hidden>
+            <div class="cal-nav">
+              <button class="cal-arrow" type="button" id="calEditBack" title="Volver al mes" aria-label="Volver">‹</button>
+              <span class="cal-title" id="calEditTitle">Nuevo evento</span>
+              <button class="cal-arrow danger" type="button" id="calEditDelete" title="Borrar el evento" aria-label="Borrar el evento">✕</button>
+            </div>
+            <div class="cal-form">
+              <label class="field">
+                <span>Título</span>
+                <input id="evSummary" maxlength="96" autocomplete="off" spellcheck="false" required>
+              </label>
+              <label class="field">
+                <span>Lugar</span>
+                <input id="evLocation" maxlength="96" autocomplete="off" spellcheck="false">
+              </label>
+              <label class="check">
+                <input type="checkbox" id="evAllDay">
+                <span>Todo el día</span>
+              </label>
+              <div class="cal-form-row">
+                <label class="field">
+                  <span id="evStartLabel">Empieza</span>
+                  <input id="evStart" type="datetime-local" step="900">
+                </label>
+                <label class="field">
+                  <span id="evEndLabel">Termina</span>
+                  <input id="evEnd" type="datetime-local" step="900">
+                </label>
+              </div>
+              <p class="wizard-err" id="evErr" role="alert" hidden></p>
+              <div class="cal-form-actions">
+                <button class="btn" type="submit" id="evSave">Guardar</button>
+                <button class="btn ghost" type="button" id="evCancel">Cancelar</button>
+              </div>
+            </div>
+          </form>
+
           <!-- La grilla del mes (S1): las semanas las decide el equipo, que es
                el único que conoce el offset del dueño. Acá sólo se dibujan. -->
           <div class="cal-month" id="calMonth" hidden>
@@ -179,7 +219,7 @@
                     title="Ver la agenda del día">Agenda</button>
             <button class="btn ghost" type="button" id="btnCalMonth"
                     aria-pressed="false" title="Ver el mes entero">Ver el mes</button>
-            <button class="btn ghost" type="button" id="btnCalNew" disabled>Nuevo evento</button>
+            <button class="btn ghost" type="button" id="btnCalNew" title="Crear un evento">Nuevo evento</button>
           </div>
         </div>
       </section>

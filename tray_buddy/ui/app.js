@@ -1001,10 +1001,12 @@ function renderMonthDayList() {
   rows.forEach((event) => list.appendChild(monthRow(event, tz)));
 }
 
-/** Una fila del día elegido. En esta entrega se lee; el editor llega con la
- *  edición de eventos, que necesita el permiso de escritura en el equipo. */
+/** Una fila del día elegido. Se toca para editarla: el editor abre con ese
+ *  evento, su `id` y su `etag`, que es lo que el equipo necesita para cambiarlo
+ *  sin pisar un cambio hecho en otro lado. */
 function monthRow(event, tz) {
-  const row = document.createElement("div");
+  const row = document.createElement("button");
+  row.type = "button";
   row.className = "cal-row";
   const hour = document.createElement("span");
   hour.className = event.allDay ? "hour is-allday" : "hour";
@@ -1023,6 +1025,7 @@ function monthRow(event, tz) {
     text.appendChild(where);
   }
   row.append(hour, text);
+  row.addEventListener("click", () => openEditor(event));
   return row;
 }
 
@@ -1103,17 +1106,29 @@ function goToTodayMonth() {
   loadMonth(year, month);
 }
 
-/** Abre o cierra la vista de mes sin tocar la tarjeta del día: las dos viven en
- *  la misma tarjeta y el pie queda siempre visible. */
-async function toggleMonthView() {
-  monthView.open = !monthView.open;
-  const button = $("btnCalMonth");
-  button.setAttribute("aria-pressed", monthView.open ? "true" : "false");
-  button.textContent = monthView.open ? "Ver el día" : "Ver el mes";
-  $("calDay").hidden = monthView.open;
-  $("calMonth").hidden = !monthView.open;
-  if (!monthView.open) return;
+/** La tarjeta del calendario tiene tres vistas y una sola tarjeta: el día, el
+ *  mes y el editor. Nunca dos a la vez, y el pie queda siempre visible. */
+let calendarView = "day"; // "day" | "month" | "editor"
 
+function setCalendarView(view) {
+  calendarView = view;
+  $("calDay").hidden = view !== "day";
+  $("calMonth").hidden = view !== "month";
+  $("calEditor").hidden = view !== "editor";
+  const button = $("btnCalMonth");
+  const monthMode = view !== "day";
+  button.setAttribute("aria-pressed", monthMode ? "true" : "false");
+  button.textContent = monthMode ? "Ver el día" : "Ver el mes";
+}
+
+/** Abre o cierra la vista de mes sin tocar la tarjeta del día. */
+async function toggleMonthView() {
+  if (calendarView !== "day") {
+    setCalendarView("day");
+    return;
+  }
+  monthView.open = true;
+  setCalendarView("month");
   if (monthView.data && monthView.year && monthView.month) {
     renderMonth();
     return;
@@ -1125,6 +1140,219 @@ async function toggleMonthView() {
   }
   const { year, month } = currentMonth();
   await loadMonth(year, month);
+}
+
+// ── el editor de eventos (S2b) ──────────────────────────────────────────────
+//
+// Las horas se escriben en la hora del EQUIPO: el popover no tiene zona horaria
+// propia, el dueño sí. `datetime-local` da el texto, y la conversión a epoch usa
+// el `tz` que manda el firmware, así que un evento de las 15:00 es de las 15:00
+// en el calendario y no en la PC que abrió el popover.
+let editor = { id: "", etag: "", allDay: false, deleteArmed: false };
+
+function pad2(value) {
+  return String(value).padStart(2, "0");
+}
+
+/** El texto de un `datetime-local` para un epoch, en la hora del equipo. */
+function epochToLocalInput(epoch, tz) {
+  const shifted = new Date((epoch + tz * 3600) * 1000);
+  return (
+    `${shifted.getUTCFullYear()}-${pad2(shifted.getUTCMonth() + 1)}-${pad2(shifted.getUTCDate())}` +
+    `T${pad2(shifted.getUTCHours())}:${pad2(shifted.getUTCMinutes())}`
+  );
+}
+
+/** El epoch de un `datetime-local`, en la hora del equipo. `null` si no parsea. */
+function localInputToEpoch(text, tz) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(text ?? "");
+  if (!match) return null;
+  const [, year, month, day, hours, minutes] = match;
+  const utc = Date.UTC(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hours),
+    Number(minutes),
+  );
+  return Math.floor(utc / 1000) - tz * 3600;
+}
+
+function editorTz() {
+  return monthView.data?.tz ?? lastEvents?.tz ?? lastCalendar?.tz ?? 0;
+}
+
+function showEditorError(message) {
+  const box = $("evErr");
+  box.hidden = !message;
+  if (message) box.textContent = message;
+}
+
+function paintEditorAllDay() {
+  $("evStart").disabled = editor.allDay;
+  $("evEnd").disabled = editor.allDay;
+  $("evStartLabel").textContent = editor.allDay ? "Día" : "Empieza";
+  $("evEndLabel").textContent = editor.allDay ? "Hasta" : "Termina";
+  $("calEditDelete").hidden = !editor.id;
+}
+
+/**
+ * Abre el editor. Sin evento es un alta en el día elegido del mes (o en hoy si el
+ * dueño está mirando la agenda) de 09:00 a 10:00: un horario que existe, que no
+ * pisa nada y que se corrige en un toque.
+ */
+function openEditor(event) {
+  const tz = editorTz();
+  editor = {
+    id: event?.id ?? "",
+    etag: event?.etag ?? "",
+    allDay: Boolean(event?.allDay),
+    deleteArmed: false,
+  };
+  $("calEditTitle").textContent = editor.id ? "Editar evento" : "Nuevo evento";
+  $("evSummary").value = event?.summary ?? "";
+  $("evLocation").value = event?.location ?? "";
+  $("evAllDay").checked = editor.allDay;
+
+  if (event) {
+    $("evStart").value = epochToLocalInput(event.startEpoch ?? 0, tz);
+    $("evEnd").value = epochToLocalInput(event.endEpoch ?? event.startEpoch ?? 0, tz);
+  } else {
+    const dayIndex = calendarView === "month" && monthView.data
+      ? monthView.selected
+      : localDayIndex(lastEvents?.dayStart > 0 ? lastEvents.dayStart : Math.floor(Date.now() / 1000), tz);
+    const dayStart = dayIndex * 86400 - tz * 3600;
+    $("evStart").value = epochToLocalInput(dayStart + 9 * 3600, tz);
+    $("evEnd").value = epochToLocalInput(dayStart + 10 * 3600, tz);
+  }
+
+  $("calEditDelete").textContent = "✕";
+  showEditorError(null);
+  paintEditorAllDay();
+  setCalendarView("editor");
+  $("evSummary").focus();
+}
+
+function closeEditor() {
+  const back = monthView.data ? "month" : "day";
+  setCalendarView(back);
+  editor = { id: "", etag: "", allDay: false, deleteArmed: false };
+}
+
+/** Los campos del formulario, ya validados. `failure` dice qué falta. */
+function readEditor() {
+  const tz = editorTz();
+  const summary = $("evSummary").value.trim();
+  const location = $("evLocation").value.trim();
+  let startEpoch = localInputToEpoch($("evStart").value, tz);
+  let endEpoch = localInputToEpoch($("evEnd").value, tz);
+  if (startEpoch === null || endEpoch === null) {
+    return { failure: "Escribí cuándo empieza y cuándo termina" };
+  }
+  if (editor.allDay) {
+    // Un evento de todo el día es el día entero, y el equipo guarda el último
+    // segundo que cubre: Google's all-day end is exclusive and the device's model
+    // already speaks that language.
+    const dayStart = localInputToEpoch(`${$("evStart").value.slice(0, 10)}T00:00`, tz);
+    const dayEnd = localInputToEpoch(`${$("evEnd").value.slice(0, 10)}T00:00`, tz);
+    if (dayStart === null || dayEnd === null) {
+      return { failure: "Revisá los días del evento" };
+    }
+    startEpoch = dayStart;
+    endEpoch = dayEnd + 86400 - 1;
+  }
+  if (endEpoch <= startEpoch) {
+    return { failure: "El evento tiene que terminar después de empezar" };
+  }
+  return {
+    event: {
+      id: editor.id,
+      etag: editor.etag,
+      summary,
+      location,
+      startEpoch,
+      endEpoch,
+      allDay: editor.allDay,
+    },
+  };
+}
+
+async function saveEditor() {
+  const { event, failure } = readEditor();
+  if (failure) {
+    showEditorError(failure);
+    return;
+  }
+  showEditorError(null);
+  const save = $("evSave");
+  save.disabled = true;
+  try {
+    if (editor.id) await invoke("panel_event_update", { event });
+    else await invoke("panel_event_create", { event });
+    const month = currentMonth();
+    setCalendarView("month");
+    await loadMonth(month.year, month.month);
+    await loadCalendar();
+  } catch (error) {
+    // La frase la escribe el equipo y dice qué pasó de verdad: "cambió en otro
+    // lado", "el permiso es de sólo lectura", "ya no existe". No se reescribe.
+    showEditorError(error?.message ?? "No pude guardar el evento");
+  } finally {
+    save.disabled = false;
+  }
+}
+
+/**
+ * Borrar pide dos toques. Es la única acción del popover que no se puede
+ * deshacer, y un ✕ de 30 px al lado del de volver es un blanco que se toca sin
+ * querer.
+ */
+async function deleteEditor() {
+  if (!editor.id) return;
+  if (!editor.deleteArmed) {
+    editor.deleteArmed = true;
+    $("calEditDelete").textContent = "¿Borrar?";
+    $("calEditDelete").classList.add("is-armed");
+    return;
+  }
+  $("calEditDelete").disabled = true;
+  try {
+    await invoke("panel_event_delete", { id: editor.id, etag: editor.etag });
+    const month = currentMonth();
+    setCalendarView("month");
+    await loadMonth(month.year, month.month);
+    await loadCalendar();
+  } catch (error) {
+    showEditorError(error?.message ?? "No pude borrar el evento");
+    editor.deleteArmed = false;
+    $("calEditDelete").textContent = "✕";
+    $("calEditDelete").classList.remove("is-armed");
+  } finally {
+    $("calEditDelete").disabled = false;
+  }
+}
+
+function wireEditor() {
+  $("btnCalNew").addEventListener("click", () => openEditor(null));
+  $("calEditBack").addEventListener("click", closeEditor);
+  $("evCancel").addEventListener("click", closeEditor);
+  $("calEditor").addEventListener("submit", (formEvent) => {
+    formEvent.preventDefault();
+    saveEditor();
+  });
+  $("calEditDelete").addEventListener("click", deleteEditor);
+  $("evAllDay").addEventListener("change", (inputEvent) => {
+    editor.allDay = inputEvent.target.checked;
+    if (editor.allDay) {
+      // El día que el dueño ya eligió es el que vale: el tilde no mueve la fecha,
+      // sólo la vuelve un día entero.
+      $("evStart").value = `${$("evStart").value.slice(0, 10)}T00:00`;
+      $("evEnd").value = `${$("evEnd").value.slice(0, 10)}T23:59`;
+    }
+    editor.deleteArmed = false;
+    paintEditorAllDay();
+    showEditorError(null);
+  });
 }
 
 
@@ -1272,6 +1500,7 @@ async function boot() {
   wireFocus();
   wireLight();
   wireCalendar();
+  wireEditor();
   wirePanel();
   await loadPopoverSize();
 

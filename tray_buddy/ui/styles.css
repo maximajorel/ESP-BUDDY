@@ -330,10 +330,39 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .cal-daylist .daytag { padding: 8px 12px 4px; opacity: 0.55; }
 .cal-note { padding: 0 12px 8px; font-size: 11px; line-height: 1.4; opacity: 0.55; }
 .cal-note[hidden] { display: none; }
-/* Una fila del mes se toca para editarla (S2). Se lee como la de la agenda,
-   pero con el hover de una cosa Clickable. */
+
+/* 5 · el editor de eventos (S2b) */
+/* Vive dentro de la tarjeta, como la grilla: abrir el editor es cambiar de
+   vista, no abrir otra ventana. */
+.cal-editor { display: grid; }
+.cal-editor[hidden] { display: none; }
+.cal-arrow.danger { border-color: var(--ember); color: var(--ember); }
+.cal-arrow.danger:hover { background: var(--ember); color: var(--paper); }
+/* Un botón de la barra del editor que no aplica (borrar en un alta) no ocupa
+   lugar: `display: grid` de `.cal-arrow` le ganaría al atributo `hidden` y
+   quedaría una ✕ que no hace nada. */
+.cal-arrow[hidden] { display: none; }
+/* Armado, el botón de borrar dice qué va a pasar y se ensancha lo justo. */
+.cal-arrow.is-armed {
+  width: auto; padding: 0 9px;
+  background: var(--ember); color: var(--paper);
+  font-size: 9px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase;
+}
+.cal-form { display: grid; gap: 10px; padding: 12px; }
+.cal-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.cal-form-actions { display: flex; gap: 8px; }
+.cal-form-actions .btn { flex: 1; }
+/* El tilde de "todo el día" es una ficha, no un cuadrado del navegador. */
+.check { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; }
+.check input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--ink); }
+/* El navegador dibuja el selector de fecha con su propia tipografía; se fuerza
+   mono para que los dos campos se lean como una hora y no como un formulario. */
+.cal-form input[type="datetime-local"] { font-family: var(--mono); font-size: 13px; }
+.cal-form input[type="datetime-local"]:disabled { opacity: 0.45; }
+/* Un día del mes se toca para editarlo (S2b). Se lee como la de la agenda, pero
+   con el hover de una cosa clickable. */
 .cal-row { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 10px; align-items: center;
-  padding: 9px 12px; background: var(--paper); border: 0; text-align: left; }
+  padding: 9px 12px; background: var(--paper); border: 0; text-align: left; width: 100%; }
 .cal-row + .cal-row { border-top: var(--hair); }
 .cal-row:hover { background: var(--mist); }
 .cal-row .hour { font-family: var(--mono); font-size: 12px; font-weight: 700; }

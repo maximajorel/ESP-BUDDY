@@ -5,7 +5,7 @@
 //! `Sync` con el guard vivo), y aunque compilara sería un deadlock esperando el
 //! turno.
 
-use crate::api::{Api, ApiError, CalendarEvents, CalendarMonth, Status};
+use crate::api::{Api, ApiError, CalendarEventInput, CalendarEvents, CalendarMonth, Status};
 use crate::store::{self, Connection, Store};
 use serde::Serialize;
 use serde_json::Value;
@@ -236,6 +236,34 @@ pub async fn panel_calendar_events(
     state: State<'_, AppState>,
 ) -> Result<CalendarEvents, ApiError> {
     state.api()?.events().await
+}
+
+/// Alta de un evento desde el tray (S2b). El equipo es el que tiene el permiso de
+/// Google; la app sólo manda el evento y muestra la frase que vuelve cuando algo
+/// sale mal ("Ese evento cambió en otro lado", "El permiso es de sólo lectura").
+#[tauri::command]
+pub async fn panel_event_create(
+    state: State<'_, AppState>,
+    event: CalendarEventInput,
+) -> Result<(), ApiError> {
+    state.api()?.create_event(&event).await
+}
+
+#[tauri::command]
+pub async fn panel_event_update(
+    state: State<'_, AppState>,
+    event: CalendarEventInput,
+) -> Result<(), ApiError> {
+    state.api()?.update_event(&event).await
+}
+
+#[tauri::command]
+pub async fn panel_event_delete(
+    state: State<'_, AppState>,
+    id: String,
+    etag: String,
+) -> Result<(), ApiError> {
+    state.api()?.delete_event(&id, &etag).await
 }
 
 /// El mes de la grilla (S2): el equipo lo pide a Google en ese momento, así que
