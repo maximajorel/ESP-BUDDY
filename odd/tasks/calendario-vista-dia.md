@@ -166,6 +166,13 @@ entrega porque exige flashear; si al empujar el equipo aparece presión de heap,
 el orden de ataque está en `calendar_http.cpp` (`readBody` copia el cuerpo dos
 veces).
 
+L11. Borde verificado en el arnés (escenario `multiday`, que no estaba en L6):
+un evento de todo el día que arrancó ayer entra en HOY como "todo el día"; uno
+de 22:00 de ayer a 02:00 de hoy entra en HOY, atenuado, con su hora real; uno de
+23:00 de hoy a 02:00 de mañana entra en HOY y es la próxima cita; y el de mañana
+a las 09:00 queda en MAÑANA. `calMeta` cuenta los tres que tocan hoy. La regla es
+solapamiento con el día local, no igualdad de fecha.
+
 L10. `tools/probes/calendario_agenda.txt` (`2aa2e9c`): la secuencia de consola
 que verifica el endpoint después de flashear, con la fila correspondiente en
 `tools/probes/README.md`. `api` llama a `netHandleApi` en proceso y no pasa por
