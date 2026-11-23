@@ -1033,6 +1033,78 @@ static ApiResult apiCalendarConfig(const String &body) {
   return apiCalendarStatus();
 }
 
+// --- escritura de eventos (S2b) ------------------------------------------------
+//
+// El tray crea, cambia y borra desde el mes. Los tres pasan por la sesión del
+// panel (todo `/api/calendar` la pide) y los tres devuelven el código de Google
+// cuando Google los rechazó: el popover necesita distinguir "recargá el mes" (412)
+// de "reconectá la cuenta" (403), y un 500 para todo eso los haría iguales.
+static ApiResult apiFromWrite(const CalendarWriteOutcome &outcome) {
+  if (outcome.ok) return apiOk();
+  const int code =
+      outcome.status >= 400 && outcome.status < 600 ? outcome.status : 502;
+  return apiFail(code, outcome.message);
+}
+
+// Trea los campos del evento del cuerpo del pedido. Devuelve false y escribe el
+// motivo cuando falta algo o las fechas no son fechas.
+static bool readEventFields(JsonDocument &doc, const char **summary,
+                            const char **location, int64_t *startEpoch,
+                            int64_t *endEpoch, bool *allDay) {
+  if (!doc["startEpoch"].is<long long>() || !doc["endEpoch"].is<long long>()) {
+    return false;
+  }
+  *summary = doc["summary"] | "";
+  *location = doc["location"] | "";
+  *startEpoch = doc["startEpoch"].as<long long>();
+  *endEpoch = doc["endEpoch"].as<long long>();
+  *allDay = doc["allDay"] | false;
+  return true;
+}
+
+static ApiResult apiCalendarCreate(const String &body) {
+  JsonDocument doc;
+  if (!parseRequiredJson(body, doc)) return apiFail(400, API_BAD_JSON);
+  const char *summary = "";
+  const char *location = "";
+  int64_t startEpoch = 0;
+  int64_t endEpoch = 0;
+  bool allDay = false;
+  if (!readEventFields(doc, &summary, &location, &startEpoch, &endEpoch,
+                       &allDay)) {
+    return apiFail(400, "Falta cuando empieza y cuando termina");
+  }
+  return apiFromWrite(
+      calendarCreateEvent(summary, location, startEpoch, endEpoch, allDay));
+}
+
+static ApiResult apiCalendarUpdate(const String &body) {
+  JsonDocument doc;
+  if (!parseRequiredJson(body, doc)) return apiFail(400, API_BAD_JSON);
+  const char *id = doc["id"] | "";
+  if (!*id) return apiFail(400, "Falta el evento");
+  const char *etag = doc["etag"] | "";
+  const char *summary = "";
+  const char *location = "";
+  int64_t startEpoch = 0;
+  int64_t endEpoch = 0;
+  bool allDay = false;
+  if (!readEventFields(doc, &summary, &location, &startEpoch, &endEpoch,
+                       &allDay)) {
+    return apiFail(400, "Falta cuando empieza y cuando termina");
+  }
+  return apiFromWrite(calendarUpdateEvent(id, etag, summary, location, startEpoch,
+                                          endEpoch, allDay));
+}
+
+static ApiResult apiCalendarDelete(const String &body) {
+  JsonDocument doc;
+  if (!parseRequiredJson(body, doc)) return apiFail(400, API_BAD_JSON);
+  const char *id = doc["id"] | "";
+  if (!*id) return apiFail(400, "Falta el evento");
+  return apiFromWrite(calendarDeleteEvent(id, doc["etag"] | ""));
+}
+
 static ApiResult apiCalendarConnect() {
   if (!calendarStoreConfigured()) {
     return apiFail(409, "Guarda el Client ID y el secret primero");
@@ -1377,6 +1449,8 @@ static const char *const POST_PATHS[] = {
     "/api/panel/colors", "/api/buddy/ask", "/api/admin/credentials",
     "/api/calendar/config", "/api/calendar/connect", "/api/calendar/cancel",
     "/api/calendar/select", "/api/calendar/refresh", "/api/calendar/forget",
+    "/api/calendar/events", "/api/calendar/events/update",
+    "/api/calendar/events/delete",
     "/api/weather/location", "/api/weather/detect", "/api/weather/search",
     "/api/weather/refresh", "/api/weather/config", "/api/weather/forget",
 };
@@ -1404,6 +1478,12 @@ static ApiResult dispatchApi(const char *method, const char *path,
 
   if (!strcmp(path, "/api/scan")) {
     return isPost ? apiScanStart() : apiScanRead();
+  }
+
+  // El calendario es un solo prefijo: la lectura del mes vive acá arriba y la
+  // escritura llega como POST y se atiende antes del grupo de lecturas.
+  if (isPost && !strcmp(path, "/api/calendar/events")) {
+    return apiCalendarCreate(body);
   }
 
   if (!strcmp(path, "/api/status") || !strcmp(path, "/api/spotify") ||
@@ -1439,6 +1519,8 @@ static ApiResult dispatchApi(const char *method, const char *path,
   if (!strcmp(path, "/api/calendar/connect")) return apiCalendarConnect();
   if (!strcmp(path, "/api/calendar/cancel")) return apiCalendarCancel();
   if (!strcmp(path, "/api/calendar/select")) return apiCalendarSelect(body);
+  if (!strcmp(path, "/api/calendar/events/update")) return apiCalendarUpdate(body);
+  if (!strcmp(path, "/api/calendar/events/delete")) return apiCalendarDelete(body);
   if (!strcmp(path, "/api/calendar/refresh")) return apiCalendarRefresh();
   if (!strcmp(path, "/api/calendar/forget")) return apiCalendarForget();
   if (!strcmp(path, "/api/weather/location")) return apiWeatherLocation(body);
@@ -1852,6 +1934,7 @@ void netBegin() {
   s_server.on("/api/calendar/calendars", HTTP_GET, handleApi);
   s_server.on("/api/calendar/events", HTTP_GET, handleApi);
   s_server.on("/api/calendar/month", HTTP_GET, handleApi);
+  s_server.on("/api/calendar/events", HTTP_POST, handleApi);
   s_server.on("/api/weather", HTTP_GET, handleApi);
 
   // The two session endpoints the dispatcher does not own. Logging in is the one

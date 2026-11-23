@@ -268,3 +268,41 @@ void calendarHttpFreeBigBody(CalendarHttpBigBody *body) {
   body->data = nullptr;
   body->length = 0;
 }
+
+bool calendarHttpJson(const char *method, const char *host, const char *path,
+                      const char *bearer, const char *ifMatch,
+                      const String &body, size_t maxBody,
+                      CalendarHttpResult *out) {
+  if (!out) return false;
+  out->status = 0;
+  out->transportError = 0;
+  out->tlsFailed = false;
+  out->body = "";
+  Guard guard;
+
+  HTTPClient http;
+  String url;
+  if (!prepare(host, path, http, &url)) {
+    out->transportError = -1;
+    out->body = "no se pudo iniciar";
+    return false;
+  }
+  if (bearer && *bearer) {
+    http.addHeader("Authorization", String("Bearer ") + bearer);
+  }
+  if (ifMatch && *ifMatch) http.addHeader("If-Match", ifMatch);
+  http.addHeader("Content-Type", "application/json");
+
+  const int code = http.sendRequest(method, (uint8_t *)body.c_str(),
+                                    body.length());
+  if (code <= 0) {
+    describeFailure(http, code, out);
+    http.end();
+    noteFailure(method, host, path, *out);
+    return true;
+  }
+  readBody(http, code, maxBody, out);
+  http.end();
+  noteFailure(method, host, path, *out);
+  return true;
+}

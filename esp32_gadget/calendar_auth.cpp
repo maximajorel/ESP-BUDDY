@@ -189,6 +189,10 @@ bool calendarAuthPollFlow(bool *authorized, char *err, size_t errCap) {
         copyErr(err, errCap, "El refresh token no se pudo guardar");
         return false;
       }
+      // The device code we just sent asked for the write scope, so the grant this
+      // token belongs to can edit. It is recorded here and not inferred later:
+      // refreshing a token never says which scopes it carries.
+      calendarStoreSetWriteScope(true);
       storeAccess(answer.accessToken, answer.expiresInSec);
       clearFlow();
       if (authorized) *authorized = true;

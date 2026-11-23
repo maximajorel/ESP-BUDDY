@@ -22,7 +22,11 @@
 #define CALENDAR_LIST_PATH                                                   \
   "/calendar/v3/users/me/calendarList?maxResults=50"                         \
   "&fields=items(id,summary,primary,defaultReminders)"
-#define CALENDAR_SCOPE "https://www.googleapis.com/auth/calendar.readonly"
+// La escritura, no sólo la lectura: el dueño edita los eventos desde el tray y el
+// equipo es el único que tiene el permiso de Google. Un permiso pedido con
+// `calendar.readonly` no alcanza para escribir, y el equipo lo dice con todas las
+// letras en vez de fallar en silencio.
+#define CALENDAR_SCOPE "https://www.googleapis.com/auth/calendar"
 
 static inline bool calendarDeviceCodeForm(const char *clientId, char *out,
                                           size_t cap) {
@@ -121,5 +125,38 @@ static inline bool calendarMonthPath(const char *calendarId, int64_t timeMin,
       "&singleEvents=true&orderBy=startTime&maxResults=%d"
       "&fields=items(id,etag,status,summary,location,start,end)",
       id, from, to, CALENDAR_MONTH_MAX_EVENTS);
+  return n > 0 && (size_t)n < cap;
+}
+
+// --- escritura --------------------------------------------------------------
+//
+// `sendUpdates=none` en las tres: el equipo no tiene por qué mandarle mails a los
+// invitados del dueño por un cambio hecho en el popover, y Google lo haría por
+// defecto.
+
+// `events.insert` en el calendario elegido.
+static inline bool calendarCreatePath(const char *calendarId, char *out,
+                                     size_t cap) {
+  if (!calendarId || !out) return false;
+  char id[CALENDAR_ID_MAX * 3 + 4];
+  if (!urlEncode(calendarId, id, sizeof(id))) return false;
+  const int n = snprintf(out, cap,
+                         "/calendar/v3/calendars/%s/events?sendUpdates=none",
+                         id);
+  return n > 0 && (size_t)n < cap;
+}
+
+// `events.patch` y `events.delete` del evento concreto.
+static inline bool calendarEventPath(const char *calendarId, const char *eventId,
+                                     char *out, size_t cap) {
+  if (!calendarId || !eventId || !*eventId || !out) return false;
+  char calendar[CALENDAR_ID_MAX * 3 + 4];
+  char event[CALENDAR_EVENT_ID_MAX * 3 + 4];
+  if (!urlEncode(calendarId, calendar, sizeof(calendar))) return false;
+  if (!urlEncode(eventId, event, sizeof(event))) return false;
+  const int n = snprintf(
+      out, cap,
+      "/calendar/v3/calendars/%s/events/%s?sendUpdates=none&fields=id,etag",
+      calendar, event);
   return n > 0 && (size_t)n < cap;
 }

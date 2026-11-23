@@ -52,6 +52,13 @@ bool calendarStoreConfigured();
 // True when Google already granted the permission.
 bool calendarStoreAuthorized();
 
+// True when the saved grant was asked for with the write scope (`calendar`, not
+// `calendar.readonly`). A grant from an older firmware is still valid for reading
+// and answers 403 to every write, so the tray needs this to say "reconectá" before
+// the owner loses an edit.
+bool calendarStoreWriteScope();
+void calendarStoreSetWriteScope(bool granted);
+
 // Drops the refresh token but keeps the client pair and the selection: this is
 // what a revoked or expired permission needs.
 void calendarStoreForgetToken();

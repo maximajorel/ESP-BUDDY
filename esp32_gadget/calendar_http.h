@@ -57,6 +57,14 @@ bool calendarHttpGetBig(const char *host, const char *path, const char *bearer,
 
 void calendarHttpFreeBigBody(CalendarHttpBigBody *body);
 
+// Any method with a JSON body, for the writes. `ifMatch` goes out as `If-Match`
+// when it is not empty and is what turns "two people edited this" into a 412 that
+// the owner can understand instead of a silent overwrite.
+bool calendarHttpJson(const char *method, const char *host, const char *path,
+                      const char *bearer, const char *ifMatch,
+                      const String &body, size_t maxBody,
+                      CalendarHttpResult *out);
+
 // POST an `application/x-www-form-urlencoded` body. Used by the OAuth endpoints,
 // which accept nothing else.
 bool calendarHttpPostForm(const char *host, const char *path, const String &form,

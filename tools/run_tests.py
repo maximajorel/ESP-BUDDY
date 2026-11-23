@@ -46,6 +46,7 @@ COMPANION_SOURCES = {
         "calendar_parse.cpp",
         "url_codec.cpp",
     ],
+    "calendar_write_test": ["calendar_write.cpp", "url_codec.cpp"],
     "weather_core_test": [
         "weather_code.cpp",
         "weather_parse.cpp",
@@ -69,6 +70,7 @@ ARDUINOJSON_TESTS = {
     "calendar_core_test",
     "calendar_events_test",
     "calendar_month_test",
+    "calendar_write_test",
     "weather_core_test",
 }
 

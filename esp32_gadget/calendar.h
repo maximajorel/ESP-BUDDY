@@ -95,6 +95,35 @@ bool calendarFetchMonth(int year, int month, CalendarMonthEvent *out, size_t cap
                         size_t *count, CalendarMonthInfo *info, char *err,
                         size_t errCap);
 
+// The result of one write, with the sentence the tray shows the owner.
+//
+// `ok` is the only thing the tray branches on. `status` is Google's code (0 when
+// the request never left the board) and exists for diagnosis, never for the
+// owner: turning 412 into "recargá el mes" is this file's job, not the app's.
+struct CalendarWriteOutcome {
+  bool ok;
+  int status;
+  char message[160];
+};
+
+// Create, change and delete, in the selected calendar, through the device's own
+// Google grant. All three refuse before touching the network when the saved grant
+// was made with the read-only scope: Google answers 403 and the owner would lose
+// the edit without knowing why.
+//
+// `etag` is what makes an update honest: a mismatch is reported as a conflict
+// instead of overwriting someone else's change.
+CalendarWriteOutcome calendarCreateEvent(const char *summary,
+                                         const char *location,
+                                         int64_t startEpoch, int64_t endEpoch,
+                                         bool allDay);
+CalendarWriteOutcome calendarUpdateEvent(const char *id, const char *etag,
+                                         const char *summary,
+                                         const char *location,
+                                         int64_t startEpoch, int64_t endEpoch,
+                                         bool allDay);
+CalendarWriteOutcome calendarDeleteEvent(const char *id, const char *etag);
+
 // Serial-console dump hook, the same trust model as `buddyface` and `imufake`:
 // fabricates one reaction so the glass can be proven without a Google account,
 // NTP or network. Never persisted; the next real fetch replaces nothing because

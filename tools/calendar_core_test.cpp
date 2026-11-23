@@ -416,7 +416,11 @@ static void testForms() {
            true);
   checkText("  the form", buf,
             "client_id=1234-abc.apps.googleusercontent.com&scope=https%3A%2F%2Fwww"
-            ".googleapis.com%2Fauth%2Fcalendar.readonly");
+            ".googleapis.com%2Fauth%2Fcalendar");
+  // La escritura se pide desde el vamos. Cambiar el scope es lo que convierte un
+  // permiso de sólo lectura en uno que puede crear y editar; queda pinneado acá
+  // porque un `readonly` colado rompe la edición sin romper ningún test si no se
+  // mira esta línea.
 
   checkInt("device token exchange",
            calendarTokenFormDevice("id", "secret", "dev/1+code", buf, sizeof(buf)),

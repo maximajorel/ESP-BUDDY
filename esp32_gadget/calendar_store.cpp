@@ -14,6 +14,11 @@ char s_selectedId[CALENDAR_ID_MAX + 1];
 char s_selectedName[CALENDAR_NAME_MAX + 1];
 int s_fallbackLead = CALENDAR_FALLBACK_LEAD_DEFAULT;
 int s_grace = CALENDAR_GRACE_DEFAULT;
+// Whether the grant saved in flash was asked for with the write scope. A grant
+// made by a firmware that only knew `calendar.readonly` is still a valid refresh
+// token, but Google answers 403 to every write: the flag is how the panel can say
+// "reconectá" before the owner tries to save and loses the edit.
+bool s_writeScope = false;
 
 // Printable ASCII with no spaces: every value here either travels in a form body
 // or is compared against an id Google sent. A newline pasted with the secret is
@@ -48,6 +53,7 @@ void calendarStoreBegin() {
   s_selectedName[0] = '\0';
   s_fallbackLead = CALENDAR_FALLBACK_LEAD_DEFAULT;
   s_grace = CALENDAR_GRACE_DEFAULT;
+  s_writeScope = false;
   s_ready = s_prefs.begin("calendar", false);
   if (!s_ready) return;
 
@@ -64,6 +70,7 @@ void calendarStoreBegin() {
   if (grace >= CALENDAR_GRACE_MIN && grace <= CALENDAR_GRACE_MAX) {
     s_grace = grace;
   }
+  s_writeScope = s_prefs.getUChar("wrScope", 0) != 0;
 }
 
 const char *calendarStoreClientId() { return s_clientId; }
@@ -91,6 +98,13 @@ bool calendarStoreSetRefreshToken(const char *token) {
   snprintf(s_refresh, sizeof(s_refresh), "%s", token);
   if (s_ready) s_prefs.putString("rt", s_refresh);
   return true;
+}
+
+bool calendarStoreWriteScope() { return s_writeScope; }
+
+void calendarStoreSetWriteScope(bool granted) {
+  s_writeScope = granted;
+  if (s_ready) s_prefs.putUChar("wrScope", granted ? 1 : 0);
 }
 
 bool calendarStoreSetSelected(const char *id, const char *name) {
@@ -133,7 +147,11 @@ bool calendarStoreAuthorized() { return s_refresh[0] != '\0'; }
 
 void calendarStoreForgetToken() {
   s_refresh[0] = '\0';
-  if (s_ready) s_prefs.remove("rt");
+  // A token is gone, so is the grant that carried the scope.
+  s_writeScope = false;
+  if (!s_ready) return;
+  s_prefs.remove("rt");
+  s_prefs.remove("wrScope");
 }
 
 void calendarStoreForgetAll() {
@@ -144,6 +162,7 @@ void calendarStoreForgetAll() {
   s_selectedName[0] = '\0';
   s_fallbackLead = CALENDAR_FALLBACK_LEAD_DEFAULT;
   s_grace = CALENDAR_GRACE_DEFAULT;
+  s_writeScope = false;
   if (!s_ready) return;
   s_prefs.remove("cid");
   s_prefs.remove("csec");
@@ -152,4 +171,5 @@ void calendarStoreForgetAll() {
   s_prefs.remove("selName");
   s_prefs.remove("fbLead");
   s_prefs.remove("grace");
+  s_prefs.remove("wrScope");
 }

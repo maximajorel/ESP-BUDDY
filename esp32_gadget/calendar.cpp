@@ -13,6 +13,7 @@
 #include "calendar_plan.h"
 #include "calendar_store.h"
 #include "calendar_time.h"
+#include "calendar_write.h"
 #include "settings.h"
 
 namespace {
@@ -520,4 +521,195 @@ bool calendarSelect(const char *id, const char *name) {
   if (!calendarStoreSetSelected(id, name)) return false;
   s_refreshRequested = true;
   return true;
+}
+
+// --- escritura ---------------------------------------------------------------
+//
+// One place decides what a Google status code means to the owner. The tray shows
+// `message` and never has to translate a number, and "403" cannot mean one thing
+// when creating and another when deleting.
+
+namespace {
+
+CalendarWriteOutcome writeFail(int status, const char *message) {
+  CalendarWriteOutcome outcome;
+  outcome.ok = false;
+  outcome.status = status;
+  snprintf(outcome.message, sizeof(outcome.message), "%s",
+           message ? message : "");
+  return outcome;
+}
+
+CalendarWriteOutcome writeOk(int status) {
+  CalendarWriteOutcome outcome;
+  outcome.ok = true;
+  outcome.status = status;
+  outcome.message[0] = '\0';
+  return outcome;
+}
+
+// Everything a write needs before it is worth asking Google. Returns false and
+// fills `out` with the reason when the board cannot write at all.
+bool writeReady(CalendarWriteOutcome *out) {
+  if (!calendarStoreConfigured()) {
+    *out = writeFail(0, "Falta configurar Google en el panel");
+    return false;
+  }
+  if (!calendarStoreAuthorized()) {
+    *out = writeFail(0, "Falta conectar la cuenta de Google");
+    return false;
+  }
+  // The grant from a firmware that only asked `calendar.readonly` still refreshes
+  // a token and still reads; every write answers 403. Saying it here is what saves
+  // the owner from typing an event and losing it.
+  if (!calendarStoreWriteScope()) {
+    *out = writeFail(
+        403,
+        "El permiso guardado es de solo lectura: reconectá la cuenta en el panel "
+        "para poder editar");
+    return false;
+  }
+  if (WiFi.status() != WL_CONNECTED) {
+    *out = writeFail(0, "El equipo no tiene red");
+    return false;
+  }
+  char error[96] = "";
+  if (!calendarAuthEnsureAccessToken(false, error, sizeof(error))) {
+    *out = writeFail(0, error[0] ? error : "No pude renovar el permiso de Google");
+    return false;
+  }
+  return true;
+}
+
+CalendarWriteOutcome mapWriteResult(const CalendarHttpResult &res) {
+  if (res.transportError != 0) {
+    return writeFail(0, "No pude hablar con Google");
+  }
+  switch (res.status) {
+    case 200:
+    case 201:
+    case 204:
+      return writeOk(res.status);
+    case 401:
+      return writeFail(
+          401,
+          "Google rechazo el permiso guardado: volve a conectar la cuenta en el "
+          "panel");
+    case 403:
+      // Whatever we believed about the grant, Google says this one cannot write.
+      // Recording it keeps the next attempt from repeating the same lost edit.
+      calendarStoreSetWriteScope(false);
+      return writeFail(
+          403,
+          "Google no permite escribir: reconectá la cuenta en el panel para dar "
+          "el permiso de edicion");
+    case 404:
+      return writeFail(404, "Ese evento ya no existe en Google");
+    case 409:
+      return writeFail(409, "Ese evento ya existe o cambio: recarga el mes");
+    case 410:
+      return writeFail(410, "Ese evento se borro en otro lado");
+    case 412:
+      return writeFail(
+          412,
+          "Ese evento cambio en otro lado: recarga el mes y volve a intentar");
+    case 429:
+      return writeFail(429,
+                       "Google pidio esperar un momento: proba de nuevo en un "
+                       "minuto");
+    default:
+      return writeFail(res.status, "Google no acepto el cambio");
+  }
+}
+
+const char *selectedCalendar() {
+  const char *selected = calendarStoreSelectedId();
+  return *selected ? selected : "primary";
+}
+
+}  // namespace
+
+CalendarWriteOutcome calendarCreateEvent(const char *summary,
+                                         const char *location,
+                                         int64_t startEpoch, int64_t endEpoch,
+                                         bool allDay) {
+  CalendarWriteOutcome outcome;
+  if (!writeReady(&outcome)) return outcome;
+  if (endEpoch <= startEpoch) {
+    return writeFail(400, "El evento termina antes de empezar");
+  }
+
+  JsonDocument doc;
+  if (!calendarEventBodyJson(summary, location, startEpoch, endEpoch, allDay,
+                             settingsGet().tzOffsetHours, doc)) {
+    return writeFail(400, "Las fechas del evento no son validas");
+  }
+  String body;
+  serializeJson(doc, body);
+
+  char path[512];
+  if (!calendarCreatePath(selectedCalendar(), path, sizeof(path))) {
+    return writeFail(400, "El nombre del calendario no entra en el pedido");
+  }
+  CalendarHttpResult res;
+  if (!calendarHttpJson("POST", CALENDAR_API_HOST, path,
+                        calendarAuthAccessToken(), nullptr, body, 4096, &res)) {
+    return writeFail(0, "No pude pedir el alta a Google");
+  }
+  outcome = mapWriteResult(res);
+  if (outcome.ok) s_refreshRequested = true;
+  return outcome;
+}
+
+CalendarWriteOutcome calendarUpdateEvent(const char *id, const char *etag,
+                                         const char *summary,
+                                         const char *location,
+                                         int64_t startEpoch, int64_t endEpoch,
+                                         bool allDay) {
+  CalendarWriteOutcome outcome;
+  if (!id || !*id) return writeFail(400, "Falta el evento");
+  if (!writeReady(&outcome)) return outcome;
+  if (endEpoch <= startEpoch) {
+    return writeFail(400, "El evento termina antes de empezar");
+  }
+
+  JsonDocument doc;
+  if (!calendarEventBodyJson(summary, location, startEpoch, endEpoch, allDay,
+                             settingsGet().tzOffsetHours, doc)) {
+    return writeFail(400, "Las fechas del evento no son validas");
+  }
+  String body;
+  serializeJson(doc, body);
+
+  char path[512];
+  if (!calendarEventPath(selectedCalendar(), id, path, sizeof(path))) {
+    return writeFail(400, "El nombre del calendario no entra en el pedido");
+  }
+  CalendarHttpResult res;
+  if (!calendarHttpJson("PATCH", CALENDAR_API_HOST, path,
+                        calendarAuthAccessToken(), etag, body, 4096, &res)) {
+    return writeFail(0, "No pude pedir el cambio a Google");
+  }
+  outcome = mapWriteResult(res);
+  if (outcome.ok) s_refreshRequested = true;
+  return outcome;
+}
+
+CalendarWriteOutcome calendarDeleteEvent(const char *id, const char *etag) {
+  CalendarWriteOutcome outcome;
+  if (!id || !*id) return writeFail(400, "Falta el evento");
+  if (!writeReady(&outcome)) return outcome;
+
+  char path[512];
+  if (!calendarEventPath(selectedCalendar(), id, path, sizeof(path))) {
+    return writeFail(400, "El nombre del calendario no entra en el pedido");
+  }
+  CalendarHttpResult res;
+  if (!calendarHttpJson("DELETE", CALENDAR_API_HOST, path,
+                        calendarAuthAccessToken(), etag, "", 4096, &res)) {
+    return writeFail(0, "No pude pedir el borrado a Google");
+  }
+  outcome = mapWriteResult(res);
+  if (outcome.ok) s_refreshRequested = true;
+  return outcome;
 }
