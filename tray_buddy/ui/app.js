@@ -443,6 +443,65 @@ function agendaDayTag(title) {
   return tag;
 }
 
+const WEEKDAYS = [
+  "domingo",
+  "lunes",
+  "martes",
+  "miércoles",
+  "jueves",
+  "viernes",
+  "sábado",
+];
+
+/** El número de día local de un epoch: días desde 1970 en el offset del equipo. */
+function localDayIndex(epoch, tz) {
+  return Math.floor((epoch + tz * 3600) / 86400);
+}
+
+/**
+ * El día de la semana de un número de día local.
+ *
+ * 1970-01-01 (día 0) fue jueves, así que el índice 0 es el cuarto día de la
+ * semana si el domingo es 0. Se evita `Date` a propósito: el equipo ya dijo qué
+ * día es, no hay zona horaria que resolver acá.
+ */
+function weekdayName(index) {
+  return WEEKDAYS[(((index + 4) % 7) + 7) % 7];
+}
+
+/**
+ * La agenda agrupada por día local, en el orden del equipo.
+ *
+ * El primero se rotula **Hoy** y el siguiente **Mañana**, pero la ventana del
+ * equipo llega 26 h adelante: a las 23:50 entra el día siguiente al de mañana, y
+ * llamarlo "Mañana" sería mentir. Ese caso (y cualquier otro) se rotula con su
+ * día de la semana. Un evento que arrancó ayer y sigue abierto es de hoy; uno que
+ * ya terminó antes de la medianoche local no es de nadie y se descarta.
+ */
+function agendaGroups(events, day, tz) {
+  const todayIndex = localDayIndex(day.start, tz);
+  const groups = new Map();
+  events.forEach((event) => {
+    const start = event.startEpoch ?? 0;
+    const inToday = isToday(event, day);
+    if (!inToday && (event.endEpoch ?? start) <= day.start) return;
+    const index = inToday ? todayIndex : localDayIndex(start, tz);
+    if (!groups.has(index)) groups.set(index, []);
+    groups.get(index).push(event);
+  });
+  return Array.from(groups.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([index, rows]) => ({
+      label:
+        index === todayIndex
+          ? "Hoy"
+          : index === todayIndex + 1
+            ? "Mañana"
+            : weekdayName(index),
+      rows,
+    }));
+}
+
 /** El renglón sin filas, con las palabras de S6. */
 function agendaEmpty(match) {
   const row = document.createElement("div");
@@ -476,10 +535,7 @@ function renderAgenda(data, failure) {
   const events = data?.events ?? [];
   const day = deviceDay(data);
   const nowSec = Math.floor(Date.now() / 1000);
-  const today = events.filter((event) => isToday(event, day));
-  const later = events.filter(
-    (event) => !isToday(event, day) && (event.startEpoch ?? 0) >= day.end,
-  );
+  const groups = agendaGroups(events, day, tz);
 
   const row = (event) => {
     const hour = event.allDay ? "todo el día" : eventClock(event.startEpoch ?? 0, tz);
@@ -487,16 +543,19 @@ function renderAgenda(data, failure) {
     return agendaRow(hour, Boolean(event.allDay), event.summary, event.location, end <= nowSec);
   };
 
+  const today = groups.find((group) => group.label === "Hoy");
   agenda.appendChild(agendaDayTag("Hoy"));
-  if (today.length) {
-    today.forEach((event) => agenda.appendChild(row(event)));
+  if (today) {
+    today.rows.forEach((event) => agenda.appendChild(row(event)));
   } else {
     agenda.appendChild(agendaEmpty("Sin eventos para hoy."));
   }
-  if (later.length) {
-    agenda.appendChild(agendaDayTag("Mañana"));
-    later.forEach((event) => agenda.appendChild(row(event)));
-  }
+  groups
+    .filter((group) => group.label !== "Hoy")
+    .forEach((group) => {
+      agenda.appendChild(agendaDayTag(group.label));
+      group.rows.forEach((event) => agenda.appendChild(row(event)));
+    });
 }
 
 function showCalendarSession(message) {

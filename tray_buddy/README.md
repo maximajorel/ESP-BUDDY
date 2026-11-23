@@ -56,7 +56,7 @@ npm run dev      # abre la app en modo desarrollo
 npm run build    # genera el instalador NSIS en src-tauri/target/release/bundle/nsis/
 
 cd src-tauri
-cargo test       # 25 pruebas: store, parser de dirección y transporte HTTP
+cargo test       # 26 pruebas: store, parser de dirección, transporte HTTP y agenda
 cargo build      # el binario de desarrollo, sin instalador
 ```
 
@@ -67,6 +67,19 @@ cuerpo, cookies y parseo) se prueba sin un ESP32 conectado.
 El popover también se puede abrir directo en un navegador
 (`ui/index.html`) para iterar el diseño sin compilar: `app.js` detecta que no
 existe la API de Tauri y se queda con una cáscara inerte.
+
+Para mirar la agenda con datos sin la placa ni la app compilada está
+`tools/preview.js`: copia `ui/` a `.build-preview/` (ignorada por git), inyecta
+un `window.__TAURI__` de mentira con el contrato real de `/api/status` y
+`/api/calendar*`, congela el reloj y te imprime los dos comandos de Chrome
+headless (DOM y captura). Los escenarios cubren el día normal, el equipo con
+firmware viejo, sin autorización, sin sesión, un día de 24 eventos y los eventos
+que cruzan la medianoche:
+
+```bash
+node tools/preview.js day          # tomorrow, old, empty, unauthorized, session,
+node tools/preview.js late-night   # busy, multiday, late-night
+```
 
 ## Estructura
 
@@ -85,7 +98,8 @@ tray_buddy/
 ├── installer/             cabecera y lateral del NSIS, generados
 └── tools/
     ├── make_icons.py           icono desde la geometría del diseño
-    └── make_installer_art.py   cabecera y lateral del instalador
+    ├── make_installer_art.py   cabecera y lateral del instalador
+    └── preview.js              la UI con datos falsos, sin Tauri ni la placa
 ```
 
 Los iconos se regeneran con `python3 tools/make_icons.py`: el cuadrado de papel
@@ -130,7 +144,11 @@ bandeja.
   **agenda del día** (`GET /api/calendar/events`), partida en dos secciones
   reales: **HOY**, con todos los eventos del día —los que ya terminaron,
   atenuados— y **MAÑANA** con el resto de la ventana que consultó el equipo, de
-  modo que un evento de mañana nunca aparece como si fuera de hoy. La hora local
+  modo que un evento de mañana nunca aparece como si fuera de hoy. La ventana del
+  equipo llega 26 h adelante y a la noche entra el día siguiente al de mañana: ese
+  —y cualquier otro— se rotula con su día de la semana en vez de mentir con
+  "Mañana". Un evento que arrancó ayer y sigue abierto cae en HOY; uno que ya
+  terminó antes de la medianoche local no se muestra. La hora local
   sale del `tz` del equipo sobre los epochs UTC; el día lo manda el firmware en
   `dayStart`/`dayEnd` (su medianoche local, no la de la PC) y, contra un equipo
   con firmware viejo, la app lo deriva del `tz`. Un evento de todo el día se
