@@ -45,6 +45,12 @@ S6. Con más eventos de los que entran, el cuerpo del popover **scrollea**; nada
 se sale del rectángulo de la ventana (el sistema lo recortaría). Sin sesión, sin
 autorización o sin eventos, la tarjeta dice lo mismo que hoy: no se inventa nada.
 
+S8. El primer sync después de arrancar se reintenta a los **15 s**, no a los
+dos minutos: el equipo tarda en tener la agenda y el popover se abre en ese
+mismo momento. Agotados tres intentos rápidos sin un sync bueno se vuelve al
+ritmo lento de dos minutos, para que una credencial mal escrita no golpee a
+Google; con un sync bueno, quince minutos.
+
 S7. Las secciones **y la tarjeta de próxima cita** se rotulan por el día que son,
 no por su posición: a las 23:50
 la ventana de 26 h entra al día siguiente al de mañana y esa sección no puede
@@ -65,6 +71,7 @@ antes de esa medianoche no se lista.
 | D4 | S5, S6 | worker (app: secciones Hoy/Mañana, atenuado y scroll) | `8e6ee63` |
 | D6 | S7 | worker (app: secciones rotuladas por día + `tools/preview.js` en el repo) | `b0dae4a` |
 | D7 | S7 | worker (app: la tarjeta de próxima cita usa el mismo rótulo) | `86357f5` |
+| D8 | S8 | worker (firmware: el ritmo de reintento del sync, con test de host) | `fed833d` |
 | D5 | S5, S6, S7 | verificación: tests de host, compilación de placa, `cargo test`, capturas CDP y app real | este documento |
 
 ## Log
@@ -177,6 +184,34 @@ y 24% de RAM. **Sin medir en el vidrio**: el pico de heap con un cuerpo de 28 KB
 entrega porque exige flashear; si al empujar el equipo aparece presión de heap,
 el orden de ataque está en `calendar_http.cpp` (`readBody` copia el cuerpo dos
 veces).
+
+L14. **Primera verificación en la placa después de flashear** (COM5, `Hash of data
+verified`): `api GET /api/calendar/events` → `200 {"ok":true,"tz":-3,
+"dayStart":1795402800,"dayEnd":1795489200,"count":0,"events":[]}`, con las dos
+medianoches exactas (23 y 24 de noviembre a las 00:00 −03). El endpoint nuevo
+funciona en el equipo.
+
+L16. D8 verificado en el equipo, ya flasheado: a los 45 s de arranque
+`lastSyncMs: 27671` (el sync bueno llegó a los **27,7 s**; con la política vieja
+había llegado a los 129 s), `lastError:""`, `calendarCount:9` y la lista real de
+calendarios (Tareas Personales —el elegido, primary—, Trabajo, Facultad,
+Formula 1, PROGRAMACION 3, INGLES 2, Bases de Datos II, Festivos en Argentina,
+Calendario Conjunto). `eventCount: 0` y `count: 0` en la agenda: el calendario
+elegido no tiene eventos entre la medianoche local del 23 y el 24 a las 12:47 —
+dato real, no un defecto. Si el dueño quiere ver otra cosa ahí, cambia el
+calendario en el panel (los otros ocho están disponibles).
+
+L15. Pero la primera lectura mostró `lastError:"Google rechazo la autorizacion"`,
+`lastSyncMs:0`, `calendarCount:0`: el **primer intento de sync después de
+arrancar falla** y el reintento automático a los 120 s lo arregla (verificado:
+a los 129 s → `lastError:""`, `calendarCount:9`, `lastSyncMs:129069`). La causa
+del primer fallo no está confirmada: el mensaje es el de una respuesta de token
+**ilegible** (`calendarParseTokenResponse` con cuerpo no-JSON), que apunta al
+primer intercambio TLS con el WiFi asentándose, no a un permiso revocado —
+Google contestó bien al reintento. Síntoma mitigado, no causa raíz: la política
+de reintento se extrajo a `esp32_gadget/calendar_schedule.h` con sus casos en
+`tools/calendar_core_test.cpp` (S8, D8) y ahora el equipo recupera la agenda a
+los 15 s en vez de a los 120 s.
 
 L13. La misma clase de defecto seguía viva en la tarjeta: con la próxima cita
 siendo un evento de todo el día de pasado mañana (escenario `after-tomorrow`,
