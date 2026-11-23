@@ -45,10 +45,13 @@ S6. Con más eventos de los que entran, el cuerpo del popover **scrollea**; nada
 se sale del rectángulo de la ventana (el sistema lo recortaría). Sin sesión, sin
 autorización o sin eventos, la tarjeta dice lo mismo que hoy: no se inventa nada.
 
-S7. Las secciones se rotulan por el día que son, no por su posición: a las 23:50
+S7. Las secciones **y la tarjeta de próxima cita** se rotulan por el día que son,
+no por su posición: a las 23:50
 la ventana de 26 h entra al día siguiente al de mañana y esa sección no puede
 decir "Mañana". Hoy → "Hoy", el día siguiente → "Mañana", cualquier otro día →
-su día de la semana en minúscula (el CSS lo pone en mayúsculas). Un evento que
+su día de la semana en minúscula (el CSS lo pone en mayúsculas). La tarjeta usa
+el mismo rótulo para el evento de todo el día que anuncia, así la lista y la
+tarjeta no pueden decir días distintos del mismo evento. Un evento que
 arrancó antes de la medianoche local y sigue abierto es de hoy; uno que terminó
 antes de esa medianoche no se lista.
 
@@ -61,6 +64,7 @@ antes de esa medianoche no se lista.
 | D3 | S4 | worker (app: parseo y compatibilidad, con test de Rust) | `8e6ee63` |
 | D4 | S5, S6 | worker (app: secciones Hoy/Mañana, atenuado y scroll) | `8e6ee63` |
 | D6 | S7 | worker (app: secciones rotuladas por día + `tools/preview.js` en el repo) | `b0dae4a` |
+| D7 | S7 | worker (app: la tarjeta de próxima cita usa el mismo rótulo) | `86357f5` |
 | D5 | S5, S6, S7 | verificación: tests de host, compilación de placa, `cargo test`, capturas CDP y app real | este documento |
 
 ## Log
@@ -173,6 +177,16 @@ y 24% de RAM. **Sin medir en el vidrio**: el pico de heap con un cuerpo de 28 KB
 entrega porque exige flashear; si al empujar el equipo aparece presión de heap,
 el orden de ataque está en `calendar_http.cpp` (`readBody` copia el cuerpo dos
 veces).
+
+L13. La misma clase de defecto seguía viva en la tarjeta: con la próxima cita
+siendo un evento de todo el día de pasado mañana (escenario `after-tomorrow`,
+reloj a las 23:50), la tarjeta decía "mañana" mientras la lista decía "miércoles"
+—el mismo dato con dos respuestas—. `dayLabel()` quedó como el único lugar que
+decide el rótulo (hoy / mañana / día de la semana) y lo usan las dos superficies;
+un evento de todo el día que ya está corriendo sigue siendo "hoy" por
+solapamiento (`86357f5`). Verificados los diez escenarios del arnés: `after-tomorrow`
+→ "miércoles", y sin cambios en day, tomorrow, old, empty, unauthorized, session,
+busy, multiday y late-night.
 
 L12. Defecto encontrado al revisar la ventana de 26 h: **a la noche la sección
 "Mañana" miente**. A las 23:50, `now + 26h` cae en el día siguiente al de mañana,
