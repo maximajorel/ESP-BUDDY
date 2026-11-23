@@ -891,7 +891,8 @@ static ApiResult apiCalendarEvents() {
   CalendarEvent events[CALENDAR_MAX_EVENTS];
   const size_t count = calendarEventsCopy(events, CALENDAR_MAX_EVENTS);
   JsonDocument doc;
-  calendarEventsJson(events, count, settingsGet().tzOffsetHours, doc);
+  calendarEventsJson(events, count, settingsGet().tzOffsetHours,
+                     (int64_t)time(nullptr), doc);
   serializeJson(doc, r.body);
   return r;
 }

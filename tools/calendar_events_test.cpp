@@ -56,10 +56,12 @@ static void fillEvent(CalendarEvent *event, const char *summary,
 }
 
 // The JSON the app parses, rendered from the document the firmware would send.
+// The board's clock during the survey: 2026-11-23 09:48:52 at -03:00.
+static const long long kNow = 1795438132LL;
 static void render(const CalendarEvent *events, size_t count, int tz,
                    char *out, size_t cap) {
   JsonDocument doc;
-  calendarEventsJson(events, count, tz, doc);
+  calendarEventsJson(events, count, tz, kNow, doc);
   const size_t written = serializeJson(doc, out, cap);
   if (written < cap) out[written] = '\0';
 }
@@ -69,7 +71,8 @@ static void testEmpty() {
   char out[512];
   render(nullptr, 0, -3, out, sizeof(out));
   checkText("empty list", out,
-            "{\"ok\":true,\"tz\":-3,\"count\":0,\"events\":[]}");
+            "{\"ok\":true,\"tz\":-3,\"dayStart\":1795402800,"
+            "\"dayEnd\":1795489200,\"count\":0,\"events\":[]}");
 }
 
 static void testTwoEvents() {
@@ -82,7 +85,8 @@ static void testTwoEvents() {
   render(events, 2, -3, out, sizeof(out));
   checkText(
       "two timed events", out,
-      "{\"ok\":true,\"tz\":-3,\"count\":2,\"events\":["
+      "{\"ok\":true,\"tz\":-3,\"dayStart\":1795402800,"
+      "\"dayEnd\":1795489200,\"count\":2,\"events\":["
       "{\"summary\":\"Reunion\",\"location\":\"Zoom\","
       "\"startEpoch\":1764000000,\"endEpoch\":1764003600,"
       "\"leadMin\":10,\"allDay\":false},"
@@ -92,7 +96,7 @@ static void testTwoEvents() {
 
   // The times are numbers, not strings: the app does the arithmetic.
   JsonDocument doc;
-  calendarEventsJson(events, 2, -3, doc);
+  calendarEventsJson(events, 2, -3, kNow, doc);
   checkInt("count is a number", doc["count"].as<long long>(), 2);
   checkInt("startEpoch stays a number",
            doc["events"][0]["startEpoch"].as<long long>(), 1764000000LL);
@@ -109,26 +113,48 @@ static void testAllDay() {
   render(&event, 1, -3, out, sizeof(out));
   checkText(
       "all-day event", out,
-      "{\"ok\":true,\"tz\":-3,\"count\":1,\"events\":["
+      "{\"ok\":true,\"tz\":-3,\"dayStart\":1795402800,"
+      "\"dayEnd\":1795489200,\"count\":1,\"events\":["
       "{\"summary\":\"Feriado\",\"location\":\"\","
       "\"startEpoch\":1795316400,\"endEpoch\":1795402800,"
       "\"leadMin\":-1,\"allDay\":true}]}");
+}
+
+static void testDayBounds() {
+  printf("-- the app never derives the day from its own clock\n");
+  char out[512];
+  // A positive offset moves the local day back in UTC.
+  render(nullptr, 0, 5, out, sizeof(out));
+  checkText("at +05", out,
+            "{\"ok\":true,\"tz\":5,\"dayStart\":1795374000,"
+            "\"dayEnd\":1795460400,\"count\":0,\"events\":[]}");
+  render(nullptr, 0, 0, out, sizeof(out));
+  checkText("at UTC", out,
+            "{\"ok\":true,\"tz\":0,\"dayStart\":1795392000,"
+            "\"dayEnd\":1795478400,\"count\":0,\"events\":[]}");
+
+  // Without NTP there is no honest day: zeros are the signal that the app has to
+  // fall back to `tz`, instead of a 1970 midnight that would look real.
+  JsonDocument doc;
+  calendarEventsJson(nullptr, 0, -3, 0, doc);
+  checkInt("an unsynced clock sends 0", doc["dayStart"].as<long long>(), 0);
+  checkInt("  for both bounds", doc["dayEnd"].as<long long>(), 0);
 }
 
 static void testTz() {
   printf("-- tz travels exactly as the device reports it\n");
   char out[512];
   render(nullptr, 0, 5, out, sizeof(out));
-  checkText("positive offset", out,
-            "{\"ok\":true,\"tz\":5,\"count\":0,\"events\":[]}");
+  checkInt("positive offset", strstr(out, "\"tz\":5") != nullptr, true);
   render(nullptr, 0, 0, out, sizeof(out));
-  checkText("UTC", out, "{\"ok\":true,\"tz\":0,\"count\":0,\"events\":[]}");
+  checkInt("UTC", strstr(out, "\"tz\":0") != nullptr, true);
 }
 
 int main() {
   testEmpty();
   testTwoEvents();
   testAllDay();
+  testDayBounds();
   testTz();
   printf("\n%d failure(s)\n", g_failures);
   return g_failures == 0 ? 0 : 1;
