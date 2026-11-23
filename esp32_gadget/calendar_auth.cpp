@@ -1,5 +1,6 @@
 #include "calendar_auth.h"
 
+#include <Arduino.h>
 #include <ArduinoJson.h>
 #include <string.h>
 
@@ -249,6 +250,23 @@ bool calendarAuthEnsureAccessToken(bool force, char *err, size_t errCap) {
       calendarStoreSetRefreshToken(answer.refreshToken);
     }
     return true;
+  }
+  // Diagnóstico en el puerto serie: cuando el canje del token falla, el panel
+  // sólo muestra una frase. El código HTTP, el error de transporte y los
+  // primeros bytes del cuerpo (nunca el token: en el fallo no hay token) dicen
+  // si fue Google, el TLS o el WiFi asentándose. Una línea, sólo al fallar.
+  if (answer.outcome != CALENDAR_OAUTH_AUTHORIZED) {
+    char head[81];
+    size_t n = res.body.length();
+    if (n > sizeof(head) - 1) n = sizeof(head) - 1;
+    for (size_t i = 0; i < n; i++) {
+      const char c = res.body[i];
+      head[i] = (c >= 32 && c < 127) ? c : '.';
+    }
+    head[n] = '\0';
+    Serial.printf("[calendar] token: status=%d transport=%d bytes=%u body=\"%s\"\n",
+                  res.status, res.transportError, (unsigned)res.body.length(),
+                  head);
   }
   if (answer.outcome == CALENDAR_OAUTH_INVALID_GRANT) {
     calendarStoreForgetToken();

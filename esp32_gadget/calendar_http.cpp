@@ -69,6 +69,18 @@ bool readBody(HTTPClient &http, int status, size_t maxBody,
   return true;
 }
 
+// Diagnóstico en el puerto serie: el primer intercambio HTTPS después de
+// arrancar falla de vez en cuando y el panel sólo muestra "no pude pedir los
+// eventos". Esta línea dice cuál de las tres peticiones fue, con qué código y
+// con qué error de transporte, y sólo se imprime cuando algo salió mal.
+void noteFailure(const char *method, const char *host, const char *path,
+                 const CalendarHttpResult &res) {
+  if (res.status > 0 && res.transportError == 0) return;
+  Serial.printf("[calendar] %s %s%s: status=%d transport=%d tls=%d bytes=%u\n",
+                method, host, path, res.status, res.transportError,
+                (int)res.tlsFailed, (unsigned)res.body.length());
+}
+
 bool prepare(const char *host, const char *path, HTTPClient &http,
              String *urlOut) {
   ensureTls();
@@ -109,10 +121,12 @@ bool calendarHttpGet(const char *host, const char *path, const char *bearer,
   if (code <= 0) {
     describeFailure(http, code, out);
     http.end();
+    noteFailure("GET", host, path, *out);
     return true;
   }
   readBody(http, code, maxBody, out);
   http.end();
+  noteFailure("GET", host, path, *out);
   return true;
 }
 
@@ -137,9 +151,11 @@ bool calendarHttpPostForm(const char *host, const char *path, const String &form
   if (code <= 0) {
     describeFailure(http, code, out);
     http.end();
+    noteFailure("POST", host, path, *out);
     return true;
   }
   readBody(http, code, maxBody, out);
   http.end();
+  noteFailure("POST", host, path, *out);
   return true;
 }
