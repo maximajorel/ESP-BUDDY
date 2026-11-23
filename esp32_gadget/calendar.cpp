@@ -2,6 +2,7 @@
 
 #include <ArduinoJson.h>
 #include <WiFi.h>
+#include <esp_heap_caps.h>
 #include <string.h>
 #include <time.h>
 
@@ -31,6 +32,21 @@ constexpr int64_t kFutureSeconds = 26 * 3600;
 
 SemaphoreHandle_t s_lock = nullptr;
 TaskHandle_t s_task = nullptr;
+
+// The JSON tree of a whole month is hundreds of kilobytes, which is three times
+// what the board has free internally. ArduinoJson takes an allocator, so the tree
+// of the month goes to PSRAM and the day list keeps using the internal heap it
+// already fits in.
+class PsramAllocator : public ArduinoJson::Allocator {
+ public:
+  void *allocate(size_t size) override {
+    return heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  }
+  void deallocate(void *ptr) override { heap_caps_free(ptr); }
+  void *reallocate(void *ptr, size_t size) override {
+    return heap_caps_realloc(ptr, size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  }
+};
 
 CalendarInfo s_calendars[CALENDAR_MAX_LIST];
 size_t s_calendarCount = 0;
@@ -358,6 +374,119 @@ CalendarReaction calendarReactionNow() {
 bool calendarRequestRefresh() {
   if (!calendarStoreAuthorized()) return false;
   s_refreshRequested = true;
+  return true;
+}
+
+bool calendarFetchMonth(int year, int month, CalendarMonthEvent *out, size_t cap,
+                        size_t *count, CalendarMonthInfo *info, char *err,
+                        size_t errCap) {
+  if (err && errCap) err[0] = '\0';
+  if (!out || !info || cap == 0) return false;
+  if (count) *count = 0;
+  memset(info, 0, sizeof(*info));
+
+  const int tz = settingsGet().tzOffsetHours;
+  CalendarMonthWindow window;
+  if (!calendarMonthWindow(year, month, tz, &window)) {
+    if (err && errCap) snprintf(err, errCap, "El mes pedido no existe");
+    return false;
+  }
+  if (!calendarStoreConfigured()) {
+    if (err && errCap) snprintf(err, errCap, "Falta configurar Google en el panel");
+    return false;
+  }
+  if (!calendarStoreAuthorized()) {
+    if (err && errCap) snprintf(err, errCap, "Falta conectar la cuenta de Google");
+    return false;
+  }
+  if (WiFi.status() != WL_CONNECTED) {
+    if (err && errCap) snprintf(err, errCap, "El equipo no tiene red");
+    return false;
+  }
+
+  char authError[96] = "";
+  if (!calendarAuthEnsureAccessToken(false, authError, sizeof(authError))) {
+    if (err && errCap) {
+      snprintf(err, errCap, "%s",
+               authError[0] ? authError : "No pude renovar el permiso de Google");
+    }
+    return false;
+  }
+
+  const char *selected = calendarStoreSelectedId();
+  if (!*selected) selected = "primary";
+  char path[512];
+  if (!calendarMonthPath(selected, window.gridStart, window.gridEnd, path,
+                         sizeof(path))) {
+    if (err && errCap) {
+      snprintf(err, errCap, "El nombre del calendario no entra en el pedido");
+    }
+    return false;
+  }
+
+  CalendarHttpBigBody body;
+  if (!calendarHttpGetBig(CALENDAR_API_HOST, path, calendarAuthAccessToken(),
+                          CALENDAR_MONTH_BODY_BYTES, &body)) {
+    if (err && errCap) snprintf(err, errCap, "No pude pedir el mes a Google");
+    return false;
+  }
+  // One owner for the PSRAM buffer, whatever the answer was.
+  struct Release {
+    CalendarHttpBigBody *body;
+    ~Release() { calendarHttpFreeBigBody(body); }
+  } release{&body};
+
+  if (body.transportError == CALENDAR_HTTP_BODY_TOO_LARGE) {
+    if (err && errCap) {
+      snprintf(err, errCap, "El mes no entra en la memoria del equipo");
+    }
+    return false;
+  }
+  if (body.transportError != 0) {
+    if (err && errCap) {
+      snprintf(err, errCap, "Google no respondio (%d)", body.transportError);
+    }
+    return false;
+  }
+  if (body.status == 403) {
+    // The grant was made with `calendar.readonly`: this is the honest sentence
+    // for that, and the panel needs to say it before the owner blames the tray.
+    if (err && errCap) {
+      snprintf(err, errCap,
+               "Google no autorizo leer este calendario: volve a conectar la "
+               "cuenta en el panel");
+    }
+    return false;
+  }
+  if (body.status == 401) {
+    if (err && errCap) {
+      snprintf(err, errCap,
+               "Google rechazo el permiso guardado: volve a conectar la cuenta");
+    }
+    return false;
+  }
+  if (body.status != 200) {
+    if (err && errCap) {
+      snprintf(err, errCap, "Google devolvio %d al pedir el mes", body.status);
+    }
+    return false;
+  }
+
+  PsramAllocator allocator;
+  const size_t parsed =
+      calendarParseMonthEvents(body.data, out, cap, tz, &allocator);
+
+  info->year = year;
+  info->month = month;
+  info->tzOffsetHours = tz;
+  info->monthStart = window.monthStart;
+  info->monthEnd = window.monthEnd;
+  info->gridStart = window.gridStart;
+  info->gridEnd = window.gridEnd;
+  // Reaching the cap is the only signal Google gives us without a second page:
+  // saying so is better than drawing a month that looks complete.
+  info->truncated = parsed >= cap;
+  if (count) *count = parsed;
   return true;
 }
 

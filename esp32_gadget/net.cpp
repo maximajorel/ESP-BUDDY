@@ -3,6 +3,7 @@
 #include <ArduinoJson.h>
 #include <WebServer.h>
 #include <WiFi.h>
+#include <esp_heap_caps.h>
 #include <esp_random.h>
 #include <time.h>
 
@@ -18,6 +19,7 @@
 #include "buddy_focus_state.h"
 #include "calendar.h"
 #include "calendar_events.h"
+#include "calendar_month.h"
 #include "calendar_plan.h"
 #include "calendar_store.h"
 #include "buddy_url.h"
@@ -898,6 +900,45 @@ static ApiResult apiCalendarEvents() {
   return r;
 }
 
+// The month grid, fetched on demand. The face's poll only ever holds today plus a
+// day and lives in internal RAM, so a month is not something the board keeps: it
+// is asked for, drawn and dropped. The rows live in PSRAM and the answer is a few
+// kilobytes, which the internal heap already handles.
+//
+// It blocks the web task for one TLS round trip. That is the cost of asking Google
+// from the request that needs the answer, and it is bounded by the same timeout as
+// every other calendar request.
+static ApiResult apiCalendarMonth() {
+  const int year = s_server.arg("y").toInt();
+  const int month = s_server.arg("m").toInt();
+  if (year <= 0 || month <= 0) {
+    return apiFail(400, "Falta el mes: /api/calendar/month?y=2026&m=11");
+  }
+
+  CalendarMonthEvent *events = (CalendarMonthEvent *)heap_caps_malloc(
+      CALENDAR_MONTH_MAX_EVENTS * sizeof(CalendarMonthEvent),
+      MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (!events) return apiFail(503, "No hay memoria para el mes");
+  struct Release {
+    CalendarMonthEvent *rows;
+    ~Release() { heap_caps_free(rows); }
+  } release{events};
+
+  CalendarMonthInfo info;
+  size_t count = 0;
+  char error[96] = "";
+  if (!calendarFetchMonth(year, month, events, CALENDAR_MONTH_MAX_EVENTS, &count,
+                          &info, error, sizeof(error))) {
+    return apiFail(502, error[0] ? error : "No pude pedir el mes");
+  }
+
+  ApiResult r;
+  JsonDocument doc;
+  calendarMonthJson(events, count, info, doc);
+  serializeJson(doc, r.body);
+  return r;
+}
+
 // Empty means "leave what is stored", exactly like the Spotify card: the panel
 // never gets a secret back, so it cannot resend it. A changed client pair drops
 // the old grant, because a refresh token belongs to the client that minted it.
@@ -1315,6 +1356,7 @@ static ApiResult dispatchApi(const char *method, const char *path,
       !strcmp(path, "/api/calendar") ||
       !strcmp(path, "/api/calendar/calendars") ||
       !strcmp(path, "/api/calendar/events") ||
+      !strcmp(path, "/api/calendar/month") ||
       !strcmp(path, "/api/weather")) {
     if (isPost) return apiFail(405, "Metodo no permitido");
     if (!strcmp(path, "/api/status")) {
@@ -1325,6 +1367,7 @@ static ApiResult dispatchApi(const char *method, const char *path,
     if (!strcmp(path, "/api/calendar")) return apiCalendarStatus();
     if (!strcmp(path, "/api/calendar/calendars")) return apiCalendarCalendars();
     if (!strcmp(path, "/api/calendar/events")) return apiCalendarEvents();
+    if (!strcmp(path, "/api/calendar/month")) return apiCalendarMonth();
     if (!strcmp(path, "/api/weather")) return apiWeatherStatus();
     return apiSpotifyStatus();
   }
@@ -1751,6 +1794,8 @@ void netBegin() {
   s_server.on("/api/spotify", HTTP_GET, handleApi);
   s_server.on("/api/calendar", HTTP_GET, handleApi);
   s_server.on("/api/calendar/calendars", HTTP_GET, handleApi);
+  s_server.on("/api/calendar/events", HTTP_GET, handleApi);
+  s_server.on("/api/calendar/month", HTTP_GET, handleApi);
   s_server.on("/api/weather", HTTP_GET, handleApi);
 
   // The two session endpoints the dispatcher does not own. Logging in is the one

@@ -8,6 +8,8 @@
 
 #include <stddef.h>
 
+#include <ArduinoJson.h>
+
 #include "calendar_model.h"
 
 // Reads `{items: [{id, summary, primary, defaultReminders}]}`. Returns how many
@@ -26,3 +28,15 @@ size_t calendarParseCalendarList(const char *json, CalendarInfo *out, size_t cap
 // which carry a date instead of a timestamp.
 size_t calendarParseEvents(const char *json, CalendarEvent *out, size_t cap,
                            int defaultLeadMin, int tzOffsetHours);
+
+// Reads `{items: [{id, etag, status, summary, location, start, end}]}` for the
+// month grid.
+//
+// Differs from `calendarParseEvents` on purpose: an entry without an `id` is
+// dropped, because the whole point of this payload is that the owner can edit
+// what he sees and an event nobody can address is not editable. `allocator` is
+// the memory the JSON tree is built in — PSRAM on the board, the default heap on
+// the host — and may be null for the default.
+size_t calendarParseMonthEvents(const char *json, CalendarMonthEvent *out,
+                                size_t cap, int tzOffsetHours,
+                                ArduinoJson::Allocator *allocator);

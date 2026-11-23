@@ -41,6 +41,11 @@ COMPANION_SOURCES = {
     "spotify_core_test": ["spotify_parse.cpp", "spotify_pkce.cpp", "sha256.cpp"],
     "calendar_core_test": ["calendar_parse.cpp", "calendar_auth_parse.cpp", "url_codec.cpp"],
     "calendar_events_test": ["calendar_events.cpp"],
+    "calendar_month_test": [
+        "calendar_month.cpp",
+        "calendar_parse.cpp",
+        "url_codec.cpp",
+    ],
     "weather_core_test": [
         "weather_code.cpp",
         "weather_parse.cpp",
@@ -63,6 +68,7 @@ ARDUINOJSON_TESTS = {
     "spotify_core_test",
     "calendar_core_test",
     "calendar_events_test",
+    "calendar_month_test",
     "weather_core_test",
 }
 

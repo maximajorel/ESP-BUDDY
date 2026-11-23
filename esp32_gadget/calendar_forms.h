@@ -96,3 +96,30 @@ static inline bool calendarEventsPath(const char *calendarId,
       id, from, to, CALENDAR_MAX_EVENTS);
   return n > 0 && (size_t)n < cap;
 }
+
+// The month grid's page. Same shape as the day page with three differences the
+// grid needs and the day does not:
+//  - `maxResults` is the month budget (200), not the day buffer (24);
+//  - `etag` is requested, because updating or deleting an event needs the
+//    version Google handed out;
+//  - `reminders` is not, because the grid never draws one and this body is paid
+//    for in PSRAM, not in the board's internal heap.
+// The day page's bytes are pinned by `tools/calendar_core_test.cpp` and stay
+// untouched: a firmware update must not change what an old client receives.
+static inline bool calendarMonthPath(const char *calendarId, int64_t timeMin,
+                                     int64_t timeMax, char *out, size_t cap) {
+  if (!calendarId || !out) return false;
+  char id[CALENDAR_ID_MAX * 3 + 4];
+  if (!urlEncode(calendarId, id, sizeof(id))) return false;
+  char from[24];
+  char to[24];
+  if (!calendarRfc3339FromEpoch(timeMin, from, sizeof(from))) return false;
+  if (!calendarRfc3339FromEpoch(timeMax, to, sizeof(to))) return false;
+  const int n = snprintf(
+      out, cap,
+      "/calendar/v3/calendars/%s/events?timeMin=%s&timeMax=%s"
+      "&singleEvents=true&orderBy=startTime&maxResults=%d"
+      "&fields=items(id,etag,status,summary,location,start,end)",
+      id, from, to, CALENDAR_MONTH_MAX_EVENTS);
+  return n > 0 && (size_t)n < cap;
+}

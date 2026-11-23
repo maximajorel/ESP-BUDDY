@@ -47,6 +47,53 @@ int leadForEvent(JsonObjectConst reminders, int defaultLeadMin) {
   return earliestMinutes(reminders["overrides"].as<JsonArrayConst>());
 }
 
+// The start/end pair, shared by both parsers: a timed event carries RFC 3339 and
+// an all-day one carries a bare date, and both become UTC seconds. False means
+// the entry is unreadable, and an unreadable entry is dropped instead of landing
+// in 1970.
+bool readTimes(JsonObjectConst entry, int tzOffsetHours, int64_t *startOut,
+               int64_t *endOut, bool *allDayOut) {
+  JsonObjectConst start = entry["start"].as<JsonObjectConst>();
+  JsonObjectConst end = entry["end"].as<JsonObjectConst>();
+  if (start.isNull()) return false;
+
+  int64_t startEpoch = 0;
+  int64_t endEpoch = 0;
+  bool allDay = false;
+  const char *dateTime = start["dateTime"] | "";
+  if (*dateTime) {
+    if (!calendarParseRfc3339(dateTime, &startEpoch)) return false;
+    const char *endDateTime = end["dateTime"] | "";
+    if (!*endDateTime || !calendarParseRfc3339(endDateTime, &endEpoch)) {
+      endEpoch = startEpoch + 3600;
+    }
+  } else {
+    const char *date = start["date"] | "";
+    if (!*date) return false;
+    if (!calendarParseDate(date, tzOffsetHours, &startEpoch)) return false;
+    allDay = true;
+    const char *endDate = end["date"] | "";
+    if (*endDate && calendarParseDate(endDate, tzOffsetHours, &endEpoch)) {
+      // Google's all-day end is exclusive; both readers only need the last
+      // instant the event is current.
+      endEpoch -= 1;
+    } else {
+      endEpoch = startEpoch + 86400 - 1;
+    }
+  }
+  if (endEpoch < startEpoch) endEpoch = startEpoch;
+  *startOut = startEpoch;
+  *endOut = endEpoch;
+  *allDayOut = allDay;
+  return true;
+}
+
+// A cancelled instance is still in the answer; the owner does not want a face
+// for something that no longer happens, nor a row in the month grid.
+bool isCancelled(JsonObjectConst entry) {
+  return strcmp(entry["status"] | "", "cancelled") == 0;
+}
+
 }  // namespace
 
 size_t calendarParseCalendarList(const char *json, CalendarInfo *out, size_t cap) {
@@ -88,41 +135,14 @@ size_t calendarParseEvents(const char *json, CalendarEvent *out, size_t cap,
     if (n >= cap) break;
     JsonObjectConst entry = item.as<JsonObjectConst>();
     if (entry.isNull()) continue;
-
-    // A cancelled instance is still in the answer; the owner does not want a
-    // face for something that no longer happens.
-    const char *status = entry["status"] | "";
-    if (strcmp(status, "cancelled") == 0) continue;
-
-    JsonObjectConst start = entry["start"].as<JsonObjectConst>();
-    JsonObjectConst end = entry["end"].as<JsonObjectConst>();
-    if (start.isNull()) continue;
+    if (isCancelled(entry)) continue;
 
     int64_t startEpoch = 0;
     int64_t endEpoch = 0;
     bool allDay = false;
-    const char *dateTime = start["dateTime"] | "";
-    if (*dateTime) {
-      if (!calendarParseRfc3339(dateTime, &startEpoch)) continue;
-      const char *endDateTime = end["dateTime"] | "";
-      if (!*endDateTime || !calendarParseRfc3339(endDateTime, &endEpoch)) {
-        endEpoch = startEpoch + 3600;
-      }
-    } else {
-      const char *date = start["date"] | "";
-      if (!*date) continue;
-      if (!calendarParseDate(date, tzOffsetHours, &startEpoch)) continue;
-      allDay = true;
-      const char *endDate = end["date"] | "";
-      if (*endDate && calendarParseDate(endDate, tzOffsetHours, &endEpoch)) {
-        // Google's all-day end is exclusive; the face only needs the last
-        // instant the event is current.
-        endEpoch -= 1;
-      } else {
-        endEpoch = startEpoch + 86400 - 1;
-      }
+    if (!readTimes(entry, tzOffsetHours, &startEpoch, &endEpoch, &allDay)) {
+      continue;
     }
-    if (endEpoch < startEpoch) endEpoch = startEpoch;
 
     CalendarEvent &event = out[n];
     memset(&event, 0, sizeof(event));
@@ -138,4 +158,64 @@ size_t calendarParseEvents(const char *json, CalendarEvent *out, size_t cap,
     n++;
   }
   return n;
+}
+
+namespace {
+
+// The loop both allocator paths share: the tree is already parsed, so the rest is
+// the same walks.
+size_t monthRows(JsonDocument &doc, CalendarMonthEvent *out, size_t cap,
+                 int tzOffsetHours) {
+  JsonArrayConst items = doc["items"].as<JsonArrayConst>();
+  if (items.isNull()) return 0;
+
+  size_t n = 0;
+  for (JsonVariantConst item : items) {
+    if (n >= cap) break;
+    JsonObjectConst entry = item.as<JsonObjectConst>();
+    if (entry.isNull()) continue;
+    // No id means nothing can be edited or deleted, so the row is not honest to
+    // show: the tray would offer an action the device cannot carry out.
+    const char *id = entry["id"] | "";
+    if (!*id) continue;
+    if (isCancelled(entry)) continue;
+
+    int64_t startEpoch = 0;
+    int64_t endEpoch = 0;
+    bool allDay = false;
+    if (!readTimes(entry, tzOffsetHours, &startEpoch, &endEpoch, &allDay)) {
+      continue;
+    }
+
+    CalendarMonthEvent &event = out[n];
+    memset(&event, 0, sizeof(event));
+    copyField(event.id, sizeof(event.id), id);
+    copyField(event.etag, sizeof(event.etag), entry["etag"] | "");
+    copyField(event.summary, sizeof(event.summary), entry["summary"] | "");
+    copyField(event.location, sizeof(event.location), entry["location"] | "");
+    event.startEpoch = startEpoch;
+    event.endEpoch = endEpoch;
+    event.allDay = allDay;
+    n++;
+  }
+  return n;
+}
+
+}  // namespace
+
+size_t calendarParseMonthEvents(const char *json, CalendarMonthEvent *out,
+                                size_t cap, int tzOffsetHours,
+                                ArduinoJson::Allocator *allocator) {
+  if (!json || !out || cap == 0) return 0;
+  // Two constructions instead of one because ArduinoJson does not treat an
+  // explicit null allocator as "the default": it stores the pointer and
+  // dereferences it. The board hands in PSRAM, the host hands in nothing.
+  if (allocator) {
+    JsonDocument doc(allocator);
+    if (deserializeJson(doc, json) != DeserializationError::Ok) return 0;
+    return monthRows(doc, out, cap, tzOffsetHours);
+  }
+  JsonDocument doc;
+  if (deserializeJson(doc, json) != DeserializationError::Ok) return 0;
+  return monthRows(doc, out, cap, tzOffsetHours);
 }

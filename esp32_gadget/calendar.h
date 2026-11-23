@@ -11,6 +11,11 @@
 #include "calendar_auth.h"
 #include "calendar_model.h"
 
+// The month payload's shape: `CalendarMonthInfo`, the same struct the JSON
+// builder takes, so the caller cannot describe the month differently from the
+// way the device fetched it.
+#include "calendar_month.h"
+
 enum CalendarStatusKind {
   CALENDAR_UNCONFIGURED = 0,  // no client id / secret yet
   CALENDAR_NEEDS_AUTH,        // credentials stored, Google not connected
@@ -73,6 +78,22 @@ CalendarReaction calendarReactionNow();
 // Asks the task for a fetch on its next tick (panel "actualizar", or a change of
 // calendar). Returns false when the calendar is not authorized yet.
 bool calendarRequestRefresh();
+
+// One month of the selected calendar, fetched on demand for the tray's grid.
+//
+// This one talks to Google from the caller's task — the web task — instead of
+// waiting for the face's fifteen-minute poll, because the owner asked for a month
+// that the poll never fetches: the poll only ever holds today plus a day. It is
+// synchronous and bounded by the TLS timeout, `calendarMonthWindow` decides which
+// days the grid covers, and `out` must be a `cap`-sized array of
+// `CalendarMonthEvent`, which the caller owns (PSRAM on the board).
+//
+// `info->truncated` says Google returned at least as many events as fit, so the
+// app can tell the owner the month is cut instead of drawing a full-looking lie.
+// `count` is how many rows were written into `out`.
+bool calendarFetchMonth(int year, int month, CalendarMonthEvent *out, size_t cap,
+                        size_t *count, CalendarMonthInfo *info, char *err,
+                        size_t errCap);
 
 // Serial-console dump hook, the same trust model as `buddyface` and `imufake`:
 // fabricates one reaction so the glass can be proven without a Google account,

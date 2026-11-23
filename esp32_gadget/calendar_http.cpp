@@ -2,6 +2,7 @@
 
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
+#include <esp_heap_caps.h>
 
 namespace {
 
@@ -158,4 +159,112 @@ bool calendarHttpPostForm(const char *host, const char *path, const String &form
   http.end();
   noteFailure("POST", host, path, *out);
   return true;
+}
+
+namespace {
+
+// A destination Stream that copies bytes into a PSRAM buffer and refuses to grow
+// past it. `HTTPClient::writeToStream` is the only reader that handles Google's
+// chunked answers without hand-rolling the framing, and it writes through a
+// Stream: this is that Stream.
+class PsramSink : public Stream {
+ public:
+  PsramSink(char *buffer, size_t cap) : buffer_(buffer), cap_(cap) {}
+
+  size_t write(uint8_t value) override { return write(&value, 1); }
+
+  size_t write(const uint8_t *data, size_t len) override {
+    if (!data) return 0;
+    if (len > cap_ - used_) return 0;  // full: the caller budget is the ceiling
+    memcpy(buffer_ + used_, data, len);
+    used_ += len;
+    return len;
+  }
+
+  // A sink never reads. Present because Stream requires them.
+  int available() override { return 0; }
+  int read() override { return -1; }
+  int peek() override { return -1; }
+  void flush() override {}
+
+  size_t used() const { return used_; }
+
+ private:
+  char *buffer_;
+  size_t cap_;
+  size_t used_ = 0;
+};
+
+}  // namespace
+
+bool calendarHttpGetBig(const char *host, const char *path, const char *bearer,
+                        size_t maxBody, CalendarHttpBigBody *out) {
+  if (!out) return false;
+  out->status = 0;
+  out->transportError = 0;
+  out->tlsFailed = false;
+  out->data = nullptr;
+  out->length = 0;
+  Guard guard;
+
+  HTTPClient http;
+  String url;
+  if (!prepare(host, path, http, &url)) {
+    out->transportError = -1;
+    return false;
+  }
+  if (bearer && *bearer) {
+    http.addHeader("Authorization", String("Bearer ") + bearer);
+  }
+  const int code = http.GET();
+  if (code <= 0) {
+    CalendarHttpResult described;
+    describeFailure(http, code, &described);
+    out->transportError = described.transportError;
+    out->tlsFailed = described.tlsFailed;
+    http.end();
+    return true;
+  }
+  out->status = code;
+
+  // One allocation for the longest body the board will accept, made before the
+  // first byte is copied: a sink that has to grow would either fragment PSRAM or
+  // fail halfway through, and a half body is not a calendar.
+  const int declared = http.getSize();
+  if (declared > 0 && (size_t)declared > maxBody) {
+    out->transportError = CALENDAR_HTTP_BODY_TOO_LARGE;
+    http.end();
+    return true;
+  }
+  char *buffer = (char *)heap_caps_malloc(maxBody + 1, MALLOC_CAP_SPIRAM);
+  if (!buffer) {
+    out->transportError = -2;  // no PSRAM: report it, never fall back silently
+    http.end();
+    return false;
+  }
+
+  PsramSink sink(buffer, maxBody);
+  const int written = http.writeToStream(&sink);
+  if (written < 0) {
+    out->transportError = written;
+    heap_caps_free(buffer);
+    http.end();
+    return true;
+  }
+  buffer[sink.used()] = '\0';
+  out->data = buffer;
+  out->length = sink.used();
+  http.end();
+  if (out->status != 200) {
+    Serial.printf("[calendar] GET %s%s: status=%d bytes=%u\n", host, path,
+                  out->status, (unsigned)out->length);
+  }
+  return true;
+}
+
+void calendarHttpFreeBigBody(CalendarHttpBigBody *body) {
+  if (!body || !body->data) return;
+  heap_caps_free(body->data);
+  body->data = nullptr;
+  body->length = 0;
 }

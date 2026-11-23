@@ -24,6 +24,24 @@ struct CalendarHttpResult {
   String body;
 };
 
+// The same GET, with the body in PSRAM instead of a `String`.
+//
+// A month of a personal calendar is hundreds of kilobytes: three times what the
+// board has free in internal RAM and no reason to ask the heap for it. The buffer
+// is allocated once at `maxBody + 1` before the first byte arrives, so a body that
+// would not fit is refused by length instead of half-parsed, and `data` is
+// NUL-terminated so the parser can take a `const char *`.
+//
+// `data` belongs to the caller and is freed with `heap_caps_free`, which is what
+// `calendarHttpFreeBigBody` does.
+struct CalendarHttpBigBody {
+  int status = 0;
+  int transportError = 0;
+  bool tlsFailed = false;
+  char *data = nullptr;
+  size_t length = 0;
+};
+
 void calendarHttpBegin();
 
 // GET a JSON document. Returns true when a status line arrived, whatever it was;
@@ -31,6 +49,13 @@ void calendarHttpBegin();
 // board instead of parsing half of it.
 bool calendarHttpGet(const char *host, const char *path, const char *bearer,
                      size_t maxBody, CalendarHttpResult *out);
+
+// GET into PSRAM. `maxBody` is the ceiling the board is willing to receive, not
+// an estimate: an answer that declares more is dropped before a byte is copied.
+bool calendarHttpGetBig(const char *host, const char *path, const char *bearer,
+                        size_t maxBody, CalendarHttpBigBody *out);
+
+void calendarHttpFreeBigBody(CalendarHttpBigBody *body);
 
 // POST an `application/x-www-form-urlencoded` body. Used by the OAuth endpoints,
 // which accept nothing else.

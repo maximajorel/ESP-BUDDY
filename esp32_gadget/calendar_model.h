@@ -39,6 +39,24 @@
 #define CALENDAR_EVENTS_BODY_BYTES \
   (4096 + CALENDAR_MAX_EVENTS * CALENDAR_EVENT_BODY_BYTES)
 
+// --- the month grid ---------------------------------------------------------
+//
+// A month is a different animal from the day list, and it does not reuse it.
+// The day list feeds the face on every frame and lives in internal RAM, so it
+// stays exactly as small as it was. The month is only drawn when the popover is
+// open, only lives for the length of one request, and lives in PSRAM. It is also
+// the one that the tray edits, which is why it is the one that carries Google's
+// `id` and `etag`: without them nothing can be updated or deleted.
+#define CALENDAR_EVENT_ID_MAX 128
+#define CALENDAR_EVENT_ETAG_MAX 64
+// Google ids are ~26-102 chars and an etag is a quoted tick (`"3201234567890"`).
+// A week of a busy calendar is ~20 events; 200 covers a month with room to spare
+// and costs ~84 KB of PSRAM in the worst case.
+#define CALENDAR_MONTH_MAX_EVENTS 200
+#define CALENDAR_MONTH_EVENT_BODY_BYTES 1024
+#define CALENDAR_MONTH_BODY_BYTES \
+  (4096 + CALENDAR_MONTH_MAX_EVENTS * CALENDAR_MONTH_EVENT_BODY_BYTES)
+
 // Google accepts reminders up to four weeks ahead. A face that stays alert for
 // a month is not a warning any more, so the reaction caps the lead at one day.
 #define CALENDAR_MAX_LEAD_MIN 1440
@@ -60,6 +78,19 @@ struct CalendarEvent {
   // The reminder that opens the window, already resolved. -1 means this event
   // must never react: the owner turned its reminders off.
   int leadMin;
+  bool allDay;
+};
+
+// One row of the month grid. Strings are fixed buffers for the same reason as
+// `CalendarEvent`: the parse happens once, on the network task, and nothing is
+// allowed to hand a pointer to a live JSON document across a task boundary.
+struct CalendarMonthEvent {
+  char id[CALENDAR_EVENT_ID_MAX];
+  char etag[CALENDAR_EVENT_ETAG_MAX];
+  char summary[CALENDAR_SUMMARY_MAX];
+  char location[CALENDAR_LOCATION_MAX];
+  int64_t startEpoch;  // UTC seconds
+  int64_t endEpoch;    // UTC seconds; for an all-day event, the last second
   bool allDay;
 };
 

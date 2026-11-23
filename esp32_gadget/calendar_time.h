@@ -190,7 +190,62 @@ static inline bool calendarDayQueryStart(int64_t nowEpoch, int tzOffsetHours,
   return true;
 }
 
+// The local midnight of one civil date, with the owner's fixed offset. The
+// inverse of `calendarCivilFromDays` for the cases that start from a date: the
+// month grid begins and ends on local midnights, so the tray never does epoch
+// arithmetic against a zone it does not have.
+static inline int64_t calendarLocalMidnightOf(int y, int mo, int d,
+                                              int tzOffsetHours) {
+  return calendarDaysFromCivil(y, (unsigned)mo, (unsigned)d) * 86400 -
+         (int64_t)tzOffsetHours * 3600;
+}
+
+// The window the tray draws for one month, decided here and not in the app.
+//
+// Monday-first, because that is the owner's week and the grid is the one a paper
+// calendar shows. `gridStart` is the local midnight of the Monday on or before
+// the 1st and `gridEnd` the midnight after the last week, so
+// `gridEnd - gridStart` is always a whole number of weeks: the app draws rows
+// and decides nothing. 1970-01-01 was a Thursday, which is why the Monday index
+// of a day number is `(days + 3) % 7`.
+struct CalendarMonthWindow {
+  int64_t monthStart;
+  int64_t monthEnd;
+  int64_t gridStart;
+  int64_t gridEnd;
+  int weeks;
+};
+
+static inline int calendarMondayIndexFromDays(int64_t days) {
+  return (int)(((days + 3) % 7 + 7) % 7);
+}
+
+// False for anything that is not a real month the device could have been asked
+// for: before NTP there is no honest month, and a year past the next century is
+// a client bug, not a calendar.
+static inline bool calendarMonthWindow(int year, int month, int tzOffsetHours,
+                                       CalendarMonthWindow *out) {
+  if (!out) return false;
+  if (year < 2020 || year > 2199) return false;
+  if (month < 1 || month > 12) return false;
+  const unsigned days = calendarDaysInMonth(year, (unsigned)month);
+  if (!days) return false;
+
+  const int64_t firstDays = calendarDaysFromCivil(year, (unsigned)month, 1);
+  const int lead = calendarMondayIndexFromDays(firstDays);
+  out->monthStart = calendarLocalMidnightOf(year, month, 1, tzOffsetHours);
+  const int nextMonth = month == 12 ? 1 : month + 1;
+  const int nextYear = month == 12 ? year + 1 : year;
+  out->monthEnd = calendarLocalMidnightOf(nextYear, nextMonth, 1, tzOffsetHours);
+  out->gridStart = out->monthStart - (int64_t)lead * 86400;
+  const int64_t cells = (int64_t)lead + (int64_t)days;
+  out->weeks = (int)((cells + 6) / 7);
+  out->gridEnd = out->gridStart + (int64_t)out->weeks * 7 * 86400;
+  return true;
+}
+
 // Local wall-clock `HH:MM` for an event start, using the owner's fixed offset.
+//
 // The split frame shows the time the event says in the calendar, not a
 // countdown: that is what the panel and the phone show too.
 static inline bool calendarFormatClock(int64_t epoch, int tzOffsetHours,
