@@ -10,12 +10,19 @@ Preferences s_prefs;
 bool s_ready = false;
 
 // Una clave por ranura: si un registro quedó a medias, la ranura se rechaza sola
-// y las otras tres siguen sirviendo.
-const char *const kKeys[ADMIN_SESSION_MAX] = {"s0", "s1", "s2", "s3"};
+// y las otras tres siguen sirviendo. El nombre lo arma `adminSessionKeyFor`, que
+// se prueba en host: una clave de más de 15 caracteres no se escribiría nunca.
+char kKey[16];
+
+void keyFor(int slot) {
+  if (!adminSessionKeyFor(slot, kKey, sizeof(kKey))) kKey[0] = '\0';
+}
 
 }  // namespace
 
-void adminSessionStoreBegin() { s_ready = s_prefs.begin("adminsess", false); }
+void adminSessionStoreBegin() {
+  s_ready = s_prefs.begin(ADMIN_SESSION_NS, false);
+}
 
 bool adminSessionStoreLoad(AdminSessionTable *table) {
   if (!table) return false;
@@ -23,7 +30,8 @@ bool adminSessionStoreLoad(AdminSessionTable *table) {
   if (!s_ready) return false;
   bool any = false;
   for (int i = 0; i < ADMIN_SESSION_MAX; i++) {
-    const String value = s_prefs.getString(kKeys[i], "");
+    keyFor(i);
+    const String value = s_prefs.getString(kKey, "");
     AdminSession slot;
     if (!adminSessionRecordDecode(value.c_str(), &slot)) continue;
     table->slots[i] = slot;
@@ -35,11 +43,12 @@ bool adminSessionStoreLoad(AdminSessionTable *table) {
 void adminSessionStoreSave(const AdminSessionTable *table) {
   if (!table || !s_ready) return;
   for (int i = 0; i < ADMIN_SESSION_MAX; i++) {
+    keyFor(i);
     char text[ADMIN_SESSION_RECORD_CAP];
     if (adminSessionRecordEncode(&table->slots[i], text, sizeof(text))) {
-      s_prefs.putString(kKeys[i], text);
+      s_prefs.putString(kKey, text);
     } else {
-      s_prefs.remove(kKeys[i]);
+      s_prefs.remove(kKey);
     }
   }
 }
@@ -47,6 +56,7 @@ void adminSessionStoreSave(const AdminSessionTable *table) {
 void adminSessionStoreClear() {
   if (!s_ready) return;
   for (int i = 0; i < ADMIN_SESSION_MAX; i++) {
-    s_prefs.remove(kKeys[i]);
+    keyFor(i);
+    s_prefs.remove(kKey);
   }
 }

@@ -365,6 +365,33 @@ static void testSessionStoreCodec() {
   memset(&clockless, 0, sizeof(clockless));
   clockless.used = true;
   clockless.openedAtEpoch = 0;
+  // Los límites de NVS: un nombre de más de 15 caracteres o un valor de más de
+  // 1984 bytes se rechazan al escribir y la sesión no se guardaría, sin ningún
+  // error visible. Se fijan acá, que es el lado que corre en host.
+  check("S1 the namespace fits NVS",
+        strlen(ADMIN_SESSION_NS) <= ADMIN_SESSION_NS_MAX);
+  check("S1 the record fits an NVS string",
+        ADMIN_SESSION_RECORD_CAP <= ADMIN_SESSION_VALUE_MAX);
+  char key[16];
+  bool keysOk = true;
+  bool unique = true;
+  for (int i = 0; i < ADMIN_SESSION_MAX; i++) {
+    if (!adminSessionKeyFor(i, key, sizeof(key))) keysOk = false;
+    if (strlen(key) > ADMIN_SESSION_NS_MAX) keysOk = false;
+    for (int j = 0; j < i; j++) {
+      char other[16];
+      adminSessionKeyFor(j, other, sizeof(other));
+      if (strcmp(key, other) == 0) unique = false;
+    }
+  }
+  check("S1 every slot has a short key", keysOk);
+  check("S1 and they do not collide", unique);
+  adminSessionKeyFor(0, key, sizeof(key));
+  check("S1 the first key is s0", strcmp(key, "s0") == 0);
+  check("S1 a slot that does not exist has no key",
+        !adminSessionKeyFor(ADMIN_SESSION_MAX, key, sizeof(key)));
+  check("S1 a negative slot has no key", !adminSessionKeyFor(-1, key, sizeof(key)));
+
   check("S1 a session without an absolute time is not written",
         !adminSessionRecordEncode(&clockless, text, sizeof(text)));
 }

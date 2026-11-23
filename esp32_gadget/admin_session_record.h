@@ -24,6 +24,25 @@
 // Token (64) + coma + epoch de 19 dígitos + terminador, con aire.
 #define ADMIN_SESSION_RECORD_CAP (ADMIN_TOKEN_HEX + 1 + 20 + 8)
 
+// El namespace y las claves de NVS. Los dos límites son del sistema de archivos
+// interno de NVS: un nombre de más de 15 caracteres o un valor de más de 1984
+// bytes se rechazan al escribir y la sesión simplemente no se guardaría, sin
+// error visible. Por eso se fijan acá, con test, y no se escriben a mano en el
+// módulo que toca NVS.
+#define ADMIN_SESSION_NS "adminsess"
+#define ADMIN_SESSION_NS_MAX 15
+#define ADMIN_SESSION_VALUE_MAX 1984
+
+// La clave de una ranura: "s0".."s3". Devolver false para una ranura que no
+// existe es más útil que generar una clave inventada.
+static inline bool adminSessionKeyFor(int slot, char *out, size_t cap) {
+  if (!out || cap == 0) return false;
+  out[0] = '\0';
+  if (slot < 0 || slot >= ADMIN_SESSION_MAX) return false;
+  const int n = snprintf(out, cap, "s%d", slot);
+  return n > 0 && (size_t)n < cap;
+}
+
 static inline bool adminSessionTokenValid(const char *token) {
   if (!token) return false;
   if (strnlen(token, ADMIN_TOKEN_CAP) != ADMIN_TOKEN_HEX) return false;
