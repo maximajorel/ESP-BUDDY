@@ -172,6 +172,26 @@ pub async fn device_focus(state: State<'_, AppState>, seconds: u32) -> Result<()
     state.api()?.set_focus(seconds).await
 }
 
+/// Brillo del LCD sin sesión del panel (S3). El firmware lo trata como escritura
+/// pública y angosta: no hay nada que loguear ni credencial que guardar.
+#[tauri::command]
+pub async fn device_lcd(state: State<'_, AppState>, brightness: u8) -> Result<(), ApiError> {
+    state.api()?.set_lcd(brightness).await
+}
+
+/// Color, nivel y efecto de la tira RGB, también sin sesión (S3).
+#[tauri::command]
+pub async fn device_led(
+    state: State<'_, AppState>,
+    red: u8,
+    green: u8,
+    blue: u8,
+    level: u8,
+    effect: u8,
+) -> Result<(), ApiError> {
+    state.api()?.set_led(red, green, blue, level, effect).await
+}
+
 /// Abre la sesión del panel una vez y guarda sólo el token (S8). La contraseña
 /// se manda y se olvida: no toca el disco ni el log.
 #[tauri::command]

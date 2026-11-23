@@ -68,7 +68,37 @@
         <div class="screens" style="margin-top:8px" role="group" aria-label="Elegir pantalla del LCD" id="screens"></div>
       </section>
 
-      <!-- 2 · temporizador -->
+      <!-- 2 · brillo y LED (S3): las dos escrituras que el equipo acepta sin la
+           sesión del panel. Son endpoints propios (`/api/lcd`, `/api/led`), no
+           `/api/settings`, que además guarda tokens. -->
+      <section aria-labelledby="s-light">
+        <div class="sec-head" id="s-light">Brillo y luz <span class="meta" id="lightMeta">—</span></div>
+        <div class="light-card" style="margin-top:8px">
+          <label class="slider">
+            <span class="slider-label">LCD</span>
+            <input type="range" id="lcdRange" min="5" max="100" step="1" aria-label="Brillo del LCD">
+            <output class="slider-value" id="lcdValue">—</output>
+          </label>
+          <label class="slider">
+            <span class="slider-label">LED</span>
+            <input type="range" id="ledRange" min="0" max="255" step="1" aria-label="Nivel del LED">
+            <output class="slider-value" id="ledValue">—</output>
+          </label>
+          <div class="led-row">
+            <label class="led-color">
+              <span>Color</span>
+              <input type="color" id="ledColor" value="#ffffff" aria-label="Color del LED">
+            </label>
+            <div class="chips" role="group" aria-label="Efecto del LED">
+              <button class="chip" type="button" data-effect="0" aria-pressed="true">Fijo</button>
+              <button class="chip" type="button" data-effect="1" aria-pressed="false">Arcoíris</button>
+              <button class="chip" type="button" data-effect="2" aria-pressed="false">Apagado</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3 · temporizador -->
       <section aria-labelledby="s-focus">
         <div class="sec-head" id="s-focus">Temporizador <span class="meta" id="focusMeta">—</span></div>
         <div class="focus-card" style="margin-top:8px">
@@ -96,7 +126,7 @@
         </div>
       </section>
 
-      <!-- 3 · calendario -->
+      <!-- 4 · calendario -->
       <section aria-labelledby="s-cal">
         <div class="sec-head" id="s-cal">Calendario <span class="meta" id="calMeta">—</span></div>
         <div class="cal-card" style="margin-top:8px">

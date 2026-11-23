@@ -305,6 +305,8 @@ fn main() {
             commands::device_status,
             commands::device_screen,
             commands::device_focus,
+            commands::device_lcd,
+            commands::device_led,
             commands::panel_login,
             commands::panel_logout,
             commands::panel_calendar,

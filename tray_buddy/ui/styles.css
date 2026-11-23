@@ -172,7 +172,40 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .tile .label { font-size: 8px; letter-spacing: 0; overflow-wrap: anywhere; }
 .tile:disabled { opacity: 0.45; cursor: default; }
 
-/* 2 · temporizador */
+/* 2 · brillo del LCD y LED (S3) */
+/* La tarjeta va en azul cielo como la de la próxima cita: es una tarjeta de
+   ajuste, no de estado, y el papel blanco la dejaba confundida con el fondo. */
+.light-card {
+  padding: 12px; display: grid; gap: 10px;
+  background: var(--sky); border: var(--line); border-radius: var(--r-card);
+}
+.slider { display: grid; grid-template-columns: 30px minmax(0, 1fr) 46px; align-items: center; gap: 8px; }
+.slider-label { font-size: 9px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; opacity: 0.7; }
+/* Mono tabular para el número: dos sliders con el mismo valor tienen que leerse
+   igual de ancho, y el porcentaje no puede bailar mientras se arrastra. */
+.slider-value {
+  font-family: var(--mono); font-size: 12px; font-weight: 700; text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.slider input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 22px; background: transparent; margin: 0; }
+.slider input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px; background: var(--paper); border: var(--line); border-radius: var(--r-pill);
+}
+.slider input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 16px; height: 16px; margin-top: -6px;
+  background: var(--ink); border: 1px solid var(--ink); border-radius: 50%;
+}
+.slider input[type="range"]:disabled { opacity: 0.45; }
+.led-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.led-color { display: flex; align-items: center; gap: 6px; }
+.led-color span { font-size: 9px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; opacity: 0.7; }
+.led-color input[type="color"] {
+  width: 34px; height: 28px; padding: 0;
+  background: var(--paper); border: var(--line); border-radius: var(--r-in);
+}
+.led-row .chips { margin-left: auto; }
+
+/* 3 · temporizador */
 .focus-card {
   padding: 14px; display: grid; gap: 12px;
   background: var(--mint);
@@ -209,7 +242,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .btn:hover:not(:disabled) { background: var(--mist); color: var(--ink); }
 .btn:disabled { opacity: 0.45; cursor: default; }
 
-/* 3 · calendario */
+/* 4 · calendario */
 .cal-card { border: var(--line); border-radius: var(--r-card); overflow: hidden; background: var(--paper); }
 .next {
   display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 10px;

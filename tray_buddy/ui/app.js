@@ -277,6 +277,140 @@ function wireFocus() {
   });
 }
 
+// ── brillo del LCD y LED (S3) ────────────────────────────────────────────────
+//
+// Los dos endpoints son públicos en el equipo y angostos: brillo por un lado,
+// color/nivel/efecto por el otro. La app no guarda nada de esto como preferencia
+// propia: el estado real está en el equipo y `GET /api/status` lo publica, así que
+// el popover muestra lo que el equipo dice y no un recuerdo de la última vez.
+const light = { brightness: 50, r: 255, g: 255, b: 255, level: 128, effect: 0 };
+
+function hexFromRgb(r, g, b) {
+  return `#${[r, g, b].map((value) => (value & 0xff).toString(16).padStart(2, "0")).join("")}`;
+}
+
+function rgbFromHex(hex) {
+  const match = /^#?([0-9a-f]{6})$/i.exec(hex ?? "");
+  if (!match) return null;
+  const value = Number.parseInt(match[1], 16);
+  return { r: (value >> 16) & 0xff, g: (value >> 8) & 0xff, b: value & 0xff };
+}
+
+/** `level` es 0..255 en el alambre, pero el dueño lee un porcentaje: es el mismo
+ *  número que muestra la pantalla CONFIG del equipo. */
+function ledPercent(level) {
+  return Math.round((level / 255) * 100);
+}
+
+/**
+ * Pinta los controles con el estado del equipo.
+ *
+ * Un control que el dueño está agarrando no se pisa: el sondeo cada cinco
+ * segundos movería el pulgar de abajo del dedo, y con el modo "soltar para
+ * aplicar" eso mandaría un valor que nadie eligió.
+ */
+function renderLight() {
+  const online = Boolean(status);
+  if (status) {
+    if (document.activeElement !== $("lcdRange")) {
+      light.brightness = status.display?.brightness ?? light.brightness;
+    }
+    if (document.activeElement !== $("ledRange")) {
+      light.level = status.rgb?.level ?? light.level;
+    }
+    if (document.activeElement !== $("ledColor")) {
+      light.r = status.rgb?.r ?? light.r;
+      light.g = status.rgb?.g ?? light.g;
+      light.b = status.rgb?.b ?? light.b;
+    }
+    light.effect = status.rgb?.effect ?? light.effect;
+  }
+
+  $("lcdRange").disabled = !online;
+  $("ledRange").disabled = !online;
+  $("ledColor").disabled = !online;
+  document.querySelectorAll("[data-effect]").forEach((chip) => {
+    chip.disabled = !online;
+    chip.setAttribute(
+      "aria-pressed",
+      Number(chip.dataset.effect) === light.effect ? "true" : "false",
+    );
+  });
+
+  $("lcdRange").value = String(light.brightness);
+  $("lcdValue").textContent = online ? `${light.brightness}%` : "—";
+  $("ledRange").value = String(light.level);
+  $("ledValue").textContent = online ? `${ledPercent(light.level)}%` : "—";
+  if (online) $("ledColor").value = hexFromRgb(light.r, light.g, light.b);
+  $("lightMeta").textContent = !online
+    ? "sin conexión"
+    : status.rgb?.asleep
+      ? "LED dormido"
+      : "sin sesión";
+}
+
+async function sendLcd() {
+  if (!status) return;
+  try {
+    await invoke("device_lcd", { brightness: light.brightness });
+  } catch (error) {
+    setOnline(false, "Error", error?.message);
+    renderLight();
+  }
+}
+
+async function sendLed() {
+  if (!status) return;
+  try {
+    await invoke("device_led", {
+      red: light.r,
+      green: light.g,
+      blue: light.b,
+      level: light.level,
+      effect: light.effect,
+    });
+  } catch (error) {
+    setOnline(false, "Error", error?.message);
+    renderLight();
+  }
+}
+
+/**
+ * Se manda al soltar, no al arrastrar: cada pedido es un POST al equipo por la
+ * LAN, y un dedo que se mueve son decenas de pedidos que el equipo no puede
+ * distinguir de un dueño indeciso. El número se actualiza en vivo igual.
+ */
+function wireLight() {
+  const lcd = $("lcdRange");
+  lcd.addEventListener("input", () => {
+    light.brightness = Number(lcd.value);
+    $("lcdValue").textContent = `${light.brightness}%`;
+  });
+  lcd.addEventListener("change", () => sendLcd());
+
+  const led = $("ledRange");
+  led.addEventListener("input", () => {
+    light.level = Number(led.value);
+    $("ledValue").textContent = `${ledPercent(light.level)}%`;
+  });
+  led.addEventListener("change", () => sendLed());
+
+  $("ledColor").addEventListener("change", (event) => {
+    const rgb = rgbFromHex(event.target.value);
+    if (!rgb) return;
+    Object.assign(light, rgb);
+    sendLed();
+  });
+
+  document.querySelectorAll("[data-effect]").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      light.effect = Number(chip.dataset.effect);
+      renderLight();
+      sendLed();
+    });
+  });
+}
+
 // ── calendario (S6) ─────────────────────────────────────────────────────────
 
 function minutesLabel(minutes) {
@@ -1050,6 +1184,7 @@ async function refresh() {
     setOnline(false, "Offline", "—");
     renderScreens();
     renderFocus();
+    renderLight();
     return;
   }
   try {
@@ -1057,6 +1192,7 @@ async function refresh() {
     setOnline(true, "En línea", connection.port === 80 ? connection.host : `${connection.host}:${connection.port}`);
     renderScreens();
     renderFocus();
+    renderLight();
     await loadCalendar();
   } catch (error) {
     // Un fallo no borra el último estado bueno: se marca sin conexión y se dice
@@ -1065,6 +1201,7 @@ async function refresh() {
     setOnline(false, "Caído", error?.message ?? "—");
     renderScreens();
     renderFocus();
+    renderLight();
   }
 }
 
@@ -1129,9 +1266,11 @@ function wirePanel() {
 async function boot() {
   renderScreens();
   renderFocus();
+  renderLight();
   wireCaption();
   wireWizard();
   wireFocus();
+  wireLight();
   wireCalendar();
   wirePanel();
   await loadPopoverSize();

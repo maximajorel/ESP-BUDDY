@@ -57,6 +57,40 @@ pub struct Status {
     pub focus: Focus,
     #[serde(default)]
     pub sta: Sta,
+    /// Lo que el LCD tiene configurado. Un firmware viejo no lo manda y el
+    /// popover deja los controles sin valor en vez de inventar uno.
+    #[serde(default)]
+    pub display: Display,
+    /// El estado real de la tira RGB: color, nivel 0..255 y efecto.
+    #[serde(default)]
+    pub rgb: Rgb,
+}
+
+/// `display` de `GET /api/status`: sólo lo que el popover muestra y escribe.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Display {
+    #[serde(default)]
+    pub brightness: u8,
+}
+
+/// `rgb` de `GET /api/status`. `level` es 0..255 (el mismo número que acepta
+/// `POST /api/led`), no el porcentaje que muestra la pantalla CONFIG.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Rgb {
+    #[serde(default)]
+    pub r: u8,
+    #[serde(default)]
+    pub g: u8,
+    #[serde(default)]
+    pub b: u8,
+    #[serde(default)]
+    pub level: u8,
+    #[serde(default)]
+    pub effect: u8,
+    #[serde(default)]
+    pub asleep: bool,
 }
 
 fn default_version() -> String {
@@ -253,6 +287,34 @@ impl Api {
     pub async fn set_screen(&self, index: u8) -> Result<(), ApiError> {
         let body = serde_json::json!({ "index": index });
         self.call(reqwest::Method::POST, "/api/screen", Some(&body))
+            .await
+            .map(|_| ())
+    }
+
+    /// `POST /api/lcd` (S3): el brillo del LCD sin sesión. El equipo lo trata como
+    /// una escritura pública y angosta: sólo el brillo, nada de `/api/settings`.
+    pub async fn set_lcd(&self, brightness: u8) -> Result<(), ApiError> {
+        let body = serde_json::json!({ "brightness": brightness });
+        self.call(reqwest::Method::POST, "/api/lcd", Some(&body))
+            .await
+            .map(|_| ())
+    }
+
+    /// `POST /api/led` (S3): color, nivel y efecto de la tira RGB, también sin
+    /// sesión. Los cinco campos viajan en un solo cuerpo para que el dueño vea el
+    /// cambio una vez y no cinco.
+    pub async fn set_led(
+        &self,
+        red: u8,
+        green: u8,
+        blue: u8,
+        level: u8,
+        effect: u8,
+    ) -> Result<(), ApiError> {
+        let body = serde_json::json!({
+            "r": red, "g": green, "b": blue, "level": level, "effect": effect
+        });
+        self.call(reqwest::Method::POST, "/api/led", Some(&body))
             .await
             .map(|_| ())
     }
@@ -595,6 +657,65 @@ mod tests {
         assert_eq!(month.events[0].id, "abc123");
         assert_eq!(month.events[0].etag, "\"3201\"");
         assert!(!month.events[0].all_day);
+    }
+
+    /// El brillo va a `/api/lcd`, sin cookie de sesión: es la mitad del pedido
+    /// "sin autenticación". El equipo lo acepta público por nombre exacto.
+    #[tokio::test]
+    async fn el_brillo_va_a_api_lcd_y_sin_cookie() {
+        let response: &'static str = Box::leak(http_ok("{\"ok\":true}").into_boxed_str());
+        let (port, seen) = fake_device_with_request(response);
+
+        api_for(port).set_lcd(42).await.expect("brillo");
+
+        let request = seen.lock().expect("visto").clone();
+        assert!(request.starts_with("POST /api/lcd "), "fue: {request}");
+        assert!(request.contains(r#"{"brightness":42}"#), "fue: {request}");
+        assert!(
+            !request.to_lowercase().contains("cookie:"),
+            "el brillo no puede depender de la sesión: {request}"
+        );
+    }
+
+    /// El LED manda los cinco campos en el mismo cuerpo, también sin sesión.
+    #[tokio::test]
+    async fn el_led_va_a_api_led_con_color_nivel_y_efecto() {
+        let response: &'static str = Box::leak(http_ok("{\"ok\":true}").into_boxed_str());
+        let (port, seen) = fake_device_with_request(response);
+
+        api_for(port).set_led(10, 20, 30, 200, 1).await.expect("led");
+
+        let request = seen.lock().expect("visto").clone();
+        assert!(request.starts_with("POST /api/led "), "fue: {request}");
+        // El orden de las claves no importa (el firmware lee por nombre), pero
+        // los cinco campos tienen que estar y con su valor.
+        for field in [
+            r#""r":10"#, r#""g":20"#, r#""b":30"#, r#""level":200"#,
+            r#""effect":1"#,
+        ] {
+            assert!(request.contains(field), "falta {field} en: {request}");
+        }
+        assert!(!request.to_lowercase().contains("cookie:"), "fue: {request}");
+    }
+
+    /// El status trae lo que los controles necesitan mostrar al abrir: el brillo
+    /// configurado y el estado del LED. Un firmware que no los mande deja los
+    /// valores por defecto (0) y el popover no inventa nada.
+    #[tokio::test]
+    async fn parsea_el_brillo_y_el_led_del_status() {
+        const LIGHT_JSON: &str = r#"{
+            "screen":0,"screenName":"RELOJ",
+            "focus":{"active":false,"seconds":0,"remainingMs":0},
+            "display":{"brightness":55,"orientation":0},
+            "rgb":{"asleep":false,"r":10,"g":20,"b":30,"level":200,"effect":1}
+        }"#;
+        let response: &'static str = Box::leak(http_ok(LIGHT_JSON).into_boxed_str());
+        let port = fake_device(response);
+        let status = api_for(port).status().await.expect("status");
+        assert_eq!(status.display.brightness, 55);
+        assert_eq!(status.rgb.level, 200);
+        assert_eq!(status.rgb.effect, 1);
+        assert_eq!(status.rgb.b, 30);
     }
 
     /// El equipo puede avisar que llegó a su tope de filas. El campo es lo que
