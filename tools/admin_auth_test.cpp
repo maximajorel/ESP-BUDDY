@@ -376,6 +376,19 @@ static void testRoutes() {
       {"POST", "/api/admin/credentials", true, "changing the password"},
       {"POST", "/api/does-not-exist", true,
        "an unknown write is refused before the dispatcher sees it"},
+      // El clima guarda el lugar del dueño: sus lecturas son tan privadas como
+      // las del calendario, aunque el servicio no pida credenciales.
+      {"GET", "/api/weather", true, "the saved place is the owner's"},
+      // La agenda del día publica títulos de eventos: es una lectura privada
+      // como el resto del calendario, y este caso la fija por nombre (el
+      // prefijo ya la protegía).
+      {"GET", "/api/calendar/events", true,
+       "the day's agenda publishes event titles"},
+      {"GET", "/api/calendar/events/", true,
+       "a trailing slash does not make it public"},
+      {"GET", "/api/weather/search", true,
+       "every weather route is private even for reads"},
+      {"POST", "/api/weather/location", true, "the saved place is the owner's"},
       {"POST", "/api/status", true, "a write against a read path is not public"},
       {"DELETE", "/api/wifi", true, "an unknown method under /api is not public"},
       {"PUT", "/api/settings", true, "an unknown method under /api is not public"},
