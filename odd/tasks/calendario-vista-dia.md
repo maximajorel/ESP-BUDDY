@@ -130,6 +130,19 @@ eventos reales.
 
 L9. El mock de la API (`tools/mock_gadget_api.py`) ganó `GET
 /api/calendar/events` con datos relativos al día del equipo, para poder ejercitar
-la agenda sin la placa. **Quedó sin commitear a propósito**: ese archivo ya
-traía, sin commitear, el WIP del clima de otra feature, y mezclarlo en un commit
-de calendario le habría cambiado el autor real a ese trabajo.
+la agenda sin la placa (`f899b80`). Ese archivo ya traía, sin commitear, el WIP
+del clima de otra feature: el commit se armó **sobre HEAD y sólo con los cambios
+de la agenda** (`git hash-object -w` + `update-index --cacheinfo`), y el WIP
+ajeno sigue sin commitear como estaba. Verificado corriendo ese blob exacto en
+un servidor aparte: sin sesión → 401; con sesión y la cuenta aprobada →
+`count: 5` con `dayStart`/`dayEnd` coherentes y el `eventCount` de
+`/api/calendar` saliendo del mismo día. El "aprobar a los 4 s" del mock pasó a
+`calendar_tick()`, compartido por los dos endpoints: antes sólo lo hacía
+`/api/calendar` y la agenda contestaba "sin eventos" con el estado ya en `ready`.
+
+L10. `tools/probes/calendario_agenda.txt` (`2aa2e9c`): la secuencia de consola
+que verifica el endpoint después de flashear, con la fila correspondiente en
+`tools/probes/README.md`. `api` llama a `netHandleApi` en proceso y no pasa por
+`adminRequiresSession`, así que el JSON se puede leer sin abrir sesión del panel.
+Lectura de puerto para el próximo paso: `arduino-cli board list` → **COM5**
+(`ESP32 Family Device`); COM3/COM4 sin placa identificada.
