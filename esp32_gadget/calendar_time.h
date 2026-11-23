@@ -157,6 +157,39 @@ static inline bool calendarRfc3339FromEpoch(int64_t epoch, char *out,
   return true;
 }
 
+// The epoch of the local midnight of one day, in the owner's fixed offset.
+// `dayOffset` 0 is today and 1 is tomorrow. A local day is exactly 86400 s here
+// because the device stores an offset and not a zone: there is no DST to fix.
+// The popover's "today" list and the events query both start from this number,
+// so the app never derives a midnight from its own clock.
+static inline bool calendarLocalMidnight(int64_t nowEpoch, int tzOffsetHours,
+                                         int dayOffset, int64_t *out) {
+  if (!out) return false;
+  const int64_t offset = (int64_t)tzOffsetHours * 3600;
+  const int64_t local = nowEpoch + offset;
+  // The C remainder truncates toward zero: normalise it so instants before
+  // 1970 land on their own day instead of the next one.
+  int64_t intoDay = local % 86400;
+  if (intoDay < 0) intoDay += 86400;
+  *out = local - intoDay + (int64_t)dayOffset * 86400 - offset;
+  return true;
+}
+
+// The lower bound of the events query. Normally the owner's local midnight, so
+// the day's agenda is complete, but never less than an hour back: Google filters
+// by start time, and an event that began before midnight and is still running
+// has to stay in the answer.
+static inline bool calendarDayQueryStart(int64_t nowEpoch, int tzOffsetHours,
+                                         int64_t *out) {
+  int64_t midnight = 0;
+  if (!calendarLocalMidnight(nowEpoch, tzOffsetHours, 0, &midnight)) {
+    return false;
+  }
+  const int64_t floor = nowEpoch - 3600;
+  *out = midnight < floor ? midnight : floor;
+  return true;
+}
+
 // Local wall-clock `HH:MM` for an event start, using the owner's fixed offset.
 // The split frame shows the time the event says in the calendar, not a
 // countdown: that is what the panel and the phone show too.

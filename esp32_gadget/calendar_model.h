@@ -22,7 +22,11 @@
 // One page of Google's list is plenty for a personal account, and a fixed array
 // keeps the selector out of the heap.
 #define CALENDAR_MAX_LIST 24
-#define CALENDAR_MAX_EVENTS 12
+// The events window is the owner's day plus the 26 h of reaction ahead, so the
+// buffer holds a whole busy day and still has tomorrow's meetings for the face.
+// 24 events cost ~5 KB of internal RAM, twice (the live copy and the parse
+// scratch); the board reports 22% of DRAM used with this in place.
+#define CALENDAR_MAX_EVENTS 24
 
 // Google accepts reminders up to four weeks ahead. A face that stays alert for
 // a month is not a warning any more, so the reaction caps the lead at one day.

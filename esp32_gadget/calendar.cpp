@@ -10,6 +10,7 @@
 #include "calendar_parse.h"
 #include "calendar_plan.h"
 #include "calendar_store.h"
+#include "calendar_time.h"
 #include "settings.h"
 
 namespace {
@@ -18,10 +19,10 @@ constexpr uint32_t kRefreshMs = 15u * 60u * 1000u;
 constexpr uint32_t kTaskStack = 12288;
 constexpr size_t kListBodyBytes = 8192;
 constexpr size_t kEventsBodyBytes = 16384;
-// Enough history for an event that is running right now, and more than the
-// 24-hour reaction cap ahead, so a reminder never opens on an event the device
-// did not fetch.
-constexpr int64_t kPastSeconds = 3600;
+// The events window is the owner's whole day (the popover shows it in full,
+// including what already happened) plus more than the 24-hour reaction cap ahead,
+// so a reminder never opens on an event the device did not fetch. The lower
+// bound is `calendarDayQueryStart`: local midnight, never less than an hour back.
 constexpr int64_t kFutureSeconds = 26 * 3600;
 
 SemaphoreHandle_t s_lock = nullptr;
@@ -121,9 +122,14 @@ void fetchNow() {
   }
 
   const time_t now = time(nullptr);
+  int64_t from = 0;
+  if (!calendarDayQueryStart((int64_t)now, settingsGet().tzOffsetHours, &from)) {
+    setError("No pude calcular el comienzo del dia");
+    return;
+  }
+  const int64_t to = (int64_t)now + kFutureSeconds;
   char path[512];
-  if (!calendarEventsPath(selected, (int64_t)now - kPastSeconds,
-                          (int64_t)now + kFutureSeconds, path, sizeof(path))) {
+  if (!calendarEventsPath(selected, from, to, path, sizeof(path))) {
     setError("El nombre del calendario no entra en el pedido");
     return;
   }

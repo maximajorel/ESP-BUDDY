@@ -88,6 +88,53 @@ static const char *kCalendarList = R"({
     {"id": "team@group.calendar.google.com", "summary": "Equipo"}
   ]})";
 
+// The day's window starts at the owner's local midnight, not "an hour ago":
+// the popover shows the whole day, including what already happened.
+static void testLocalMidnight() {
+  printf("-- the local day, from the owner's fixed offset\n");
+  int64_t out = 0;
+  // 2026-11-23 09:48:52 at -03:00 (the board's clock during the survey).
+  const int64_t kMorning = 1795438132LL;
+  checkInt("09:48 at -03", calendarLocalMidnight(kMorning, -3, 0, &out), true);
+  checkInt("  is the local midnight", out, 1795402800LL);
+  checkInt("tomorrow", calendarLocalMidnight(kMorning, -3, 1, &out), true);
+  checkInt("  is exactly 24 h later", out, 1795489200LL);
+
+  // The last second of a day still belongs to that day, and the next one flips.
+  checkInt("23:59:59", calendarLocalMidnight(1795489199LL, -3, 0, &out), true);
+  checkInt("  keeps the 23rd", out, 1795402800LL);
+  checkInt("00:00:00", calendarLocalMidnight(1795489200LL, -3, 0, &out), true);
+  checkInt("  already the 24th", out, 1795489200LL);
+
+  // UTC has no offset to apply; a positive offset moves the day backwards.
+  checkInt("UTC noon", calendarLocalMidnight(1795435200LL, 0, 0, &out), true);
+  checkInt("  00:00Z", out, 1795392000LL);
+  checkInt("23:30 at +09", calendarLocalMidnight(1795444200LL, 9, 0, &out),
+           true);
+  checkInt("  is still the 23rd locally", out, 1795359600LL);
+
+  // Before 1970 the C remainder truncates toward zero: the day must not drift.
+  checkInt("the epoch itself at -03", calendarLocalMidnight(0, -3, 0, &out),
+           true);
+  checkInt("  is 1969-12-31 local", out, -75600LL);
+  checkInt("  and the next day", calendarLocalMidnight(0, -3, 1, &out), true);
+  checkInt("  is 1970-01-01 local", out, 10800LL);
+
+  printf("-- a whole day of events fits in the buffer\n");
+  // The window is a day, not an hour: a busy day must not be cut in half.
+  checkInt("CALENDAR_MAX_EVENTS", CALENDAR_MAX_EVENTS, 24);
+
+  printf("-- the query starts at the day, with an hour of floor\n");
+  checkInt("09:48 at -03", calendarDayQueryStart(kMorning, -3, &out), true);
+  checkInt("  starts at 00:00 local", out, 1795402800LL);
+  // At 00:01 the local midnight is only a minute back, so the floor wins and an
+  // event that started last night is still in the answer.
+  checkInt("00:01 at -03", calendarDayQueryStart(1795402860LL, -3, &out), true);
+  checkInt("  an hour back, not the minute-old midnight", out, 1795399260LL);
+  checkInt("UTC noon", calendarDayQueryStart(1795435200LL, 0, &out), true);
+  checkInt("  00:00Z", out, 1795392000LL);
+}
+
 static void testCalendarList() {
   printf("-- the selector's list\n");
   CalendarInfo list[CALENDAR_MAX_LIST];
@@ -320,7 +367,7 @@ static void testForms() {
     g_failures++;
   }
   const char *wanted[] = {"singleEvents=true", "orderBy=startTime",
-                          "maxResults=12",
+                          "maxResults=24",
                           "fields=items(id,status,summary,location,start,end,reminders)",
                           "timeMin=", "timeMax="};
   for (size_t i = 0; i < sizeof(wanted) / sizeof(wanted[0]); i++) {
@@ -479,6 +526,7 @@ static void testOAuthResponses() {
 
 int main() {
   testRfc3339();
+  testLocalMidnight();
   testCalendarList();
   testEvents();
   testReaction();
