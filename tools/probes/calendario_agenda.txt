@@ -1,0 +1,25 @@
+# La agenda del día que publica el equipo: `GET /api/calendar/events`.
+#
+# Lo que dibuja el popover de la bandeja. Se sondea por consola porque `api`
+# llama a `netHandleApi` en proceso y no pasa por el portero de sesión del
+# servidor HTTP: el JSON se lee sin abrir una sesión del panel.
+#
+# Qué se verifica:
+#   1. el calendario sigue vivo (`kind: ready`, `authorized: true`) y con su
+#      calendario elegido;
+#   2. la respuesta tiene `ok`, `tz`, `dayStart`, `dayEnd`, `count` y `events`;
+#   3. `dayStart` es la medianoche local de HOY (con `tz` -3 son las 03:00 UTC) y
+#      `dayEnd` es exactamente 86400 s después: si `dayStart` sale 1970 el reloj
+#      no vio NTP y el equipo manda ceros a propósito;
+#   4. los eventos de hoy vienen ordenados por `startEpoch` y entran en la
+#      ventana [dayStart, ahora + 26 h];
+#   5. un evento que ya terminó sigue en la lista (eso es lo que la app pinta
+#      atenuado) y su `endEpoch` es menor que la hora actual.
+#
+# Con la cuenta del dueño sin eventos a la vista, `count: 0` y `events: []` es un
+# resultado válido: el equipo no inventa filas.
+boot 4
+api GET /api/status
+api GET /api/calendar
+api GET /api/calendar/events
+api GET /api/calendar/events
