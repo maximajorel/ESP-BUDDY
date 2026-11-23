@@ -18,7 +18,11 @@ namespace {
 constexpr uint32_t kRefreshMs = 15u * 60u * 1000u;
 constexpr uint32_t kTaskStack = 12288;
 constexpr size_t kListBodyBytes = 8192;
-constexpr size_t kEventsBodyBytes = 16384;
+// Derivado de CALENDAR_MAX_EVENTS, no un número suelto: un cuerpo más grande que
+// el presupuesto se descarta entero (`CALENDAR_HTTP_BODY_TOO_LARGE`), así que
+// quedarse corto no da menos filas, deja al dueño sin agenda. El peor caso está
+// medido en `tools/calendar_core_test.cpp`.
+constexpr size_t kEventsBodyBytes = CALENDAR_EVENTS_BODY_BYTES;
 // The events window is the owner's whole day (the popover shows it in full,
 // including what already happened) plus more than the 24-hour reaction cap ahead,
 // so a reminder never opens on an event the device did not fetch. The lower

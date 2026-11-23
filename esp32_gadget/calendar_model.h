@@ -28,6 +28,17 @@
 // scratch); the board reports 22% of DRAM used with this in place.
 #define CALENDAR_MAX_EVENTS 24
 
+// El presupuesto del cuerpo de `events.list`, derivado del buffer y no de un
+// número suelto: 1 KB por evento alcanza para un título y un lugar largos (el
+// cuerpo trae el texto entero aunque el equipo recorte a 96), start/end con zona
+// y dos recordatorios, y 4 KB cubren el sobre de la respuesta. Un cuerpo más
+// grande que el presupuesto no se parsea a medias: se descarta entero, así que
+// quedarse corto deja al dueño sin agenda. `tools/calendar_core_test.cpp`
+// construye el peor caso y falla si deja de entrar.
+#define CALENDAR_EVENT_BODY_BYTES 1024
+#define CALENDAR_EVENTS_BODY_BYTES \
+  (4096 + CALENDAR_MAX_EVENTS * CALENDAR_EVENT_BODY_BYTES)
+
 // Google accepts reminders up to four weeks ahead. A face that stays alert for
 // a month is not a warning any more, so the reaction caps the lead at one day.
 #define CALENDAR_MAX_LEAD_MIN 1440

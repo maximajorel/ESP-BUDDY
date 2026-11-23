@@ -14,6 +14,7 @@
 //     the time left in the lead window.
 
 #include <cstdio>
+#include <string>
 #include <cstring>
 
 #include "calendar_auth_parse.h"
@@ -133,6 +134,61 @@ static void testLocalMidnight() {
   checkInt("  an hour back, not the minute-old midnight", out, 1795399260LL);
   checkInt("UTC noon", calendarDayQueryStart(1795435200LL, 0, &out), true);
   checkInt("  00:00Z", out, 1795392000LL);
+}
+
+static void testEventsBodyBudget() {
+  printf("-- the body budget has to fit a full day of long events\n");
+  // Lo peor que puede mandar Google con los campos que pedimos: un título y un
+  // lugar largos (el equipo los recorta a 96 al parsear, pero el cuerpo trae el
+  // texto entero), start/end con zona y dos recordatorios.
+  char longText[201];
+  memset(longText, 'x', 200);
+  longText[200] = '\0';
+  JsonDocument doc;
+  JsonArray items = doc["items"].to<JsonArray>();
+  for (size_t i = 0; i < CALENDAR_MAX_EVENTS; i++) {
+    JsonObject item = items.add<JsonObject>();
+    item["id"] = "000000000000000000000000000000000000";
+    item["status"] = "confirmed";
+    item["summary"] = longText;
+    item["location"] = longText;
+    JsonObject start = item["start"].to<JsonObject>();
+    start["dateTime"] = "2026-11-23T15:00:00-03:00";
+    start["timeZone"] = "America/Argentina/Tucuman";
+    JsonObject end = item["end"].to<JsonObject>();
+    end["dateTime"] = "2026-11-23T16:00:00-03:00";
+    end["timeZone"] = "America/Argentina/Tucuman";
+    JsonObject reminders = item["reminders"].to<JsonObject>();
+    reminders["useDefault"] = false;
+    JsonArray overrides = reminders["overrides"].to<JsonArray>();
+    JsonObject popup = overrides.add<JsonObject>();
+    popup["method"] = "popup";
+    popup["minutes"] = 30;
+    JsonObject email = overrides.add<JsonObject>();
+    email["method"] = "email";
+    email["minutes"] = 120;
+  }
+  std::string body;
+  serializeJson(doc, body);
+  printf("     worst case: %u bytes for %d events, budget %d\n",
+         (unsigned)body.size(), CALENDAR_MAX_EVENTS,
+         (int)CALENDAR_EVENTS_BODY_BYTES);
+  // Un cuerpo más grande que el presupuesto no se parsea a medias: se descarta
+  // entero (`CALENDAR_HTTP_BODY_TOO_LARGE`), así que quedarse corto deja al
+  // dueño sin agenda, no con menos filas.
+  checkInt("the worst case fits the budget",
+           body.size() < CALENDAR_EVENTS_BODY_BYTES, true);
+
+  CalendarEvent events[CALENDAR_MAX_EVENTS];
+  const size_t n = calendarParseEvents(body.c_str(), events, CALENDAR_MAX_EVENTS,
+                                      10, -3);
+  checkInt("and all of them parse", n, CALENDAR_MAX_EVENTS);
+  // El cuerpo trae el título entero; el equipo lo recorta a lo que entra en la
+  // fila de la cara (96 con el terminador) y no rompe el UTF-8.
+  checkInt("the title is cut to the device buffer",
+           strlen(events[0].summary), CALENDAR_SUMMARY_MAX - 1);
+  checkInt("and the cut keeps the start", strncmp(events[0].summary, longText, 20),
+           0);
 }
 
 static void testCalendarList() {
@@ -527,6 +583,7 @@ static void testOAuthResponses() {
 int main() {
   testRfc3339();
   testLocalMidnight();
+  testEventsBodyBudget();
   testCalendarList();
   testEvents();
   testReaction();
