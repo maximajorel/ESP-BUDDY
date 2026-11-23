@@ -56,7 +56,7 @@ npm run dev      # abre la app en modo desarrollo
 npm run build    # genera el instalador NSIS en src-tauri/target/release/bundle/nsis/
 
 cd src-tauri
-cargo test       # 32 pruebas: store, parser de dirección, transporte HTTP, agenda y arranque
+cargo test       # 41 pruebas: store, parser de dirección, transporte HTTP, agenda y arranque
 cargo build      # el binario de desarrollo, sin instalador
 ```
 
@@ -94,20 +94,25 @@ Lo que hace el asistente, y lo que pregunta:
 
 - **Menú Inicio**: el acceso directo se crea siempre, en `Buddy`.
 - **Escritorio**: lo **pregunta** al final, con un tilde que se puede destildar
-  (`MUI_FINISHPAGE_SHOWREADME` de la plantilla de Tauri). Destildado **en una
-  instalación nueva** no deja nada en el escritorio; si ya había un acceso
-  directo de una instalación anterior, ese archivo queda: nadie lo borra.
+  (`MUI_FINISHPAGE_SHOWREADME` de la plantilla de Tauri). Si se destilda no queda
+  acceso directo: en una actualización por el camino por defecto (desinstalar
+  antes de instalar) el desinstalador viejo borra `$DESKTOP\Buddy.lnk`, y en una
+  instalación nueva nunca se creó. Sólo sobrevive si se eligió "no desinstalar",
+  que es la opción que deja la instalación anterior como estaba.
 - **Iniciar con Windows**: lo **pregunta** `installer/hooks.nsh`
-  (`NSIS_HOOK_POSTINSTALL`), en castellano y con un sí/no. Si dice que sí, escribe
-  la misma entrada que el menú de la bandeja. En una instalación silenciosa
-  (`/S`) no pregunta y **no** lo prende: encenderlo sin permiso es de las cosas
-  que el dueño descubre tarde.
+  (`NSIS_HOOK_POSTINSTALL`), en castellano y con un sí/no. Dice que sí: escribe la
+  misma entrada que el menú de la bandeja. Dice que no: **borra** la que hubiera
+  quedado de una instalación anterior, porque el camino "no desinstalar" no corre
+  al desinstalador viejo y abstenerse de escribir no alcanza. En una instalación
+  silenciosa (`/S`) no pregunta y no toca nada: encenderlo sin permiso es de las
+  cosas que el dueño descubre tarde.
 - **Ejecutar Buddy ahora**: el tilde de la página final.
-- **Actualizar** vuelve a preguntar el arranque automático: la opción por
-  defecto de la plantilla es desinstalar antes de instalar, y ese desinstalador
-  borra la entrada del registro (no usa `/UPDATE`, que es el camino que la
-  conserva). Es decir: la preferencia no se arrastra sola entre versiones; se
-  vuelve a elegir en el asistente o se prende de nuevo desde el menú.
+- **Actualizar** vuelve a preguntar el arranque automático y la respuesta manda:
+  la opción por defecto desinstala antes de instalar y ese desinstalador borra la
+  entrada del registro (el camino `/UPDATE`, que la conserva, no se usa); y en el
+  camino "no desinstalar" el hook borra la entrada si la respuesta es no. El
+  desinstalador limpia también la marca del Administrador de tareas, salvo en una
+  actualización `/UPDATE`, para no devolver prendido lo que se había apagado.
 
 ### Sin ventana de consola
 

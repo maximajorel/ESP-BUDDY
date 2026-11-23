@@ -121,8 +121,22 @@ pub fn parse_export(bytes: &[u8], value: &str) -> Option<Vec<u8>> {
     } else {
         String::from_utf8_lossy(bytes).into_owned()
     };
+    // Un valor largo viene partido con una barra invertida al final de la línea.
+    // Sin unir, el valor se leería como ausente, y ausente se lee como
+    // "prendido": el bug de B1 por la puerta de atrás.
+    let mut unido = String::with_capacity(text.len());
+    for line in text.lines() {
+        let limpia = line.trim_end();
+        match limpia.strip_suffix('\\') {
+            Some(resto) => unido.push_str(resto),
+            None => {
+                unido.push_str(line);
+                unido.push('\n');
+            }
+        }
+    }
     let needle = format!("\"{value}\"=hex:");
-    let line = text
+    let line = unido
         .lines()
         .find(|line| line.trim_start().starts_with(&needle))?;
     let mut out = Vec::new();
@@ -333,6 +347,63 @@ mod tests {
         // Un archivo que no es un .reg no rompe: se lee como "no está".
         assert_eq!(parse_export(b"cualquier cosa", "Buddy"), None);
         assert!(parse_export(b"", "Buddy").is_none());
+    }
+
+    #[test]
+    fn el_primer_byte_decide_igual_para_los_cuatro_valores_de_windows() {
+        // El Administrador de tareas escribe 0x02 y 0x06 cuando la deja prendida
+        // y 0x03 y 0x07 cuando la apaga. Con un byte en vez de una tabla, los
+        // cuatro caen solos.
+        for (byte, apagada) in [(0x02u8, false), (0x03, true), (0x06, false), (0x07, true)] {
+            let reg = export_utf16(&format!(
+                "\"Buddy\"=hex:{byte:02x},00,00,00,00,00,00,00,00,00,00,00"
+            ));
+            assert_eq!(startup_approved_disabled(&reg), apagada, "byte {byte:#04x}");
+        }
+    }
+
+    #[test]
+    fn sin_archivo_no_hay_apagado() {
+        // Una clave que no existe no deja archivo: el veredicto por omisión es
+        // que Windows la arranca.
+        assert_eq!(parse_export(b"", "Buddy"), None);
+        assert!(!startup_approved_disabled(b""));
+    }
+
+    #[test]
+    fn un_valor_partido_en_dos_lineas_se_lee_igual() {
+        // `reg export` corta los valores largos con una barra invertida. Si se
+        // leyera como ausente, se interpretaría "prendido" cuando puede estar
+        // apagado: el bug de B1 por atrás.
+        let partido = export_utf16("\"Buddy\"=hex:03,00,00,00,\\\r\n  00,00,00,00");
+        assert_eq!(parse_export(&partido, "Buddy"), Some(vec![3, 0, 0, 0, 0, 0, 0, 0]));
+        assert!(startup_approved_disabled(&partido));
+    }
+
+    #[test]
+    fn el_hook_apaga_la_entrada_vieja_cuando_el_dueno_dice_que_no() {
+        // Un "no" explícito tiene que dejar el registro apagado aunque la
+        // instalación anterior hubiera dejado la entrada prendida: el camino "no
+        // desinstalar" de la página de mantenimiento no corre el desinstalador
+        // viejo, así que nadie más la borra.
+        let hooks = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../installer/hooks.nsh"
+        ))
+        .expect("installer/hooks.nsh");
+        let desde = hooks.find("buddyAutostartNo:").expect("etiqueta del no");
+        let hasta = hooks.find("buddyAutostartDone:").expect("etiqueta de fin");
+        let camino_no = &hooks[desde..hasta];
+        assert!(
+            camino_no.contains(
+                r#"DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Buddy""#
+            ),
+            "el camino 'no' tiene que borrar una entrada de una instalación anterior"
+        );
+        assert!(
+            camino_no.contains("StartupApproved"),
+            "y también la marca del Administrador de tareas"
+        );
     }
 
     #[test]
