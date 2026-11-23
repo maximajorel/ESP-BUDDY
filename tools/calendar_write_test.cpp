@@ -15,6 +15,8 @@
 //     old place and "borrar el lugar" would look like it did nothing.
 //  4. The write paths point at the event, escape what needs escaping, and ask for
 //     no email to the guests.
+//  5. A change or a delete without a usable `etag` is refused instead of sent: an
+//     unconditional write loses a change made elsewhere and nobody finds out.
 
 #include <cstdio>
 #include <cstring>
@@ -138,6 +140,18 @@ static void testPaths() {
            calendarCreatePath(nullptr, path, sizeof(path)), false);
 }
 
+static void testPrecondition() {
+  printf("-- a write without a version is refused, not sent unconditionally\n");
+  // Google's etag is a quoted tick. Empty, null or unquoted is not one, and an
+  // unconditional PATCH would silently overwrite a change made on the phone.
+  checkInt("no etag", calendarEtagUsable(nullptr), false);
+  checkInt("empty etag", calendarEtagUsable(""), false);
+  checkInt("unquoted etag", calendarEtagUsable("3201"), false);
+  checkInt("a lone quote", calendarEtagUsable("\""), false);
+  checkInt("a real etag", calendarEtagUsable("\"3201\""), true);
+  checkInt("an etag with escapes", calendarEtagUsable("\"C67A\\3D\""), true);
+}
+
 static void testScope() {
   printf("-- the grant asks to write, not only to read\n");
   checkInt("the scope is the read-write one",
@@ -165,6 +179,7 @@ int main() {
   testAllDayEvent();
   testEscaping();
   testPaths();
+  testPrecondition();
   testScope();
   printf("\n%d failure(s)\n", g_failures);
   return g_failures == 0 ? 0 : 1;

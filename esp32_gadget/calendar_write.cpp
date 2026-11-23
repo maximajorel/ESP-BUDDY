@@ -73,3 +73,11 @@ bool calendarEventBodyJson(const char *summary, const char *location,
   doc["end"]["dateTime"] = to;
   return true;
 }
+
+// An etag from Google is a quoted tick (`"3201"`). Anything shorter than a quoted
+// pair is not one, and sending it would be the same as sending nothing.
+bool calendarEtagUsable(const char *etag) {
+  if (!etag || !*etag) return false;
+  const size_t length = strlen(etag);
+  return length >= 2 && etag[0] == '"' && etag[length - 1] == '"';
+}

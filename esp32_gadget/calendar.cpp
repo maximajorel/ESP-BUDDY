@@ -668,6 +668,14 @@ CalendarWriteOutcome calendarUpdateEvent(const char *id, const char *etag,
                                          bool allDay) {
   CalendarWriteOutcome outcome;
   if (!id || !*id) return writeFail(400, "Falta el evento");
+  // Sin `If-Match` Google escribe igual y pisa el cambio que el dueño hizo en el
+  // telefono mientras el popover estaba abierto: se niega antes de salir, con el
+  // código que significa exactamente esto (428 Precondition Required).
+  if (!calendarEtagUsable(etag)) {
+    return writeFail(428,
+                     "Falta la version del evento: recarga el mes y volve a "
+                     "intentar");
+  }
   if (!writeReady(&outcome)) return outcome;
   if (endEpoch <= startEpoch) {
     return writeFail(400, "El evento termina antes de empezar");
@@ -698,6 +706,13 @@ CalendarWriteOutcome calendarUpdateEvent(const char *id, const char *etag,
 CalendarWriteOutcome calendarDeleteEvent(const char *id, const char *etag) {
   CalendarWriteOutcome outcome;
   if (!id || !*id) return writeFail(400, "Falta el evento");
+  // Mismo motivo que en el cambio: un borrado sin version se lleva lo que otro
+  // cambio sin decir nada.
+  if (!calendarEtagUsable(etag)) {
+    return writeFail(428,
+                     "Falta la version del evento: recarga el mes y volve a "
+                     "intentar");
+  }
   if (!writeReady(&outcome)) return outcome;
 
   char path[512];

@@ -23,3 +23,12 @@
 bool calendarEventBodyJson(const char *summary, const char *location,
                            int64_t startEpoch, int64_t endEpoch, bool allDay,
                            int tzOffsetHours, JsonDocument &doc);
+
+// Whether a change or a delete can be made honestly with this `etag`.
+//
+// Without an `If-Match`, Google performs an unconditional write: if the event
+// changed on the phone while the popover was open, the other change is lost and
+// nobody finds out. So an empty version is a refusal, not a shortcut — the owner
+// reloads the month and gets the current one. Pure and pinned by
+// `tools/calendar_write_test.cpp` so the rule cannot drift away from the sender.
+bool calendarEtagUsable(const char *etag);

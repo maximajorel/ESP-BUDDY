@@ -505,6 +505,14 @@ static void testRoutes() {
        "a sub-path is not the exact path"},
       {"GET", "/api/lcd", false,
        "GET is public so the transport can answer 405 instead of 401"},
+      // El método también se compara exacto: la escritura pública es POST y nada
+      // más, aunque el verbo no esté registrado como ruta.
+      {"PUT", "/api/lcd", true,
+       "the brightness write is POST only"},
+      {"DELETE", "/api/led", true,
+       "the bead write is POST only"},
+      {"PATCH", "/api/led", true,
+       "the bead write is POST only"},
       {"GET", "/api/led", false,
        "GET is public so the transport can answer 405 instead of 401"},
       // Publicar brillo y LED no puede abrir la puerta de al lado: `/api/settings`
