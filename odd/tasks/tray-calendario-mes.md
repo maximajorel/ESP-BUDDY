@@ -134,3 +134,15 @@ placa en COM5 —está conectada y enumerada, pero no hay autorización de sesi�
 escribirle— y (b) reconectar la cuenta en el panel del equipo, porque el permiso
 guardado es de sólo lectura. Sin las dos, lo verificado es el contrato: los bytes
 que salen, la tabla de permisos y que el firmware compila.
+
+L11 (cierre de las puertas por comando): `make test` 44 checks, `make
+verify-assets` PASSED y `make build` MAKE_EXIT=0 (51% de flash) con
+`ARDUINO_CLI` apuntando al ejecutable de Windows —ojo: `WEB_UI`/`WEB_ASSETS` hay
+que pasarlos explícitos, porque el Makefile los deriva de `SKETCH` y una ruta
+Windows con `á` rompe el verificador—. `cargo test` 51 y `admin_auth_test` 164.
+
+L12 (no verificado, y por qué): la interfaz del tray no se vio renderizada. El
+servidor de Chrome del entorno no responde (`Network.enable timed out`) y no hay
+binario de Chrome/Chromium en WSL, así que el popover quedó verificado por lectura
+y por `node --check`, no por pantalla. Lo que un render probaría —grilla de 42
+celdas en 380 px, editor abierto, sliders— sigue sin evidencia visual.
