@@ -116,3 +116,21 @@ L8 (pendiente anotado, no hecho): `docs/ARCHITECTURE.md` tiene cambios sin commi
 de otra tanda (clima) y su mapa de endpoints no menciona los seis nuevos. Se dejó
 sin tocar a propósito para no mezclar dos features en un commit; la tabla de
 endpoints nuevos quedó documentada en `esp32_gadget/README.md`.
+
+L9 (corrección por verificación independiente): la verificación de `gentle-ai-verify`
+encontró un bloqueante real en la escritura: un `etag` vacío se mandaba sin
+`If-Match`, así que Google escribía igual y el cambio hecho en el teléfono se
+perdía. El manejo del 412 existía pero era inalcanzable por ese camino. Arreglado
+en `cd6daec`: `calendarEtagUsable` (pura, exige la forma con comillas) y un 428
+`Precondition Required` con la frase "recarga el mes y volve a intentar"; el mismo
+commit fija los verbos no públicos de `/api/lcd` y `/api/led`, que la verificación
+también marcó como caso faltante. PASS en el resto: la superficie pública sigue
+siendo exacta, los dos handlers nuevos no escriben nada más que brillo y LED, y el
+permiso de sólo lectura se niega antes de tocar la red.
+
+L10 (lo que falta para decir que la edición funciona): la prueba de punta a punta
+contra Google no se hizo y no se puede hacer desde acá. Requiere (a) flashear la
+placa en COM5 —está conectada y enumerada, pero no hay autorización de sesión para
+escribirle— y (b) reconectar la cuenta en el panel del equipo, porque el permiso
+guardado es de sólo lectura. Sin las dos, lo verificado es el contrato: los bytes
+que salen, la tabla de permisos y que el firmware compila.
