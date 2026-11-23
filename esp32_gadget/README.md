@@ -44,6 +44,33 @@ estado en NVS (`settings.*`), servicios (`net.*`, `spotify_*`, `imu.*`,
   `tap_window`, `text_fold`, `buddy_face`, `buddy_anim`, `buddy_dance`,
   `buddy_sleep`, `buddy_event`, `ui_color`, `display_blit`.
 
+El calendario es el módulo más grande y el más repartido: leer (`calendar_parse`,
+`calendar_time`), pedir (`calendar_http`, `calendar_forms`), escribir
+(`calendar_write`), el día (`calendar_events`), el mes (`calendar_month`) y el
+servicio con su tarea (`calendar`). Lo puro compila en host; lo que toca WiFi no.
+
+### Endpoints que agregó el mes del calendario
+
+| Endpoint | Quién | Qué |
+|---|---|---|
+| `GET /api/calendar/month?y=&m=` | sesión del panel | El mes entero pedido a Google en ese momento (hasta 42 días, semanas completas, `id` y `etag` por evento). El cuerpo va a PSRAM y el árbol JSON también: 200 eventos no entran en el heap interno. |
+| `POST /api/calendar/events` | sesión del panel | Alta de un evento. |
+| `POST /api/calendar/events/update` | sesión del panel | Cambio, con `If-Match` del `etag`: un cambio ajeno da 412 en vez de perderse. |
+| `POST /api/calendar/events/delete` | sesión del panel | Baja, también con `etag`. |
+| `POST /api/lcd` | **público** | Sólo `brightness`. Existe para no publicar `/api/settings`. |
+| `POST /api/led` | **público** | Sólo `r`, `g`, `b`, `level`, `effect`. |
+
+Los dos públicos se comparan por nombre exacto en `adminIsPublicWrite`, como
+`/api/focus` y `/api/screen`: una barra final, otro verbo o una query string no
+son la ruta. `/api/settings` sigue pidiendo sesión porque además guarda la zona
+horaria, la URL del buddy y dos tokens.
+
+La escritura del calendario pide el scope `https://www.googleapis.com/auth/calendar`.
+Un permiso otorgado antes de este cambio es de sólo lectura: sigue leyendo y
+contesta 403 a toda escritura, así que hay que **reconectar la cuenta en el panel**
+una vez. El equipo recuerda si el permiso guardado puede escribir
+(`calendarStoreWriteScope`) para decirlo antes de que el dueño pierda un evento.
+
 El mapa completo de módulos, la regla de dependencias, las claves de NVS y el
 paso a paso para agregar una pantalla, un comando o un endpoint están en
 [`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md).

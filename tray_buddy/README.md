@@ -220,7 +220,7 @@ la bandeja la volvía a mostrar.
   `POST /api/focus {"seconds": n}`; el reloj que se dibuja es el `remainingMs`
   que informa el equipo, no un contador propio. Parar manda `0`. **+5 MIN** suma
   sobre el restante informado.
-- **Calendario (S6), sólo lectura.** `GET /api/calendar` exige la sesión del
+- **Calendario (S6).** `GET /api/calendar` exige la sesión del
   panel, así que la tarjeta pide usuario y clave una vez, guarda **sólo el token
   `sid`** y la clave no toca el disco. Desde el firmware con sesión persistida,
   el equipo recuerda ese token entre reboots (con su caducidad de 12 h), así que
@@ -241,6 +241,40 @@ la bandeja la volvía a mostrar.
   todavía no publica el endpoint, pide actualizar el firmware en vez de mostrar
   el error crudo. La agenda crece con el cuerpo del popover, que scrollea: no se
   sale nunca del rectángulo de la ventana.
+- **El mes entero, con navegación (S1 del pedido del mes).** El botón **Ver el
+  mes** cambia la tarjeta del día por una grilla del mes con anterior, siguiente
+  y **volver a hoy**, sin cambiar de ventana ni de lenguaje: papel, tinta, bordes
+  de 1px y mono sólo para el número del día. Las semanas las decide el equipo
+  (`GET /api/calendar/month?y=&m=`, que devuelve `gridStart`/`gridEnd` como
+  medianoches locales suyas, lunes primero): la app no calcula un lunes ni una
+  medianoche con el reloj de la PC. Los días del mes vecino se dibujan atenuados
+  en vez de dejar un hueco; una celda lleva hasta tres marcas y un punto más, y
+  debajo está el día elegido con sus eventos, que es donde el mes se vuelve
+  legible en 380 px. Si el equipo llegó a su tope de filas, la tarjeta lo dice:
+  un mes cortado no se dibuja como si estuviera completo.
+- **Editar eventos (S2 del pedido del mes).** Tocar un evento del mes abre el
+  editor con título, lugar, todo el día y las horas **en la hora del equipo**.
+  Guardar manda `POST /api/calendar/events` (alta) o
+  `POST /api/calendar/events/update` (cambio), este último con el `id` y el
+  `etag` que trajo el mes: si el evento cambió en otro lado, Google contesta 412
+  y la tarjeta lo dice en vez de pisar el cambio ajeno. Borrar pide dos toques y
+  se puede hacer desde el mismo editor (`POST /api/calendar/events/delete`). Los
+  errores llegan escritos desde el equipo y se muestran tal cual: "Ese evento
+  cambió en otro lado", "Ese evento ya no existe en Google", "El permiso guardado
+  es de sólo lectura: reconectá la cuenta en el panel". Esa última es la que
+  aparece si el permiso de Google se dio con un firmware que sólo pedía lectura:
+  se arregla reconectando la cuenta en el panel del equipo, sin reinstalar nada.
+- **Brillo del LCD y LED (S3 del pedido del mes), sin sesión.** Dos sliders y un
+  selector de color con chips de efecto (fijo, arcoíris, apagado). Mandan
+  `POST /api/lcd {"brightness": n}` y
+  `POST /api/led {r,g,b,level,effect}`, que el firmware publica por nombre exacto
+  —no publica `/api/settings`, que además guarda la zona horaria, la URL del
+  buddy y dos tokens—. Se manda al soltar y no al arrastrar: cada pedido es un
+  POST por la LAN y un dedo que se mueve son decenas. El estado se lee de
+  `GET /api/status` (`display.brightness`, `rgb.*`), no de una preferencia
+  local: si el dueño cambia el brillo desde la pantalla CONFIG, el popover lo
+  muestra en el siguiente sondeo, y un control que el dueño está agarrando no se
+  pisa.
 - **Popover que crece (S5).** El botón **Agenda / Achicar** de la tarjeta de
   calendario cambia la ventana entre 388x660 y 520x820 (`tauri::LogicalSize`)
   sin mover la esquina inferior derecha, que es donde está el pico de la
@@ -258,14 +292,8 @@ la bandeja la volvía a mostrar.
 
 ## Lo que todavía no
 
-- **Brillo, LED y colores (S8)** — `POST /api/settings` escribe configuración del
-  equipo y por ahora el popover no lo toca.
 - **Ta-te-ti (S5)** — el puerto del juego de `web_ui/landing.js` está pendiente:
   el transporte ya sabe mandar `POST /api/face`, falta la interfaz.
-- **El mes completo del calendario** queda para después de esta feature: ver un
-  mes exige cambiar la ventana de sync del equipo (hoy pide de -1 h a +26 h con
-  `maxResults=12`) y retener muchos más eventos en un equipo con poca RAM. Hoy
-  el popover muestra la próxima cita y la agenda del día.
 - **USB (S13)** queda anotado como requisito futuro, no implementado: hoy el
   único transporte es HTTP sobre la LAN.
 

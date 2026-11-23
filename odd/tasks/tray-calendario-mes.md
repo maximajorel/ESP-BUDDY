@@ -46,14 +46,23 @@ quita el `· bandeja`, no el resto de la barra.
 
 | ID | Qué | Specs | Ruta | Commit |
 | --- | --- | --- | --- | --- |
-| T1 | Firmware: `GET /api/calendar/month`, cuerpo en PSRAM, `id`/`etag`, JSON propio, tests de host | S2a | firmware | `feat(calendario): el equipo sirve un mes entero` |
-| T2 | Tray: grilla de mes con navegación, con el lenguaje del diseño | S1 | tray | `feat(tray): la grilla del mes, con navegación` |
-| T3 | Firmware: `POST /api/lcd` y `POST /api/led` públicos, exactos; tests de `admin_auth` | S3 | firmware | `feat(api): brillo y LED sin sesión, y sólo eso` |
-| T4 | Tray: controles de brillo y LED | S3 | tray | `feat(tray): brillo del LCD y LED desde el popover` |
-| T5 | Tray: la cabecera dice BUDDY | S4 | tray | `fix(tray): el título no dice "bandeja"` |
+| T1 | Firmware: `GET /api/calendar/month`, cuerpo en PSRAM, `id`/`etag`, JSON propio, tests de host | S2a | firmware | `31f8ab5` `feat(calendario): el equipo sirve un mes entero` |
+| T2 | Tray: grilla de mes con navegación, con el lenguaje del diseño | S1 | tray | `2da71ef` `feat(tray): la grilla del mes, con navegación` |
+| T3 | Firmware: `POST /api/lcd` y `POST /api/led` públicos, exactos; tests de `admin_auth` | S3 | firmware | `0f162f2` `feat(api): brillo y LED sin sesión, y sólo eso` |
+| T4 | Tray: controles de brillo y LED | S3 | tray | `84d3145` `feat(tray): brillo del LCD y LED desde el popover` |
+| T5 | Tray: la cabecera dice BUDDY | S4 | tray | `0fb3abd` `fix(tray): el título no dice "bandeja"` |
 | T6 | Firmware: scope de escritura, `id`/`etag` en el modelo, endpoints de alta/edición/baja, errores de Google | S2b | firmware | `feat(calendario): escribir eventos en Google` |
 | T7 | Tray: editor de eventos (alta, edición, baja) con los errores en español | S2b | tray | `feat(tray): editar eventos desde el mes` |
 | T8 | Docs: README del tray, README del equipo y este documento | S1-S4 | docs | `docs(calendario): el mes y la edición en el papel` |
+
+### Cortes de revisión
+
+La rama `feat/calendario-mes` nace de `feat/tray-buddy`, que no está mergeada: el
+slice contra `origin/main` arrastra las ~8.000 líneas de esa rama anterior y no
+sirve como medida de esta feature. Los cortes que sí importan son los commits de
+arriba, cada uno con su verificación. T1 es el más grande (786 líneas de
+firmware + tests) y no se puede partir sin dejar el endpoint en un estado que no
+compila; T6 es el segundo por el mismo motivo.
 
 ## Log
 
@@ -77,3 +86,33 @@ calcula `dayStart`/`dayEnd` como hoy y mañana, y `calendar_model.h` fija
 `https://www.googleapis.com/auth/calendar.readonly` y ya trae `items(id,...)` en
 `fields`; `CalendarEvent` no guarda ese id; `admin_auth.cpp` deja públicas sólo
 `/api/focus`, `/api/screen` y `/api/face`; `net.cpp` protege todo `/api/calendar`.
+
+L4 (evidencia, toolchain): el firmware compila desde WSL con
+`/mnt/c/Program Files/Arduino CLI/arduino-cli.exe` y rutas Windows; el tray con
+`/mnt/c/Users/Máximo Majorel/.cargo/bin/cargo.exe` (no hay `cargo` en WSL). Las
+rutas Windows con `á` rompen `make verify-assets`, así que ese target va con rutas
+relativas. Línea base antes de tocar nada: `make test` (42 checks) y
+`cargo test` (41).
+
+L5 (decisión de diseño del mes): el mes no se guarda en el equipo. La cara vive de
+una ventana fija de 24 eventos en RAM interna; el mes se pide a Google en el
+momento, se dibuja y se tira. El cuerpo (hasta 200 eventos) y el árbol JSON van a
+PSRAM con `heap_caps_malloc(MALLOC_CAP_SPIRAM)`, que es lo que ya usan el
+framebuffer y el arte de Música. `id` es obligatorio en el parse del mes: un
+evento que nadie puede direccionar no se muestra.
+
+L6 (decisión de seguridad): en vez de publicar `/api/settings` se agregaron dos
+endpoints angostos, `/api/lcd` y `/api/led`, con comparación exacta de método y
+ruta. El test de `admin_auth` fija además que `/api/settings` (con y sin barra)
+siga protegido.
+
+L7 (decisión sobre el permiso): el scope pasa a `.../auth/calendar`. Un permiso
+viejo (de sólo lectura) sigue leyendo y da 403 al escribir, así que el equipo
+recuerda si el permiso guardado puede escribir (`wrScope` en NVS) y el tray dice
+"reconectá la cuenta en el panel" antes de que el dueño pierda el evento. El 403
+de Google limpia esa marca para no repetir el intento perdido.
+
+L8 (pendiente anotado, no hecho): `docs/ARCHITECTURE.md` tiene cambios sin commitear
+de otra tanda (clima) y su mapa de endpoints no menciona los seis nuevos. Se dejó
+sin tocar a propósito para no mezclar dos features en un commit; la tabla de
+endpoints nuevos quedó documentada en `esp32_gadget/README.md`.
