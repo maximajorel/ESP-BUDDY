@@ -294,25 +294,94 @@ function renderCalendar(data, events) {
       ? "Google Calendar no tiene nada a la vista"
       : "Google Calendar no está autorizado en el equipo";
   // La columna grande es una HORA, no un recordatorio: mostrar el aviso (10′)
-  // al lado de "en 12 min" repetía la misma información con otro número. Se usa
-  // el arranque del primer evento de la agenda, que es el mismo que el equipo
-  // llama "próxima cita"; si el evento es de todo el día, "hoy".
-  const first = (events?.events ?? [])[0];
-  const tz = events?.tz ?? 0;
+  // al lado de "en 12 min" repetía la misma información con otro número.
+  // La ventana del equipo ahora arranca en la medianoche local, así que el
+  // primer evento de la lista puede ser uno que ya pasó: la hora se toma del
+  // mismo evento que el equipo llama "próxima cita", y si no se puede casar
+  // (relojes desfasados) se cae al aviso en minutos en vez de mentir.
+  const list = events?.events ?? [];
+  const day = deviceDay(events);
+  const nowSec = Math.floor(Date.now() / 1000);
+  const next = nextEvent(list, nowSec);
+  const labelled =
+    Boolean(next) &&
+    data?.hasNext &&
+    (next.summary || "Sin título") === (data.nextSummary || "Sin título");
   $("calNextHour").textContent = data?.hasNext
-    ? first
-      ? first.allDay
-        ? "hoy"
-        : eventClock(first.startEpoch, tz)
+    ? labelled
+      ? next.allDay
+        ? next.startEpoch >= day.end
+          ? "mañana"
+          : "hoy"
+        : eventClock(next.startEpoch, events?.tz ?? 0)
       : `${data.nextLeadMin ?? 0}′`
     : "--:--";
   $("calNextDay").textContent = data?.hasNext ? "Próxima cita" : "Calendario";
-  $("calMeta").textContent = data?.authorized ? `${data.eventCount ?? 0} eventos` : "sin sesión";
+  // El contador es de hoy, no de la ventana de 26 h: el dueño pidió el día.
+  $("calMeta").textContent = calendarMeta(data, events);
 
   // La lista del día viaja en otro endpoint (`GET /api/calendar/events`), que
   // se pide después; acá se deja el espacio para no taparlo con un renglón
   // provisorio.
   $("calAgenda").textContent = "";
+}
+
+/**
+ * El contador de la cabecera del calendario.
+ *
+ * "sin sesión" sólo vale cuando falta la del panel. Un equipo configurado pero
+ * sin cuenta de Google no tiene sesión que pedir: ahí el problema es la
+ * autorización y la cabecera lo dice con otra palabra.
+ */
+function calendarMeta(data, events) {
+  if (!data || typeof data.kind !== "string") return "sin datos";
+  if (!data.configured) return "sin configurar";
+  if (!data.authorized) return "sin Google";
+  if (!events) return `${data.eventCount ?? 0} eventos`;
+  const day = deviceDay(events);
+  const today = (events.events ?? []).filter((event) => isToday(event, day)).length;
+  return today ? `${today} hoy` : "sin eventos hoy";
+}
+
+/**
+ * La medianoche local de un epoch, con el offset fijo del equipo.
+ *
+ * Es la misma aritmética que `calendarLocalMidnight` del firmware: el día que
+ * vale es el del dueño, no el de la PC que corre el popover.
+ */
+function localMidnight(epoch, tz) {
+  const offset = tz * 3600;
+  const local = epoch + offset;
+  const intoDay = ((local % 86400) + 86400) % 86400;
+  return local - intoDay - offset;
+}
+
+/**
+ * Los bordes del día que manda el equipo (`dayStart`/`dayEnd`).
+ *
+ * Un firmware viejo no los publica y llegan en 0: ahí se derivan del `tz`, para
+ * que actualizar la app sola no deje la agenda sin secciones.
+ */
+function deviceDay(data) {
+  const tz = data?.tz ?? 0;
+  if (data?.dayStart > 0 && data?.dayEnd > data.dayStart) {
+    return { start: data.dayStart, end: data.dayEnd };
+  }
+  const start = localMidnight(Math.floor(Date.now() / 1000), tz);
+  return { start, end: start + 86400 };
+}
+
+/** Si el evento toca el día local: lo que empieza hoy y lo que ya está corriendo. */
+function isToday(event, day) {
+  const start = event.startEpoch ?? 0;
+  const end = event.endEpoch ?? start;
+  return start < day.end && end > day.start;
+}
+
+/** El próximo evento, con la misma regla que `calendarStatusInfo`: lo que
+ *  empezó hace más de una hora ya no es "próximo", y la lista viene ordenada. */
+function nextEvent(list, nowSec) {
+  return list.find((event) => (event.startEpoch ?? 0) >= nowSec - 3600) ?? null;
 }
 
 /**
@@ -338,9 +407,9 @@ function agendaEmptyText(failure) {
   return "Sin eventos para hoy.";
 }
 
-function agendaRow(hourText, allDay, summary, location) {
+function agendaRow(hourText, allDay, summary, location, past) {
   const row = document.createElement("div");
-  row.className = "agenda-row";
+  row.className = past ? "agenda-row is-past" : "agenda-row";
 
   const hour = document.createElement("span");
   hour.className = allDay ? "hour is-allday" : "hour";
@@ -362,31 +431,72 @@ function agendaRow(hourText, allDay, summary, location) {
   return row;
 }
 
+/** El rótulo de un día dentro de la agenda, con la regla que lo separa. */
+function agendaDayTag(title) {
+  const tag = document.createElement("div");
+  tag.className = "daytag";
+  const label = document.createElement("span");
+  label.textContent = title;
+  const rule = document.createElement("span");
+  rule.className = "rule";
+  tag.append(label, rule);
+  return tag;
+}
+
+/** El renglón sin filas, con las palabras de S6. */
+function agendaEmpty(match) {
+  const row = document.createElement("div");
+  row.className = "agenda-empty";
+  row.textContent = match;
+  return row;
+}
+
 /**
- * Agenda del día (S4). El orden es el que manda el equipo: no se reordena ni se
- * filtra acá. Sin datos no se inventa nada: un evento de todo el día se rotula
- * "todo el día" en vez de una hora que no tiene.
+ * Agenda del día (S4). El orden es el que manda el equipo: no se reordena.
+ *
+ * Dos secciones reales, no una lista mezclada: HOY con todos los eventos de hoy
+ * (los que ya terminaron, atenuados; un evento de todo el día, rotulado "todo el
+ * día") y MAÑANA con el resto de la ventana que el equipo consultó. Un evento de
+ * otro día nunca aparece dentro de "Hoy".
  */
 function renderAgenda(data, failure) {
   const agenda = $("calAgenda");
   agenda.textContent = "";
-  const tz = data?.tz ?? 0;
-  const events = data?.events ?? [];
-
-  if (failure || !events.length) {
-    const empty = document.createElement("div");
-    empty.className = "agenda-empty";
-    empty.textContent = agendaEmptyText(failure);
-    agenda.appendChild(empty);
+  if (failure) {
+    agenda.appendChild(agendaEmpty(agendaEmptyText(failure)));
+    return;
+  }
+  if (lastCalendar && lastCalendar.authorized === false) {
+    // Sin autorización no hay días que separar: se dice el motivo y nada más.
+    agenda.appendChild(agendaEmpty(agendaEmptyText(null)));
     return;
   }
 
-  events.forEach((event) => {
+  const tz = data?.tz ?? 0;
+  const events = data?.events ?? [];
+  const day = deviceDay(data);
+  const nowSec = Math.floor(Date.now() / 1000);
+  const today = events.filter((event) => isToday(event, day));
+  const later = events.filter(
+    (event) => !isToday(event, day) && (event.startEpoch ?? 0) >= day.end,
+  );
+
+  const row = (event) => {
     const hour = event.allDay ? "todo el día" : eventClock(event.startEpoch ?? 0, tz);
-    agenda.appendChild(
-      agendaRow(hour, Boolean(event.allDay), event.summary, event.location),
-    );
-  });
+    const end = event.endEpoch ?? event.startEpoch ?? 0;
+    return agendaRow(hour, Boolean(event.allDay), event.summary, event.location, end <= nowSec);
+  };
+
+  agenda.appendChild(agendaDayTag("Hoy"));
+  if (today.length) {
+    today.forEach((event) => agenda.appendChild(row(event)));
+  } else {
+    agenda.appendChild(agendaEmpty("Sin eventos para hoy."));
+  }
+  if (later.length) {
+    agenda.appendChild(agendaDayTag("Mañana"));
+    later.forEach((event) => agenda.appendChild(row(event)));
+  }
 }
 
 function showCalendarSession(message) {
@@ -436,13 +546,25 @@ async function loadCalendar() {
   }
 
   calendarAsksSession = false;
-  if (failure) {
+  // Un endpoint que falla no borra al otro: la próxima cita y la agenda son dos
+  // pedidos distintos, y con un firmware viejo (sin `/api/calendar/events`) el
+  // dueño igual tiene que ver su próxima cita con la tarjeta entera.
+  if (next) {
+    renderCalendar(next, events);
+  } else {
     renderCalendar({ lastError: failure?.message }, null);
-    renderAgenda(null, failure?.message);
-    return;
   }
-  renderCalendar(next, events);
-  renderAgenda(events, null);
+  renderAgenda(events, events ? null : agendaFailureText(failure));
+}
+
+/** El motivo por el que no hay agenda, con las palabras del dueño. */
+function agendaFailureText(failure) {
+  // 404 del equipo = firmware sin el endpoint: no hay nada que reintentar, hay
+  // que actualizarlo. Sin esto el popover muestra el texto crudo del firmware.
+  if (failure?.code === 404) {
+    return "Actualizá el firmware del equipo para ver la agenda del día.";
+  }
+  return failure?.message ?? "No pude pedir la agenda del día";
 }
 
 function wireCalendar() {

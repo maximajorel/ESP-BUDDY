@@ -115,6 +115,13 @@ pub struct CalendarEvent {
 pub struct CalendarEvents {
     #[serde(default)]
     pub tz: i32,
+    /// La medianoche local del equipo, hoy y mañana, en epoch UTC. El día lo
+    /// dice el equipo porque él conoce el offset del dueño; un equipo con el
+    /// firmware viejo no los manda (0) y la app los deriva de `tz`.
+    #[serde(default)]
+    pub day_start: i64,
+    #[serde(default)]
+    pub day_end: i64,
     #[serde(default)]
     pub count: u32,
     /// Ausente se lee como lista vacía: un equipo sin eventos no puede dejar el
@@ -331,7 +338,7 @@ mod tests {
     /// El JSON de S3, congelado: es la única interfaz entre el firmware y la
     /// app, así que el nombre exacto de cada campo se prueba acá.
     const EVENTS_JSON: &str = r#"{
-        "ok":true,"tz":-3,"count":2,
+        "ok":true,"tz":-3,"dayStart":1795402800,"dayEnd":1795489200,"count":2,
         "events":[
             {"summary":"Reunión","location":"Zoom","startEpoch":1764000000,
              "endEpoch":1764003600,"leadMin":10,"allDay":false},
@@ -346,6 +353,9 @@ mod tests {
         assert_eq!(events.tz, -3);
         assert_eq!(events.count, 2);
         assert_eq!(events.events.len(), 2);
+        // El día lo dice el equipo: la app no lo deriva de su propio reloj.
+        assert_eq!(events.day_start, 1_795_402_800);
+        assert_eq!(events.day_end, 1_795_489_200);
 
         let first = &events.events[0];
         assert_eq!(first.summary, "Reunión");
@@ -361,6 +371,7 @@ mod tests {
         assert_eq!(again["events"][0]["startEpoch"], 1_764_000_000);
         assert_eq!(again["events"][0]["leadMin"], 10);
         assert_eq!(again["tz"], -3);
+        assert_eq!(again["dayStart"], 1_795_402_800);
     }
 
     #[test]
@@ -369,6 +380,19 @@ mod tests {
             serde_json::from_str(r#"{"ok":true,"tz":-3,"count":0}"#).expect("agenda");
         assert_eq!(events.tz, -3);
         assert!(events.events.is_empty());
+    }
+
+    /// Compatibilidad: un equipo con el firmware viejo no manda el día, y el
+    /// popover tiene que seguir mostrando la agenda en vez de romperse.
+    #[test]
+    fn una_agenda_de_un_equipo_viejo_no_rompe() {
+        let events: CalendarEvents = serde_json::from_str(
+            r#"{"ok":true,"tz":-3,"count":0,"events":[]}"#,
+        )
+        .expect("agenda vieja");
+        assert_eq!(events.tz, -3);
+        assert_eq!(events.day_start, 0);
+        assert_eq!(events.day_end, 0);
     }
 
     #[test]

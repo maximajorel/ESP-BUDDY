@@ -127,11 +127,18 @@ bandeja.
 - **Calendario (S6), sólo lectura.** `GET /api/calendar` exige la sesión del
   panel, así que la tarjeta pide usuario y clave una vez, guarda **sólo el token
   `sid`** y la clave no toca el disco. Arriba sigue la próxima cita; debajo va la
-  **agenda del día** (`GET /api/calendar/events`): hora local calculada con el
-  `tz` que informa el equipo sobre los epochs UTC, título y lugar, en el orden
-  que manda el firmware. Un evento de todo el día se rotula "todo el día" en vez
-  de una hora. Sin sesión, sin autorización en Google o sin eventos, la tarjeta
-  lo dice en vez de inventar filas.
+  **agenda del día** (`GET /api/calendar/events`), partida en dos secciones
+  reales: **HOY**, con todos los eventos del día —los que ya terminaron,
+  atenuados— y **MAÑANA** con el resto de la ventana que consultó el equipo, de
+  modo que un evento de mañana nunca aparece como si fuera de hoy. La hora local
+  sale del `tz` del equipo sobre los epochs UTC; el día lo manda el firmware en
+  `dayStart`/`dayEnd` (su medianoche local, no la de la PC) y, contra un equipo
+  con firmware viejo, la app lo deriva del `tz`. Un evento de todo el día se
+  rotula "todo el día" en vez de una hora. Sin sesión, sin autorización en
+  Google o sin eventos, la tarjeta lo dice en vez de inventar filas; si el equipo
+  todavía no publica el endpoint, pide actualizar el firmware en vez de mostrar
+  el error crudo. La agenda crece con el cuerpo del popover, que scrollea: no se
+  sale nunca del rectángulo de la ventana.
 - **Popover que crece (S5).** El botón **Agenda / Achicar** de la tarjeta de
   calendario cambia la ventana entre 388x660 y 520x820 (`tauri::LogicalSize`)
   sin mover la esquina inferior derecha, que es donde está el pico de la

@@ -218,11 +218,20 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .next .hour { font-family: var(--mono); font-size: 15px; font-weight: 700; }
 .next .what { display: block; font-size: 14px; font-weight: 700; line-height: 1.25; }
 .next .where, .agenda-row .where { display: block; font-size: 11px; opacity: 0.62; }
-.next .daytag {
-  grid-column: 1 / -1; display: flex; align-items: center; gap: 6px;
+/* El rótulo del día lo comparten la tarjeta de "próxima cita" y las secciones de
+   la agenda: "Hoy" y "Mañana" separan dos días reales, no dos mitades de la
+   misma lista. */
+.daytag {
+  display: flex; align-items: center; gap: 6px;
   font-size: 9px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
 }
-.next .daytag .rule { flex: 1; height: 1px; background: rgba(0, 0, 0, 0.25); }
+.next .daytag { grid-column: 1 / -1; }
+.daytag .rule { flex: 1; height: 1px; background: rgba(0, 0, 0, 0.25); }
+.agenda .daytag { padding: 8px 12px 4px; opacity: 0.55; }
+/* Un evento que ya terminó sigue en la lista (es parte del día) pero se lee
+   detrás de lo que falta. */
+.agenda-row.is-past .hour, .agenda-row.is-past .what { opacity: 0.42; }
+.agenda-row.is-past .where { opacity: 0.3; }
 .agenda { display: grid; }
 .agenda-row { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 10px; align-items: center; padding: 9px 12px; }
 .agenda-row + .agenda-row { border-top: var(--hair); }
