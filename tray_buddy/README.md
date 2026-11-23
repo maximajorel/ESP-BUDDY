@@ -56,7 +56,7 @@ npm run dev      # abre la app en modo desarrollo
 npm run build    # genera el instalador NSIS en src-tauri/target/release/bundle/nsis/
 
 cd src-tauri
-cargo test       # 26 pruebas: store, parser de dirección, transporte HTTP y agenda
+cargo test       # 32 pruebas: store, parser de dirección, transporte HTTP, agenda y arranque
 cargo build      # el binario de desarrollo, sin instalador
 ```
 
@@ -81,12 +81,79 @@ node tools/preview.js day          # tomorrow, old, empty, unauthorized, session
 node tools/preview.js late-night   # busy, multiday, late-night
 ```
 
+## Instalación
+
+El instalador es NSIS, **en español**, y sale de `npm run build`:
+`src-tauri/target/release/bundle/nsis/Buddy_0.1.0_x64-setup.exe` (~1,4 MB). Es
+**por usuario**: instala en `%LOCALAPPDATA%\Buddy` y escribe todo en `HKCU`. No
+pide administrador salvo que falte WebView2, que se instala con el bootstrapper
+oficial (esa vez sí lo pide). El autor que muestra Agregar o quitar programas es
+`bundle.publisher` (`Máximo Majorel`).
+
+Lo que hace el asistente, y lo que pregunta:
+
+- **Menú Inicio**: el acceso directo se crea siempre, en `Buddy`.
+- **Escritorio**: lo **pregunta** al final, con un tilde que se puede destildar
+  (`MUI_FINISHPAGE_SHOWREADME` de la plantilla de Tauri). Destildado **en una
+  instalación nueva** no deja nada en el escritorio; si ya había un acceso
+  directo de una instalación anterior, ese archivo queda: nadie lo borra.
+- **Iniciar con Windows**: lo **pregunta** `installer/hooks.nsh`
+  (`NSIS_HOOK_POSTINSTALL`), en castellano y con un sí/no. Si dice que sí, escribe
+  la misma entrada que el menú de la bandeja. En una instalación silenciosa
+  (`/S`) no pregunta y **no** lo prende: encenderlo sin permiso es de las cosas
+  que el dueño descubre tarde.
+- **Ejecutar Buddy ahora**: el tilde de la página final.
+- **Actualizar** vuelve a preguntar el arranque automático: la opción por
+  defecto de la plantilla es desinstalar antes de instalar, y ese desinstalador
+  borra la entrada del registro (no usa `/UPDATE`, que es el camino que la
+  conserva). Es decir: la preferencia no se arrastra sola entre versiones; se
+  vuelve a elegir en el asistente o se prende de nuevo desde el menú.
+
+### Sin ventana de consola
+
+El binario de release es de subsistema GUI (`#![cfg_attr(not(debug_assertions),
+windows_subsystem = "windows")]`): no abre consola, arranca escondido y vive en
+la bandeja. El que abre una ventana negra de terminal es
+`src-tauri/target/debug/tray-buddy.exe`, el binario de desarrollo: no es un bug
+de la app instalada. Si aparece una consola, se está corriendo el de debug.
+
+### Una sola copia
+
+Si Buddy ya está corriendo, una segunda instancia no abre una ventana nueva: avisa
+y se va. El candado es una mutex con nombre (`Local\ar.esp32gadget.buddy.instance`,
+en la sesión del usuario), que Windows libera cuando el proceso muere, así que no
+queda ningún archivo rancio si la app se cuelga. El aviso es un evento con nombre:
+la copia que llega tarde lo levanta y la primera **muestra su popover**, que es lo
+que el dueño buscaba al tocar el acceso directo.
+
+### Arrancar con Windows
+
+En el menú de la bandeja (clic derecho) hay un ítem marcable, **Iniciar con
+Windows**. Prende o apaga una entrada en
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, valor `Buddy`, con la
+ruta del ejecutable **entre comillas** (sin comillas, una ruta con espacios se
+corta en el primer espacio y el arranque falla en silencio). El tilde se lee del
+registro cada vez que se abre el menú, así que si se apaga desde `msconfig` el
+menú dice la verdad.
+
+El nombre del valor coincide con `${PRODUCTNAME}` del instalador, que borra esa
+misma entrada al desinstalar: es un contrato entre las dos partes y tiene test
+(`autostart::tests::el_valor_del_registro_es_el_que_borra_el_desinstalador`).
+
+### Desinstalar
+
+Panel de control → Agregar o quitar programas → Buddy. Se van el programa, los
+accesos directos y la entrada de arranque automático. La configuración
+(`%APPDATA%\ar.esp32gadget.buddy\config.json`: IP del equipo y sesión del panel)
+queda, salvo que se tilde la casilla de borrar datos de la app.
+
 ## Estructura
 
 ```
 tray_buddy/
 ├── src-tauri/
 │   ├── src/main.rs        bandeja, ventana, salir vs. esconder
+│   ├── src/autostart.rs   arrancar con Windows: HKCU Run, valor "Buddy"
 │   ├── src/store.rs       IPv4 puerto + token de sesión en el store local
 │   ├── src/api.rs         el único HTTP: reqwest contra el equipo
 │   ├── src/commands.rs    los comandos que el popover llama con invoke
