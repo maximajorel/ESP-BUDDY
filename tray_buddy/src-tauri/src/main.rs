@@ -10,6 +10,7 @@
 mod api;
 mod autostart;
 mod commands;
+mod single_instance;
 #[cfg(test)]
 mod installer_art;
 mod store;
@@ -199,7 +200,11 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
             // El tilde del arranque automático se refresca antes de que el menú
             // se dibuje: el registro lo puede haber cambiado otra cosa
             // (`msconfig`, otra versión del instalador) desde que arrancamos.
-            if let TrayIconEvent::Click { .. } = event {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Right,
+                ..
+            } = event
+            {
                 if let Some(item) = tray.app_handle().try_state::<AutostartMenu>() {
                     let _ = item.0.set_checked(autostart::is_enabled());
                 }
@@ -236,6 +241,14 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
 }
 
 fn main() {
+    // Antes de construir nada: si ya hay un Buddy abierto, este proceso avisa y
+    // se va. Un segundo icono en la bandeja no es "abrir la app dos veces", es un
+    // dueño confundido con dos pollers del mismo equipo.
+    if single_instance::claim() == single_instance::Claim::AlreadyRunning {
+        single_instance::signal_existing();
+        return;
+    }
+
     tauri::Builder::default()
         .setup(|app| {
             // El store se carga una vez, antes de que exista la ventana: si la
@@ -244,6 +257,10 @@ fn main() {
             let dir = app.path().app_config_dir()?;
             app.manage(commands::AppState::new(dir));
             build_tray(app.handle())?;
+            // La primera instancia escucha a las que llegaron después: mostrar el
+            // popover es lo que el dueño esperaba al tocar el acceso directo.
+            let handle = app.handle().clone();
+            single_instance::on_second_instance(move || show_popover(&handle, None));
             // El popover nace con el tamaño de `tauri.conf.json`; si el dueño lo
             // dejó grande en la sesión anterior, se agranda antes de mostrarlo
             // por primera vez (S5).

@@ -2,6 +2,7 @@
 name = "tray-buddy"
 version = "0.1.0"
 description = "Buddy en la bandeja: pantalla, pomodoro y calendario del equipo ESP32"
+authors = ["Máximo Majorel"]
 edition = "2021"
 rust-version = "1.77"
 
@@ -16,6 +17,15 @@ serde_json = "1"
 # binario no arrastra OpenSSL/schannel. Si algún día el panel sirve HTTPS, esta
 # es la línea que cambia.
 reqwest = { version = "0.12", default-features = false, features = ["json"] }
+
+# Instancia única: la mutex y el evento con nombre son de Windows. La versión ya
+# estaba en el árbol como dependencia transitiva de Tauri, así que sólo se piden
+# las features que hacen falta.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_System_Threading",
+] }
 
 [dev-dependencies]
 # El runtime que las pruebas del transporte necesitan para los `async`.

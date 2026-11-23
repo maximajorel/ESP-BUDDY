@@ -10,11 +10,23 @@
 // (`Buddy`) no es inventado: es `${PRODUCTNAME}` del instalador NSIS, que borra
 // justo esa entrada al desinstalar. Si cambia acá, el desinstalador deja basura
 // que arranca una app que ya no existe, así que el contrato tiene test.
+//
+// Y hay un segundo lugar: el Administrador de tareas (el viejo `msconfig`) **no
+// borra** la entrada del `Run` cuando el dueño la apaga; escribe un "no" aparte,
+// en `Explorer\StartupApproved\Run`. Preguntar sólo por el `Run` diría que está
+// prendido cuando Windows no la arranca, y el clic para prenderla la borraría:
+// lo contrario de lo que el dueño pidió. Por eso la verdad se lee de los dos
+// lados, y al prender se borra la marca del "no".
 
 use std::path::Path;
 
 /// La clave del registro donde Windows lee qué arrancar con la sesión.
 pub const RUN_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
+
+/// Donde el Administrador de tareas guarda "esta sí" / "esta no". El primer byte
+/// del valor binario es el veredicto: impar es apagado.
+pub const APPROVED_KEY: &str =
+    r"HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
 
 /// El nombre del valor. Tiene que coincidir con `${PRODUCTNAME}` del instalador.
 pub const VALUE_NAME: &str = "Buddy";
@@ -23,39 +35,45 @@ pub const VALUE_NAME: &str = "Buddy";
 ///
 /// Sin comillas Windows corta la línea en el primer espacio y el arranque falla
 /// sin decir nada: una instalación en `C:\Program Files\Buddy\` no arrancaría.
-/// Van siempre, aunque el camino no tenga espacios, porque el instalador puede
-/// mover la carpeta después.
+/// Van siempre, aunque el camino no tenga espacios, porque la ruta cambia según
+/// dónde haya instalado el dueño.
 pub fn quoted_exe(exe: &Path) -> String {
     format!("\"{}\"", exe.display())
 }
 
 /// `reg add` que deja a Buddy arrancando con la sesión del usuario.
-pub fn add_args(exe: &Path) -> Vec<String> {
-    [
-        "add",
-        RUN_KEY,
-        "/v",
-        VALUE_NAME,
-        "/t",
-        "REG_SZ",
-        "/d",
-        &quoted_exe(exe),
-        "/f",
-    ]
-    .iter()
-    .map(|s| s.to_string())
-    .collect()
+///
+/// Devuelve `None` si el ejecutable no se conoce: escribir `/d ""` dejaría un
+/// valor vacío, que se lee como "está prendido" y no arranca nada.
+pub fn add_args_checked(exe: &Path) -> Option<Vec<String>> {
+    if exe.as_os_str().is_empty() {
+        return None;
+    }
+    Some(
+        [
+            "add",
+            RUN_KEY,
+            "/v",
+            VALUE_NAME,
+            "/t",
+            "REG_SZ",
+            "/d",
+            &quoted_exe(exe),
+            "/f",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect(),
+    )
 }
 
 /// `reg delete` que saca la entrada. Falla con código 1 si no estaba, que es
 /// información, no un error.
 pub fn delete_args() -> Vec<String> {
-    [
-        "delete", RUN_KEY, "/v", VALUE_NAME, "/f",
-    ]
-    .iter()
-    .map(|s| s.to_string())
-    .collect()
+    ["delete", RUN_KEY, "/v", VALUE_NAME, "/f"]
+        .iter()
+        .map(|s| s.to_string())
+        .collect()
 }
 
 /// `reg query` de la entrada. Se usa el código de salida y no la salida de texto:
@@ -65,6 +83,66 @@ pub fn query_args() -> Vec<String> {
         .iter()
         .map(|s| s.to_string())
         .collect()
+}
+
+/// `reg export` de la clave del Administrador de tareas a un archivo. El `.reg`
+/// en hexadecimal es lo único que se puede leer igual en cualquier idioma de
+/// Windows, y sin inventar un parser de la salida de texto de `reg query`.
+pub fn export_args(path: &Path) -> Vec<String> {
+    ["export", APPROVED_KEY, &path.to_string_lossy(), "/y"]
+        .iter()
+        .map(|s| s.to_string())
+        .collect()
+}
+
+/// `reg delete` de la marca del Administrador de tareas: es lo que hace que
+/// Windows vuelva a arrancar a Buddy después de que el dueño lo apagó ahí.
+pub fn delete_approved_args() -> Vec<String> {
+    ["delete", APPROVED_KEY, "/v", VALUE_NAME, "/f"]
+        .iter()
+        .map(|s| s.to_string())
+        .collect()
+}
+
+/// Los bytes del valor `value` dentro de un archivo `.reg` exportado, o `None` si
+/// ese valor no está.
+///
+/// `reg export` escribe UTF-16LE con BOM y los binarios como
+/// `"Buddy"=hex:03,00,00,...`. Los nombres de los tipos no se traducen, pero el
+/// formato del archivo tampoco depende del idioma: por eso se parsea esto y no la
+/// salida de `reg query`.
+pub fn parse_export(bytes: &[u8], value: &str) -> Option<Vec<u8>> {
+    let text = if bytes.len() >= 2 && bytes[0] == 0xFF && bytes[1] == 0xFE {
+        let units: Vec<u16> = bytes[2..]
+            .chunks_exact(2)
+            .map(|c| u16::from_le_bytes([c[0], c[1]]))
+            .collect();
+        String::from_utf16_lossy(&units)
+    } else {
+        String::from_utf8_lossy(bytes).into_owned()
+    };
+    let needle = format!("\"{value}\"=hex:");
+    let line = text
+        .lines()
+        .find(|line| line.trim_start().starts_with(&needle))?;
+    let mut out = Vec::new();
+    for part in line.trim_start()[needle.len()..].split(',') {
+        let part = part.trim();
+        if part.is_empty() {
+            break;
+        }
+        out.push(u8::from_str_radix(part, 16).ok()?);
+    }
+    Some(out)
+}
+
+/// ¿El Administrador de tareas tiene a Buddy apagado? Sin valor, Windows lo
+/// arranca: el veredicto por omisión es "sí".
+pub fn startup_approved_disabled(bytes: &[u8]) -> bool {
+    match parse_export(bytes, VALUE_NAME) {
+        Some(data) => data.first().map(|b| b & 1 == 1).unwrap_or(false),
+        None => false,
+    }
 }
 
 /// Corre `reg.exe` sin ventana. Devuelve si terminó bien.
@@ -87,24 +165,53 @@ fn run(_args: &[String]) -> bool {
     false
 }
 
-/// ¿Buddy ya arranca con Windows? La fuente de verdad es el registro: el dueño
-/// puede haberlo tocado con `msconfig` o con otro programa.
+/// El `.reg` de la clave del Administrador de tareas, si se pudo exportar.
+fn approved_export() -> Option<Vec<u8>> {
+    let path = std::env::temp_dir().join(format!("buddy-approved-{}.reg", std::process::id()));
+    let ok = run(&export_args(&path));
+    let bytes = if ok { std::fs::read(&path).ok() } else { None };
+    let _ = std::fs::remove_file(&path);
+    bytes
+}
+
+fn executable() -> Option<std::path::PathBuf> {
+    std::env::current_exe()
+        .ok()
+        .filter(|path| !path.as_os_str().is_empty())
+}
+
+/// ¿Buddy arranca con Windows de verdad? La fuente de verdad es el registro, y
+/// son dos claves: la entrada del `Run` y la marca del Administrador de tareas.
 pub fn is_enabled() -> bool {
-    run(&query_args())
+    if !run(&query_args()) {
+        return false;
+    }
+    match approved_export() {
+        Some(bytes) => !startup_approved_disabled(&bytes),
+        None => true,
+    }
 }
 
 /// Prende o apaga el arranque automático. Devuelve si el registro quedó como se
 /// pidió, para que el menú no muestre un tilde que no es cierto.
 pub fn set_enabled(on: bool) -> bool {
-    let ok = if on {
-        let exe = std::env::current_exe().unwrap_or_default();
-        run(&add_args(&exe))
+    if on {
+        let Some(exe) = executable() else {
+            return false;
+        };
+        let Some(args) = add_args_checked(&exe) else {
+            return false;
+        };
+        run(&args);
+        // Si el dueño lo había apagado desde el Administrador de tareas, el "no"
+        // vive acá: sin borrarlo, Windows no arranca la app aunque la entrada del
+        // `Run` esté escrita.
+        run(&delete_approved_args());
     } else {
-        // Si no estaba, `reg delete` sale con 1 y la intención ya está cumplida.
         run(&delete_args());
-        !is_enabled()
-    };
-    ok && is_enabled() == on
+        run(&delete_approved_args());
+    }
+    is_enabled() == on
 }
 
 #[cfg(test)]
@@ -116,6 +223,20 @@ mod tests {
         PathBuf::from(r"C:\Program Files\Buddy\Buddy.exe")
     }
 
+    /// Los bytes reales que escribe `reg export` para un valor REG_BINARY, con
+    /// su BOM y su UTF-16: el parser se prueba contra el formato, no contra una
+    /// idea del formato.
+    fn export_utf16(linea: &str) -> Vec<u8> {
+        let texto = format!(
+            "Windows Registry Editor Version 5.00\r\n\r\n[HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run]\r\n{linea}\r\n"
+        );
+        let mut out = vec![0xFF, 0xFE];
+        for unit in texto.encode_utf16() {
+            out.extend_from_slice(&unit.to_le_bytes());
+        }
+        out
+    }
+
     #[test]
     fn el_camino_va_entre_comillas_aunque_no_tenga_espacios() {
         // Es lo que evita que "C:\Program Files\..." se corte en el primer
@@ -124,6 +245,11 @@ mod tests {
         assert_eq!(
             quoted_exe(&PathBuf::from(r"C:\Buddy\Buddy.exe")),
             r#""C:\Buddy\Buddy.exe""#
+        );
+        // Una ruta de red también es válida entre comillas.
+        assert_eq!(
+            quoted_exe(&PathBuf::from(r"\\server\share\Buddy.exe")),
+            r#""\\server\share\Buddy.exe""#
         );
     }
 
@@ -140,7 +266,7 @@ mod tests {
 
     #[test]
     fn add_deja_la_entrada_con_la_ruta_entre_comillas_y_pisa_la_vieja() {
-        let args = add_args(&exe());
+        let args = add_args_checked(&exe()).expect("args");
         assert_eq!(
             args,
             vec![
@@ -160,8 +286,19 @@ mod tests {
     }
 
     #[test]
+    fn sin_ejecutable_conocido_no_se_escribe_un_valor_vacio() {
+        // Un `/d ""` deja un valor que existe (el menú diría "prendido") y no
+        // arranca nada: el peor de los dos mundos.
+        assert!(add_args_checked(&PathBuf::new()).is_none());
+    }
+
+    #[test]
     fn delete_borra_solo_esa_entrada() {
         assert_eq!(delete_args(), vec!["delete", RUN_KEY, "/v", "Buddy", "/f"]);
+        assert_eq!(
+            delete_approved_args(),
+            vec!["delete", APPROVED_KEY, "/v", "Buddy", "/f"]
+        );
     }
 
     #[test]
@@ -170,10 +307,41 @@ mod tests {
     }
 
     #[test]
+    fn el_export_se_lee_igual_en_cualquier_idioma_de_windows() {
+        // Con un byte impar (0x03) el Administrador de tareas la tiene apagada,
+        // que es exactamente el caso en que la entrada del Run sigue existiendo
+        // pero Windows no arranca la app.
+        let apagada = export_utf16("\"Buddy\"=hex:03,00,00,00,00,00,00,00,00,00,00,00");
+        assert_eq!(
+            parse_export(&apagada, "Buddy"),
+            Some(vec![3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+        );
+        assert!(startup_approved_disabled(&apagada));
+
+        let prendida = export_utf16("\"Buddy\"=hex:02,00,00,00,00,00,00,00,00,00,00,00");
+        assert!(!startup_approved_disabled(&prendida));
+
+        // Otro programa en la misma clave no se confunde con Buddy.
+        let ajena = export_utf16("\"BuddyOtra\"=hex:03,00,00,00");
+        assert!(!startup_approved_disabled(&ajena));
+
+        // Si el dueño nunca la tocó, el valor no está y Windows la arranca.
+        let vacia = export_utf16("");
+        assert_eq!(parse_export(&vacia, "Buddy"), None);
+        assert!(!startup_approved_disabled(&vacia));
+
+        // Un archivo que no es un .reg no rompe: se lee como "no está".
+        assert_eq!(parse_export(b"cualquier cosa", "Buddy"), None);
+        assert!(parse_export(b"", "Buddy").is_none());
+    }
+
+    #[test]
     fn la_clave_es_la_del_usuario_y_no_la_de_la_maquina() {
         // HKCU: sin administrador. HKLM exigiría elevar y el instalador instala
         // para el usuario actual.
         assert!(RUN_KEY.starts_with("HKCU\\"));
         assert!(RUN_KEY.ends_with(r"\CurrentVersion\Run"));
+        assert!(APPROVED_KEY.starts_with("HKCU\\"));
+        assert!(APPROVED_KEY.ends_with(r"\StartupApproved\Run"));
     }
 }
