@@ -218,6 +218,11 @@ void calendarTick() {
   // nothing honest to ask Google for. The panel already says the clock is not
   // synced in the network card.
   if (!clockReady()) return;
+  // Pero el reloj no alcanza: en un reset tibio el RTC conserva la hora y el
+  // WiFi todavía se está asociando, así que la primera petición salía sin
+  // enlace ("connection refused", transport=-1) y el dueño veía la agenda vacía
+  // hasta el reintento. Preguntar a Google exige enlace, no sólo hora.
+  if (WiFi.status() != WL_CONNECTED) return;
 
   const uint32_t now = millis();
   // La política vive en `calendar_schedule.h` y se prueba en host: sin un sync
