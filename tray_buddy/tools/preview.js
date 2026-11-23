@@ -10,7 +10,8 @@
 //   node tray_buddy/tools/preview.js late-night
 //
 // Escenarios: day (default), tomorrow, old (firmware sin dayStart/dayEnd),
-// empty, unauthorized, session (401), busy (24 eventos), multiday, late-night.
+// empty, unauthorized, session (401), busy (24 eventos), multiday, late-night y
+// after-tomorrow (la próxima cita es un día después de mañana).
 //
 // El reloj se congela en las 10:20 (o 23:50 en `late-night`) del día de hoy en
 // -03, así el atenuado de "ya terminó" y las secciones salen iguales sin
@@ -30,6 +31,7 @@ const SCENARIOS = [
   "busy",
   "multiday",
   "late-night",
+  "after-tomorrow",
 ];
 
 const scenario = process.argv[2] ?? "day";
@@ -72,7 +74,7 @@ const nowSec = Math.floor(Date.now() / 1000);
 const local = nowSec + TZ * 3600;
 const DAY_START = local - (local % 86400) - TZ * 3600;
 const DAY_END = DAY_START + 86400;
-const LATE = scenario === "late-night";
+const LATE = scenario === "late-night" || scenario === "after-tomorrow";
 const NOW = LATE ? DAY_START + 23 * 3600 + 50 * 60 : DAY_START + 10 * 3600 + 20 * 60;
 
 const ev = (summary, location, start, end, leadMin, allDay = false) => ({
@@ -122,6 +124,12 @@ const FIXTURES = {
     ev("Cena de cierre", "", DAY_START + 23 * 3600, DAY_END + 2 * 3600, 20),
     ev("Reunión de mañana", "Zoom", DAY_END + 9 * 3600, DAY_END + 10 * 3600, 10),
   ]),
+  // La próxima cita es un evento de todo el día de pasado mañana: la tarjeta
+  // tampoco puede rotularlo "mañana".
+  "after-tomorrow": payload([
+    TODAY_ALLDAY,
+    ev("Feriado largo", "", DAY_END + 86400, DAY_END + 2 * 86400, -1, true),
+  ]),
   "late-night": payload([
     ev("Reunión de madrugada", "Zoom", DAY_END + 70 * 60, DAY_END + 130 * 60, 10),
     ev("Trámite pasado mañana", "", DAY_END + 86400 + 3600, DAY_END + 86400 + 7200, 10),
@@ -144,7 +152,9 @@ const fixtures = `(function () {
   };
   const calendar = {
     ok: true, kind: ${scenario === "unauthorized" ? '"needs_auth"' : '"ready"'},
-    configured: ${scenario !== "unauthorized"},
+    // El cliente OAuth está configurado; lo que falta en el escenario sin
+    // autorizar es el permiso de Google, como kind: needs_auth en el equipo.
+    configured: true,
     authorized: ${scenario !== "unauthorized"},
     pending: false, syncing: false,
     selectedName: "maximomajorel@gmail.com",

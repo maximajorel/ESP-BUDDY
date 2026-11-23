@@ -300,6 +300,7 @@ function renderCalendar(data, events) {
   // mismo evento que el equipo llama "próxima cita", y si no se puede casar
   // (relojes desfasados) se cae al aviso en minutos en vez de mentir.
   const list = events?.events ?? [];
+  const tz = events?.tz ?? 0;
   const day = deviceDay(events);
   const nowSec = Math.floor(Date.now() / 1000);
   const next = nextEvent(list, nowSec);
@@ -310,10 +311,10 @@ function renderCalendar(data, events) {
   $("calNextHour").textContent = data?.hasNext
     ? labelled
       ? next.allDay
-        ? next.startEpoch >= day.end
-          ? "mañana"
-          : "hoy"
-        : eventClock(next.startEpoch, events?.tz ?? 0)
+        ? isToday(next, day)
+          ? "hoy"
+          : dayLabel(next.startEpoch, day, tz)
+        : eventClock(next.startEpoch, tz)
       : `${data.nextLeadMin ?? 0}′`
     : "--:--";
   $("calNextDay").textContent = data?.hasNext ? "Próxima cita" : "Calendario";
@@ -470,6 +471,21 @@ function weekdayName(index) {
 }
 
 /**
+ * El rótulo del día de un evento: "hoy", "mañana" o su día de la semana.
+ *
+ * Lo usan la lista y la tarjeta de "próxima cita": son el mismo dato, no pueden
+ * decir cosas distintas. En minúsculas porque el rótulo de la lista se pasa a
+ * mayúsculas por CSS y la hora de la tarjeta no.
+ */
+function dayLabel(epoch, day, tz) {
+  const index = localDayIndex(epoch, tz);
+  const todayIndex = localDayIndex(day.start, tz);
+  if (index === todayIndex) return "hoy";
+  if (index === todayIndex + 1) return "mañana";
+  return weekdayName(index);
+}
+
+/**
  * La agenda agrupada por día local, en el orden del equipo.
  *
  * El primero se rotula **Hoy** y el siguiente **Mañana**, pero la ventana del
@@ -492,12 +508,7 @@ function agendaGroups(events, day, tz) {
   return Array.from(groups.entries())
     .sort((a, b) => a[0] - b[0])
     .map(([index, rows]) => ({
-      label:
-        index === todayIndex
-          ? "Hoy"
-          : index === todayIndex + 1
-            ? "Mañana"
-            : weekdayName(index),
+      label: index === todayIndex ? "hoy" : index === todayIndex + 1 ? "mañana" : weekdayName(index),
       rows,
     }));
 }
@@ -543,15 +554,15 @@ function renderAgenda(data, failure) {
     return agendaRow(hour, Boolean(event.allDay), event.summary, event.location, end <= nowSec);
   };
 
-  const today = groups.find((group) => group.label === "Hoy");
-  agenda.appendChild(agendaDayTag("Hoy"));
+  const today = groups.find((group) => group.label === "hoy");
+  agenda.appendChild(agendaDayTag("hoy"));
   if (today) {
     today.rows.forEach((event) => agenda.appendChild(row(event)));
   } else {
     agenda.appendChild(agendaEmpty("Sin eventos para hoy."));
   }
   groups
-    .filter((group) => group.label !== "Hoy")
+    .filter((group) => group.label !== "hoy")
     .forEach((group) => {
       agenda.appendChild(agendaDayTag(group.label));
       group.rows.forEach((event) => agenda.appendChild(row(event)));
