@@ -151,6 +151,21 @@ hasta que ese WIP se commitee; el árbol de trabajo sí compila (51% flash, 24%
 RAM) y es lo que se flashea. Queda anotado, no se toca: no es de esta feature y
 commitear trabajo ajeno no es una decisión del agente.
 
+L10ter. Defecto encontrado al auditar la suba a 24 eventos: el presupuesto del
+cuerpo seguía en 16384 bytes y `readBody` **descarta el cuerpo entero** cuando se
+pasa, así que un día cargado con títulos largos dejaba al dueño sin agenda (no
+con menos filas). El peor caso que manda Google con los campos pedidos —título y
+lugar de 200 caracteres, `start`/`end` con zona y dos recordatorios por evento—
+se midió en el test: **18.731 bytes**, más de lo que entraba. El presupuesto ahora
+se deriva del buffer en `calendar_model.h` (`4096 + 24 * 1024 = 28.672`) y
+`tools/calendar_core_test.cpp` construye ese peor caso, lo imprime, lo parsea
+entero y falla si deja de entrar (`76aef9f`). Compila para la placa: 51% de flash
+y 24% de RAM. **Sin medir en el vidrio**: el pico de heap con un cuerpo de 28 KB
+(la `String` del transporte más el documento de ArduinoJson) queda fuera de esta
+entrega porque exige flashear; si al empujar el equipo aparece presión de heap,
+el orden de ataque está en `calendar_http.cpp` (`readBody` copia el cuerpo dos
+veces).
+
 L10. `tools/probes/calendario_agenda.txt` (`2aa2e9c`): la secuencia de consola
 que verifica el endpoint después de flashear, con la fila correspondiente en
 `tools/probes/README.md`. `api` llama a `netHandleApi` en proceso y no pasa por
