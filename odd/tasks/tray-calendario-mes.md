@@ -269,3 +269,29 @@ Estado medido hoy, con el firmware ya en la placa: el alta sigue contestando
 **403 "El permiso guardado es de solo lectura: reconectá la cuenta en el panel"**,
 o sea que la reconexión de Google todavía no ocurrió. Es el único paso que queda y
 necesita al dueño con el navegador.
+
+## Cierre
+
+Cerrado como **parcial** por decisión del dueño (L18): todo lo que se puede
+verificar por comando y en la placa quedó verificado; la escritura real en Google
+no, porque necesita un permiso nuevo que sólo el dueño puede dar.
+
+L18 (decisión de cierre): con el firmware nuevo en la placa, el alta de un evento
+contesta **403 "El permiso guardado es de solo lectura: reconectá la cuenta en el
+panel para poder editar"**. El dueño eligió cerrar acá y reconectar Google más
+adelante, así que el objetivo queda **cumplido en todo menos el ciclo
+alta→lectura→edición→baja contra Google**, que es el único paso que no depende de
+este lado.
+
+Lo que queda listo para cuando reconecte, sin tocar una línea de código:
+
+    python tools\gadget_probe.py @tools\probes\calendario_escritura.txt
+
+y completar los dos últimos comandos del archivo con el `id` y el `etag` que
+devuelve el paso de lectura. El instrumento ya aguanta: consola de 256 bytes para
+que entre el cuerpo de la edición, y `drain` de 20 s para que no se coma comandos
+cuando un pedido reintenta.
+
+Estado de la rama `feat/calendario-mes`: 12 commits, `make test` 45, `make build`
+exit 0, `cargo test` 51, instalador `Buddy_0.2.0_x64-setup.exe` construido, y la
+placa en COM5 corriendo este firmware.
