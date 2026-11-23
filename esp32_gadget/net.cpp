@@ -13,6 +13,7 @@
 #include "console.h"
 #include "display.h"
 #include "net_ap_policy.h"
+#include "net_query.h"
 #include "rgb.h"
 #include "rotation.h"
 #include "buddy_face.h"
@@ -961,9 +962,14 @@ static ApiResult apiCalendarEvents() {
 // It blocks the web task for one TLS round trip. That is the cost of asking Google
 // from the request that needs the answer, and it is bounded by the same timeout as
 // every other calendar request.
-static ApiResult apiCalendarMonth() {
-  const int year = s_server.arg("y").toInt();
-  const int month = s_server.arg("m").toInt();
+// `query` is what follows the '?' when the caller is the serial console, which
+// pastes the parameters onto the path because it has no request object. Over HTTP
+// it is empty and the server's own args answer.
+static ApiResult apiCalendarMonth(const char *query) {
+  long year = 0;
+  long month = 0;
+  if (!queryInt(query, "y", 2020, 2199, &year)) year = s_server.arg("y").toInt();
+  if (!queryInt(query, "m", 1, 12, &month)) month = s_server.arg("m").toInt();
   if (year <= 0 || month <= 0) {
     return apiFail(400, "Falta el mes: /api/calendar/month?y=2026&m=11");
   }
@@ -980,8 +986,8 @@ static ApiResult apiCalendarMonth() {
   CalendarMonthInfo info;
   size_t count = 0;
   char error[96] = "";
-  if (!calendarFetchMonth(year, month, events, CALENDAR_MONTH_MAX_EVENTS, &count,
-                          &info, error, sizeof(error))) {
+  if (!calendarFetchMonth((int)year, (int)month, events, CALENDAR_MONTH_MAX_EVENTS,
+                          &count, &info, error, sizeof(error))) {
     return apiFail(502, error[0] ? error : "No pude pedir el mes");
   }
 
@@ -1463,8 +1469,29 @@ static bool isPostOnlyPath(const char *path) {
   return false;
 }
 
-static ApiResult dispatchApi(const char *method, const char *path,
+static ApiResult dispatchApi(const char *method, const char *rawPath,
                              const String &body) {
+  // The HTTP transport hands us a path with no query (`uri()` cuts it), but the
+  // serial console pastes the parameters straight onto the path — that is the only
+  // way to ask a parameterized endpoint without a panel session. Splitting here
+  // keeps every route comparison below exact: a query string is never part of a
+  // route.
+  char routeBuffer[96];
+  const char *query = strchr(rawPath, '?');
+  const char *path = rawPath;
+  if (query) {
+    const size_t length = (size_t)(query - rawPath);
+    if (length >= sizeof(routeBuffer)) {
+      return apiFail(414, "La ruta es demasiado larga");
+    }
+    memcpy(routeBuffer, rawPath, length);
+    routeBuffer[length] = '\0';
+    path = routeBuffer;
+    query += 1;
+  } else {
+    query = "";
+  }
+
   const bool isPost = strcmp(method, "POST") == 0;
 
   // The only endpoint reachable without a session, because it is the one that
@@ -1501,7 +1528,7 @@ static ApiResult dispatchApi(const char *method, const char *path,
     if (!strcmp(path, "/api/calendar")) return apiCalendarStatus();
     if (!strcmp(path, "/api/calendar/calendars")) return apiCalendarCalendars();
     if (!strcmp(path, "/api/calendar/events")) return apiCalendarEvents();
-    if (!strcmp(path, "/api/calendar/month")) return apiCalendarMonth();
+    if (!strcmp(path, "/api/calendar/month")) return apiCalendarMonth(query);
     if (!strcmp(path, "/api/weather")) return apiWeatherStatus();
     return apiSpotifyStatus();
   }

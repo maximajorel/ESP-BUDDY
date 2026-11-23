@@ -196,3 +196,23 @@ La medición forzó dos correcciones que no eran cosméticas:
   direcciona otro evento (o ninguno) y el dueño se enteraría recién al guardar,
   con un "ese evento ya no existe" que no explica nada. El costo es que un evento
   con un id imposible no se muestra; con 160 ese caso es prácticamente inexistente.
+
+L15 (el sondeo del mes no era posible, y eso importaba): la verificación que queda
+pendiente necesita la placa, y la única vía sin sesión del panel es la consola
+serie. Ahí `api GET /api/calendar/month?y=2026&m=11` contestaba **404**: el
+dispatcher compara la ruta exacta y la consola pega la query en la ruta, mientras
+que el servidor HTTP la corta en `uri()`. O sea que el endpoint del mes sólo se
+podía probar abriendo una sesión —justo lo que no se puede hacer en el sondeo—.
+
+Arreglado en el dispatcher: separa la query de la ruta antes de comparar
+(`net_query.h`, puro y con `tools/net_query_test.cpp`) y `apiCalendarMonth` la lee
+de ahí cuando existe, cayendo a `s_server.arg` en HTTP. Efecto lateral bueno:
+cualquier endpoint con parámetros queda sondeable por consola, y la comparación de
+rutas sigue siendo exacta (una query nunca es parte de una ruta).
+
+Queda `tools/probes/calendario_mes.txt`: arranque, los tres meses (bordes
+incluidos), el mes sin parámetros (tiene que ser 400, no un mes inventado), los dos
+`POST` públicos de brillo y LED, y la lectura de vuelta en `/api/status`. Es la
+secuencia que convierte la verificación bloqueada en un comando de una línea:
+
+    python tools\gadget_probe.py @tools\probes\calendario_mes.txt

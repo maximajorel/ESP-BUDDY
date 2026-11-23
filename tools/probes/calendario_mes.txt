@@ -1,0 +1,38 @@
+# El mes del calendario y los dos controles de luz, sin sesión del panel.
+#
+# Es la secuencia que cierra la verificación que quedó pendiente: el mes se pide
+# con parámetros y la consola los pega en la ruta, así que `netHandleApi` los lee
+# de ahí (`net_query.h`) en vez de un `WebServer` que acá no existe.
+#
+# Qué se verifica:
+#   1. `api GET /api/calendar/month?y=&m=` contesta `ok`, `year`, `month`,
+#      `monthStart`, `monthEnd`, `gridStart`, `gridEnd`, `count` y `events`;
+#   2. `gridStart` es un lunes y `gridEnd - gridStart` es un número entero de
+#      semanas (42 días para noviembre 2026);
+#   3. cada evento trae `id` y `etag` —sin los dos no hay edición posible— y las
+#      horas en epoch UTC;
+#   4. pedir el mes anterior y el siguiente da ventanas distintas y contiguas, que
+#      es lo que hace que las flechas del popover no salten meses;
+#   5. `POST /api/lcd` y `POST /api/led` contestan `ok` sin sesión y el brillo se
+#      puede leer de vuelta en `/api/status` (`display.brightness`);
+#   6. `/api/settings` con POST **no** es público: por consola el portero no corre,
+#      así que eso lo fija `tools/admin_auth_test.cpp`, no este sondeo.
+#
+# Ojo: abrir el puerto resetea la placa y el primer sync puede fallar mientras el
+# WiFi se asienta; la espera existe por eso (ver `calendario_agenda.txt`).
+boot 4
+sleep 45000
+api GET /api/status
+api GET /api/calendar
+api GET /api/calendar/month?y=2026&m=11
+api GET /api/calendar/month?y=2026&m=10
+api GET /api/calendar/month?y=2026&m=12
+api GET /api/calendar/month?y=2026
+api GET /api/calendar/month
+api POST /api/lcd {"brightness":70}
+api GET /api/status
+api POST /api/lcd {"brightness":55}
+api POST /api/led {"r":10,"g":20,"b":30,"level":128,"effect":1}
+api POST /api/led {"effect":9}
+api GET /api/status
+api GET /api/calendar/events

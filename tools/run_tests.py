@@ -59,6 +59,9 @@ COMPANION_SOURCES = {
 # Checks written as scripts rather than firmware tests. The `.env` build step is
 # the one case: its output has to agree with the C++ derivation, so it is pinned
 # by a script that runs the real generator. Names here show up in --filter too.
+# The query reader has no companions: it is pure and header-only, so the runner
+# builds it like every other plain test.
+
 PYTHON_CHECKS = {
     "admin_seed_test": TOOLS / "admin_seed_test.py",
     "calendar_acceptance_test": TOOLS / "calendar_acceptance_test.py",
