@@ -41,10 +41,12 @@ pub struct PopoverSize {
     pub width: f64,
     pub height: f64,
     pub expanded: bool,
+    /// Si está fijado (no se esconde al hacer clic afuera).
+    pub pinned: bool,
 }
 
 impl PopoverSize {
-    fn of(expanded: bool) -> Self {
+    fn of(expanded: bool, pinned: bool) -> Self {
         let (width, height) = if expanded {
             POPOVER_EXPANDED
         } else {
@@ -54,6 +56,7 @@ impl PopoverSize {
             width,
             height,
             expanded,
+            pinned,
         }
     }
 }
@@ -75,6 +78,12 @@ impl AppState {
     /// Si el dueño dejó el popover grande (S5). `main.rs` lo consulta al abrir.
     pub fn expanded(&self) -> bool {
         self.lock().expanded
+    }
+
+    /// Si el popover está fijado. `main.rs` lo consulta cuando la ventana pierde
+    /// el foco: fijado no se esconde, sin fijar sí.
+    pub fn pinned(&self) -> bool {
+        self.lock().pinned
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, Store> {
@@ -213,7 +222,31 @@ pub async fn panel_calendar_events(
 /// pintar el botón correcto antes de que el dueño lo toque.
 #[tauri::command]
 pub async fn popover_state(state: State<'_, AppState>) -> Result<PopoverSize, ApiError> {
-    Ok(PopoverSize::of(state.lock().expanded))
+    let store = state.lock();
+    Ok(PopoverSize::of(store.expanded, store.pinned))
+}
+
+/// Fija o suelta el popover. Fijado no se esconde al hacer clic afuera y queda
+/// arriba; suelto se comporta como cualquier popover.
+///
+/// Se guarda antes de tocar la ventana: si el guardado falla, el botón no miente
+/// —el error vuelve al popover y el tilde no cambia—.
+#[tauri::command]
+pub async fn popover_pin(
+    state: State<'_, AppState>,
+    window: WebviewWindow,
+    pinned: bool,
+) -> Result<bool, ApiError> {
+    let store = {
+        let mut store = state.lock();
+        store.pinned = pinned;
+        store.clone()
+    };
+    state.persist(&store)?;
+    // Fijado también significa arriba: si no, el pin no se ve como "lo quiero a
+    // mano" y la ventana se va detrás de la siguiente.
+    let _ = window.set_always_on_top(pinned);
+    Ok(pinned)
 }
 
 /// Agranda o achica el popover (S5) y recuerda la elección.
@@ -228,6 +261,7 @@ pub async fn popover_expand(
     window: WebviewWindow,
     expanded: bool,
 ) -> Result<PopoverSize, ApiError> {
+    let pinned = state.lock().pinned;
     let target = popover_logical_size(expanded);
     let scale = window.scale_factor().unwrap_or(1.0);
     let target_px = target.to_physical::<u32>(scale);
@@ -248,7 +282,7 @@ pub async fn popover_expand(
             state.persist(&store)?;
         }
     }
-    Ok(PopoverSize::of(expanded))
+    Ok(PopoverSize::of(expanded, pinned))
 }
 
 fn resize_failed(err: impl std::fmt::Display) -> ApiError {
@@ -327,6 +361,7 @@ mod tests {
             connection: Some(uno.clone()),
             session: Some("sid-vivo".to_string()),
             expanded: false,
+            pinned: false,
         };
 
         // Reconectar al mismo equipo no expulsa la sesión.

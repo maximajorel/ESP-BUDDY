@@ -705,6 +705,11 @@ async function loadPopoverSize() {
   try {
     const size = await invoke("popover_state");
     paintPopoverSize(size?.expanded);
+    // El pin también viene de la preferencia: el botón tiene que nacer como el
+    // dueño lo dejó, no como arranca el HTML.
+    const pin = $("btnPin");
+    pin.setAttribute("aria-pressed", size?.pinned ? "true" : "false");
+    await win.setAlwaysOnTop?.(Boolean(size?.pinned));
   } catch {
     // El tamaño es cosmético: si el store no contesta, arranca chico.
   }
@@ -743,11 +748,24 @@ function wireCaption() {
   $("btnHide").addEventListener("click", hide);
   $("btnClose").addEventListener("click", hide);
 
+  // El pin no es un adorno: fijado, el popover no se esconde al hacer clic
+  // afuera; suelto, sí. Quien decide es el proceso principal (lo consulta cuando
+  // la ventana pierde el foco), así que el estado se manda y se persiste, no se
+  // guarda acá.
   const pin = $("btnPin");
   pin.addEventListener("click", async () => {
     const pinned = pin.getAttribute("aria-pressed") !== "true";
     pin.setAttribute("aria-pressed", pinned ? "true" : "false");
-    await win.setAlwaysOnTop(pinned);
+    if (!invoke) return;
+    try {
+      const saved = await invoke("popover_pin", { pinned });
+      pin.setAttribute("aria-pressed", saved ? "true" : "false");
+    } catch (error) {
+      // Si no se pudo guardar, el tilde vuelve a donde estaba: un pin que no
+      // fija nada es peor que no tenerlo.
+      pin.setAttribute("aria-pressed", pinned ? "false" : "true");
+      setOnline(false, "Error", error?.message);
+    }
   });
 
   // Escape esconde el popover: es la salida que espera cualquiera que abrió una

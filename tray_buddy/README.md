@@ -190,6 +190,16 @@ Cerrar y minimizar son lo mismo, esconder. Salir es una acción del menú de la
 bandeja: una app de bandeja que muere al cerrar su ventana no es una app de
 bandeja.
 
+**Clic afuera esconde; el pin lo impide.** Sin fijar, el popover se comporta como
+un popover: hacés clic en otra ventana y se esconde. Con el **pin** de la
+cabecera queda a la vista —y arriba de las otras ventanas— aunque trabajes en
+otra parte. El pin se guarda en el store, así que el popover nace como lo dejaste,
+y quien decide es el proceso principal: el evento de pérdida de foco consulta la
+preferencia antes de esconder. Como el clic en el icono de la bandeja también le
+saca el foco a la ventana, un clic dentro de los 400 ms posteriores a ese blur se
+toma como el mismo gesto (esconder) y no como "abrime": sin eso, esconder desde
+la bandeja la volvía a mostrar.
+
 ## Qué hace hoy
 
 - **Asistente de conexión (S3).** Primer arranque, cambio de dirección desde el

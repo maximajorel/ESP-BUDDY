@@ -41,6 +41,13 @@ pub struct Store {
     /// campo, que se interpreta como popover chico.
     #[serde(default)]
     pub expanded: bool,
+    /// Si el popover está "fijado": no se esconde al hacer clic afuera y queda
+    /// arriba de las otras ventanas. Se recuerda entre arranques porque es una
+    /// decisión del dueño, no un estado de un rato. Sin el campo (config
+    /// anterior) se lee como desfijado, que es el comportamiento normal de un
+    /// popover.
+    #[serde(default)]
+    pub pinned: bool,
 }
 
 /// Convierte lo que el dueño escribe en el asistente en una conexión.
@@ -188,6 +195,7 @@ mod tests {
             connection: Some(conn("10.0.0.7", 8080)),
             session: Some("a1b2c3".to_string()),
             expanded: true,
+            pinned: true,
         };
         save(&dir, &original).expect("guardar");
         assert_eq!(load(&dir), original);
@@ -216,6 +224,25 @@ mod tests {
         let store = parse(br#"{"connection":{"host":"192.168.4.1","port":80}}"#).unwrap();
         assert_eq!(store.session, None);
         assert_eq!(store.connection, Some(conn("192.168.4.1", 80)));
+    }
+
+    #[test]
+    fn el_pin_se_recuerda_y_un_config_viejo_arranca_desfijado() {
+        // Fijar es una decisión del dueño, no un estado de un rato: se guarda.
+        // Sin el campo (config anterior) se lee desfijado, que es lo normal de un
+        // popover: si no, todas las instalaciones viejas quedarían fijas.
+        let dir = std::env::temp_dir().join(format!("buddy-pin-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let original = Store {
+            pinned: true,
+            ..Store::default()
+        };
+        save(&dir, &original).expect("guardar");
+        assert!(load(&dir).pinned);
+
+        std::fs::write(dir.join("config.json"), r#"{"connection":{"host":"10.0.0.7","port":80}}"#)
+            .expect("escribir el config viejo");
+        assert!(!load(&dir).pinned);
     }
 
     #[test]

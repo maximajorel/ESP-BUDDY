@@ -15,6 +15,9 @@ mod single_instance;
 mod installer_art;
 mod store;
 
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
+
 use tauri::{
     image::Image,
     menu::{CheckMenuItem, Menu, MenuItem},
@@ -28,6 +31,25 @@ const POPOVER: &str = "popover";
 // El ítem del menú de la bandeja, guardado para poder moverle el tilde: un
 // `TrayIcon` no expone su menú, así que la referencia al ítem viaja como estado.
 struct AutostartMenu(CheckMenuItem<tauri::Wry>);
+
+/// Cuánto cuenta un clic en la bandeja como "el mismo gesto" que acaba de
+/// esconder el popover. El clic en el icono también le saca el foco a la ventana:
+/// sin esta ventana de tiempo, el clic que el dueño da para esconderla la
+/// volvería a mostrar, porque cuando llega el evento ya está escondida.
+const BLUR_TO_TRAY_CLICK: Duration = Duration::from_millis(400);
+
+/// Cuándo se escondió el popover por perder el foco. Lo escribe el evento de
+/// ventana y lo lee el clic de la bandeja, que corren en hilos distintos.
+static HIDDEN_BY_BLUR: Mutex<Option<Instant>> = Mutex::new(None);
+
+/// ¿Este clic en la bandeja es la consecuencia del clic afuera que recién
+/// escondió el popover? Entonces no hay nada que hacer: el dueño pidió esconder.
+fn tray_click_is_the_blur(hidden_at: Option<Instant>, now: Instant) -> bool {
+    match hidden_at {
+        Some(at) => now.duration_since(at) < BLUR_TO_TRAY_CLICK,
+        None => false,
+    }
+}
 const TRAY_ID: &str = "buddy";
 /// Evento que le dice al popover que abra el asistente de conexión.
 const OPEN_SETUP: &str = "buddy://setup";
@@ -220,6 +242,12 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
             } = event
             {
                 let app = tray.app_handle();
+                // El clic que viene justo después de esconderse por perder el
+                // foco es el mismo gesto, no un pedido de abrir.
+                let hidden_at = *HIDDEN_BY_BLUR.lock().unwrap_or_else(|p| p.into_inner());
+                if tray_click_is_the_blur(hidden_at, Instant::now()) {
+                    return;
+                }
                 if let Some(win) = popover(app) {
                     if !win.is_visible().unwrap_or(false) {
                         show_popover(app, Some(rect));
@@ -283,16 +311,29 @@ fn main() {
             commands::panel_calendar_events,
             commands::popover_state,
             commands::popover_expand,
+            commands::popover_pin,
             commands::open_panel,
         ])
         // Cerrar la ventana no cierra el programa: la esconde. Con `prevent_close`
         // el evento no llega al runtime y no hay forma de que el cierre destruya
         // la única ventana que la app sabe volver a mostrar.
-        .on_window_event(|window, event| {
-            if let WindowEvent::CloseRequested { api, .. } = event {
+        .on_window_event(|window, event| match event {
+            WindowEvent::CloseRequested { api, .. } => {
                 api.prevent_close();
                 let _ = window.hide();
             }
+            // Clic afuera: se esconde, salvo que el dueño lo haya fijado. Es el
+            // pin el que decide, no la costumbre: fijado queda a la vista aunque
+            // se trabaje en otra ventana.
+            WindowEvent::Focused(false) => {
+                let app = window.app_handle();
+                let pinned = app.state::<commands::AppState>().pinned();
+                if !pinned && window.is_visible().unwrap_or(false) {
+                    let _ = window.hide();
+                    *HIDDEN_BY_BLUR.lock().unwrap_or_else(|p| p.into_inner()) = Some(Instant::now());
+                }
+            }
+            _ => {}
         })
         .build(tauri::generate_context!())
         .expect("no pude arrancar Buddy")
@@ -306,4 +347,26 @@ fn main() {
                 }
             }
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn un_clic_en_la_bandeja_justo_despues_del_blur_es_el_mismo_gesto() {
+        // El clic en el icono le saca el foco a la ventana, así que el que
+        // esconde y el que llega después son el mismo gesto. Sin esto, esconder
+        // el popover desde la bandeja lo volvería a mostrar.
+        let now = Instant::now();
+        let justo = now.checked_sub(Duration::from_millis(50));
+        assert!(tray_click_is_the_blur(justo, now));
+
+        // Pasado el margen es un pedido nuevo: el dueño quiere volver a abrirlo.
+        let tarde = now.checked_sub(Duration::from_millis(900));
+        assert!(!tray_click_is_the_blur(tarde, now));
+
+        // Si nunca se escondió por perder el foco, el clic siempre abre.
+        assert!(!tray_click_is_the_blur(None, now));
+    }
 }
