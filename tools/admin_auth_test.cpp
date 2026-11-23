@@ -13,6 +13,7 @@
 #include <cstring>
 
 #include "admin_auth.h"
+#include "admin_session_record.h"
 
 static int g_failures = 0;
 static int g_checks = 0;
@@ -180,62 +181,101 @@ static void testSessions() {
   adminHexEncode(t1, ADMIN_HASH_LEN, hex1, sizeof(hex1));
   adminHexEncode(t2, ADMIN_HASH_LEN, hex2, sizeof(hex2));
 
-  check("S1 an empty table has no live session", adminSessionLive(&table, 0) == 0);
-  check("S1 an unknown token is rejected", !adminSessionValid(&table, hex1, 0));
+  // Sin reloj en hora: la sesión vale dentro de este arranque, por millis().
+  const int64_t noClock = 0;
+  check("S1 an empty table has no live session",
+        adminSessionLive(&table, 0, noClock) == 0);
+  check("S1 an unknown token is rejected",
+        !adminSessionValid(&table, hex1, 0, noClock));
 
-  adminSessionOpen(&table, 1000, t1);
+  adminSessionOpen(&table, 1000, noClock, t1);
   check("S1 a freshly opened session is valid",
-        adminSessionValid(&table, hex1, 1000));
+        adminSessionValid(&table, hex1, 1000, noClock));
   check("S1 the table reports one live session",
-        adminSessionLive(&table, 1000) == 1);
+        adminSessionLive(&table, 1000, noClock) == 1);
   check("S1 another token is still unknown",
-        !adminSessionValid(&table, hex2, 1000));
+        !adminSessionValid(&table, hex2, 1000, noClock));
 
   check("S1 a truncated token is rejected",
-        !adminSessionValid(&table, "abc", 1000));
+        !adminSessionValid(&table, "abc", 1000, noClock));
   char prefix[ADMIN_TOKEN_CAP];
   memcpy(prefix, hex1, ADMIN_TOKEN_HEX - 1);
   prefix[ADMIN_TOKEN_HEX - 1] = '\0';
   check("S1 a one-character-short prefix is rejected",
-        !adminSessionValid(&table, prefix, 1000));
-  check("S1 an empty token is rejected", !adminSessionValid(&table, "", 1000));
+        !adminSessionValid(&table, prefix, 1000, noClock));
+  check("S1 an empty token is rejected",
+        !adminSessionValid(&table, "", 1000, noClock));
 
   // Absolute lifetime: it does not matter that the session was used a second
   // ago, it still expires, which is the point of capping it.
   check("S1 a session is valid one millisecond before its deadline",
-        adminSessionValid(&table, hex1, 1000 + ADMIN_SESSION_TTL_MS - 1));
+        adminSessionValid(&table, hex1, 1000 + ADMIN_SESSION_TTL_MS - 1, noClock));
   check("S1 a session is dead at its deadline",
-        !adminSessionValid(&table, hex1, 1000 + ADMIN_SESSION_TTL_MS));
+        !adminSessionValid(&table, hex1, 1000 + ADMIN_SESSION_TTL_MS, noClock));
   check("S1 an expired session is not counted",
-        adminSessionLive(&table, 1000 + ADMIN_SESSION_TTL_MS) == 0);
+        adminSessionLive(&table, 1000 + ADMIN_SESSION_TTL_MS, noClock) == 0);
 
   // The millis() wraparound must not resurrect or kill sessions by accident.
   uint32_t wrapBase = 0xFFFFFF00u;
   AdminSessionTable wrap;
   adminSessionReset(&wrap);
-  adminSessionOpen(&wrap, wrapBase, t1);
+  adminSessionOpen(&wrap, wrapBase, noClock, t1);
   check("S1 a session survives the millis() wraparound",
-        adminSessionValid(&wrap, hex1, (uint32_t)(wrapBase + 5000)));
+        adminSessionValid(&wrap, hex1, (uint32_t)(wrapBase + 5000), noClock));
   check("S1 a session still expires after the wraparound",
         !adminSessionValid(&wrap, hex1,
-                           (uint32_t)(wrapBase + ADMIN_SESSION_TTL_MS + 1)));
+                           (uint32_t)(wrapBase + ADMIN_SESSION_TTL_MS + 1), noClock));
 
-  adminSessionOpen(&table, 2000, t2);
+  // --- con el reloj en hora: la sesión sobrevive un reboot ------------------
+  // Epoch de 2026-11-23 15:00 -03.
+  const int64_t epoch = 1795456800LL;
+  AdminSessionTable rebooted;
+  adminSessionReset(&rebooted);
+  adminSessionOpen(&rebooted, 5000, epoch, t1);
+  check("S1 a session opened with a clock is valid",
+        adminSessionValid(&rebooted, hex1, 5000, epoch + 60));
+  // El equipo se reinicia: millis() vuelve a cero pero la hora sigue.
+  check("S1 it survives a reboot while its time has not run out",
+        adminSessionValid(&rebooted, hex1, 10, epoch + 3600));
+  check("S1 it is still counted after the reboot",
+        adminSessionLive(&rebooted, 10, epoch + 3600) == 1);
+  check("S1 and it dies at its absolute deadline",
+        !adminSessionValid(&rebooted, hex1, 10, epoch + ADMIN_SESSION_TTL_S));
+  // Antes de NTP no se puede saber si venció: se rechaza en vez de aceptarla.
+  check("S1 before NTP a persisted session is refused",
+        !adminSessionValid(&rebooted, hex1, 10, noClock));
+  check("S1 and it comes back once the clock is set",
+        adminSessionValid(&rebooted, hex1, 20, epoch + 120));
+  // Una sesión abierta sin reloj no sobrevive el reboot: no tiene hora con la
+  // que demostrar que está viva.
+  AdminSessionTable noClockTable;
+  adminSessionReset(&noClockTable);
+  adminSessionOpen(&noClockTable, 5000, noClock, t2);
+  // Un reloj que retrocede no puede estirar la vida de una sesión: la edad
+  // negativa se trata como vencida (y el dueño vuelve a entrar).
+  check("S1 a clock that went backwards does not resurrect it",
+        !adminSessionValid(&rebooted, hex1, 30, epoch - 3600));
+  check("S1 a clockless session does not survive a restart",
+        !adminSessionValid(&noClockTable, hex2, 10, epoch + 60));
+
+  adminSessionOpen(&table, 2000, noClock, t2);
   check("S1 two sessions are both valid",
-        adminSessionValid(&table, hex1, 2500) && adminSessionValid(&table, hex2, 2500));
+        adminSessionValid(&table, hex1, 2500, noClock) &&
+            adminSessionValid(&table, hex2, 2500, noClock));
 
   adminSessionClose(&table, hex1);
   check("S1 closing a session kills only that one",
-        !adminSessionValid(&table, hex1, 2600) && adminSessionValid(&table, hex2, 2600));
+        !adminSessionValid(&table, hex1, 2600, noClock) &&
+            adminSessionValid(&table, hex2, 2600, noClock));
 
   // Changing the password logs out the other devices but not the browser that
   // made the change.
-  adminSessionOpen(&table, 3000, t1);
+  adminSessionOpen(&table, 3000, noClock, t1);
   adminSessionCloseOthers(&table, hex2);
   check("S1 closing others keeps the caller's session",
-        adminSessionValid(&table, hex2, 3100));
+        adminSessionValid(&table, hex2, 3100, noClock));
   check("S1 closing others drops the rest",
-        !adminSessionValid(&table, hex1, 3100));
+        !adminSessionValid(&table, hex1, 3100, noClock));
 
   // A full table drops the oldest instead of failing the login.
   AdminSessionTable full;
@@ -243,10 +283,10 @@ static void testSessions() {
   for (int i = 0; i < ADMIN_SESSION_MAX; i++) {
     uint8_t bytes[ADMIN_HASH_LEN];
     token(bytes, (uint8_t)(10 + i));
-    adminSessionOpen(&full, (uint32_t)(1000 + i), bytes);
+    adminSessionOpen(&full, (uint32_t)(1000 + i), noClock, bytes);
   }
   check("S1 the table holds its maximum",
-        adminSessionLive(&full, 5000) == ADMIN_SESSION_MAX);
+        adminSessionLive(&full, 5000, noClock) == ADMIN_SESSION_MAX);
   uint8_t extra[ADMIN_HASH_LEN];
   token(extra, 250);
   char hexExtra[ADMIN_TOKEN_CAP];
@@ -255,16 +295,78 @@ static void testSessions() {
   token(oldest, 10);
   char hexOldest[ADMIN_TOKEN_CAP];
   adminHexEncode(oldest, ADMIN_HASH_LEN, hexOldest, sizeof(hexOldest));
-  adminSessionOpen(&full, 6000, extra);
+  adminSessionOpen(&full, 6000, noClock, extra);
   check("S1 a full table still accepts a login",
-        adminSessionValid(&full, hexExtra, 6000));
+        adminSessionValid(&full, hexExtra, 6000, noClock));
   check("S1 the oldest session was the one dropped",
-        !adminSessionValid(&full, hexOldest, 6000));
+        !adminSessionValid(&full, hexOldest, 6000, noClock));
   check("S1 the table never exceeds its maximum",
-        adminSessionLive(&full, 6000) == ADMIN_SESSION_MAX);
+        adminSessionLive(&full, 6000, noClock) == ADMIN_SESSION_MAX);
 
   adminSessionReset(&full);
-  check("S1 reset empties the table", adminSessionLive(&full, 0) == 0);
+  check("S1 reset empties the table", adminSessionLive(&full, 0, noClock) == 0);
+}
+
+// La sesión que se guarda en NVS: el sobre tiene que aceptar sólo lo que escribió
+// el equipo y rechazar cualquier cosa que no sea un token de 64 hex con hora.
+static void testSessionStoreCodec() {
+  AdminSession slot;
+  memset(&slot, 0, sizeof(slot));
+  slot.used = true;
+  slot.openedAtEpoch = 1795456800LL;
+  for (int i = 0; i < ADMIN_TOKEN_HEX; i++) {
+    slot.token[i] = "0123456789abcdef"[i % 16];
+  }
+  slot.token[ADMIN_TOKEN_HEX] = '\0';
+
+  char text[ADMIN_SESSION_RECORD_CAP];
+  check("S1 the session record is written",
+        adminSessionRecordEncode(&slot, text, sizeof(text)));
+  check("S1 the record carries the token and the absolute time",
+        strstr(text, "0123456789abcdef0123") != nullptr &&
+            strstr(text, ",1795456800") != nullptr);
+
+  AdminSession back;
+  memset(&back, 0, sizeof(back));
+  check("S1 the record is read back", adminSessionRecordDecode(text, &back));
+  check("S1 with the same token", strcmp(back.token, slot.token) == 0);
+  check("S1 with the same time", back.openedAtEpoch == slot.openedAtEpoch);
+  check("S1 and marked as used", back.used);
+
+  check("S1 an empty record is refused",
+        !adminSessionRecordDecode("", &back));
+  check("S1 a record without time is refused",
+        !adminSessionRecordDecode("0123456789abcdef0123456789abcdef01234567"
+                                 "89abcdef0123456789abcdef,",
+                                 &back));
+  check("S1 a short token is refused",
+        !adminSessionRecordDecode("abc,1795456800", &back));
+  check("S1 a record with a zero time is refused",
+        !adminSessionRecordDecode("0123456789abcdef0123456789abcdef01234567"
+                                 "89abcdef0123456789abcdef,0",
+                                 &back));
+  // El registro puede venir en mayúsculas (escrito a mano, o por una versión
+  // futura): se normaliza a minúsculas, que es lo que produce el firmware y lo
+  // que manda la cookie. Si no, la sesión se guardaría y nunca coincidiría.
+  AdminSession upper;
+  memset(&upper, 0, sizeof(upper));
+  check("S1 an uppercase record is read",
+        adminSessionRecordDecode("0123456789ABCDEF0123456789ABCDEF01234567"
+                                 "89ABCDEF0123456789ABCDEF,1795456800",
+                                 &upper));
+  check("S1 and normalised to lowercase",
+        strcmp(upper.token,
+               "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef") == 0);
+  check("S1 a token with non-hex characters is refused",
+        !adminSessionRecordDecode("ZZ23456789abcdef0123456789abcdef01234567"
+                                 "89abcdef0123456789abcdef,1795456800",
+                                 &back));
+  AdminSession clockless;
+  memset(&clockless, 0, sizeof(clockless));
+  clockless.used = true;
+  clockless.openedAtEpoch = 0;
+  check("S1 a session without an absolute time is not written",
+        !adminSessionRecordEncode(&clockless, text, sizeof(text)));
 }
 
 // --- S7: throttle -----------------------------------------------------------
@@ -423,6 +525,7 @@ int main() {
   testInputRules();
   testHex();
   testSessions();
+  testSessionStoreCodec();
   testThrottle();
   testRoutes();
 

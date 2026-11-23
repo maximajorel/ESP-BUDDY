@@ -7,6 +7,7 @@
 #include <time.h>
 
 #include "admin_auth.h"
+#include "admin_session_store.h"
 #include "config_value.h"
 #include "console.h"
 #include "display.h"
@@ -1209,7 +1210,8 @@ static ApiResult apiSessionLogin(const String &body) {
   // derived from the password, so it cannot be guessed from a leak of the seed.
   uint8_t raw[ADMIN_HASH_LEN];
   for (size_t i = 0; i < sizeof(raw); i++) raw[i] = (uint8_t)esp_random();
-  adminSessionOpen(&s_sessions, now, raw);
+  adminSessionOpen(&s_sessions, now, (int64_t)time(nullptr), raw);
+  adminSessionStoreSave(&s_sessions);
 
   const AdminCredentials &creds = settingsGetAdmin();
   ApiResult result;
@@ -1502,10 +1504,14 @@ static String requestSessionToken() { return requestCookie(SESSION_COOKIE); }
 static bool requestAuthorized() {
   String token = requestSessionToken();
   if (token.length() == 0) return false;
-  return adminSessionValid(&s_sessions, token.c_str(), millis());
+  return adminSessionValid(&s_sessions, token.c_str(), millis(),
+                           (int64_t)time(nullptr));
 }
 
-void netSessionForgetAll() { adminSessionReset(&s_sessions); }
+void netSessionForgetAll() {
+  adminSessionReset(&s_sessions);
+  adminSessionStoreClear();
+}
 
 // The login page's own status call. It is public because it has to answer before
 // there is a session; it therefore says only whether this browser is logged in,
@@ -1530,7 +1536,10 @@ static void handleSessionState() {
 // it without one keeps a stale tab from showing an error when the owner leaves.
 static void handleSessionLogout() {
   String token = requestSessionToken();
-  if (token.length() > 0) adminSessionClose(&s_sessions, token.c_str());
+  if (token.length() > 0) {
+    adminSessionClose(&s_sessions, token.c_str());
+    adminSessionStoreSave(&s_sessions);
+  }
   clearSessionCookie();
   ApiResult result = apiOk();
   sendApi(result, false);
@@ -1586,11 +1595,13 @@ static void handleApi() {
     // password or a fresh login on another device cannot be shadowed by an old
     // cookie that someone else still holds.
     adminSessionCloseOthers(&s_sessions, result.sessionToken);
+    adminSessionStoreSave(&s_sessions);
   }
   // Rotating the credentials logs out every other device; the caller keeps the
   // session it used to make the change, which is the one that still works.
   if (result.code == 200 && s_server.uri() == "/api/admin/credentials") {
     adminSessionCloseOthers(&s_sessions, requestSessionToken().c_str());
+    adminSessionStoreSave(&s_sessions);
   }
   sendApi(result, true);
 }
@@ -1694,6 +1705,13 @@ void netSetApMode(uint8_t mode) {
 }
 
 void netBegin() {
+  // La sesión del panel sobrevive el reboot: la app de bandeja no tiene por qué
+  // pedir usuario y clave cada vez que el equipo se reinicia. Se carga acá, y
+  // nada la vuelve a vaciar en el arranque (sólo un logout o el reset de
+  // fábrica, que pasan por `netSessionForgetAll`).
+  adminSessionStoreBegin();
+  adminSessionStoreLoad(&s_sessions);
+
   WiFi.persistent(false);
   WiFi.mode(WIFI_AP_STA);
   WiFi.setSleep(false);
@@ -1714,9 +1732,10 @@ void netBegin() {
   netApplyTimeZone();
   refreshStatus();
 
-  // Sessions and the login throttle start empty on every boot: a session that
-  // survives a power cycle is a session nobody can revoke by unplugging.
-  adminSessionReset(&s_sessions);
+  // Las sesiones y el throttle del login NO arrancan vacíos: la tabla se cargó
+  // desde NVS al principio de netBegin (`adminSessionStoreLoad`), que es lo que
+  // hace que el popover no pida usuario y clave después de cada reboot. El
+  // throttle sí es por arranque: los intentos fallidos no se guardan.
   adminThrottleReset(&s_throttle);
   // Seed the credentials now, not on the first login: the fallback pair has to
   // be in NVS for the panel to report that it must be changed.

@@ -129,47 +129,78 @@ void adminSessionReset(AdminSessionTable *table) {
   memset(table, 0, sizeof(*table));
 }
 
-static bool sessionLive(const AdminSession *slot, uint32_t nowMs) {
-  return slot->used &&
-         (uint32_t)(nowMs - slot->openedMs) < ADMIN_SESSION_TTL_MS;
+// Una sesión con hora absoluta se evalúa con la hora del equipo (sobrevive
+// reboots); una abierta sin reloj vale por el arranque actual. Los dos caminos
+// existen porque un equipo sin internet no tiene NTP y el panel tiene que
+// seguir sirviendo para arreglar el WiFi.
+static bool sessionLive(const AdminSession *slot, uint32_t nowMs,
+                        int64_t nowEpoch) {
+  if (!slot->used) return false;
+  if (slot->openedAtEpoch > 0) {
+    if (nowEpoch < ADMIN_CLOCK_MIN_EPOCH) return false;
+    const int64_t age = nowEpoch - slot->openedAtEpoch;
+    // Una edad negativa es un reloj que retrocedió (o `POST /api/time` con una
+    // hora vieja). No puede estirar la sesión: se trata como vencida y el dueño
+    // vuelve a entrar. Sin este piso, una sesión abierta a las 15:00 quedaba
+    // viva para siempre con el reloj puesto a las 14:00.
+    if (age < 0) return false;
+    return age < (int64_t)ADMIN_SESSION_TTL_S;
+  }
+  return (uint32_t)(nowMs - slot->openedMs) < ADMIN_SESSION_TTL_MS;
 }
 
-int adminSessionLive(const AdminSessionTable *table, uint32_t nowMs) {
+// Cuánto lleva abierta una sesión, para desalojar la más vieja. Una guardada que
+// todavía no se puede evaluar (sin NTP) cuenta como la más vieja: es la que
+// menos información tiene y la que conviene soltar primero.
+static int64_t sessionAgeSeconds(const AdminSession *slot, uint32_t nowMs,
+                                 int64_t nowEpoch) {
+  if (slot->openedAtEpoch > 0) {
+    if (nowEpoch < ADMIN_CLOCK_MIN_EPOCH) return 1LL << 40;
+    const int64_t age = nowEpoch - slot->openedAtEpoch;
+    return age < 0 ? (1LL << 40) : age;
+  }
+  return (int64_t)((uint32_t)(nowMs - slot->openedMs) / 1000u);
+}
+
+int adminSessionLive(const AdminSessionTable *table, uint32_t nowMs,
+                     int64_t nowEpoch) {
   if (!table) return 0;
   int live = 0;
   for (int i = 0; i < ADMIN_SESSION_MAX; i++) {
-    if (sessionLive(&table->slots[i], nowMs)) live++;
+    if (sessionLive(&table->slots[i], nowMs, nowEpoch)) live++;
   }
   return live;
 }
 
 void adminSessionOpen(AdminSessionTable *table, uint32_t nowMs,
+                      int64_t nowEpoch,
                       const uint8_t tokenBytes[ADMIN_HASH_LEN]) {
   if (!table || !tokenBytes) return;
   AdminSession *target = nullptr;
   // An expired slot is free; otherwise the oldest one goes. Tracking the oldest
   // by elapsed time rather than by timestamp keeps it correct across the
   // millis() wraparound at 49 days.
-  uint32_t oldestElapsed = 0;
+  int64_t oldestAge = 0;
   for (int i = 0; i < ADMIN_SESSION_MAX; i++) {
     AdminSession *slot = &table->slots[i];
-    if (!sessionLive(slot, nowMs)) {
+    if (!sessionLive(slot, nowMs, nowEpoch)) {
       target = slot;
       break;
     }
-    uint32_t elapsed = (uint32_t)(nowMs - slot->openedMs);
-    if (!target || elapsed > oldestElapsed) {
+    const int64_t age = sessionAgeSeconds(slot, nowMs, nowEpoch);
+    if (!target || age > oldestAge) {
       target = slot;
-      oldestElapsed = elapsed;
+      oldestAge = age;
     }
   }
   target->used = true;
   target->openedMs = nowMs;
+  target->openedAtEpoch = nowEpoch >= ADMIN_CLOCK_MIN_EPOCH ? nowEpoch : 0;
   adminHexEncode(tokenBytes, ADMIN_HASH_LEN, target->token, ADMIN_TOKEN_CAP);
 }
 
 bool adminSessionValid(const AdminSessionTable *table, const char *token,
-                       uint32_t nowMs) {
+                       uint32_t nowMs, int64_t nowEpoch) {
   if (!table || !token) return false;
   size_t len = strnlen(token, ADMIN_TOKEN_CAP + 1);
   // A token of the wrong length cannot match, and refusing it before the byte
@@ -178,7 +209,7 @@ bool adminSessionValid(const AdminSessionTable *table, const char *token,
   bool found = false;
   for (int i = 0; i < ADMIN_SESSION_MAX; i++) {
     const AdminSession *slot = &table->slots[i];
-    if (!sessionLive(slot, nowMs)) continue;
+    if (!sessionLive(slot, nowMs, nowEpoch)) continue;
     if (adminEqualConstantTime((const uint8_t *)slot->token,
                                (const uint8_t *)token, ADMIN_TOKEN_HEX)) {
       found = true;
@@ -278,6 +309,10 @@ bool adminRequiresSession(const char *method, const char *path) {
   // equipo. Las demás lecturas siguen públicas porque alimentan la cara y el
   // selector de pantalla.
   if (isApi && strncmp(path, "/api/calendar", 13) == 0) return true;
+  // El clima guarda el lugar del dueño: el nombre y las coordenadas no son para
+  // cualquiera que se una al AP, aunque Open-Meteo no pida credenciales. Se
+  // protege el prefijo entero, también las lecturas.
+  if (isApi && strncmp(path, "/api/weather", 12) == 0) return true;
   if (isApi && strcmp(method, "GET") != 0) {
     // Every other write verb under /api, including the ones no route knows:
     // answering a 401 for an unknown path costs nothing and an unauthenticated

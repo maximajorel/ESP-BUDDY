@@ -25,13 +25,21 @@
 // twice, once in C++ and once in the build step that seeds `.env`.
 #define ADMIN_HASH_ROUNDS 2048
 
-// A session is a random 32-byte token in a cookie, kept in RAM so it cannot
-// outlive the boot. Twelve hours is a whole evening of tinkering without asking
-// for the password again.
+// A session is a random 32-byte token in a cookie. Twelve hours is a whole
+// evening of tinkering without asking for the password again. Desde esta
+// feature la sesión se guarda en NVS (`admin_session_store.*`) para que sobreviva
+// un reboot: es la decisión del dueño de no volver a tipear la clave cada vez que
+// el equipo se reinicia. El token sigue siendo aleatorio e independiente de la
+// contraseña, y se puede revocar con logout, cambiando la clave o con el reset de
+// fábrica.
 #define ADMIN_SESSION_MAX 4
 #define ADMIN_TOKEN_HEX 64
 #define ADMIN_TOKEN_CAP (ADMIN_TOKEN_HEX + 1)
 #define ADMIN_SESSION_TTL_MS (12UL * 60UL * 60UL * 1000UL)
+#define ADMIN_SESSION_TTL_S (12L * 60L * 60L)
+// Un epoch menor que esto es el reloj sin sincronizar (el RTC arranca en 1970).
+// Una sesión guardada no se puede evaluar antes de NTP, así que se rechaza.
+#define ADMIN_CLOCK_MIN_EPOCH 1600000000LL
 
 // Failed logins are counted device-wide, because behind the access point there
 // is no per-client identity worth trusting. Five tries, then half a minute.
@@ -81,7 +89,12 @@ bool adminPassValid(const char *pass);
 struct AdminSession {
   bool used;
   char token[ADMIN_TOKEN_CAP];
+  // La sesión tiene dos relojes a propósito. `openedAtEpoch` es la hora
+  // absoluta: es lo único que sobrevive un reboot, y sólo se puede evaluar con
+  // NTP en hora. `openedMs` es el arranque actual, para que el panel funcione
+  // en un equipo sin internet (donde no hay NTP) — esa sesión no se guarda.
   uint32_t openedMs;
+  int64_t openedAtEpoch;
 };
 
 struct AdminSessionTable {
@@ -94,11 +107,14 @@ void adminSessionReset(AdminSessionTable *table);
 // esp_random in the firmware). A full table drops the oldest session, so a third
 // device never locks the owner out of the panel they are holding.
 void adminSessionOpen(AdminSessionTable *table, uint32_t nowMs,
+                      int64_t nowEpoch,
                       const uint8_t tokenBytes[ADMIN_HASH_LEN]);
 
-// True only for an unexpired token that matches a slot exactly.
+// True only for an unexpired token that matches a slot exactly. `nowEpoch` is
+// `time(nullptr)`; un synced clock (or 0) means a persisted session cannot be
+// proven alive and is refused until NTP answers.
 bool adminSessionValid(const AdminSessionTable *table, const char *token,
-                       uint32_t nowMs);
+                       uint32_t nowMs, int64_t nowEpoch);
 
 void adminSessionClose(AdminSessionTable *table, const char *token);
 
@@ -106,8 +122,9 @@ void adminSessionClose(AdminSessionTable *table, const char *token);
 // every other device without kicking the browser that made the change.
 void adminSessionCloseOthers(AdminSessionTable *table, const char *keepToken);
 
-// Sessions that are still within their lifetime; `nowMs` uses millis().
-int adminSessionLive(const AdminSessionTable *table, uint32_t nowMs);
+// Sessions that are still within their lifetime.
+int adminSessionLive(const AdminSessionTable *table, uint32_t nowMs,
+                     int64_t nowEpoch);
 
 // --- login throttle ---------------------------------------------------------
 
