@@ -309,6 +309,7 @@ fn main() {
             commands::panel_logout,
             commands::panel_calendar,
             commands::panel_calendar_events,
+            commands::panel_calendar_month,
             commands::popover_state,
             commands::popover_expand,
             commands::popover_pin,

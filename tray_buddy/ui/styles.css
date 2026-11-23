@@ -248,6 +248,68 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .cal-foot { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 12px; border-top: var(--line); background: var(--mist); }
 .cal-foot .btn { min-height: 30px; }
 
+/* 4 · la grilla del mes (S1) */
+/* Mismo papel y misma tinta que el resto: bordes de 1px, radio chico porque una
+   celda es una ficha, no una tarjeta, y la tipografía mono sólo para el número
+   del día, que es lo que se compara de un vistazo. */
+.cal-month { display: grid; }
+.cal-month[hidden] { display: none; }
+.cal-nav { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: var(--line); }
+.cal-arrow {
+  flex: 0 0 auto; width: 30px; height: 30px; display: grid; place-items: center;
+  background: var(--paper); border: var(--line); border-radius: var(--r-pill);
+  font-size: 15px; font-weight: 900; line-height: 1;
+}
+.cal-arrow:hover:not(:disabled) { background: var(--mist); }
+.cal-arrow:disabled { opacity: 0.45; cursor: default; }
+/* El título es el botón de "volver a hoy": el mes que se está mirando y la
+   salida de un solo toque, en el mismo lugar. */
+.cal-title {
+  flex: 1; min-width: 0; height: 30px; padding: 0 10px;
+  background: var(--paper); border: var(--line); border-radius: var(--r-pill);
+  font-size: 10px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cal-title:hover { background: var(--mist); }
+.cal-weekdays, .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.cal-weekdays { padding: 7px 6px 0; }
+.cal-weekdays span { text-align: center; font-size: 8px; font-weight: 700; letter-spacing: 0.06em; opacity: 0.45; }
+.cal-grid { gap: 3px; padding: 5px 6px 7px; }
+.cal-cell {
+  min-width: 0; height: 44px; padding: 4px 3px 3px;
+  display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 3px;
+  align-content: start;
+  background: var(--paper); border: var(--line); border-radius: 10px;
+}
+.cal-cell .num { font-family: var(--mono); font-size: 11px; font-weight: 700; line-height: 1; }
+/* Un día del mes anterior o del siguiente no desaparece: cambia de tono. El
+   dueño necesita ver el borde del mes, no un hueco. */
+.cal-cell.is-out { opacity: 0.38; }
+.cal-cell.is-weekend .num { opacity: 0.75; }
+.cal-cell.is-today .num { background: var(--ink); color: var(--paper); border-radius: 4px; padding: 1px 3px; }
+.cal-cell[aria-selected="true"] { background: var(--sky); }
+.cal-cell:disabled { opacity: 0.38; cursor: default; }
+.cal-pips { display: flex; flex-wrap: wrap; gap: 2px; align-content: flex-start; }
+.cal-pip { width: 5px; height: 5px; border-radius: 1px; background: var(--ink); }
+/* Un evento de todo el día no tiene hora que leer: se distingue por la forma. */
+.cal-pip.is-allday { border-radius: 50%; }
+.cal-pip.is-more { background: transparent; border: 1px solid var(--ink); }
+.cal-daylist { display: grid; border-top: var(--line); }
+.cal-daylist .daytag { padding: 8px 12px 4px; opacity: 0.55; }
+.cal-note { padding: 0 12px 8px; font-size: 11px; line-height: 1.4; opacity: 0.55; }
+.cal-note[hidden] { display: none; }
+/* Una fila del mes se toca para editarla (S2). Se lee como la de la agenda,
+   pero con el hover de una cosa Clickable. */
+.cal-row { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 10px; align-items: center;
+  padding: 9px 12px; background: var(--paper); border: 0; text-align: left; }
+.cal-row + .cal-row { border-top: var(--hair); }
+.cal-row:hover { background: var(--mist); }
+.cal-row .hour { font-family: var(--mono); font-size: 12px; font-weight: 700; }
+.cal-row .hour.is-allday { font-family: var(--font); font-size: 10px; font-weight: 700; }
+.cal-row .what { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; }
+.cal-row .where { display: block; font-size: 11px; opacity: 0.62; }
+.cal-row .what, .cal-row .where { overflow-wrap: anywhere; }
+
 .foot {
   display: flex; align-items: center; gap: 8px; min-width: 0;
   flex: 0 0 auto;

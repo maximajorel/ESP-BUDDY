@@ -5,7 +5,7 @@
 //! `Sync` con el guard vivo), y aunque compilara sería un deadlock esperando el
 //! turno.
 
-use crate::api::{Api, ApiError, CalendarEvents, Status};
+use crate::api::{Api, ApiError, CalendarEvents, CalendarMonth, Status};
 use crate::store::{self, Connection, Store};
 use serde::Serialize;
 use serde_json::Value;
@@ -216,6 +216,18 @@ pub async fn panel_calendar_events(
     state: State<'_, AppState>,
 ) -> Result<CalendarEvents, ApiError> {
     state.api()?.events().await
+}
+
+/// El mes de la grilla (S2): el equipo lo pide a Google en ese momento, así que
+/// puede tardar segundos. La navegación manda el año y el mes que el dueño
+/// eligió; nada se calcula acá.
+#[tauri::command]
+pub async fn panel_calendar_month(
+    state: State<'_, AppState>,
+    year: i32,
+    month: i32,
+) -> Result<CalendarMonth, ApiError> {
+    state.api()?.month(year, month).await
 }
 
 /// Preferencia guardada, sin tocar la ventana: el popover la lee al arrancar para

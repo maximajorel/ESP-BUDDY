@@ -40,6 +40,9 @@ let wizardOpen = false;
 let calendarAsksSession = false;
 /** Último `GET /api/calendar`: la agenda lo usa para las palabras de S6. */
 let lastCalendar = null;
+/** Último `GET /api/calendar/events`: la vista de mes usa su `tz` y su
+ *  `dayStart` para saber qué mes es "hoy" sin preguntarle al reloj del PC. */
+let lastEvents = null;
 /** Si el popover está agrandado (S5). Lo manda el backend, no se adivina. */
 let popoverExpanded = false;
 
@@ -619,6 +622,7 @@ async function loadCalendar() {
   // Un endpoint que falla no borra al otro: la próxima cita y la agenda son dos
   // pedidos distintos, y con un firmware viejo (sin `/api/calendar/events`) el
   // dueño igual tiene que ver su próxima cita con la tarjeta entera.
+  if (events) lastEvents = events;
   if (next) {
     renderCalendar(next, events);
   } else {
@@ -639,6 +643,10 @@ function agendaFailureText(failure) {
 
 function wireCalendar() {
   $("btnCalAgenda").addEventListener("click", () => setPopoverExpanded(!popoverExpanded));
+  $("btnCalMonth").addEventListener("click", () => toggleMonthView());
+  $("calPrev").addEventListener("click", () => stepMonth(-1));
+  $("calNextMonth").addEventListener("click", () => stepMonth(1));
+  $("calToday").addEventListener("click", () => goToTodayMonth());
 
   $("calLogin").addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -664,7 +672,327 @@ function wireCalendar() {
   });
 }
 
-// ── tamaño del popover (S5) ─────────────────────────────────────────────────
+// ── la grilla del mes (S1) ───────────────────────────────────────────────────
+//
+// La ventana de la grilla la decide el equipo: `gridStart`/`gridEnd` llegan como
+// medianoches locales suyas, así que acá no hay un solo cálculo de zona horaria.
+// Todo se mide en "índice de día local": días desde 1970 en el offset del dueño,
+// que es la misma cuenta que ya usa la agenda del día.
+const MONTH_NAMES = [
+  "enero",
+  "febrero",
+  "marzo",
+  "abril",
+  "mayo",
+  "junio",
+  "julio",
+  "agosto",
+  "septiembre",
+  "octubre",
+  "noviembre",
+  "diciembre",
+];
+
+let monthView = {
+  open: false,
+  year: 0,
+  month: 0,
+  data: null,
+  error: null,
+  loading: false,
+  selected: 0,
+};
+
+/** El índice de día local de una fecha civil, sin dejar que `Date` aplique la
+ *  zona del PC: se arma en UTC a propósito. */
+function dayIndexFromCivil(year, month, day) {
+  return Date.UTC(year, month - 1, day) / 86400000;
+}
+
+/** La fecha civil de un índice de día local. */
+function civilFromDayIndex(index) {
+  const date = new Date(index * 86400000);
+  return {
+    year: date.getUTCFullYear(),
+    month: date.getUTCMonth() + 1,
+    day: date.getUTCDate(),
+  };
+}
+
+/** Los bordes de un día local en epoch UTC. */
+function dayBounds(index, tz) {
+  const start = index * 86400 - tz * 3600;
+  return { start, end: start + 86400 };
+}
+
+/** Si el evento toca ese día: la misma regla que `isToday`, para cualquier día
+ *  de la grilla. Un evento que cruza la medianoche aparece en los dos. */
+function eventOnDay(event, index, tz) {
+  const day = dayBounds(index, tz);
+  const start = event.startEpoch ?? 0;
+  const end = event.endEpoch ?? start;
+  return start < day.end && end > day.start;
+}
+
+function monthEventsOn(index, data) {
+  const tz = data?.tz ?? 0;
+  return (data?.events ?? []).filter((event) => eventOnDay(event, index, tz));
+}
+
+/** El mes que el dueño está mirando, o el de hoy si todavía no eligió ninguno.
+ *  "Hoy" sale del equipo cuando ya contestó una vez; el reloj del PC es el
+ *  último recurso y la respuesta lo corrige sola. */
+function currentMonth() {
+  if (monthView.year && monthView.month) {
+    return { year: monthView.year, month: monthView.month };
+  }
+  const tz = monthView.data?.tz ?? lastEvents?.tz ?? 0;
+  const anchor = lastEvents?.dayStart > 0
+    ? lastEvents.dayStart
+    : Math.floor(Date.now() / 1000);
+  const civil = civilFromDayIndex(localDayIndex(anchor, tz));
+  return { year: civil.year, month: civil.month };
+}
+
+function paintMonthTitle() {
+  const { year, month } = currentMonth();
+  const label = `${MONTH_NAMES[month - 1] ?? ""} ${year}`;
+  $("calMonthTitle").textContent = monthView.loading ? `${label}…` : label;
+  $("calToday").title = "Volver a hoy";
+}
+
+function paintMonthNote() {
+  const note = $("calMonthNote");
+  if (monthView.error) {
+    note.hidden = false;
+    note.textContent = monthView.error;
+    return;
+  }
+  if (monthView.loading) {
+    note.hidden = false;
+    note.textContent = "Pidiendo el mes al equipo…";
+    return;
+  }
+  if (monthView.data?.truncated) {
+    note.hidden = false;
+    note.textContent = "El equipo llegó a su tope de eventos: el mes está cortado.";
+    return;
+  }
+  note.hidden = true;
+  note.textContent = "";
+}
+
+/** La grilla entera: todas las semanas que el equipo mandó, incluidos los días
+ *  del mes vecino, que se dibujan atenuados en vez de dejar un hueco. */
+function renderMonthGrid() {
+  const grid = $("calGrid");
+  grid.textContent = "";
+  const data = monthView.data;
+  if (!data) return;
+
+  const tz = data.tz ?? 0;
+  const first = localDayIndex(data.gridStart, tz);
+  const last = localDayIndex(data.gridEnd, tz);
+  const monthFirst = localDayIndex(data.monthStart, tz);
+  const monthLast = localDayIndex(data.monthEnd, tz);
+  const todayIndex = localDayIndex(Math.floor(Date.now() / 1000), tz);
+
+  for (let index = first; index < last; index++) {
+    const civil = civilFromDayIndex(index);
+    const cell = document.createElement("button");
+    cell.type = "button";
+    cell.className = "cal-cell";
+    cell.setAttribute("role", "gridcell");
+    cell.setAttribute(
+      "aria-label",
+      `${civil.day} de ${MONTH_NAMES[civil.month - 1]}`,
+    );
+    cell.setAttribute("aria-selected", index === monthView.selected ? "true" : "false");
+    if (index < monthFirst || index >= monthLast) cell.classList.add("is-out");
+    // Lunes es 0: el sábado y el domingo son los dos últimos de la fila.
+    const weekday = (((index + 3) % 7) + 7) % 7;
+    if (weekday >= 5) cell.classList.add("is-weekend");
+    if (index === todayIndex) cell.classList.add("is-today");
+
+    const number = document.createElement("span");
+    number.className = "num";
+    number.textContent = String(civil.day);
+    cell.appendChild(number);
+
+    const rows = monthEventsOn(index, data);
+    if (rows.length) {
+      const pips = document.createElement("span");
+      pips.className = "cal-pips";
+      // Tres marcas y un punto más: el número real se lee abajo, en el día
+      // elegido, que es lo único legible en una celda de 48 px.
+      rows.slice(0, 3).forEach((event) => {
+        const pip = document.createElement("i");
+        pip.className = event.allDay ? "cal-pip is-allday" : "cal-pip";
+        pips.appendChild(pip);
+      });
+      if (rows.length > 3) {
+        const more = document.createElement("i");
+        more.className = "cal-pip is-more";
+        pips.appendChild(more);
+      }
+      cell.appendChild(pips);
+    }
+
+    cell.addEventListener("click", () => selectMonthDay(index));
+    grid.appendChild(cell);
+  }
+}
+
+/** El día elegido, con sus eventos: es donde la grilla se vuelve legible. */
+function renderMonthDayList() {
+  const list = $("calDayList");
+  list.textContent = "";
+  const data = monthView.data;
+  if (!data) return;
+
+  const tz = data.tz ?? 0;
+  const todayIndex = localDayIndex(Math.floor(Date.now() / 1000), tz);
+  const civil = civilFromDayIndex(monthView.selected);
+  const title =
+    monthView.selected === todayIndex
+      ? "hoy"
+      : `${weekdayName(monthView.selected)}, ${civil.day} de ${MONTH_NAMES[civil.month - 1]}`;
+  list.appendChild(agendaDayTag(title));
+
+  const rows = monthEventsOn(monthView.selected, data);
+  if (!rows.length) {
+    list.appendChild(agendaEmpty("Sin eventos este día."));
+    return;
+  }
+  rows.forEach((event) => list.appendChild(monthRow(event, tz)));
+}
+
+/** Una fila del día elegido. En esta entrega se lee; el editor llega con la
+ *  edición de eventos, que necesita el permiso de escritura en el equipo. */
+function monthRow(event, tz) {
+  const row = document.createElement("div");
+  row.className = "cal-row";
+  const hour = document.createElement("span");
+  hour.className = event.allDay ? "hour is-allday" : "hour";
+  hour.textContent = event.allDay
+    ? "todo el día"
+    : eventClock(event.startEpoch ?? 0, tz);
+  const text = document.createElement("span");
+  const what = document.createElement("span");
+  what.className = "what";
+  what.textContent = event.summary || "Sin título";
+  text.appendChild(what);
+  if (event.location) {
+    const where = document.createElement("span");
+    where.className = "where";
+    where.textContent = event.location;
+    text.appendChild(where);
+  }
+  row.append(hour, text);
+  return row;
+}
+
+function renderMonth() {
+  paintMonthTitle();
+  paintMonthNote();
+  renderMonthGrid();
+  renderMonthDayList();
+}
+
+/** El día que conviene dejar elegido al cambiar de mes: hoy si está a la vista,
+ *  y si no el primero del mes que se está mirando. */
+function selectedDayFor(data) {
+  const tz = data?.tz ?? 0;
+  const todayIndex = localDayIndex(Math.floor(Date.now() / 1000), tz);
+  const first = localDayIndex(data.monthStart, tz);
+  const last = localDayIndex(data.monthEnd, tz);
+  if (todayIndex >= first && todayIndex < last) return todayIndex;
+  return first;
+}
+
+async function loadMonth(year, month) {
+  if (!status) return;
+  monthView.loading = true;
+  monthView.error = null;
+  monthView.year = year;
+  monthView.month = month;
+  renderMonth();
+  try {
+    const data = await invoke("panel_calendar_month", { year, month });
+    monthView.data = data;
+    monthView.year = data?.year || year;
+    monthView.month = data?.month || month;
+    monthView.selected = selectedDayFor(data);
+    calendarAsksSession = false;
+    $("calLogin").hidden = true;
+  } catch (error) {
+    monthView.data = null;
+    if (error?.code === 401) {
+      // El mes es tan privado como el día: el 401 del panel se atiende con el
+      // mismo formulario, no con otro mensaje.
+      calendarAsksSession = true;
+      monthView.error = null;
+      monthView.loading = false;
+      showCalendarSession(null);
+      renderMonth();
+      return;
+    }
+    monthView.error = error?.message ?? "No pude pedir el mes";
+  } finally {
+    monthView.loading = false;
+    renderMonth();
+  }
+}
+
+function selectMonthDay(index) {
+  monthView.selected = index;
+  renderMonthGrid();
+  renderMonthDayList();
+}
+
+function stepMonth(delta) {
+  const { year, month } = currentMonth();
+  const next = new Date(Date.UTC(year, month - 1 + delta, 1));
+  loadMonth(next.getUTCFullYear(), next.getUTCMonth() + 1);
+}
+
+function goToTodayMonth() {
+  const { year, month } = currentMonth();
+  const tz = monthView.data?.tz ?? lastEvents?.tz ?? 0;
+  const todayIndex = localDayIndex(Math.floor(Date.now() / 1000), tz);
+  monthView.selected = todayIndex;
+  if (year === monthView.year && month === monthView.month && monthView.data) {
+    renderMonthGrid();
+    renderMonthDayList();
+    return;
+  }
+  loadMonth(year, month);
+}
+
+/** Abre o cierra la vista de mes sin tocar la tarjeta del día: las dos viven en
+ *  la misma tarjeta y el pie queda siempre visible. */
+async function toggleMonthView() {
+  monthView.open = !monthView.open;
+  const button = $("btnCalMonth");
+  button.setAttribute("aria-pressed", monthView.open ? "true" : "false");
+  button.textContent = monthView.open ? "Ver el día" : "Ver el mes";
+  $("calDay").hidden = monthView.open;
+  $("calMonth").hidden = !monthView.open;
+  if (!monthView.open) return;
+
+  if (monthView.data && monthView.year && monthView.month) {
+    renderMonth();
+    return;
+  }
+  if (!status) {
+    monthView.error = "Sin conexión con el equipo";
+    renderMonth();
+    return;
+  }
+  const { year, month } = currentMonth();
+  await loadMonth(year, month);
+}
+
 
 /** Pinta el estado del botón y el ancho de la losa sin mover la ventana. */
 function paintPopoverSize(expanded) {

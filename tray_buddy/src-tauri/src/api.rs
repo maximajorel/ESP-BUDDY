@@ -19,6 +19,10 @@ use std::time::Duration;
 /// cuelgue. El equipo contesta en milisegundos en la LAN.
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
+/// El mes es el único pedido que puede tardar: el equipo pide a Google el mes
+/// entero mientras el popover espera, con su propio timeout de TLS de 8 s. Un
+/// tope de 5 s cortaba una respuesta que iba a llegar bien.
+const MONTH_TIMEOUT: Duration = Duration::from_secs(25);
 
 /// Error de una llamada al equipo, tal como lo va a leer el popover.
 #[derive(Debug, Clone, Serialize)]
@@ -130,6 +134,56 @@ pub struct CalendarEvents {
     pub events: Vec<CalendarEvent>,
 }
 
+/// Un evento del mes tal como lo publica `GET /api/calendar/month` (S2).
+///
+/// `id` y `etag` no son adorno: son lo que la app devuelve cuando el dueño
+/// edita o borra, y el `etag` es lo que detecta que el evento cambió en otro
+/// lado mientras el popover estaba abierto.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CalendarMonthEvent {
+    pub id: String,
+    #[serde(default)]
+    pub etag: String,
+    #[serde(default)]
+    pub summary: String,
+    #[serde(default)]
+    pub location: String,
+    pub start_epoch: i64,
+    pub end_epoch: i64,
+    #[serde(default)]
+    pub all_day: bool,
+}
+
+/// Lo que devuelve `GET /api/calendar/month`: el mes pedido y las semanas que su
+/// grilla cubre. Los bordes son medianoches locales del equipo, así que la app
+/// no deriva un lunes con el reloj de la PC.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CalendarMonth {
+    #[serde(default)]
+    pub tz: i32,
+    #[serde(default)]
+    pub year: i32,
+    #[serde(default)]
+    pub month: i32,
+    #[serde(default)]
+    pub month_start: i64,
+    #[serde(default)]
+    pub month_end: i64,
+    #[serde(default)]
+    pub grid_start: i64,
+    #[serde(default)]
+    pub grid_end: i64,
+    #[serde(default)]
+    pub count: u32,
+    /// El equipo llegó a su tope de filas: se dice, no se dibuja un mes lleno.
+    #[serde(default)]
+    pub truncated: bool,
+    #[serde(default)]
+    pub events: Vec<CalendarMonthEvent>,
+}
+
 pub struct Api {
     base: String,
     http: reqwest::Client,
@@ -158,8 +212,18 @@ impl Api {
     }
 
     async fn call(&self, method: reqwest::Method, path: &str, body: Option<&Value>) -> Result<Value, ApiError> {
+        self.call_bounded(method, path, body, REQUEST_TIMEOUT).await
+    }
+
+    async fn call_bounded(
+        &self,
+        method: reqwest::Method,
+        path: &str,
+        body: Option<&Value>,
+        timeout: Duration,
+    ) -> Result<Value, ApiError> {
         let url = format!("{}{}", self.base, path);
-        let mut request = self.http.request(method, &url);
+        let mut request = self.http.request(method, &url).timeout(timeout);
         if let Some(token) = &self.session {
             request = request.header(reqwest::header::COOKIE, format!("sid={token}"));
         }
@@ -253,6 +317,18 @@ impl Api {
         serde_json::from_value(value)
             .map_err(|_| ApiError::transport("El equipo contestó algo que no entiendo"))
     }
+
+    /// `GET /api/calendar/month?y=&m=` (S2): el mes de la grilla. El equipo lo
+    /// pide a Google en ese momento —no lo guarda, porque la cara vive de hoy y
+    /// de mañana— así que es la llamada lenta y lleva su propio tope.
+    pub async fn month(&self, year: i32, month: i32) -> Result<CalendarMonth, ApiError> {
+        let path = format!("/api/calendar/month?y={year}&m={month}");
+        let value = self
+            .call_bounded(reqwest::Method::GET, &path, None, MONTH_TIMEOUT)
+            .await?;
+        serde_json::from_value(value)
+            .map_err(|_| ApiError::transport("El equipo contestó algo que no entiendo"))
+    }
 }
 
 /// El mensaje de error del equipo es texto para el dueño ("Falta el indice de
@@ -299,6 +375,7 @@ mod tests {
     use super::*;
     use std::io::{Read, Write};
     use std::net::TcpListener;
+    use std::sync::{Arc, Mutex};
 
     const STATUS_JSON: &str = r#"{
         "firmware":"esp32-gadget","version":"1.9.0","screen":3,"screenName":"RED",
@@ -437,6 +514,26 @@ mod tests {
         )
     }
 
+    /// Como `fake_device`, pero devuelve lo que el equipo vio escrito: la única
+    /// forma de probar que la ruta y sus parámetros son los que el firmware
+    /// espera sin adivinar por el resultado.
+    fn fake_device_with_request(response: &'static str) -> (u16, Arc<Mutex<String>>) {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+        let port = listener.local_addr().unwrap().port();
+        let seen = Arc::new(Mutex::new(String::new()));
+        let slot = Arc::clone(&seen);
+        std::thread::spawn(move || {
+            if let Ok((mut socket, _)) = listener.accept() {
+                let mut buf = [0u8; 2048];
+                let read = socket.read(&mut buf).unwrap_or(0);
+                *slot.lock().expect("visto") =
+                    String::from_utf8_lossy(&buf[..read]).to_string();
+                let _ = socket.write_all(response.as_bytes());
+            }
+        });
+        (port, seen)
+    }
+
     fn api_for(port: u16) -> Api {
         Api::new(
             &Connection {
@@ -463,6 +560,73 @@ mod tests {
         let events = api_for(port).events().await.expect("agenda");
         assert_eq!(events.events.len(), 2);
         assert_eq!(events.events[0].summary, "Reunión");
+    }
+
+    /// El mes se pide con el año y el mes del dueño en la ruta, y trae `id` y
+    /// `etag`: son lo único que permite editar o borrar después. Si el pedido se
+    /// arma mal, el equipo contesta el mes de hoy o un 400.
+    #[tokio::test]
+    async fn lee_el_mes_y_manda_el_ano_y_el_mes_en_la_ruta() {
+        const MONTH_JSON: &str = r#"{
+            "ok":true,"tz":-3,"year":2026,"month":11,
+            "monthStart":1793502000,"monthEnd":1796094000,
+            "gridStart":1792983600,"gridEnd":1796612400,
+            "count":1,"truncated":false,
+            "events":[{"id":"abc123","etag":"\"3201\"","summary":"Dentista",
+                        "location":"Palermo","startEpoch":1795284000,
+                        "endEpoch":1795287600,"allDay":false}]}"#;
+        let response: &'static str = Box::leak(http_ok(MONTH_JSON).into_boxed_str());
+        let (port, seen) = fake_device_with_request(response);
+
+        let month = api_for(port).month(2026, 11).await.expect("mes");
+
+        let request = seen.lock().expect("visto").clone();
+        assert!(
+            request.starts_with("GET /api/calendar/month?y=2026&m=11 "),
+            "la ruta del mes fue: {request}"
+        );
+        assert_eq!(month.year, 2026);
+        assert_eq!(month.month, 11);
+        assert_eq!(month.tz, -3);
+        assert_eq!(month.grid_start, 1792983600);
+        assert_eq!(month.grid_end, 1796612400);
+        assert!(!month.truncated);
+        assert_eq!(month.events.len(), 1);
+        assert_eq!(month.events[0].id, "abc123");
+        assert_eq!(month.events[0].etag, "\"3201\"");
+        assert!(!month.events[0].all_day);
+    }
+
+    /// El equipo puede avisar que llegó a su tope de filas. El campo es lo que
+    /// evita dibujar un mes lleno que en realidad está cortado.
+    #[tokio::test]
+    async fn un_mes_cortado_llega_con_truncated() {
+        const CUT_JSON: &str = r#"{"ok":true,"tz":0,"year":2026,"month":12,
+            "monthStart":1,"monthEnd":2,"gridStart":0,"gridEnd":3,
+            "count":0,"truncated":true,"events":[]}"#;
+        let response: &'static str = Box::leak(http_ok(CUT_JSON).into_boxed_str());
+        let port = fake_device(response);
+        let month = api_for(port).month(2026, 12).await.expect("mes");
+        assert!(month.truncated);
+    }
+
+    /// El equipo no puede contestar el mes (sin Google, sin red, sin permiso) y
+    /// el mensaje que escribe es el que ve el dueño, en castellano y sin código.
+    #[tokio::test]
+    async fn el_mes_sin_permiso_muestra_el_mensaje_del_equipo() {
+        let body = r#"{"ok":false,"error":"Falta conectar la cuenta de Google"}"#;
+        let response: &'static str = Box::leak(
+            format!(
+                "HTTP/1.1 502 Bad Gateway\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                body.len(),
+                body
+            )
+            .into_boxed_str(),
+        );
+        let port = fake_device(response);
+        let error = api_for(port).month(2026, 11).await.expect_err("502");
+        assert_eq!(error.code, 502);
+        assert_eq!(error.message, "Falta conectar la cuenta de Google");
     }
 
     #[tokio::test]

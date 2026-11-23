@@ -100,15 +100,37 @@
       <section aria-labelledby="s-cal">
         <div class="sec-head" id="s-cal">Calendario <span class="meta" id="calMeta">—</span></div>
         <div class="cal-card" style="margin-top:8px">
-          <div class="next" id="calNext">
-            <span class="daytag"><span id="calNextDay">Próxima cita</span><span class="rule"></span></span>
-            <span class="hour" id="calNextHour">--:--</span>
-            <span>
-              <span class="what" id="calNextWhat">Sin conexión</span>
-              <span class="where" id="calNextWhere">—</span>
-            </span>
+          <!-- La vista del día es la de siempre: próxima cita y agenda. Vive
+               dentro de `#calDay` para que la grilla del mes pueda reemplazarla
+               sin tocar la tarjeta ni el pie. -->
+          <div id="calDay">
+            <div class="next" id="calNext">
+              <span class="daytag"><span id="calNextDay">Próxima cita</span><span class="rule"></span></span>
+              <span class="hour" id="calNextHour">--:--</span>
+              <span>
+                <span class="what" id="calNextWhat">Sin conexión</span>
+                <span class="where" id="calNextWhere">—</span>
+              </span>
+            </div>
+            <div class="agenda" id="calAgenda"></div>
           </div>
-          <div class="agenda" id="calAgenda"></div>
+
+          <!-- La grilla del mes (S1): las semanas las decide el equipo, que es
+               el único que conoce el offset del dueño. Acá sólo se dibujan. -->
+          <div class="cal-month" id="calMonth" hidden>
+            <div class="cal-nav">
+              <button class="cal-arrow" type="button" id="calPrev" title="Mes anterior" aria-label="Mes anterior">‹</button>
+              <button class="cal-title" type="button" id="calToday" title="Volver a hoy"><span id="calMonthTitle">—</span></button>
+              <button class="cal-arrow" type="button" id="calNextMonth" title="Mes siguiente" aria-label="Mes siguiente">›</button>
+            </div>
+            <div class="cal-weekdays" aria-hidden="true">
+              <span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span>
+            </div>
+            <div class="cal-grid" id="calGrid" role="grid" aria-label="Mes"></div>
+            <p class="cal-note" id="calMonthNote" hidden></p>
+            <div class="cal-daylist" id="calDayList"></div>
+          </div>
+
           <form class="cal-login" id="calLogin" hidden>
             <p class="wizard-help">El calendario es privado: el equipo pide la sesión del panel.</p>
             <label class="field">
@@ -125,7 +147,8 @@
           <div class="cal-foot">
             <button class="btn" type="button" id="btnCalAgenda" aria-pressed="false"
                     title="Ver la agenda del día">Agenda</button>
-            <button class="btn ghost" type="button" id="btnCalMonth" disabled>Ver el mes</button>
+            <button class="btn ghost" type="button" id="btnCalMonth"
+                    aria-pressed="false" title="Ver el mes entero">Ver el mes</button>
             <button class="btn ghost" type="button" id="btnCalNew" disabled>Nuevo evento</button>
           </div>
         </div>
