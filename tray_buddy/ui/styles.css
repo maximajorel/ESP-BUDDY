@@ -103,7 +103,6 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .brand .logo i { width: 7px; height: 8px; border-radius: 38%; background: var(--ink); }
 .brand h1 { font-size: 13px; font-weight: 900; letter-spacing: -0.01em; }
-.brand h1 span { font-weight: 400; opacity: 0.55; }
 .win-status {
   margin-left: auto; display: flex; align-items: center; gap: 5px;
   /* El estado es lo único sacrificable de la barra: si el nombre de la pantalla
