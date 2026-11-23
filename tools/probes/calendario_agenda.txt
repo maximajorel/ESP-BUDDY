@@ -18,8 +18,15 @@
 #
 # Con la cuenta del dueño sin eventos a la vista, `count: 0` y `events: []` es un
 # resultado válido: el equipo no inventa filas.
+#
+# Ojo: abrir el puerto resetea la placa, y el primer intento de sync después de
+# arrancar puede fallar (respuesta ilegible mientras el WiFi se asienta). Por eso
+# la secuencia espera el primer reintento antes de preguntar: sin la espera, la
+# foto es de un equipo que todavía no sincronizó y parece que el calendario está
+# vacío.
 boot 4
+sleep 45000
 api GET /api/status
 api GET /api/calendar
 api GET /api/calendar/events
-api GET /api/calendar/events
+api GET /api/calendar/calendars

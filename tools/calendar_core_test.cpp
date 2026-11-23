@@ -19,6 +19,7 @@
 
 #include "calendar_auth_parse.h"
 #include "calendar_forms.h"
+#include "calendar_schedule.h"
 #include "calendar_model.h"
 #include "calendar_parse.h"
 #include "calendar_plan.h"
@@ -189,6 +190,25 @@ static void testEventsBodyBudget() {
            strlen(events[0].summary), CALENDAR_SUMMARY_MAX - 1);
   checkInt("and the cut keeps the start", strncmp(events[0].summary, longText, 20),
            0);
+}
+
+// La política de reintento: el primer sync después de arrancar no puede costar
+// dos minutos de agenda vacía, pero tampoco se golpea a Google para siempre.
+static void testSyncSchedule() {
+  printf("-- when the next sync is due\n");
+  checkInt("never synced, first failure",
+           calendarSyncDelayMs(false, 0), 15000);
+  checkInt("  and the second", calendarSyncDelayMs(false, 1), 15000);
+  checkInt("  and the third", calendarSyncDelayMs(false, 2), 15000);
+  checkInt("the fast retries are spent",
+           calendarSyncDelayMs(false, CALENDAR_SYNC_BOOT_RETRIES), 120000);
+  checkInt("  and stay slow", calendarSyncDelayMs(false, 40), 120000);
+  checkInt("after a good sync it is a quarter of an hour",
+           calendarSyncDelayMs(true, 0), 15u * 60u * 1000u);
+  checkInt("  failures do not change that",
+           calendarSyncDelayMs(true, 5), 15u * 60u * 1000u);
+  checkInt("a negative counter is read as zero", calendarSyncDelayMs(false, -3),
+           15000);
 }
 
 static void testCalendarList() {
@@ -584,6 +604,7 @@ int main() {
   testRfc3339();
   testLocalMidnight();
   testEventsBodyBudget();
+  testSyncSchedule();
   testCalendarList();
   testEvents();
   testReaction();

@@ -8,6 +8,7 @@
 #include "calendar_forms.h"
 #include "calendar_http.h"
 #include "calendar_parse.h"
+#include "calendar_schedule.h"
 #include "calendar_plan.h"
 #include "calendar_store.h"
 #include "calendar_time.h"
@@ -15,7 +16,6 @@
 
 namespace {
 
-constexpr uint32_t kRefreshMs = 15u * 60u * 1000u;
 constexpr uint32_t kTaskStack = 12288;
 constexpr size_t kListBodyBytes = 8192;
 // Derivado de CALENDAR_MAX_EVENTS, no un número suelto: un cuerpo más grande que
@@ -43,6 +43,9 @@ bool s_syncing = false;
 volatile bool s_refreshRequested = false;
 uint32_t s_lastAttemptMs = 0;
 uint32_t s_attempts = 0;
+// Intentos fallidos seguidos: sólo lo lee `calendarTick` para elegir el ritmo de
+// reintento, y lo satura para que no siga creciendo años después.
+uint32_t s_failures = 0;
 
 // Parsing scratch: only the service task writes here, so it needs no lock. The
 // shared copies are swapped under the lock after the parse succeeds.
@@ -101,7 +104,9 @@ bool fetchCalendars(const char *token, char *err, size_t errCap) {
   return true;
 }
 
-void fetchNow() {
+// Devuelve true sólo si la agenda se refrescó: el que reintenta necesita saber
+// si el fallo fue un tropiezo del arranque o algo que va a seguir así.
+bool fetchNow() {
   lock();
   s_syncing = true;
   unlock();
@@ -109,7 +114,7 @@ void fetchNow() {
   char err[96] = "";
   if (!calendarAuthEnsureAccessToken(false, err, sizeof(err))) {
     setError(err[0] ? err : "No pude renovar el permiso de Google");
-    return;
+    return false;
   }
   const char *token = calendarAuthAccessToken();
 
@@ -129,24 +134,24 @@ void fetchNow() {
   int64_t from = 0;
   if (!calendarDayQueryStart((int64_t)now, settingsGet().tzOffsetHours, &from)) {
     setError("No pude calcular el comienzo del dia");
-    return;
+    return false;
   }
   const int64_t to = (int64_t)now + kFutureSeconds;
   char path[512];
   if (!calendarEventsPath(selected, from, to, path, sizeof(path))) {
     setError("El nombre del calendario no entra en el pedido");
-    return;
+    return false;
   }
 
   CalendarHttpResult res;
   if (!calendarHttpGet(CALENDAR_API_HOST, path, token, kEventsBodyBytes, &res)) {
     setError("No pude pedir los eventos a Google");
-    return;
+    return false;
   }
   if (res.status != 200) {
     snprintf(err, sizeof(err), "Google devolvio %d al pedir eventos", res.status);
     setError(err);
-    return;
+    return false;
   }
 
   const size_t count =
@@ -166,6 +171,7 @@ void fetchNow() {
   }
   s_syncing = false;
   unlock();
+  return true;
 }
 
 void taskLoop(void *) {
@@ -214,17 +220,23 @@ void calendarTick() {
   if (!clockReady()) return;
 
   const uint32_t now = millis();
-  // Before the first good fetch, retry every two minutes: a typo in a WiFi
-  // password or a Google hiccup should not cost a quarter of an hour. After a
-  // success, fifteen minutes is plenty for a personal calendar.
-  const uint32_t interval = s_lastSyncMs == 0 ? 120000u : kRefreshMs;
+  // La política vive en `calendar_schedule.h` y se prueba en host: sin un sync
+  // bueno se reintenta a los quince segundos, porque el primer intercambio
+  // después de arrancar puede volver ilegible (el WiFi todavía se está
+  // asentando) y dos minutos de agenda vacía no son un costo aceptable. Con un
+  // sync bueno, quince minutos alcanzan para un calendario personal.
+  const uint32_t interval = calendarSyncDelayMs(s_lastSyncMs != 0, s_failures);
   const bool due = s_attempts == 0 || s_refreshRequested ||
                    (uint32_t)(now - s_lastAttemptMs) >= interval;
   if (!due) return;
   s_refreshRequested = false;
   s_lastAttemptMs = now;
   s_attempts++;
-  fetchNow();
+  if (fetchNow()) {
+    s_failures = 0;
+  } else if (s_failures < 60000) {
+    s_failures++;
+  }
 }
 
 CalendarStatusInfo calendarStatusInfo() {
