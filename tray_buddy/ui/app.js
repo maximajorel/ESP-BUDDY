@@ -284,6 +284,9 @@ function wireFocus() {
 // propia: el estado real está en el equipo y `GET /api/status` lo publica, así que
 // el popover muestra lo que el equipo dice y no un recuerdo de la última vez.
 const light = { brightness: 50, r: 255, g: 255, b: 255, level: 128, effect: 0 };
+/** Escrituras en vuelo: mientras haya una, el sondeo no adopta el estado del
+ *  equipo, porque el que va a llegar es el de antes del cambio. */
+let lightPending = 0;
 
 function hexFromRgb(r, g, b) {
   return `#${[r, g, b].map((value) => (value & 0xff).toString(16).padStart(2, "0")).join("")}`;
@@ -303,28 +306,37 @@ function ledPercent(level) {
 }
 
 /**
- * Pinta los controles con el estado del equipo.
+ * Adopta el estado del equipo. Se llama sólo desde el sondeo, y sólo cuando no
+ * hay una escritura en vuelo.
  *
  * Un control que el dueño está agarrando no se pisa: el sondeo cada cinco
  * segundos movería el pulgar de abajo del dedo, y con el modo "soltar para
  * aplicar" eso mandaría un valor que nadie eligió.
+ *
+ * Va separado de `renderLight` a propósito: pintar nunca puede cambiar el valor
+ * que el dueño acaba de elegir. Cuando las dos cosas vivían en la misma función,
+ * tocar un chip de efecto lo mandaba y enseguida `renderLight` lo pisaba con el
+ * valor viejo del último sondeo, así que el equipo recibía el efecto anterior.
  */
+function adoptLight() {
+  if (!status || lightPending > 0) return;
+  if (document.activeElement !== $("lcdRange")) {
+    light.brightness = status.display?.brightness ?? light.brightness;
+  }
+  if (document.activeElement !== $("ledRange")) {
+    light.level = status.rgb?.level ?? light.level;
+  }
+  if (document.activeElement !== $("ledColor")) {
+    light.r = status.rgb?.r ?? light.r;
+    light.g = status.rgb?.g ?? light.g;
+    light.b = status.rgb?.b ?? light.b;
+  }
+  light.effect = status.rgb?.effect ?? light.effect;
+}
+
+/** Pinta los controles con el estado que ya está en `light`. No lo modifica. */
 function renderLight() {
   const online = Boolean(status);
-  if (status) {
-    if (document.activeElement !== $("lcdRange")) {
-      light.brightness = status.display?.brightness ?? light.brightness;
-    }
-    if (document.activeElement !== $("ledRange")) {
-      light.level = status.rgb?.level ?? light.level;
-    }
-    if (document.activeElement !== $("ledColor")) {
-      light.r = status.rgb?.r ?? light.r;
-      light.g = status.rgb?.g ?? light.g;
-      light.b = status.rgb?.b ?? light.b;
-    }
-    light.effect = status.rgb?.effect ?? light.effect;
-  }
 
   $("lcdRange").disabled = !online;
   $("ledRange").disabled = !online;
@@ -351,16 +363,20 @@ function renderLight() {
 
 async function sendLcd() {
   if (!status) return;
+  lightPending += 1;
   try {
     await invoke("device_lcd", { brightness: light.brightness });
   } catch (error) {
     setOnline(false, "Error", error?.message);
+  } finally {
+    lightPending -= 1;
     renderLight();
   }
 }
 
 async function sendLed() {
   if (!status) return;
+  lightPending += 1;
   try {
     await invoke("device_led", {
       red: light.r,
@@ -371,6 +387,8 @@ async function sendLed() {
     });
   } catch (error) {
     setOnline(false, "Error", error?.message);
+  } finally {
+    lightPending -= 1;
     renderLight();
   }
 }
@@ -1420,6 +1438,7 @@ async function refresh() {
     setOnline(true, "En línea", connection.port === 80 ? connection.host : `${connection.host}:${connection.port}`);
     renderScreens();
     renderFocus();
+    adoptLight();
     renderLight();
     await loadCalendar();
   } catch (error) {

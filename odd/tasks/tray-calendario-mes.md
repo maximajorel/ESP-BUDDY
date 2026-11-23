@@ -146,3 +146,33 @@ servidor de Chrome del entorno no responde (`Network.enable timed out`) y no hay
 binario de Chrome/Chromium en WSL, así que el popover quedó verificado por lectura
 y por `node --check`, no por pantalla. Lo que un render probaría —grilla de 42
 celdas en 380 px, editor abierto, sliders— sigue sin evidencia visual.
+
+L13 (la interfaz sí se vio, y encontró un defecto): el popover se renderizó de
+verdad sin la placa: una copia de `tray_buddy/ui/` en un directorio temporal, un
+`stub.js` que reemplaza `window.__TAURI__.core.invoke` por respuestas fijas del
+equipo (un mes de noviembre 2026 con tres eventos, `display.brightness=55`,
+`rgb.level=200,effect=1`) y que se maneja solo con clics y esperas, y Chrome
+headless del lado de Windows con `--dump-dom` (para leer el reporte) y
+`--screenshot` (para mirarlo). El servidor va en 0.0.0.0 y se llega por la IP de
+WSL; `--window-size` tiene un mínimo de ventana en Windows, así que la captura
+buena es a 560 px de ancho.
+
+Resultado: **42 comprobaciones, 0 fallas**, y una captura del popover con la
+grilla de noviembre, los días del mes vecino atenuados, el 23 marcado como hoy,
+las marcas de evento en 21 y 28, el día elegido listado abajo, los dos sliders con
+"SIN SESIÓN" y el título `BUDDY`.
+
+Encontró un defecto real que los tests no podían ver: al tocar un chip de efecto,
+`renderLight()` volvía a leer `status` y pisaba el valor recién elegido, así que
+el equipo recibía el efecto anterior **y** el nivel anterior (el del último
+sondeo). Arreglado en el commit `fix(tray): el chip de efecto manda lo que el
+          dueño eligió` separando pintar de adoptar: `renderLight()` sólo
+pinta `light`, `adoptLight()` es lo único que lee `status`, y no adopta mientras
+hay una escritura en vuelo (`lightPending`). El arnés se reescribió con dos
+comprobaciones nuevas (el chip manda su efecto; no pisa el nivel recién elegido) y
+volvió verde.
+
+El arnés quedó fuera del repo a propósito: es una copia temporal con un stub, no
+un artefacto del producto, y meterlo obligaría a mantener un Chrome y un script
+por plataforma. Queda como receta acá, y como candidato a herramienta si la
+interfaz del tray crece.
