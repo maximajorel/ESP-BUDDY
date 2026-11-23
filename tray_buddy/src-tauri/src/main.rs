@@ -8,6 +8,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod api;
+mod autostart;
 mod commands;
 #[cfg(test)]
 mod installer_art;
@@ -15,13 +16,17 @@ mod store;
 
 use tauri::{
     image::Image,
-    menu::{Menu, MenuItem},
+    menu::{CheckMenuItem, Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, Manager, PhysicalPosition, PhysicalRect, Position, Rect, RunEvent, Size,
     WebviewWindow, WindowEvent,
 };
 
 const POPOVER: &str = "popover";
+
+// El ítem del menú de la bandeja, guardado para poder moverle el tilde: un
+// `TrayIcon` no expone su menú, así que la referencia al ítem viaja como estado.
+struct AutostartMenu(CheckMenuItem<tauri::Wry>);
 const TRAY_ID: &str = "buddy";
 /// Evento que le dice al popover que abra el asistente de conexión.
 const OPEN_SETUP: &str = "buddy://setup";
@@ -146,8 +151,19 @@ fn toggle_popover(app: &AppHandle) {
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let open = MenuItem::with_id(app, "open", "Abrir Buddy", true, None::<&str>)?;
     let setup = MenuItem::with_id(app, "setup", "Cambiar dirección del equipo", true, None::<&str>)?;
+    // El tilde sale del registro, no de una preferencia propia: si el dueño lo
+    // apagó con `msconfig`, el menú tiene que decir la verdad.
+    let autostart = CheckMenuItem::with_id(
+        app,
+        "autostart",
+        "Iniciar con Windows",
+        true,
+        autostart::is_enabled(),
+        None::<&str>,
+    )?;
+    app.manage(AutostartMenu(autostart.clone()));
     let quit = MenuItem::with_id(app, "quit", "Salir", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&open, &setup, &quit])?;
+    let menu = Menu::with_items(app, &[&open, &setup, &autostart, &quit])?;
 
     let icon = Image::from_bytes(include_bytes!("../icons/tray.png"))?;
 
@@ -167,10 +183,27 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
                 show_popover(app, None);
                 let _ = app.emit(OPEN_SETUP, ());
             }
+            // Se prende o se apaga según lo que dice el registro ahora, no lo que
+            // el menú mostraba: entre abrir el menú y hacer clic el dueño pudo
+            // haberlo tocado en otro lado.
+            "autostart" => {
+                let quiere = !autostart::is_enabled();
+                autostart::set_enabled(quiere);
+                let item = app.state::<AutostartMenu>();
+                let _ = item.0.set_checked(autostart::is_enabled());
+            }
             "quit" => app.exit(0),
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {
+            // El tilde del arranque automático se refresca antes de que el menú
+            // se dibuje: el registro lo puede haber cambiado otra cosa
+            // (`msconfig`, otra versión del instalador) desde que arrancamos.
+            if let TrayIconEvent::Click { .. } = event {
+                if let Some(item) = tray.app_handle().try_state::<AutostartMenu>() {
+                    let _ = item.0.set_checked(autostart::is_enabled());
+                }
+            }
             // El evento del clic trae el rectángulo del icono, que es más
             // confiable que preguntarlo después: es el mismo dato, medido en el
             // momento exacto en que el dueño hizo clic.
