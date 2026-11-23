@@ -45,6 +45,14 @@ S6. Con más eventos de los que entran, el cuerpo del popover **scrollea**; nada
 se sale del rectángulo de la ventana (el sistema lo recortaría). Sin sesión, sin
 autorización o sin eventos, la tarjeta dice lo mismo que hoy: no se inventa nada.
 
+S9. El equipo **recuerda la sesión del panel entre reboots** (decisión del dueño
+en esta feature): la tarjeta de calendario no puede pedir usuario y clave cada
+vez que el equipo se reinicia. Se guarda en NVS con la misma caducidad de 12 h;
+la app sigue guardando sólo el token y la clave no toca el disco. Antes de NTP
+una sesión guardada se rechaza (sin hora no se puede probar que no venció), una
+sesión abierta sin reloj no se guarda (un equipo sin internet tiene que poder
+entrar al panel), y un reloj que retrocede no estira su vida.
+
 S8. El primer sync después de arrancar se reintenta a los **15 s**, no a los
 dos minutos: el equipo tarda en tener la agenda y el popover se abre en ese
 mismo momento. Agotados tres intentos rápidos sin un sync bueno se vuelve al
@@ -72,6 +80,7 @@ antes de esa medianoche no se lista.
 | D6 | S7 | worker (app: secciones rotuladas por día + `tools/preview.js` en el repo) | `b0dae4a` |
 | D7 | S7 | worker (app: la tarjeta de próxima cita usa el mismo rótulo) | `86357f5` |
 | D8 | S8 | worker (firmware: el ritmo de reintento del sync, con test de host) | `fed833d` |
+| D9 | S9 | worker (firmware: sesión del panel en NVS, con test de host y verificación independiente) | `c848827` |
 | D5 | S5, S6, S7 | verificación: tests de host, compilación de placa, `cargo test`, capturas CDP y app real | este documento |
 
 ## Log
@@ -190,6 +199,30 @@ verified`): `api GET /api/calendar/events` → `200 {"ok":true,"tz":-3,
 "dayStart":1795402800,"dayEnd":1795489200,"count":0,"events":[]}`, con las dos
 medianoches exactas (23 y 24 de noviembre a las 00:00 −03). El endpoint nuevo
 funciona en el equipo.
+
+L20. Con el calendario ya funcionando apareció la fricción real de uso: el
+popover pedía usuario y clave después de **cada** reboot, porque la tabla de
+sesiones vivía en RAM (y el flasheo reinicia el equipo). El dueño eligió que el
+equipo recuerde la sesión (S9, D9, `c848827`): `AdminSession` gana
+`openedAtEpoch` (hora absoluta, lo único que sobrevive), un equipo sin NTP sigue
+usando `millis()` dentro del arranque, el registro `token,epoch` vive en el
+namespace `adminsess` con una clave por ranura y se rechaza cualquier cosa que no
+sea un token de 64 hex con un epoch plausible. Host: 147 checks de auth.
+
+L21. El verificador independiente (`gentle-ai-verify`) encontró **dos defectos
+reales** en la primera versión, los dos arreglados antes de flashear:
+1. El `adminSessionStoreClear()` estaba en el camino que corre en **cada
+   arranque** (el comentario viejo decía "las sesiones arrancan vacías"), así que
+   borraba lo que se acababa de cargar: la feature no habría funcionado y encima
+   habría borrado NVS en cada boot.
+2. Faltaba el piso de la edad: `age < TTL` sin `age >= 0` dejaba una sesión viva
+   para siempre si el reloj retrocedía, y eso es alcanzable desde el propio
+   programa (`POST /api/time` acepta cualquier epoch plausible; `settime` en la
+   consola).
+También señaló lo que faltaba probar (reloj hacia atrás, normalización de
+mayúsculas) y que `admin_session_store.cpp` no lo compila ningún test de host
+(Arduino-only): la carga y el guardado en NVS sólo se pueden verificar en el
+equipo. Se agregaron esos dos casos al test y el de mayúsculas.
 
 L17. Verificado en el equipo con el evento **real del dueño**: creó "🧪 Evento de
 prueba ESP32" para hoy y la sonda devolvió

@@ -140,7 +140,9 @@ bandeja.
   sobre el restante informado.
 - **Calendario (S6), sólo lectura.** `GET /api/calendar` exige la sesión del
   panel, así que la tarjeta pide usuario y clave una vez, guarda **sólo el token
-  `sid`** y la clave no toca el disco. Arriba sigue la próxima cita; debajo va la
+  `sid`** y la clave no toca el disco. Desde el firmware con sesión persistida,
+  el equipo recuerda ese token entre reboots (con su caducidad de 12 h), así que
+  el popover no vuelve a pedir la clave después de un reinicio. Arriba sigue la próxima cita; debajo va la
   **agenda del día** (`GET /api/calendar/events`), partida en dos secciones
   reales: **HOY**, con todos los eventos del día —los que ya terminaron,
   atenuados— y **MAÑANA** con el resto de la ventana que consultó el equipo, de
