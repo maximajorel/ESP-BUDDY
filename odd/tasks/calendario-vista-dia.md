@@ -140,6 +140,17 @@ un servidor aparte: sin sesión → 401; con sesión y la cuenta aprobada →
 `calendar_tick()`, compartido por los dos endpoints: antes sólo lo hacía
 `/api/calendar` y la agenda contestaba "sin eventos" con el estado ya en `ready`.
 
+L10bis. Auditoría del estado commiteado, con la suite sobre un `git archive HEAD`
+fuera del árbol de trabajo: **41 passed** (los tres tests de calendario
+adentro; el único que falta respecto del árbol es `weather_core_test`, que
+pertenece al WIP del clima sin commitear). El firmware **no** compila desde HEAD
+solo, y **no es por esta feature**: `esp32_gadget/net.cpp` (ya commiteado) incluye
+`weather.h` y compañía, y todo el módulo `weather*` está sin trackear
+(`?? esp32_gadget/weather.*`). Es decir, una copia limpia de la rama no compila
+hasta que ese WIP se commitee; el árbol de trabajo sí compila (51% flash, 24%
+RAM) y es lo que se flashea. Queda anotado, no se toca: no es de esta feature y
+commitear trabajo ajeno no es una decisión del agente.
+
 L10. `tools/probes/calendario_agenda.txt` (`2aa2e9c`): la secuencia de consola
 que verifica el endpoint después de flashear, con la fila correspondiente en
 `tools/probes/README.md`. `api` llama a `netHandleApi` en proceso y no pasa por
