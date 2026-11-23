@@ -191,6 +191,32 @@ verified`): `api GET /api/calendar/events` → `200 {"ok":true,"tz":-3,
 medianoches exactas (23 y 24 de noviembre a las 00:00 −03). El endpoint nuevo
 funciona en el equipo.
 
+L17. Verificado en el equipo con el evento **real del dueño**: creó "🧪 Evento de
+prueba ESP32" para hoy y la sonda devolvió
+`{"ok":true,"tz":-3,"dayStart":1795402800,"dayEnd":1795489200,"count":1,
+"events":[{"summary":"🧪 Evento de prueba ESP32","startEpoch":1795453200,
+"endEpoch":1795456800,"leadMin":30,"allDay":false}]}` — 14:00 a 15:00 local,
+dentro de la ventana del día, y `/api/calendar` con `hasNext:true` y
+`nextSummary` con ese mismo título. La cadena Google → equipo → JSON de la agenda
+funciona con datos reales. El popover quedó abierto (PID de la corrida del
+dueño); el último tramo —verlo en pantalla— pide la sesión del panel, que sólo el
+dueño puede abrir.
+
+L18. La sonda de consola moría con los títulos que tienen emoji: `print` contra
+la consola cp1252 de Windows lanzaba `UnicodeEncodeError` justo después de traer
+la data. Arreglado con `reconfigure(encoding="utf-8", errors="replace")`
+(`0d92f04`). No era un defecto del firmware.
+
+L19. Sobre el primer sync fallido: **es intermitente**, no sistemático. Tres
+arranques seguidos sincronizaron bien, con el primer sync bueno a los ~25 s
+(esperando NTP: `clockReady()` bloquea antes) y sin línea de error. Cuando falla,
+es de transporte (`status 0` o cuerpo vacío) y el reintento de 15 s lo levanta.
+Para el próximo caso quedó diagnóstico permanente en el puerto serie (`97f968d`):
+`calendar_http.cpp` imprime método, host/path, código, error de transporte, TLS y
+bytes de la petición que falló (cubre token, lista y eventos), y
+`calendar_auth.cpp` agrega los primeros 80 bytes del cuerpo del token. Causa raíz
+**abierta**, con la evidencia lista; no se toca más sin un caso que la muestre.
+
 L16. D8 verificado en el equipo, ya flasheado: a los 45 s de arranque
 `lastSyncMs: 27671` (el sync bueno llegó a los **27,7 s**; con la política vieja
 había llegado a los 129 s), `lastError:""`, `calendarCount:9` y la lista real de
