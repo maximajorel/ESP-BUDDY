@@ -45,6 +45,13 @@ S6. Con más eventos de los que entran, el cuerpo del popover **scrollea**; nada
 se sale del rectángulo de la ventana (el sistema lo recortaría). Sin sesión, sin
 autorización o sin eventos, la tarjeta dice lo mismo que hoy: no se inventa nada.
 
+S7. Las secciones se rotulan por el día que son, no por su posición: a las 23:50
+la ventana de 26 h entra al día siguiente al de mañana y esa sección no puede
+decir "Mañana". Hoy → "Hoy", el día siguiente → "Mañana", cualquier otro día →
+su día de la semana en minúscula (el CSS lo pone en mayúsculas). Un evento que
+arrancó antes de la medianoche local y sigue abierto es de hoy; uno que terminó
+antes de esa medianoche no se lista.
+
 ## Tasks
 
 | ID | Spec | Ruta | Commit |
@@ -53,7 +60,8 @@ autorización o sin eventos, la tarjeta dice lo mismo que hoy: no se inventa nad
 | D2 | S4 | worker (firmware: `dayStart`/`dayEnd` en el JSON, con test de host) | `37d1dc3` |
 | D3 | S4 | worker (app: parseo y compatibilidad, con test de Rust) | `8e6ee63` |
 | D4 | S5, S6 | worker (app: secciones Hoy/Mañana, atenuado y scroll) | `8e6ee63` |
-| D5 | S5, S6 | verificación: tests de host, compilación de placa, `cargo test`, capturas CDP y app real | este documento |
+| D6 | S7 | worker (app: secciones rotuladas por día + `tools/preview.js` en el repo) | `b0dae4a` |
+| D5 | S5, S6, S7 | verificación: tests de host, compilación de placa, `cargo test`, capturas CDP y app real | este documento |
 
 ## Log
 
@@ -165,6 +173,19 @@ y 24% de RAM. **Sin medir en el vidrio**: el pico de heap con un cuerpo de 28 KB
 entrega porque exige flashear; si al empujar el equipo aparece presión de heap,
 el orden de ataque está en `calendar_http.cpp` (`readBody` copia el cuerpo dos
 veces).
+
+L12. Defecto encontrado al revisar la ventana de 26 h: **a la noche la sección
+"Mañana" miente**. A las 23:50, `now + 26h` cae en el día siguiente al de mañana,
+así que un evento de pasado mañana se listaba bajo "Mañana" — el mismo error que
+esta feature vino a arreglar, un día más lejos. Reproducido primero en el arnés
+(escenario `late-night`: "Trámite pasado mañana" bajo "Mañana") y después
+corregido (S7, `b0dae4a`): los eventos se agrupan por día local, el grupo de hoy
+es "Hoy", el siguiente "Mañana" y el resto lleva su día de la semana, calculado
+del número de día local sin `Date` ni zona. Un evento que terminó antes de la
+medianoche local ya no abre un grupo "ayer": se descarta. Verificados los nueve
+escenarios por DOM (day, tomorrow, old, empty, unauthorized, session, busy,
+multiday, late-night → "miércoles"). El arnés quedó en el repo como
+`tray_buddy/tools/preview.js`, así la próxima vez se reproduce con un comando.
 
 L11. Borde verificado en el arnés (escenario `multiday`, que no estaba en L6):
 un evento de todo el día que arrancó ayer entra en HOY como "todo el día"; uno
