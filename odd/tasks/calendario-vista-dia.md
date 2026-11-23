@@ -45,6 +45,11 @@ S6. Con más eventos de los que entran, el cuerpo del popover **scrollea**; nada
 se sale del rectángulo de la ventana (el sistema lo recortaría). Sin sesión, sin
 autorización o sin eventos, la tarjeta dice lo mismo que hoy: no se inventa nada.
 
+S10. La consulta a Google exige **enlace de red**, no sólo reloj en hora: en un
+reset tibio el RTC conserva la hora y el WiFi todavía se está asociando, así que
+el primer intento salía sin red (`connection refused`) y la agenda quedaba vacía
+hasta el reintento.
+
 S9. El equipo **recuerda la sesión del panel entre reboots** (decisión del dueño
 en esta feature): la tarjeta de calendario no puede pedir usuario y clave cada
 vez que el equipo se reinicia. Se guarda en NVS con la misma caducidad de 12 h;
@@ -81,6 +86,7 @@ antes de esa medianoche no se lista.
 | D7 | S7 | worker (app: la tarjeta de próxima cita usa el mismo rótulo) | `86357f5` |
 | D8 | S8 | worker (firmware: el ritmo de reintento del sync, con test de host) | `fed833d` |
 | D9 | S9 | worker (firmware: sesión del panel en NVS, con test de host y verificación independiente) | `c848827` |
+| D10 | S10 | worker (firmware: el gate de red del calendario) | `3866472` |
 | D5 | S5, S6, S7 | verificación: tests de host, compilación de placa, `cargo test`, capturas CDP y app real | este documento |
 
 ## Log
@@ -199,6 +205,27 @@ verified`): `api GET /api/calendar/events` → `200 {"ok":true,"tz":-3,
 "dayStart":1795402800,"dayEnd":1795489200,"count":0,"events":[]}`, con las dos
 medianoches exactas (23 y 24 de noviembre a las 00:00 −03). El endpoint nuevo
 funciona en el equipo.
+
+L22. **Causa raíz del primer sync, resuelta con evidencia.** El diagnóstico que
+se agregó en L19 la mostró en el siguiente arranque:
+`[calendar] POST oauth2.googleapis.com/token: status=0 transport=-1 tls=1
+bytes=18` con `body="connection refused"`. No era Google ni el permiso: en un
+reset tibio (reboot, flasheo) el RTC conserva la hora, `clockReady()` ya es
+verdadero y la tarea pedía eventos **antes de que el WiFi estuviera asociado**.
+El gate estaba en el reloj y tenía que estar también en la red (S10, D10,
+`3866472`). Tras el flasheo: primer sync bueno a los **16,35 s**, `lastError:""`,
+`calendarCount:9`, `eventCount:4` y cero líneas `[calendar]` en el arranque.
+
+L23. **Verificación de punta a punta, en la app real contra el equipo real.** Con
+la sesión del dueño (persistida en NVS, sobrevivió tres reboots: dos flasheos y un
+`reboot` explícito, comprobado con `curl` al mismo `sid`; un sid inventado sigue
+dando 401) y el popover real por CDP: cabecera `3 hoy`, **HOY** con `09:00
+👨🏻‍💻💼 ZYMO`, `14:00 🧪 Evento de prueba ESP32`, `19:00 🏋️ Gimnasio`, **MAÑANA** con
+`09:00 👨🏻‍💻💼 ZYMO` (el evento es diario: aparece dos veces porque pasa dos veces,
+y cada uno en su día), próxima cita `14:00 🧪 … en 2 h 7 min`, `outsideCount: 0` y
+el cuerpo scrolleando (716 > 548). Captura en
+`%TEMP%\agenda-real.png`. Con esto el pedido del dueño queda verificado de punta a
+punta: Google real → equipo → JSON de la agenda → popover.
 
 L20. Con el calendario ya funcionando apareció la fricción real de uso: el
 popover pedía usuario y clave después de **cada** reboot, porque la tabla de
