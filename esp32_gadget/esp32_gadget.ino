@@ -26,6 +26,7 @@
 #include "screens.h"
 #include "settings.h"
 #include "spotify.h"
+#include "weather.h"
 
 static ButtonFsm s_button;
 
@@ -87,6 +88,9 @@ void setup() {
   // El calendario tiene su propia tarea y su propio cliente TLS: no depende del
   // bridge y no comparte socket con Spotify ni con el long-poll de Sofía.
   calendarBegin();
+  // El clima también tiene su propia tarea y su propio cliente TLS: no comparte
+  // socket con el calendario ni con Spotify, y el vidrio sólo lee su snapshot.
+  weatherBegin();
   screensBegin();
   if (wakeAtBoot) buddyWakeBegin(millis());
 

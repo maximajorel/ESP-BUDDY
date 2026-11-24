@@ -31,6 +31,10 @@ struct Settings {
   uint8_t brightness;   // 0..100
   uint16_t slotHighScore;
   uint32_t gameHighScore;
+  // Deprecated: the clock is always 24-hour now and the short press shows the
+  // weather instead. The field stays in the blob on purpose. `cfg` is migrated
+  // by its size, so dropping a field would make every stored credential
+  // unreadable and the board would boot with factory defaults.
   bool clock24h;
 };
 

@@ -545,10 +545,6 @@
     var invertY = $('steerInvertY');
     if (invertY && !isEditing(invertY)) invertY.checked = steer.signY === -1;
 
-    var time = status.time || {};
-    var clock24 = $('clock24');
-    if (clock24 && !isEditing(clock24)) clock24.checked = !!time.clock24h;
-
     var buddy = status.buddy || {};
     // The bridge state is one pill at the right end of the Sofía section head;
     // the sentence that explains the cause rides on it as a tooltip.
@@ -1111,6 +1107,151 @@
     }, { threshold: 0.05 }).observe(card);
   }
 
+  // --- clima ----------------------------------------------------------------
+  //
+  // Open-Meteo no pide clave: la tarjeta sólo guarda el lugar y cada cuánto se
+  // refresca. La placa es la que habla con el servicio; este panel sólo muestra
+  // lo que el equipo ya sabe y le pasa la ciudad elegida.
+  var weatherResults = [];
+  var weatherSelected = -1;
+
+  var WEATHER_HINT = {
+    unconfigured: 'Todavía no hay un lugar guardado. Buscá tu ciudad o usá ' +
+      'Detectar mi ubicación, y la pantalla RELOJ empieza a mostrar el clima.',
+    no_data: 'El lugar está guardado y el equipo todavía no bajó el clima. ' +
+      'Suele tardar menos de un minuto: podés apurar con Actualizar ahora.',
+    error: 'El último intento falló. Revisá que el equipo tenga internet y ' +
+      'volvé a intentar con Actualizar ahora.',
+    ready: 'El equipo muestra este clima en la pantalla RELOJ.'
+  };
+
+  function weatherState(wx) {
+    if (wx.kind === 'unconfigured' || !wx.configured) {
+      return { cls: 'warn', text: 'Sin ubicación' };
+    }
+    if (wx.kind === 'error') return { cls: 'bad', text: 'Error' };
+    if (wx.kind === 'no_data' || !wx.hasData) {
+      return { cls: 'warn', text: 'Sin lectura todavía' };
+    }
+    return { cls: 'ok', text: 'Al día' };
+  }
+
+  // "hace 3 min" reads better than an epoch: the owner wants to know how stale
+  // the reading is, not when it happened.
+  function weatherAgo(ms) {
+    if (!ms) return '—';
+    var secs = Math.max(0, Math.round((Date.now() - Number(ms)) / 1000));
+    if (secs < 60) return 'hace ' + secs + ' s';
+    var mins = Math.floor(secs / 60);
+    if (mins < 60) return 'hace ' + mins + ' min';
+    var hours = Math.floor(mins / 60);
+    if (hours < 24) return 'hace ' + hours + ' h';
+    return 'hace ' + Math.floor(hours / 24) + ' días';
+  }
+
+  // Spanish decimal comma, the same number the glass shows.
+  function weatherNumber(value, digits) {
+    if (typeof value !== 'number' || !isFinite(value)) return '—';
+    return value.toFixed(digits).replace('.', ',');
+  }
+
+  function renderWeather(wx) {
+    var state = weatherState(wx);
+    var box = $('wxStateBox');
+    if (box) box.className = 'sp-state ' + state.cls;
+    setText('wxState', state.text);
+    setText('wxStateHint', wx.syncing
+      ? 'El equipo está consultando el clima ahora mismo…'
+      : (WEATHER_HINT[wx.kind] || WEATHER_HINT.unconfigured));
+
+    // The device reports the last failure on its own line: a state of "Al día"
+    // with an old error still needs to be readable.
+    var error = $('wxError');
+    if (error) {
+      error.textContent = wx.lastError ? 'Último error: ' + wx.lastError : '';
+      error.hidden = !wx.lastError;
+    }
+
+    var place = wx.place || {};
+    var now = wx.now || {};
+    setText('wxPlace', place.valid ? (place.name || 'Ubicación guardada') : '—');
+    setText('wxNow', now.valid && typeof now.tempC === 'number'
+      ? weatherNumber(now.tempC, 1) + ' °C · ' + (now.label || 'sin descripción')
+      : '—');
+    setText('wxUpdated', weatherAgo(wx.lastSuccessMs));
+    setText('wxRefresh', wx.refreshMin
+      ? 'Cada ' + wx.refreshMin + ' min'
+      : '—');
+    setText('wxLat', place.valid ? weatherNumber(Number(place.lat), 4) : '—');
+    setText('wxLon', place.valid ? weatherNumber(Number(place.lon), 4) : '—');
+    if (wx.refreshMin) setValue('wxRefreshMin', String(wx.refreshMin));
+
+    var configured = !!wx.configured && !!place.valid;
+    var detect = $('wxDetect');
+    if (detect) detect.disabled = !!wx.syncing;
+    var refreshNow = $('wxRefreshNow');
+    if (refreshNow) refreshNow.disabled = !configured || !!wx.syncing;
+    var forget = $('wxForget');
+    if (forget) forget.disabled = !configured;
+    // "Usar esta ciudad" only makes sense with a result picked from the list.
+    var use = $('wxUse');
+    if (use) use.disabled = weatherSelected < 0;
+  }
+
+  function loadWeather() {
+    return api('GET', '/api/weather').then(
+      function (wx) { renderWeather(wx); },
+      function (error) {
+        var box = $('wxStateBox');
+        if (box) box.className = 'sp-state bad';
+        setText('wxState', 'Error');
+        setText('wxStateHint', 'No se pudo leer el clima del equipo: ' + error.message);
+      }
+    );
+  }
+
+  function renderWeatherResults(results) {
+    weatherResults = results || [];
+    weatherSelected = -1;
+    var use = $('wxUse');
+    if (use) use.disabled = true;
+    var list = $('wxResults');
+    if (!list) return;
+    list.textContent = '';
+    list.hidden = !weatherResults.length;
+    weatherResults.forEach(function (item, index) {
+      var chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'chip';
+      chip.setAttribute('aria-pressed', 'false');
+      var where = [item.region, item.country].filter(Boolean).join(', ');
+      chip.textContent = item.name + (where ? ' — ' + where : '');
+      chip.addEventListener('click', function () {
+        weatherSelected = index;
+        Array.prototype.forEach.call(list.querySelectorAll('.chip'), function (other) {
+          other.setAttribute('aria-pressed', String(other === chip));
+        });
+        if (use) use.disabled = false;
+      });
+      list.appendChild(chip);
+    });
+  }
+
+  // Every weather action answers with the same body as GET /api/weather, so the
+  // card is repainted from the response instead of waiting for another round.
+  function weatherAction(button, path, body, okMessage, busyLabel) {
+    return busy(button, busyLabel || 'Guardando…', function () {
+      return api('POST', path, body);
+    }).then(
+      function (wx) {
+        renderWeather(wx);
+        toast(okMessage, 'ok');
+        return wx;
+      },
+      function (error) { toast(error.message, 'err'); return null; }
+    );
+  }
+
   // --- tabs -----------------------------------------------------------------
 
   // The panel is ten sections behind one tab strip. The tablist owns the roving
@@ -1560,6 +1701,102 @@
       });
     }
 
+    // --- integraciones: clima -----------------------------------------------
+    //
+    // Todo pasa por la placa: ella busca la ciudad, guarda el lugar y habla con
+    // Open-Meteo. La tarjeta sólo lleva el texto que escribió el dueño.
+    if ($('wxSearchForm')) {
+      on('wxSearchForm', 'submit', function (event) {
+        event.preventDefault();
+        var query = $('wxQuery').value.trim();
+        if (!query) {
+          toast('Escribí el nombre de una ciudad', 'err');
+          return;
+        }
+        busy(event.target.querySelector('button[type="submit"]'), 'Buscando…', function () {
+          return api('POST', '/api/weather/search', { q: query });
+        }).then(
+          function (answer) {
+            renderWeatherResults(answer.results || []);
+            if (!weatherResults.length) {
+              toast('No encontré esa ciudad: probá con otro nombre', 'err');
+            }
+          },
+          function (error) {
+            // A 404 is "no encontré esa ciudad", not a broken card: the list
+            // goes away and the toast says what to try instead.
+            renderWeatherResults([]);
+            toast(error.message, 'err');
+          }
+        );
+      });
+    }
+
+    if ($('wxUse')) {
+      on('wxUse', 'click', function (event) {
+        var item = weatherResults[weatherSelected];
+        if (!item) {
+          toast('Elegí una ciudad de la lista', 'err');
+          return;
+        }
+        weatherAction(event.target, '/api/weather/location',
+          { lat: Number(item.lat), lon: Number(item.lon), name: item.name },
+          'Ciudad guardada: ' + item.name).then(function (wx) {
+          if (wx) renderWeatherResults([]);
+        });
+      });
+    }
+
+    if ($('wxDetect')) {
+      on('wxDetect', 'click', function (event) {
+        weatherAction(event.target, '/api/weather/detect', undefined,
+          'Ubicación detectada', 'Detectando…');
+      });
+    }
+
+    if ($('wxConfigForm')) {
+      on('wxConfigForm', 'submit', function (event) {
+        event.preventDefault();
+        var field = $('wxRefreshMin');
+        var minutes = field ? Number(field.value) : NaN;
+        // The firmware rejects anything outside 5..180; catching it here avoids a
+        // round trip and keeps the reason next to the field.
+        if (!isFinite(minutes) || minutes < 5 || minutes > 180) {
+          toast('El refresco va de 5 a 180 minutos', 'err');
+          return;
+        }
+        weatherAction(event.target.querySelector('button[type="submit"]'),
+          '/api/weather/config', { refreshMin: Math.round(minutes) },
+          'Refresco cada ' + Math.round(minutes) + ' min').then(function (wx) {
+          if (!wx) return;
+          // Applied: the field follows the device again, so the stored value is
+          // what shows even if the typed one had an odd format.
+          clearDirtyIn($('wxConfigForm'));
+          renderWeather(wx);
+        });
+      });
+    }
+
+    if ($('wxRefreshNow')) {
+      on('wxRefreshNow', 'click', function (event) {
+        weatherAction(event.target, '/api/weather/refresh', undefined,
+          'Pidiendo el clima al equipo', 'Actualizando…');
+      });
+    }
+
+    if ($('wxForget')) {
+      on('wxForget', 'click', function (event) {
+        if (!confirm('Se borra la ubicación guardada y la pantalla RELOJ deja de ' +
+                     'mostrar el clima hasta que elijas otra. ¿Seguir?')) {
+          return;
+        }
+        weatherAction(event.target, '/api/weather/forget', undefined,
+          'Ubicación olvidada').then(function (wx) {
+          if (wx) renderWeatherResults([]);
+        });
+      });
+    }
+
     if ($('timeoutScreens')) {
       on('timeoutScreens', 'change', function (event) {
         if (!event.target.hasAttribute('data-sleep-screen')) return;
@@ -1600,12 +1837,6 @@
       submit(event.target, '/api/settings',
         { rotationLocked: event.target.checked },
         event.target.checked ? 'Rotación bloqueada' : 'Rotación libre');
-    });
-
-    on('clock24', 'change', function (event) {
-      submit(event.target, '/api/settings',
-        { clock24h: event.target.checked },
-        event.target.checked ? 'Reloj en 24 horas' : 'Reloj en 12 horas');
     });
 
     on('rgbLevel', 'input', function (event) {
@@ -1851,6 +2082,7 @@
     setInterval(refresh, POLL_MS);
     watchSpotify();
     watchCalendar();
+    loadWeather();
   }
 
   if (document.readyState === 'loading') {

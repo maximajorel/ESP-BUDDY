@@ -8,6 +8,7 @@
 // channels that make it readable on the glass without carrying the previous
 // expression along.
 
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 
@@ -86,12 +87,21 @@ static void testHold() {
   check("S7 a hold still expires after the wraparound",
         !buddyGameActive(&o, (uint32_t)(0xFFFFFE00u + 3001u)));
 
+  buddyGameSet(&o, BUDDY_GAME_SAD, 2000u, 1000u);
+  check("S7 elapsed starts at the mood's own clock",
+        buddyGameElapsed(&o, 1000u) == 0u &&
+            buddyGameElapsed(&o, 2500u) == 1500u);
+  buddyGameSet(&o, BUDDY_GAME_SAD, 3000u, 0xFFFFFF00u);
+  check("S7 elapsed survives the millis() wraparound",
+        buddyGameElapsed(&o, (uint32_t)(0xFFFFFF00u + 200u)) == 200u);
+
   buddyGameClear(&o);
   check("S7 clearing ends the override at once",
         buddyGameCurrent(&o, 0) == BUDDY_GAME_NONE);
+  check("S7 a cleared mood has no elapsed", buddyGameElapsed(&o, 5000u) == 0u);
 }
 
-static BuddyPose posed(BuddyGameMood mood) {
+static BuddyPose posed(BuddyGameMood mood, uint32_t elapsedMs = 0u) {
   BuddyPose p;
   // Start from a face the bridge could plausibly be showing: narrowed lids and
   // the previous expression's channels set, so every mood has to clear what it
@@ -104,13 +114,69 @@ static BuddyPose posed(BuddyGameMood mood) {
   p.grow = 1.04f;
   p.rotL = 3.0f;
   p.rotR = -3.0f;
+  p.gazeX = 1.0f;
+  p.gazeY = -1.0f;
+  p.turn = -0.25f;
+  p.tilt = 2.0f;
   p.happy = true;
   p.closed = true;
   p.blink = true;
   p.surprise = true;
   p.dim = true;
-  buddyGameApplyPose(&p, mood);
+  buddyGameApplyPose(&p, mood, elapsedMs);
   return p;
+}
+
+// The "no" beats are an animation, not a pose, so the test samples the same
+// elapsed-time table the firmware uses and watches the signs cross.
+static void checkSadNoBeats() {
+  int prevGx = 0, prevTurn = 0;
+  int gxFlips = 0, turnFlips = 0;
+  for (uint32_t t = 4400u; t <= 5800u; t += 10u) {
+    BuddyPose p = posed(BUDDY_GAME_SAD, t);
+    int gx = p.gazeX > 0.01f ? 1 : (p.gazeX < -0.01f ? -1 : 0);
+    int turn = p.turn > 0.005f ? 1 : (p.turn < -0.005f ? -1 : 0);
+    if (gx && prevGx && gx != prevGx) gxFlips++;
+    if (turn && prevTurn && turn != prevTurn) turnFlips++;
+    if (gx) prevGx = gx;
+    if (turn) prevTurn = turn;
+  }
+  check("S7 sad says no with the gaze, not a sway", gxFlips >= 2);
+  check("S7 sad says no with the head too", turnFlips >= 2);
+}
+
+static void checkSadTimeline() {
+  BuddyPose start = posed(BUDDY_GAME_SAD, 0u);
+  check("S7 sad starts sad, not neutral",
+        start.gazeY > 0.0f && start.gazeX < 0.0f);
+
+  float maxLid = 0.0f;
+  float minOpen = 1.0f;
+  for (uint32_t t = 0u; t <= 8000u; t += 50u) {
+    BuddyPose p = posed(BUDDY_GAME_SAD, t);
+    float combined = p.lid + (p.lidL > p.lidR ? p.lidL : p.lidR);
+    if (combined > maxLid) maxLid = combined;
+    if (p.open < minOpen) minOpen = p.open;
+  }
+  check("S7 sad never collapses the aperture to the blink bar", minOpen >= 0.35f);
+  // A full lid is not a sigh on this board: `buddyEyeHalfH` returns a 4 px bar
+  // when shut, and above ~0.70 only a glowing thread is left between the eyes.
+  check("S7 sad never reaches the line-in-the-middle lid", maxLid < 1.0f);
+  check("S7 sad keeps the sigh a thick slit", maxLid <= 0.65f);
+
+  BuddyPose sigh = posed(BUDDY_GAME_SAD, 3000u);
+  check("S7 sad sighs with a heavy lid", sigh.lid > 0.45f && sigh.lid < 1.0f);
+  BuddyPose afterSigh = posed(BUDDY_GAME_SAD, 4000u);
+  check("S7 sad opens again after the sigh", afterSigh.lid < 0.2f);
+
+  checkSadNoBeats();
+
+  BuddyPose rest = posed(BUDDY_GAME_SAD, 8000u);
+  check("S7 sad settles back to the resting sad pose after the hold",
+        fabsf(rest.lid - start.lid) < 1e-4f &&
+            fabsf(rest.gazeX - start.gazeX) < 1e-4f &&
+            fabsf(rest.gazeY - start.gazeY) < 1e-4f &&
+            fabsf(rest.turn - start.turn) < 1e-4f);
 }
 
 static void testPoses() {
@@ -146,12 +212,35 @@ static void testPoses() {
   check("S7 sleepy shuts the eyes", sleepy.closed && sleepy.lid > 0.9f);
 
   BuddyPose sad = posed(BUDDY_GAME_SAD);
-  check("S7 sad cuts the eye from the bottom", sad.bottom > 0.3f);
-  check("S7 sad is not hot", sad.hot == 0.0f);
+  // Sad is the mirror of anger, not a squint: the outer corners drop and the
+  // eye stays open. It must not read like focus, whose even lid is 0.18.
+  check("S7 sad drops both outer corners to the mirror of anger",
+        sad.rotL < 0.0f && sad.rotR > 0.0f &&
+            fabsf(sad.rotL + sad.rotR) < 1e-4f &&
+            anger.rotL > 0.0f && anger.rotR < 0.0f);
+  check("S7 sad is not an even focus squint", sad.lid < 0.18f);
+  check("S7 sad barely cuts the eye from the bottom", sad.bottom < 0.2f);
+  check("S7 sad looks down and a little aside",
+        sad.gazeY > 0.0f && sad.gazeX < 0.0f);
+  check("S7 sad is not hot and does not grow",
+        sad.hot == 0.0f && sad.grow == 1.0f);
   check("S7 sad opens the eyes", !sad.closed);
+  checkSadTimeline();
 
   BuddyPose none = posed(BUDDY_GAME_NONE);
   check("S7 none leaves the bridge pose untouched", none.lid == 0.55f);
+
+  // Only SAD owns the gaze/turn/tilt channels: every other mood must keep the
+  // bridge's values exactly as it did before the sad gesture existed.
+  BuddyPose untouched;
+  untouched.gazeX = 2.0f;
+  untouched.gazeY = 1.5f;
+  untouched.turn = 0.4f;
+  untouched.tilt = 3.0f;
+  buddyGameApplyPose(&untouched, BUDDY_GAME_FOCUS);
+  check("S7 focus does not touch the gaze or the head turn",
+        untouched.gazeX == 2.0f && untouched.gazeY == 1.5f &&
+            untouched.turn == 0.4f && untouched.tilt == 3.0f);
 }
 
 int main() {

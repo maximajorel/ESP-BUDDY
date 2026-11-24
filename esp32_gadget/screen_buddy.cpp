@@ -1752,14 +1752,15 @@ bool buddyTick(uint32_t nowMs) {
 
   // Sleeping is patience, and patience is local: MIN(the bridge's silence, the
   // board's silence) from buddy_sleep.h. Only a state that is not asking for
-  // attention may doze: `thinking` or `waiting` is the server working, and the
-  // ball is the owner playing, so neither is a nap.
+  // attention may doze, and the ball or the web game means the owner is playing:
+  // a nap there is a face that shuts its eyes in the middle of a turn.
   BuddySleepStage sleepStage = buddySleepClockStage(
       &s_sleep, nowMs, view.sleepHintSec, view.sleepHintValid);
   bool ballGame = s_ballOn && view.phase == BUDDY_PHASE_IDLE &&
                   shown == BUDDY_IDLE;
-  bool canSleep =
-      view.online && !ballGame && (shown == BUDDY_IDLE || shown == BUDDY_DONE);
+  bool canSleep = buddySleepCanDoze(
+      view.online, shown == BUDDY_IDLE || shown == BUDDY_DONE, ballGame,
+      gameFace);
   bool asleepNow = canSleep && sleepStage != BUDDY_SLEEP_AWAKE;
 
   // `shown` stays the bridge's state (the HUD and the bead follow it); the sleep
@@ -1977,7 +1978,9 @@ bool buddyTick(uint32_t nowMs) {
     s_gameDrawn = gameMood;
     s_dirty = true;
   }
-  if (gameMood != BUDDY_GAME_NONE) buddyGameApplyPose(&pose, gameMood);
+  if (gameMood != BUDDY_GAME_NONE) {
+    buddyGameApplyPose(&pose, gameMood, buddyGameElapsed(&s_game, nowMs));
+  }
 
   // The sleeping letters need both halves: eyes shut (deep sleep) and the board
   // lying on the table for a while.
@@ -2044,6 +2047,13 @@ bool buddyTick(uint32_t nowMs) {
     if (us > s_drawMaxUs) s_drawMaxUs = us;
   }
   return true;
+}
+
+void buddyNoteUserActivity() {
+  // Somebody touched the panel: a POST is a person the way a shake is, while the
+  // landing's ten-second GET /api/status is a poll and would keep her awake
+  // forever. The clock is the board's, so the bridge has no vote on this.
+  buddySleepStimulus(&s_sleep, millis());
 }
 
 BuddyMood buddyMood() { return s_mood; }

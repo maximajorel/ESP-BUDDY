@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "comments": [
+    {
+      "id": "0k5mh97q",
+      "file": "01-popover-bandeja.html",
+      "selector": "body > div",
+      "excerpt": "ESCRITORIO · CONTEXTO Este equipo Papelera BUDDY · bandeja EN LÍNEA PANTALLA DEL LCD 6/7 RELOJ TRAGAMONEDAS METEORITOS RED MÚSICA SOFÍA EN PANTALLA CONFIG TEMPORIZADOR CORRIENDO CONCENTRACIÓN 25 min · vuelve a Sofía al terminar 24:37 /25 10 MIN 25 MIN 45 MIN PERSONALIZADO PARAR +5 MIN CALENDARIO 2 E",
+      "comment": "esquinas redondeadas de la ventana",
+      "createdAt": "2026-11-22T19:15:33.206Z",
+      "status": "resolved",
+      "sentAt": "2026-11-22T19:15:33.237Z",
+      "resolvedAt": "2026-11-22T19:16:59.192Z"
+    },
+    {
+      "id": "z7wrhze2",
+      "file": "02-ventana-riel.html",
+      "selector": "body > div > div:nth-of-type(1)",
+      "excerpt": "Abrir Buddy Ctrl+Alt+B AHORA EN EL LCD Sofía pantalla Concentración 24:37 Este mes 2 hoy Iniciar con Windows sí Salir",
+      "comment": "No se que es esto es un cuadro totalmente negro xd",
+      "createdAt": "2026-11-22T19:16:00.652Z",
+      "status": "resolved",
+      "sentAt": "2026-11-22T19:16:00.677Z",
+      "resolvedAt": "2026-11-22T19:19:43.648Z"
+    }
+  ]
+}

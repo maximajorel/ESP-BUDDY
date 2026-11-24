@@ -1,0 +1,35 @@
+# Usar el panel también es actividad: un POST despierta la cara, un GET no.
+#
+# El reloj de sueño es local, así que se lee con `buddysleep`: `stage=` da
+# awake/light/deep e `idle=` son los ms de silencio que mide la placa. La prueba
+# necesita una cara dormida de verdad: `buddyface` congela el reloj y la lectura
+# mentiría, así que la escalera corre sola y hay que esperar más de un minuto.
+#
+# Lo que tiene que mostrar cada muestra, en orden:
+#   1. `stage=light` (o `deep`) con `idle=` de más de 60 s: la cara ya se durmió
+#      sola. Si esta lectura sale `awake`, la prueba no prueba nada.
+#   2. Después de `POST /api/face` (el ánimo del ta-te-ti) y un `buddysleep`:
+#      `stage=awake`, `idle=` en cero o unos pocos ms y `asleep=0`. La acción
+#      contó como estímulo, igual que una sacudida del IMU.
+#   3. Cuando el ánimo vence a los 8 s, el reloj sigue corriendo desde ese POST:
+#      `stage=awake` e `idle=` de ~10 s. Volver a `deep` de golpe es justo el bug
+#      del reporte, "se despierta al hacer la accion pero se vuelve a dormir al
+#      toque": acá el ánimo ya no está y la cara sigue atenta.
+#   4. Un `GET /api/status` —el poll del landing cada 10 s— no mueve el reloj:
+#      `idle=` sigue creciendo. Si un GET contara como persona, la cara no
+#      dormiría nunca mientras la página esté abierta.
+boot 4
+api GET /api/status
+api POST /api/screen {"index":5}
+sleep 65000
+buddysleep
+
+api POST /api/face {"mood":"focus","ms":8000}
+buddysleep
+
+sleep 8500
+buddysleep
+
+api GET /api/status
+sleep 2000
+buddysleep

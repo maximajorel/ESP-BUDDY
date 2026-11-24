@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sofía · triste 01 · por qué hoy se lee concentrada</title>
+<style>
+  :root {
+    --bg: #0e1015; --card: #161a22; --inset: #1b212b; --line: #262d3a;
+    --tx: #e8ecf4; --dim: #94a0b4; --accent: #00b4ff; --accent-soft: #0b2b38;
+    --eye: #00b4ff; --hot: #ff3c1e; --gold: #ffd700; --ok: #4ade80;
+    --radius: 16px;
+  }
+  * { box-sizing: border-box; }
+  html { color-scheme: dark; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg); color: var(--tx);
+    font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display: flex; justify-content: center;
+  }
+  .stage { width: 100%; max-width: 1180px; padding: 28px 24px 56px; }
+  header { margin-bottom: 20px; }
+  h1 { margin: 0 0 6px; font-size: 24px; letter-spacing: -0.3px; }
+  .sub { margin: 0; color: var(--dim); font-size: 14px; max-width: 76ch; }
+  .badge {
+    display: inline-block; margin-top: 12px; padding: 4px 10px; border-radius: 999px;
+    background: var(--accent-soft); color: var(--accent); font-size: 12px;
+    letter-spacing: 0.4px; text-transform: uppercase; font-weight: 600;
+  }
+  h2 { font-size: 15px; margin: 0 0 10px; letter-spacing: 0.2px; }
+  p, li { font-size: 13.5px; color: var(--dim); }
+  b { color: var(--tx); font-weight: 600; }
+  code { font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--tx); }
+  .row-faces { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .facecard { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; }
+  .facecard canvas {
+    display: block; width: 100%; height: auto; border-radius: 8px;
+    image-rendering: pixelated; background: #000; border: 1px solid #000;
+  }
+  .facecard h3 { margin: 10px 0 2px; font-size: 13px; }
+  .facecard .ch { margin: 0; font: 11.5px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--dim); }
+  .facecard .ch b { color: var(--accent); font-weight: 600; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; margin-top: 16px; }
+  .card ul { margin: 0; padding-left: 18px; }
+  .card li { margin-bottom: 6px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+  th, td { text-align: left; font-size: 12.5px; padding: 7px 8px; border-bottom: 1px solid var(--line); }
+  th { color: var(--dim); font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.4px; }
+  td code { font-size: 12px; }
+  .num { font-variant-numeric: tabular-nums; }
+  .sliders { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px 24px; margin-top: 4px; }
+  .slider label { display: block; font-size: 12.5px; color: var(--dim); margin-bottom: 4px; }
+  .slider label output { color: var(--accent); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  input[type="range"] { width: 100%; accent-color: var(--accent); }
+  .tradeoff { border-left: 2px solid var(--accent); padding-left: 12px; color: var(--dim); font-size: 13.5px; margin: 16px 0 0; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--dim); margin-top: 14px; }
+  .key { display: inline-flex; align-items: center; gap: 6px; }
+  .key i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+  @media (max-width: 900px) { .row-faces { grid-template-columns: repeat(2, 1fr); } }
+</style>
+</head>
+<body>
+<main class="stage">
+  <header>
+    <h1>Por qué el "Triste" de hoy se lee concentrada</h1>
+    <p class="sub">El estado que hoy dispara el chip <em>Triste</em> del panel es <code>lid 0.22</code> más <code>bottom 0.45</code>. <em>Concentrada</em> es <code>lid 0.18</code>. La diferencia son 4 puntos de párpado y un recorte de abajo: los mismos dos canales, en la misma dirección, sobre la misma cara simétrica con la mirada al frente. El vidrio no tiene boca ni cejas dibujadas, así que no queda nada que diga "tristeza": queda una cara entrecerrada, que es exactamente cómo se lee concentración.</p>
+    <span class="badge">Dirección 01 · diagnóstico, no propuesta</span>
+  </header>
+
+  <div class="row-faces">
+    <div class="facecard">
+      <canvas data-preset="calm" width="640" height="344" aria-label="Cara en calma, la pose del bridge"></canvas>
+      <h3>Calma</h3>
+      <p class="ch">lid <b>0.00</b><br>bottom 0.00 · rot 0</p>
+    </div>
+    <div class="facecard">
+      <canvas data-preset="focus" width="640" height="344" aria-label="Cara concentrada"></canvas>
+      <h3>Concentrada</h3>
+      <p class="ch">lid <b>0.18</b><br>bottom 0.00 · rot 0</p>
+    </div>
+    <div class="facecard">
+      <canvas data-preset="sad" id="sadLive" width="640" height="344" aria-label="Cara triste como está hoy en el firmware"></canvas>
+      <h3>Triste (hoy)</h3>
+      <p class="ch">lid <b>0.22</b><br>bottom <b>0.45</b> · rot 0</p>
+    </div>
+    <div class="facecard">
+      <canvas data-preset="sleepy" width="640" height="344" aria-label="Cara con sueño, ojos cerrados"></canvas>
+      <h3>Con sueño</h3>
+      <p class="ch">lid <b>1.00</b><br>closed · rot 0</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Mové los dos canales y mirá qué aparece</h2>
+    <p>El párpado de arriba baja y el de abajo sube: son dos cortes que <b>achican</b> la abertura. Ningún valor de estos dos suma un gesto nuevo, sólo aprieta más. Por eso cualquier combinación cae en el mismo vocabulario: calma → concentrada → entrecerrada → dormida.</p>
+    <div class="sliders">
+      <div class="slider">
+        <label for="lid">lid (párpado de arriba) <output id="lidOut">0.22</output></label>
+        <input id="lid" type="range" min="0" max="1" step="0.01" value="0.22">
+      </div>
+      <div class="slider">
+        <label for="bottom">bottom (párpado de abajo) <output id="bottomOut">0.45</output></label>
+        <input id="bottom" type="range" min="0" max="0.6" step="0.01" value="0.45">
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Qué canales tiene la cara, y cuáles hoy no usa el ánimo triste</h2>
+    <table>
+      <thead>
+        <tr><th>Canal</th><th>Qué hace en el vidrio</th><th>Triste hoy</th><th>Lo usa</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>lid</code></td><td>Baja el párpado de arriba, parejo en los dos ojos</td><td class="num">0.22</td><td>sí</td></tr>
+        <tr><td><code>bottom</code></td><td>Sube el párpado de abajo, parejo</td><td class="num">0.45</td><td>sí</td></tr>
+        <tr><td><code>lidL</code> / <code>lidR</code></td><td>Párpado distinto por ojo (asimetría)</td><td class="num">0 / 0</td><td><b>no</b></td></tr>
+        <tr><td><code>rotL</code> / <code>rotR</code></td><td>Inclina cada ojo, y con él su línea de párpado: es lo más parecido a una ceja que tiene la cara. El enojo usa <code>+8 / −8</code></td><td class="num">0 / 0</td><td><b>no</b></td></tr>
+        <tr><td><code>gazeY</code></td><td>Baja la mirada</td><td class="num">0</td><td><b>no</b></td></tr>
+        <tr><td><code>turn</code> / <code>tilt</code></td><td>Gira y ladea la cabeza entera</td><td class="num">0 / 0</td><td><b>no</b></td></tr>
+        <tr><td>tiempo</td><td>Un parpadeo de 150 ms contra uno de 1.2 s; respiración de 4,5 s contra 7 s</td><td>igual que calma</td><td><b>no</b></td></tr>
+      </tbody>
+    </table>
+    <p>El ánimo triste usa <b>dos de los siete</b> canales, y los dos son los que ya usa concentración. No es un problema de valores: es que el gesto no está escrito.</p>
+  </div>
+
+  <div class="card">
+    <h2>Lo que esta dirección no propone</h2>
+    <p>No propone dibujar una boca, cejas o una lágrima: el firmware dibuja dos ojos y su glow, y sumar anatomía nueva es un cambio de renderizador, no de ánimo. Las tres direcciones siguientes se quedan dentro de los canales que ya existen.</p>
+  </div>
+
+  <p class="tradeoff"><b>Tradeoff:</b> este tablero no elige nada; gasta una pantalla en mostrar que el problema es de vocabulario y no de ajuste fino. Si igual elegimos "subir el bottom y bajar el lid hasta que se note", el resultado va a seguir siendo una cara más apretada, no una cara triste, y va a robarle el gesto a concentración.</p>
+
+  <p class="legend">
+    <span class="key"><i style="background:var(--eye)"></i> ojo del dueño #00b4ff</span>
+    <span class="key">Silueta: squircle de 48×48 con radio 0.38, ojos a ±55 del centro, vidrio de 320×172.</span>
+    <span class="key">Glow aproximado: en la placa se ditheriza, acá se mezcla con alpha.</span>
+  </p>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  var EYE = "#00b4ff";
+
+  function rr(ctx, x, y, w, h, r) {
+    var m = Math.min(w, h) / 2;
+    if (r > m) r = m;
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
+  function rgba(hex, a) {
+    var n = parseInt(hex.slice(1), 16);
+    return "rgba(" + ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + a + ")";
+  }
+
+  // The glass: 320x172, eyes at 160 +- 55 and y = 88, drawn at 2x.
+  function draw(ctx, p) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, 640, 344);
+    ctx.setTransform(2, 0, 0, 2, 0, 0);
+    var cy = 88 + (p.gy || 0);
+    for (var i = 0; i < 2; i++) {
+      var x = 160 + (i === 0 ? -55 : 55) + (p.gx || 0);
+      var deg = (p.rot || 0) + (i === 0 ? (p.rotL || 0) : (p.rotR || 0));
+      var pads = [[10, 0.10], [7, 0.16], [4, 0.22]];
+      for (var g = 0; g < pads.length; g++) {
+        var pad = pads[g][0];
+        ctx.fillStyle = rgba(EYE, pads[g][1]);
+        rr(ctx, x - p.rx - pad, cy - p.ry - pad, 2 * (p.rx + pad), 2 * (p.ry + pad),
+           Math.min(p.rx, p.ry) * 0.38 + pad * 0.6);
+        ctx.fill();
+      }
+      ctx.save();
+      ctx.translate(x, cy);
+      ctx.rotate(deg * Math.PI / 180);
+      ctx.fillStyle = EYE;
+      rr(ctx, -p.rx, -p.ry, 2 * p.rx, 2 * p.ry, Math.min(p.rx, p.ry) * 0.38);
+      ctx.fill();
+      var lid = Math.max(0, Math.min(1, (p.lid || 0) + (i === 0 ? (p.lidL || 0) : (p.lidR || 0))));
+      var lidY = -p.ry + 2 * p.ry * lid;
+      if (lidY > -p.ry) {
+        ctx.fillStyle = "#000";
+        ctx.fillRect(-p.rx - 16, -p.ry - 16, 2 * p.rx + 32, lidY + p.ry + 16);
+      }
+      var bot = Math.max(0, Math.min(1, p.bottom || 0));
+      var botY = p.ry - 2 * p.ry * bot;
+      if (botY < p.ry) {
+        ctx.fillStyle = "#000";
+        ctx.fillRect(-p.rx - 16, botY, 2 * p.rx + 32, p.ry - botY + 16);
+      }
+      ctx.restore();
+    }
+  }
+
+  function P(o) {
+    var base = { rx: 48, ry: 48, lid: 0, lidL: 0, lidR: 0, bottom: 0,
+                 rot: 0, rotL: 0, rotR: 0, gx: 0, gy: 0, closed: false };
+    for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) base[k] = o[k];
+    return base;
+  }
+
+  var PRESETS = {
+    calm: P({}),
+    focus: P({ lid: 0.18 }),
+    sad: P({ lid: 0.22, bottom: 0.45 }),
+    sleepy: P({ lid: 1 })
+  };
+
+  var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  Array.prototype.forEach.call(document.querySelectorAll("[data-preset]"), function (cv) {
+    var ctx = cv.getContext("2d");
+    var preset = cv.getAttribute("data-preset");
+    var p = P(PRESETS[preset]);
+    // The triste card is driven by the two sliders below, so it gets its own
+    // paint; animating it here would fight them for the same canvas.
+    if (cv.id === "sadLive") return;
+    if (reduce) { draw(ctx, p); return; }
+    // A living face, not a still: the blink is the same 150 ms bar the board
+    // draws, so the comparison is honest about timing too.
+    var t0 = performance.now();
+    (function frame(now) {
+      var t = (now - t0) / 1000;
+      var blink = (t % 4.2) > 4.05;
+      var breathe = Math.sin(t * (2 * Math.PI / 4.5)) * 1.2;
+      var q = P(p);
+      q.gy = breathe;
+      if (blink && preset !== "sleepy") q.lid = 1;
+      draw(ctx, q);
+      requestAnimationFrame(frame);
+    })(t0);
+  });
+
+  // The slider board: the shipped sad face, morphing its own two channels.
+  var sadCv = document.getElementById("sadLive");
+  var sctx = sadCv.getContext("2d");
+  var live = P({ lid: 0.22, bottom: 0.45 });
+  var lidIn = document.getElementById("lid");
+  var botIn = document.getElementById("bottom");
+  var lidOut = document.getElementById("lidOut");
+  var botOut = document.getElementById("bottomOut");
+
+  function paint() {
+    live.lid = parseFloat(lidIn.value);
+    live.bottom = parseFloat(botIn.value);
+    lidOut.textContent = live.lid.toFixed(2);
+    botOut.textContent = live.bottom.toFixed(2);
+    draw(sctx, live);
+  }
+  lidIn.addEventListener("input", paint);
+  botIn.addEventListener("input", paint);
+  paint();
+})();
+</script>
+</body>
+</html>

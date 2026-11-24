@@ -20,6 +20,7 @@ _legacy/waveshare-demo/
 *.map
 *.hex
 *.merged.bin
+*.bin
 __pycache__/
 *.py[cod]
 
@@ -36,17 +37,25 @@ desktop.ini
 # Web panel credentials for a build: `.env` holds the owner's user and password,
 # and the generated header keeps only a salt and a digest of them. Both are
 # per-machine, so neither is versioned; `.env.example` documents the keys.
+# `.env.*` catches local variants and backups (`.env.local`, `.env.bak`) that
+# would otherwise leak the same credentials.
 .env
+.env.*
+!.env.example
 esp32_gadget/admin_seed.h
+esp32_gadget/admin_seed.h.*
 
 # --- Local tooling ----------------------------------------------------------
 .codegraph/
+.venv/
+venv/
 
 # --- Tauri / Rust -----------------------------------------------------------
 # El target de Cargo y lo que deja al enlazar. `tray_buddy/.gitignore` ya cubre
 # su propio `src-tauri/target/` y `node_modules/`; esto es la red por si alguien
 # compila desde la raíz. `Cargo.lock` NO se ignora: es un binario, y el lock es
 # parte de la reproducibilidad del build.
+node_modules/
 target/
 *.pdb
 

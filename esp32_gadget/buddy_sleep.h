@@ -105,3 +105,16 @@ static inline BuddySleepStage buddySleepClockStage(const BuddySleepClock *c,
   f.localIdleMs = buddySleepClockIdleMs(c, nowMs);
   return buddySleepStage(f);
 }
+
+// Whether the ladder may run at all, whatever the clock says. The ball and the
+// web game are the owner playing: a sleeping pose there would be a face that
+// dozes off in the middle of a turn, and the game's mood overlay would have to
+// fight the shut eyes anyway. `quietState` is the bridge being idle or done --
+// anything else is asking for attention and does not nap. Pure so the gate has
+// no way to read a pose that `screen_buddy.cpp` already built.
+static inline bool buddySleepCanDoze(bool linkUp, bool quietState, bool ballGame,
+                                     bool gameFace) {
+  if (!linkUp || !quietState) return false;
+  if (ballGame || gameFace) return false;
+  return true;
+}

@@ -72,6 +72,10 @@ a { color: var(--ink); }
    sections live in a column and the content takes the rest of the page. */
 /* The column is as wide as the longest label and every pill fills it, so the
    menu reads as one block instead of a ragged stack. */
+/* The panel is one sheet: the aside reaches the bottom of the window even when
+   the open section is short, and the footer sits under the whole layout. */
+.admin-body { display: flex; flex-direction: column; min-height: 100vh; }
+.admin-body .shell { flex: 1 1 auto; }
 .shell { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: stretch; }
 .tabs { display: flex; flex-direction: column; align-items: stretch; gap: 6px; padding: 10px; background: var(--paper); border-right: var(--line); }
 .nav-item { flex: 0 0 auto; display: flex; align-items: center; justify-content: flex-start; gap: 7px; width: 100%; min-height: 36px; padding: 7px 11px; border: var(--line); border-radius: var(--r-pill); background: var(--paper); color: var(--ink); font: inherit; font-size: 11px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; white-space: nowrap; cursor: pointer; }
@@ -249,6 +253,7 @@ input:disabled, select:disabled { background: var(--mist); opacity: 0.75; }
 
 /* the panel's footer sits outside <main>, so it needs the same gutter */
 main + footer, body > footer { padding: 0 14px 32px; font-size: 11px; }
+.admin-body > footer { text-align: center; }
 main + footer p, body > footer p { margin: 0 0 4px; }
 
 @media (min-width: 620px) {
@@ -293,7 +298,7 @@ main + footer p, body > footer p { margin: 0 0 4px; }
 }
 </style>
 </head>
-<body>
+<body class="admin-body">
 
 <a class="skip" href="#contenido">Saltar al contenido</a>
 

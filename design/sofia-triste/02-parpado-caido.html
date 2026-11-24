@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sofía · triste 02 · el párpado que se cae hacia afuera</title>
+<style>
+  :root {
+    --bg: #0e1015; --card: #161a22; --inset: #1b212b; --line: #262d3a;
+    --tx: #e8ecf4; --dim: #94a0b4; --accent: #00b4ff; --accent-soft: #0b2b38;
+    --eye: #00b4ff; --hot: #ff3c1e; --gold: #ffd700; --ok: #4ade80;
+    --radius: 16px; --tap: 44px;
+  }
+  * { box-sizing: border-box; }
+  html { color-scheme: dark; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg); color: var(--tx);
+    font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display: flex; justify-content: center;
+  }
+  .stage { width: 100%; max-width: 1080px; padding: 28px 24px 56px; }
+  header { display: flex; gap: 20px; align-items: flex-start; justify-content: space-between; margin-bottom: 18px; }
+  h1 { margin: 0 0 6px; font-size: 24px; letter-spacing: -0.3px; }
+  .sub { margin: 0; color: var(--dim); font-size: 14px; max-width: 72ch; }
+  .badge {
+    flex: 0 0 auto; padding: 4px 10px; border-radius: 999px; background: var(--accent-soft);
+    color: var(--accent); font-size: 12px; letter-spacing: 0.4px; text-transform: uppercase;
+    font-weight: 600; white-space: nowrap;
+  }
+  .device { background: #05070a; border: 1px solid var(--line); border-radius: 14px; padding: 12px; }
+  .device canvas { display: block; width: 100%; max-width: 640px; height: auto; margin: 0 auto; border-radius: 6px; image-rendering: pixelated; }
+  .controls { display: flex; align-items: center; gap: 14px; margin-top: 12px; flex-wrap: wrap; }
+  button {
+    min-height: 36px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--line);
+    background: var(--inset); color: var(--tx); font: inherit; font-size: 13px; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  input[type="range"] { flex: 1 1 220px; accent-color: var(--accent); }
+  .clock { font: 12.5px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--dim); white-space: nowrap; }
+  .track { display: flex; gap: 4px; margin-top: 12px; }
+  .seg { flex: 1; padding: 6px 8px; border-radius: 8px; background: var(--inset); border: 1px solid var(--line); font-size: 11.5px; color: var(--dim); text-align: center; }
+  .seg.hot { border-color: var(--accent); color: var(--accent); }
+  .strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 16px; }
+  .strip figure { margin: 0; }
+  .strip canvas { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; image-rendering: pixelated; background: #000; }
+  .strip figcaption { margin-top: 6px; font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--dim); }
+  .strip figcaption b { color: var(--tx); font-weight: 600; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; }
+  .card h2 { margin: 0 0 8px; font-size: 15px; letter-spacing: 0.2px; }
+  .card p, .card li { font-size: 13px; color: var(--dim); margin: 0 0 6px; }
+  .card ul { margin: 0; padding-left: 18px; }
+  .card b { color: var(--tx); font-weight: 600; }
+  code { font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--tx); }
+  .tradeoff { border-left: 2px solid var(--accent); padding-left: 12px; color: var(--dim); font-size: 13px; margin: 16px 0 0; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--dim); margin-top: 14px; }
+  .key { display: inline-flex; align-items: center; gap: 6px; }
+  .key i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+  @media (max-width: 820px) { .cols, .strip { grid-template-columns: 1fr 1fr; } }
+</style>
+</head>
+<body>
+<main class="stage">
+  <header>
+    <div>
+      <h1>El párpado que se cae hacia afuera</h1>
+      <p class="sub">La cara no tiene cejas, pero sí tiene algo que se les parece: cada ojo puede girar por su cuenta, y con él gira su línea de párpado. El enojo ya usa eso con <code>rotL +8 / rotR −8</code>: las puntas internas bajan. Acá se invierte: las puntas de afuera se caen, las de adentro suben, y el ojo entero baja un poco la mirada. Es el gesto de aguantarse, no el de entrecerrar.</p>
+    </div>
+    <span class="badge">Dirección A · ceja caída</span>
+  </header>
+
+  <div class="device">
+    <canvas id="big" width="640" height="344" aria-label="Vista previa animada del vidrio de 320x172 con la dirección A de la cara triste"></canvas>
+  </div>
+
+  <div class="controls">
+    <button id="play" type="button">Pausar</button>
+    <input id="scrub" type="range" min="0" max="11000" step="10" value="0" aria-label="Recorrer la línea de tiempo">
+    <span class="clock" id="clock">t <b>0.0 s</b> / 11.0 s</span>
+  </div>
+
+  <div class="track" id="track" aria-label="Línea de tiempo de la reacción">
+    <span class="seg" data-from="0" data-to="3200">se aguanta</span>
+    <span class="seg" data-from="3200" data-to="4900">cierra lento</span>
+    <span class="seg" data-from="4900" data-to="6800">abre pesado</span>
+    <span class="seg" data-from="6800" data-to="9200">dice que no</span>
+    <span class="seg" data-from="9200" data-to="11000">queda en silencio</span>
+  </div>
+
+  <div class="strip" id="strip"></div>
+
+  <div class="cols">
+    <div class="card">
+      <h2>Qué se lee</h2>
+      <ul>
+        <li><b>Las puntas de afuera se caen</b> (todo el tiempo): <code>rotL −7 / rotR +7</code>, el espejo exacto del enojo. La cara deja de ser simétrica, y ahí está la diferencia con <em>Concentrada</em>, que es un párpado parejo.</li>
+        <li><b>La mirada baja</b>: <code>gazeY +2.5</code> y un poco al costado, <code>gazeX −3</code>. Mirar abajo y de reojo es lo que hace alguien a quien no le salió.</li>
+        <li><b>El párpado de arriba apenas baja</b>: <code>lid 0.14</code>, menos que <em>Concentrada</em>. Triste no es entrecerrar: es no poder abrir del todo.</li>
+        <li><b>El suspiro dura 1.8 s</b> en vez de 150 ms, y se queda en <code>lid 0.62</code> durante 800 ms: 27 px de ojo visible, una rendija gruesa, no un cierre. Es un gesto distinto del tic de la placa.</li>
+        <li><b>Nunca cierra del todo</b>: en esta placa un ojo cerrado no es un párpado, es la barra de 4 px de <code>buddyEyeHalfH</code> cuando <code>shut</code>. Una barra sostenida 800 ms se lee como una línea, no como un suspiro; a 0.62 el ojo conserva la forma y el glow. Arriba de ~0.70 vuelve el mismo hilo.</li>
+        <li><b>Vuelve a abrir pesado</b>: la apertura tarda 600 ms y deja la mirada un píxel más abajo que al principio. La cara no vuelve igual.</li>
+        <li><b>Dice que no</b> (6.8–9.2 s): tres negaciones chicas y lentas, <code>gazeX</code> entre −6 y +3 con <code>turn</code> de −0.11 a +0.09. El giro además corre la pareja 5 px, así que el gesto se ve aunque los ojos casi no se muevan. No es un rebote: cada vuelta tarda 300 ms, la última se queda corta y después no vuelve a empezar, como quien se rinde a mitad de camino.</li>
+        <li><b>Los párpados no se pisan y el glow achica con el ojo</b>: cada banda negra se recorta antes del ojo vecino (el <code>bandReach</code> del renderizador) y los halos salen del alto visible, como <code>eyeExtentY</code>. Sin esas dos reglas quedaba un hilo de glow entre los ojos — el defecto que tenía esta pantalla.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h2>Cómo se hace</h2>
+      <p>Todo son canales que ya existen en <code>BuddyPose</code>. En <code>buddy_game.h</code>, el caso <code>BUDDY_GAME_SAD</code>:</p>
+      <p><code>lid = 0.14; bottom = 0.10; rotL = −7; rotR = +7; rx = 48; ry = 48;</code></p>
+      <p>Más <code>gazeY</code>, <code>gazeX</code>, <code>turn</code> y el ciclo de parpadeo largo, que no son del ánimo sino del renderizador: el ánimo fija la pose base y el loop de la cara le agrega el tiempo.</p>
+      <p>El <b>“no”</b> es animación, no pose, y es la parte más cara de la propuesta: 2.4 s moviendo <code>gazeX</code> y <code>turn</code> en tres golpes de 300 ms, como un evento de idle. No se puede expresar como un valor adentro del <code>switch</code>.</p>
+      <p>Nada de <code>hot</code> (no se enoja), <code>grow</code> (no se agranda) ni <code>dim</code> (no está desconectada).</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Por qué no pisa otros estados</h2>
+    <p><em>Concentrada</em> es simétrica y mira al frente. <em>Pensando</em> tiene un solo ojo entrecerrado, sin rotación. <em>Con sueño</em> cierra del todo. <em>Enojo</em> gira las puntas internas para abajo y tiñe de rojo. Ninguna de las otras cuatro inclina los dos ojos hacia afuera, así que el gesto queda reservado para triste sin tocarles nada.</p>
+  </div>
+
+  <p class="tradeoff"><b>Tradeoff:</b> es la dirección más legible de las tres y la que más se nota de reojo, pero gasta el canal de la rotación, que hoy es "la ceja del enojo", y suma un gesto animado (el "no") que antes no existía en ningún ánimo del juego: más código y más presupuesto de movimiento en una placa que se mira de costado. Si el dueño ve la placa desde el otro lado de la mesa, una ceja caída simétrica puede leerse como "cansada" antes que como "triste" — y no hay color que la distinga: sumarle calor la volvería enojo y apagarla la volvería desconexión.</p>
+
+  <p class="legend">
+    <span class="key"><i style="background:var(--eye)"></i> ojo del dueño #00b4ff</span>
+    <span class="key"><i style="background:var(--hot)"></i> calor #ff3c1e, acá no se usa</span>
+    <span class="key">Glow aproximado: en la placa se ditheriza, acá se mezcla con alpha.</span>
+  </p>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  var EYE = "#00b4ff", HOT = "#ff3c1e";
+  var DUR = 11000;
+  var NUM = ["lid", "lidL", "lidR", "bottom", "rot", "rotL", "rotR", "gx", "gy", "rx", "ry", "hot", "turn", "tilt"];
+
+  function P(o) {
+    var base = { lid: 0, lidL: 0, lidR: 0, bottom: 0, rot: 0, rotL: 0, rotR: 0,
+                 gx: 0, gy: 0, rx: 48, ry: 48, hot: 0, turn: 0, tilt: 0 };
+    for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) base[k] = o[k];
+    return base;
+  }
+  function lerp(a, b, k) { return a + (b - a) * k; }
+  function sample(keys, t) {
+    var a = keys[0], b = keys[keys.length - 1], i;
+    for (i = 0; i < keys.length; i++) {
+      if (keys[i].t <= t) a = keys[i];
+      if (keys[i].t > t) { b = keys[i]; break; }
+    }
+    if (a === b) return P(a.p);
+    var k = (t - a.t) / (b.t - a.t);
+    var out = P(a.p);
+    for (i = 0; i < NUM.length; i++) out[NUM[i]] = lerp(a.p[NUM[i]], b.p[NUM[i]], k);
+    return out;
+  }
+
+  function rr(ctx, x, y, w, h, r) {
+    var m = Math.min(w, h) / 2;
+    if (r > m) r = m;
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+  function rgba(hex, a) {
+    var n = parseInt(hex.slice(1), 16);
+    return "rgba(" + ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + a + ")";
+  }
+  function mix(hex, hot) {
+    if (!hot) return hex;
+    var a = parseInt(hex.slice(1), 16), b = parseInt(HOT.slice(1), 16);
+    var ch = function (s) { return Math.round(((a >> s) & 255) + (((b >> s) & 255) - ((a >> s) & 255)) * hot); };
+    return "rgb(" + ch(16) + "," + ch(8) + "," + ch(0) + ")";
+  }
+
+  function draw(ctx, p, W, H) {
+    var sc = W / 320;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, W, H);
+    ctx.setTransform(sc, 0, 0, sc, 0, 0);
+    var col = mix(EYE, p.hot);
+    var cy = 88 + p.gy;
+    var turnX = 5 * p.turn;
+    for (var i = 0; i < 2; i++) {
+      // The turned head: the far eye foreshortens and the pair slides with it,
+      // the same 0.22 the firmware applies per side.
+      var turnScale = (i === 0) ? (1 - 0.22 * p.turn) : (1 + 0.22 * p.turn);
+      var rx = p.rx * turnScale;
+      var x = 160 + (i === 0 ? -55 : 55) + p.gx + turnX;
+      var deg = p.rot + p.tilt + (i === 0 ? p.rotL : p.rotR);
+      var lid = Math.max(0, Math.min(1, p.lid + (i === 0 ? p.lidL : p.lidR)));
+      var lidY = -p.ry + 2 * p.ry * lid;
+      var bot = Math.max(0, Math.min(1, p.bottom));
+      var botY = p.ry - 2 * p.ry * bot;
+      // The glow hugs what is actually visible, not the full eye: the firmware
+      // builds the halos from `eyeExtentY`, so a lid that closes takes its glow
+      // with it. Drawing the pads from the liddered eye is what left a stray
+      // line between the eyes on the shut frame.
+      var visTop = lidY, visBot = botY;
+      if (visBot - visTop < 1) continue;   // shut: no body and no glow at all
+      var halfH = (visBot - visTop) / 2;
+      var midY = (visTop + visBot) / 2;
+      var pads = [[10, 0.10], [7, 0.16], [4, 0.22]];
+      for (var g = 0; g < pads.length; g++) {
+        var pad = pads[g][0];
+        ctx.fillStyle = rgba("#00b4ff", pads[g][1]);
+        rr(ctx, x - rx - pad, cy + midY - halfH - pad, 2 * (rx + pad), 2 * (halfH + pad),
+           Math.min(rx, halfH) * 0.38 + pad * 0.6);
+        ctx.fill();
+      }
+      ctx.save();
+      ctx.translate(x, cy);
+      ctx.rotate(deg * Math.PI / 180);
+      ctx.fillStyle = col;
+      rr(ctx, -rx, -p.ry, 2 * rx, 2 * p.ry, Math.min(rx, p.ry) * 0.38);
+      ctx.fill();
+      ctx.restore();
+
+      // Every black band is cut in the eye's rotated frame, but its reach is
+      // decided in device space. The firmware clips each band so it can never
+      // touch the other eye's solid shape or glow (`bandReach` in
+      // screen_buddy.cpp: "the solid shape of the other eye is always out of
+      // reach"). Without that clip a rotated corner reaches ~68 px, crosses the
+      // 14 px gap and eats the neighbour: that is the overlap this board had.
+      // The gap does not move: both eyes share `gazeX` and `turn`, so the
+      // allowed inward reach is a constant 110 - rx - 10 (the other eye's glow
+      // edge), which is 52 px at rx = 48.
+      var inner = 100 - rx;
+      var outer = rx + 30;
+      var x0 = (i === 0) ? x - outer : x - inner;
+      var x1 = (i === 0) ? x + inner : x + outer;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x0, cy - p.ry - 24, x1 - x0, 2 * p.ry + 48);
+      ctx.clip();
+      ctx.translate(x, cy);
+      ctx.rotate(deg * Math.PI / 180);
+      if (lidY > -p.ry) {
+        ctx.fillStyle = "#000";
+        ctx.fillRect(-p.rx - 24, -p.ry - 24, 2 * p.rx + 48, lidY + p.ry + 24);
+      }
+      if (botY < p.ry) {
+        ctx.fillStyle = "#000";
+        ctx.fillRect(-p.rx - 24, botY, 2 * p.rx + 48, p.ry - botY + 24);
+      }
+      ctx.restore();
+    }
+  }
+
+  // ---- the storyboard -------------------------------------------------------
+  // One long, slow blink, a gaze that drifts away and then three small "no"s:
+  // the three things that make this read as sad instead of merely squinting.
+  //
+  // The sigh never closes the eye: it stops at lid 0.62 and holds ~27 px of
+  // visible height. A full close on this board is not a lid at all —
+  // `buddyEyeHalfH` collapses the eye to a 4 px bar when `shut`, which is a
+  // line, and a line held for 800 ms is a defect, not a sigh. Anything above
+  // ~0.70 leaves a slit thin enough to read as that same line, with glow.
+  var BASE = P({ lid: 0.14, bottom: 0.10, rotL: -7, rotR: 7, gy: 2.5, gx: -3 });
+  function held(o) {
+    return P(Object.assign({ lid: 0.14, bottom: 0.10, rotL: -7, rotR: 7 }, o));
+  }
+  var KEYS = [
+    { t: 0, p: BASE },
+    { t: 3200, p: BASE },
+    { t: 3450, p: held({ lid: 0.36, gy: 2.5, gx: -3 }) },
+    { t: 3700, p: held({ lid: 0.62, gy: 2.5, gx: -3 }) },
+    { t: 4500, p: held({ lid: 0.62, gy: 2.5, gx: -3 }) },
+    { t: 4900, p: held({ lid: 0.45, gy: 3, gx: -3 }) },
+    { t: 5400, p: held({ lid: 0.14, gy: 3.5, gx: -4 }) },
+    { t: 6800, p: held({ lid: 0.14, gy: 3.5, gx: -4 }) },
+    // "No": 300 ms per turn, shrinking, and it never restarts. The head and the
+    // gaze disagree on purpose, which is what makes it a denial and not a sway.
+    { t: 7050, p: held({ lid: 0.14, gy: 3.5, gx: 3, turn: 0.09 }) },
+    { t: 7350, p: held({ lid: 0.14, gy: 3.5, gx: -6, turn: -0.11 }) },
+    { t: 7650, p: held({ lid: 0.14, gy: 3.5, gx: 3.5, turn: 0.09 }) },
+    { t: 7950, p: held({ lid: 0.14, gy: 3.5, gx: -6, turn: -0.11 }) },
+    { t: 8250, p: held({ lid: 0.14, gy: 3.5, gx: 2, turn: 0.05 }) },
+    { t: 8600, p: held({ lid: 0.14, gy: 3.5, gx: -4, turn: -0.04 }) },
+    { t: 9200, p: held({ lid: 0.14, gy: 3.5, gx: -3 }) },
+    { t: 11000, p: BASE }
+  ];
+
+  var big = document.getElementById("big");
+  var bctx = big.getContext("2d");
+  var playBtn = document.getElementById("play");
+  var scrub = document.getElementById("scrub");
+  var clock = document.getElementById("clock");
+  var segs = document.querySelectorAll(".seg");
+  var playing = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var t = 0, last = performance.now();
+
+  function render(timeSec) {
+    var ms = (timeSec % (DUR / 1000)) * 1000;
+    draw(bctx, sample(KEYS, ms), 640, 344);
+    scrub.value = String(Math.round(ms));
+    clock.innerHTML = "t <b>" + (ms / 1000).toFixed(1) + " s</b> / 11.0 s";
+    Array.prototype.forEach.call(segs, function (s) {
+      var on = ms >= +s.dataset.from && ms < +s.dataset.to;
+      s.classList.toggle("hot", on);
+    });
+  }
+
+  function loop(now) {
+    if (playing) {
+      t += (now - last) / 1000;
+      render(t);
+    }
+    last = now;
+    requestAnimationFrame(loop);
+  }
+
+  playBtn.addEventListener("click", function () {
+    playing = !playing;
+    playBtn.textContent = playing ? "Pausar" : "Reproducir";
+  });
+  scrub.addEventListener("input", function () {
+    playing = false;
+    playBtn.textContent = "Reproducir";
+    t = Number(scrub.value) / 1000;
+    render(t);
+  });
+
+  render(0);
+  requestAnimationFrame(loop);
+
+  // ---- the strip: four frames that carry the whole argument ----------------
+  var MOMENTS = [
+    { t: 600, cap: "<b>se aguanta</b><br>rotL −7 / rotR +7<br>lid 0.14 · bottom 0.10" },
+    { t: 4200, cap: "<b>cierra lento</b><br>lid 0.62 durante 800 ms<br>27 px de ojo, no una barra" },
+    { t: 5400, cap: "<b>abre pesado</b><br>lid 0.14 · gy 3.5<br>la mirada quedó más abajo" },
+    { t: 7950, cap: "<b>dice que no</b><br>gx −6 · turn −0.11<br>el segundo golpe, el más marcado" }
+  ];
+  var strip = document.getElementById("strip");
+  MOMENTS.forEach(function (m) {
+    var fig = document.createElement("figure");
+    var cv = document.createElement("canvas");
+    cv.width = 640; cv.height = 344;
+    cv.setAttribute("aria-label", "Fotograma de la dirección A en t = " + (m.t / 1000) + " s");
+    var cap = document.createElement("figcaption");
+    cap.innerHTML = m.cap;
+    fig.appendChild(cv);
+    fig.appendChild(cap);
+    strip.appendChild(fig);
+    draw(cv.getContext("2d"), sample(KEYS, m.t), 640, 344);
+  });
+})();
+</script>
+</body>
+</html>

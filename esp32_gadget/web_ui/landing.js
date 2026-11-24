@@ -338,12 +338,19 @@
   var recordEl = document.getElementById("record");
 
   var game = { cells: [], over: false, locked: false, diff: "normal" };
+  // The opening move alternates every round: the human opens the first one, the
+  // buddy opens the next, and so on. Without this the same player owns every
+  // opening, and a board that always starts the same way is half a game.
+  var starter = "x";
   var score = loadScore();
   // A finished round holds its result long enough to be read, then the board
   // clears itself and the next round starts at the same difficulty: there is no
   // restart button, so a dead board never needs one.
   var RESULT_HOLD_MS = 2200;
   var restartTimer = null;
+  // Sofia's own move, whether it opens the round or answers the human's. One
+  // handle, so a reset can never leave a late move landing on a fresh board.
+  var buddyTimer = null;
 
   function loadScore() {
     try {
@@ -473,14 +480,40 @@
     return choice;
   }
 
+  // Sofia thinks, then plays. Both her opening move and her answer go through
+  // here, so the eyes, the lock and the repaint stay in one place.
+  function buddyTurn() {
+    game.locked = true;
+    renderBoard();
+    face("thinking", 1500);
+    buddyTimer = setTimeout(function () {
+      buddyTimer = null;
+      var pick = buddyPick();
+      face("alert", 1200);
+      if (!place(pick, "o")) {
+        game.locked = false;
+        // The cells were rebuilt while the board was still locked; without this
+        // repaint every empty cell stays disabled and the game dead-ends after
+        // one exchange.
+        renderBoard();
+      }
+    }, 800);
+  }
+
   function reset() {
     clearTimeout(restartTimer);
     restartTimer = null;
+    clearTimeout(buddyTimer);
+    buddyTimer = null;
     game = { cells: [null, null, null, null, null, null, null, null, null], over: false, locked: false, diff: game.diff };
     renderBoard();
     refreshRecord();
+    if (starter === "o") buddyTurn();
   }
 
+  // The reaction follows the result from her side, not yours: she is glad to
+  // win and she takes the loss visibly. `focus`, `thinking` and `alert` are how
+  // she plays; these two are the only ones that say who won.
   function finish(result) {
     game.over = true;
     renderBoard();
@@ -489,10 +522,10 @@
       face("sleepy", 5000);
     } else if (result.mark === "x") {
       score.you++;
-      face("happy", 5000);
+      face("sad", 6000);
     } else {
       score.buddy++;
-      face("anger", 6000);
+      face("happy", 5000);
     }
     saveScore();
     refreshRecord();
@@ -502,9 +535,10 @@
       if (result.mark === "o") cells[index].classList.add("o-win");
     });
     // The result stays on screen while the device plays it, then the next round
-    // starts on its own.
+    // starts on its own, opened by the other player.
     restartTimer = setTimeout(function () {
       restartTimer = null;
+      starter = starter === "x" ? "o" : "x";
       reset();
     }, RESULT_HOLD_MS);
   }
@@ -528,20 +562,7 @@
       game.locked = false;
       return;
     }
-    // Sofia answers after a beat, and the device is the one that shows her
-    // thinking.
-    face("thinking", 1500);
-    setTimeout(function () {
-      var pick = buddyPick();
-      face("alert", 1200);
-      if (!place(pick, "o")) {
-        game.locked = false;
-        // The cells were rebuilt while the board was still locked; without this
-        // repaint every empty cell stays disabled and the game dead-ends after
-        // one exchange.
-        renderBoard();
-      }
-    }, 800);
+    buddyTurn();
   }
 
   document.querySelectorAll("[data-diff]").forEach(function (button) {
@@ -574,6 +595,12 @@
   function closeGame() {
     if (!document.body.classList.contains("game-open")) return;
     document.body.classList.remove("game-open");
+    // A closed board stops playing: no late move and no hidden reset can change
+    // the face after the game is gone. Opening it again starts a fresh round.
+    clearTimeout(buddyTimer);
+    buddyTimer = null;
+    clearTimeout(restartTimer);
+    restartTimer = null;
     face("", 0);
     if (screenBeforeGame !== null) {
       setDeviceScreen(screenBeforeGame);

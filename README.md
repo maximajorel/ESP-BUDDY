@@ -13,11 +13,15 @@ servido por el propio equipo.
 
 Pantallas: **Reloj**, **Tragamonedas**, **Meteoritos**, **Red**, **Música**
 (Spotify), **Sofía** (buddy companion) y **Config** (brillo, rotación y bloqueo).
+El reloj va siempre en **24 h** y un toque corto alterna la cara entre la hora y el
+**clima** del lugar configurado en el panel; el clima lo baja el equipo por su
+cuenta con **Open-Meteo**, que no pide API key ni registro.
 La cara de Sofía también reacciona a **Google Calendar** por su cuenta: el equipo
 guarda las credenciales, elige el calendario desde el panel y se mueve según el
 recordatorio del próximo evento, sin depender del bridge.
-Un toque corto interactúa con la pantalla actual; mantener un segundo abre el
-menú de pantallas, cuyo orden y nombres se editan desde el panel web.
+En el resto de las pantallas un toque corto interactúa con la pantalla actual;
+mantener un segundo abre el menú de pantallas, cuyo orden y nombres se editan
+desde el panel web.
 
 La entrada pública `http://192.168.4.1/` no pide sesión: muestra la cara de
 Sofía, deja elegir la pantalla desde un menú a pantalla completa y abre el

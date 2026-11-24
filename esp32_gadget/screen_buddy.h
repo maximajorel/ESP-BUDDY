@@ -84,6 +84,11 @@ void buddyDumpDraw();
 // the only way to prove a shake woke it without a photograph.
 void buddyDumpSleep();
 
+// Something the owner did through the HTTP API. A successful POST counts as a
+// stimulus like a shake; a GET never does, because the landing polls /api/status
+// every ten seconds and a poll is not a person.
+void buddyNoteUserActivity();
+
 // What the face is feeling right now, so the rear bead can match it: anger is
 // red, deep sleep is a faint ember, everything else follows the bridge phase.
 // The vocabulary and the decision live in buddy_imu.h, where a test can pin it.

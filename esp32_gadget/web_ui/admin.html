@@ -11,7 +11,7 @@
      blanco para quien eligió el oscuro. app.js hace lo mismo después. -->
 <script>try{if(localStorage.getItem('espbuddy-theme')==='dark'){document.documentElement.setAttribute('data-theme','dark');}}catch(e){}</script>
 </head>
-<body>
+<body class="admin-body">
 
 <a class="skip" href="#contenido">Saltar al contenido</a>
 
@@ -192,10 +192,7 @@
 
         <details class="fold">
           <summary>Reloj</summary>
-          <label class="switch">
-            <span>Reloj en formato 24 horas</span>
-            <input type="checkbox" id="clock24">
-          </label>
+          <p class="hint inline">El reloj va siempre en formato 24 horas. Tocar el equipo en la pantalla RELOJ muestra el clima.</p>
           <div class="row">
             <button class="btn ghost" id="setTime" type="button">Usar la hora de este teléfono</button>
           </div>
@@ -332,13 +329,14 @@
     <!-- ── Integraciones: todo lo que habla con algo de afuera ──────────── -->
     <div class="region" id="integraciones" role="tabpanel" aria-labelledby="tab-integraciones" tabindex="0" hidden>
       <div class="region-head">
-        <p class="lead">Las tres cosas con las que habla el equipo, configuradas desde acá. Spotify manda la música a la pantalla, Hermes le presta la cabeza a Sofía y Google Calendar le avisa cuándo se viene un evento.</p>
+        <p class="lead">Las cuatro cosas con las que habla el equipo, configuradas desde acá. Spotify manda la música a la pantalla, Hermes le presta la cabeza a Sofía, Google Calendar le avisa cuándo se viene un evento y el clima de Open-Meteo le dice qué temperatura mostrar.</p>
       </div>
 
       <div class="subtabs" role="tablist" aria-label="Integraciones">
         <button class="subtab" type="button" role="tab" aria-selected="true" aria-controls="intSpotify">Spotify</button>
         <button class="subtab" type="button" role="tab" aria-selected="false" aria-controls="intHermes">Hermes</button>
         <button class="subtab" type="button" role="tab" aria-selected="false" aria-controls="intCalendar">Google Calendar</button>
+        <button class="subtab" type="button" role="tab" aria-selected="false" aria-controls="intClima">Clima</button>
       </div>
 
       <section class="card" id="intSpotify" data-subpanel role="tabpanel" aria-label="Spotify">
@@ -482,6 +480,62 @@
             </div>
           </div>
         </div>
+      </section>
+
+      <section class="card" id="intClima" data-subpanel role="tabpanel" aria-label="Clima" hidden>
+        <p class="hint inline">El clima del lugar que elijas, en la pantalla RELOJ. Open-Meteo no pide cuenta ni clave de API: no hay nada que registrar en ningún lado.</p>
+
+        <div class="sp-state" id="wxStateBox"><span class="dot"></span><span id="wxState">Consultando…</span></div>
+        <p class="hint" id="wxStateHint">—</p>
+        <p class="sp-error" id="wxError" hidden></p>
+
+        <div class="grid">
+          <div class="stat"><span class="k">Lugar</span><span class="v" id="wxPlace">—</span></div>
+          <div class="stat"><span class="k">Ahora</span><span class="v" id="wxNow">—</span></div>
+          <div class="stat"><span class="k">Actualizado</span><span class="v" id="wxUpdated">—</span></div>
+          <div class="stat"><span class="k">Refresco</span><span class="v" id="wxRefresh">—</span></div>
+        </div>
+
+        <h3>Buscar una ciudad</h3>
+        <form id="wxSearchForm" class="form">
+          <label>Ciudad o pueblo
+            <input id="wxQuery" name="q" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="64" required placeholder="Por ejemplo: Yerba Buena">
+          </label>
+          <p class="hint inline">Se busca por nombre: no hace falta escribir coordenadas.</p>
+          <div class="actions">
+            <button class="btn" type="submit">Buscar</button>
+          </div>
+        </form>
+
+        <div class="chips" id="wxResults" role="group" aria-label="Resultados de la búsqueda" hidden></div>
+        <div class="actions">
+          <button class="btn" id="wxUse" type="button" disabled>Usar esta ciudad</button>
+        </div>
+
+        <h3>Detectar mi ubicación</h3>
+        <p class="hint">El equipo averigua en qué ciudad está por su dirección de internet. Es una detección a nivel de ciudad, no de casa: sirve para el clima, no para ubicarte con precisión. Este panel viaja por HTTP, así que el navegador no ofrece su geolocalización y por eso no se usa.</p>
+        <div class="actions">
+          <button class="btn ghost" id="wxDetect" type="button">Detectar mi ubicación</button>
+        </div>
+
+        <h3>Coordenadas guardadas</h3>
+        <p class="hint inline">Son las del lugar elegido, tal como las guarda el equipo.</p>
+        <div class="grid">
+          <div class="stat"><span class="k">Latitud</span><span class="v mono" id="wxLat">—</span></div>
+          <div class="stat"><span class="k">Longitud</span><span class="v mono" id="wxLon">—</span></div>
+        </div>
+
+        <form id="wxConfigForm" class="form">
+          <label>Cada cuántos minutos se actualiza
+            <input id="wxRefreshMin" type="number" min="5" max="180" step="1" placeholder="15">
+          </label>
+          <div class="actions">
+            <button class="btn" type="submit">Guardar refresco</button>
+            <button class="btn ghost" id="wxRefreshNow" type="button">Actualizar ahora</button>
+            <button class="btn ghost" id="wxForget" type="button">Olvidar ubicación</button>
+          </div>
+          <p class="hint">Open-Meteo es gratis y sin clave de API, así que esta tarjeta no tiene campo de contraseña ni de token.</p>
+        </form>
       </section>
     </div>
 

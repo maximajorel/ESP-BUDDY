@@ -1,0 +1,34 @@
+{
+  "title": "Sofía · la cara triste",
+  "brief": "Rediseñar el ánimo 'triste' del ta-te-ti: hoy se lee igual que 'concentrada'. Tres direcciones dentro de los canales que el renderizador ya tiene, más un tablero de diagnóstico que muestra por qué el valor actual falla.",
+  "artboards": [
+    {
+      "file": "01-diagnostico.html",
+      "title": "Por qué hoy se lee concentrada",
+      "tradeoff": "No elige nada: gasta una pantalla en mostrar que el problema es de vocabulario, no de ajuste fino",
+      "width": 1180,
+      "height": 1180
+    },
+    {
+      "file": "02-parpado-caido.html",
+      "title": "El párpado que se cae hacia afuera",
+      "tradeoff": "La más legible de las tres; gasta el canal de la rotación, que hoy es 'la ceja del enojo'",
+      "width": 1080,
+      "height": 1180
+    },
+    {
+      "file": "03-ojo-desinflado.html",
+      "title": "El ojo que se desinfla",
+      "tradeoff": "La más limpia y la que menos canales gasta, pero la más ambigua: se lee 'apagada' antes que triste",
+      "width": 1080,
+      "height": 1180
+    },
+    {
+      "file": "04-mirada-que-se-va.html",
+      "title": "La mirada que se va",
+      "tradeoff": "La más sutil y la que mejor convive con las demás caras, pero la más fácil de perder de reojo",
+      "width": 1080,
+      "height": 1180
+    }
+  ]
+}

@@ -33,6 +33,42 @@ ADMIN = {"user": "admin", "pass": "gadget", "mustChange": True}
 SESSIONS = set()
 SESSION_COOKIE = "sid"
 
+# El clima: Open-Meteo no pide clave, asi que lo unico que se guarda es el lugar
+# y cada cuanto se refresca. El mock arranca sin lugar, como el firmware recien
+# flasheado, y devuelve un pronostico fijo para que el panel y las pruebas vean
+# siempre el mismo dato en vez de uno inventado por request.
+WEATHER_NO_DATA = {"valid": False, "tempC": 0.0, "feelsC": 0.0, "humidity": 0,
+                   "windKph": 0.0, "tmaxC": 0.0, "tminC": 0.0, "code": -1,
+                   "label": "Sin datos", "icon": 0, "isDay": True}
+
+WEATHER = {
+    "place": {"valid": False, "name": "", "lat": 0.0, "lon": 0.0},
+    "now": dict(WEATHER_NO_DATA),
+    "refreshMin": 15,
+    "hasData": False,
+    "syncing": False,
+    "lastAttemptMs": 0,
+    "lastSuccessMs": 0,
+    "lastError": "",
+}
+
+WEATHER_NOW = {"valid": True, "tempC": 22.4, "feelsC": 21.8, "humidity": 60,
+               "windKph": 12.0, "tmaxC": 27.0, "tminC": 14.0, "code": 2,
+               "label": "Parcialmente nublado", "icon": 2, "isDay": True}
+
+# Lo que responde ipwho.is y lo que devuelve el geocoder para "tuc": fijo, para
+# que detectar y buscar no dependan de la red desde la compu.
+WEATHER_DETECTED = {"name": "San Miguel de Tucuman", "lat": -26.8241,
+                    "lon": -65.2226}
+WEATHER_CITIES = [
+    {"name": "San Miguel de Tucuman", "region": "Tucuman", "country": "AR",
+     "lat": -26.8241, "lon": -65.2226},
+]
+
+WEATHER_REFRESH_MIN_MIN = 5
+WEATHER_REFRESH_MIN_MAX = 180
+WEATHER_NAME_MAX = 48
+
 STATE = {
     "firmware": "esp32-gadget",
     "version": "1.0.0",
@@ -48,7 +84,7 @@ STATE = {
             "disconnectReason": 15, "mac": "80:45:6B:35:DA:38"},
     "ap": {"ssid": "ESP32-GADGET-35DA38", "password": "12345678",
            "ip": "192.168.4.1", "clients": 1},
-    "time": {"synced": False, "tz": -3, "clock24h": True, "local": "--"},
+    "time": {"synced": False, "tz": -3, "local": "--"},
     "display": {"brightness": 90, "orientation": 1, "awake": True,
                 "rotationMode": "auto", "rotationLocked": False,
                 "timeoutSec": 120, "timeoutMask": 9},
@@ -61,6 +97,7 @@ STATE = {
               "url": "http://192.168.100.64:8787",
               "eyeColor": "#00B4FF"},
     "scores": {"game": 340, "slot": 120},
+    "weather": WEATHER,
 }
 
 NETWORKS = [    {"ssid": "MiCasa-2.4G", "rssi": -48, "secure": True},
@@ -165,6 +202,121 @@ def calendar_payload():
     }
 
 
+def calendar_events_payload():
+    """La agenda que publica `GET /api/calendar/events`.
+
+    Se arma relativa a la medianoche local del equipo (tz -3) y al momento de
+    la consulta, asi que el popover ve siempre el mismo dia: un evento de todo el
+    dia, uno ya terminado, el proximo (dentro de media hora) y uno de manana. El
+    dia viaja como `dayStart`/`dayEnd`, igual que en el firmware.
+    """
+    calendar_tick()
+    tz = STATE["time"]["tz"]
+    offset = tz * 3600
+    now = int(time.time())
+    local = now + offset
+    day_start = local - (local % 86400) - offset
+    day_end = day_start + 86400
+
+    def event(summary, location, start, end, lead=10, all_day=False):
+        return {"summary": summary, "location": location,
+                "startEpoch": start, "endEpoch": end,
+                "leadMin": lead, "allDay": all_day}
+
+    events = [
+        event("Feriado municipal", "", day_start, day_end, -1, True),
+        event("Daily con el equipo", "Meet", day_start + 8 * 3600,
+              day_start + 8 * 3600 + 2700, 5),
+        event("Reunion con el disenador", "Zoom", now + 30 * 60,
+              now + 90 * 60),
+        event("Turno con la Dra. Paz", "Consultorio", day_start + 15 * 3600,
+              day_start + 16 * 3600, 20),
+        event("Cumpleanos de Ana", "", day_end + 10 * 3600,
+              day_end + 11 * 3600, 30),
+    ]
+    events.sort(key=lambda item: item["startEpoch"])
+    return {"ok": True, "tz": tz, "dayStart": day_start, "dayEnd": day_end,
+            "count": len(events) if CALENDAR["authorized"] else 0,
+            "events": events if CALENDAR["authorized"] else []}
+
+
+def weather_kind():
+    # Misma precedencia que `weatherStatusInfo()`: sin lugar, lo que importa es
+    # que falta configurar, no el error viejo de un lugar que ya no existe.
+    if not WEATHER["place"]["valid"]:
+        return "unconfigured"
+    if WEATHER["hasData"]:
+        return "ready"
+    if WEATHER["lastError"]:
+        return "error"
+    return "no_data"
+
+
+def weather_payload():
+    return {
+        "ok": True,
+        "kind": weather_kind(),
+        "configured": WEATHER["place"]["valid"],
+        "hasData": WEATHER["hasData"],
+        "syncing": WEATHER["syncing"],
+        "refreshMin": WEATHER["refreshMin"],
+        "lastAttemptMs": WEATHER["lastAttemptMs"],
+        "lastSuccessMs": WEATHER["lastSuccessMs"],
+        "lastError": WEATHER["lastError"],
+        "place": dict(WEATHER["place"]),
+        "now": dict(WEATHER["now"]),
+    }
+
+
+def weather_summary():
+    """El resumen compacto que viaja dentro de `/api/status`."""
+    payload = weather_payload()
+    return {
+        "configured": payload["configured"],
+        "hasData": payload["hasData"],
+        "syncing": payload["syncing"],
+        "kind": payload["kind"],
+        "place": payload["place"]["name"],
+        "lastError": payload["lastError"],
+        "refreshMin": payload["refreshMin"],
+        "tempC": payload["now"]["tempC"],
+        "label": payload["now"]["label"],
+    }
+
+
+def weather_save_place(lat, lon, name):
+    # Un lugar nuevo invalida la lectura anterior: mostrarla seria mentir sobre
+    # otra ciudad hasta que el proximo refresco llegue.
+    WEATHER["place"] = {"valid": True, "name": name, "lat": lat, "lon": lon}
+    WEATHER["hasData"] = False
+    WEATHER["now"] = dict(WEATHER_NO_DATA)
+    WEATHER["lastError"] = ""
+
+
+def weather_forget():
+    WEATHER["place"] = {"valid": False, "name": "", "lat": 0.0, "lon": 0.0}
+    WEATHER["now"] = dict(WEATHER_NO_DATA)
+    WEATHER["hasData"] = False
+    WEATHER["syncing"] = False
+    WEATHER["lastAttemptMs"] = 0
+    WEATHER["lastSuccessMs"] = 0
+    WEATHER["lastError"] = ""
+
+
+def weather_apply_refresh():
+    """El firmware pide el pronostico a Open-Meteo; el mock lo sirve fijo."""
+    if not WEATHER["place"]["valid"]:
+        return False
+    now_ms = int(time.time() * 1000)
+    WEATHER["lastAttemptMs"] = now_ms
+    WEATHER["lastSuccessMs"] = now_ms
+    WEATHER["hasData"] = True
+    WEATHER["syncing"] = False
+    WEATHER["lastError"] = ""
+    WEATHER["now"] = dict(WEATHER_NOW)
+    return True
+
+
 def spotify_payload():
     if not SPOTIFY["clientId"]:
         auth = 0
@@ -211,44 +363,6 @@ def focus_payload():
     }
 
 
-def calendar_events_payload():
-    """La agenda que publica `GET /api/calendar/events`.
-
-    Se arma relativa a la medianoche local del equipo (tz -3) y al momento de
-    la consulta, asi que el popover ve siempre el mismo dia: un evento de todo el
-    dia, uno ya terminado, el proximo (dentro de media hora) y uno de manana. El
-    dia viaja como `dayStart`/`dayEnd`, igual que en el firmware.
-    """
-    calendar_tick()
-    tz = STATE["time"]["tz"]
-    offset = tz * 3600
-    now = int(time.time())
-    local = now + offset
-    day_start = local - (local % 86400) - offset
-    day_end = day_start + 86400
-
-    def event(summary, location, start, end, lead=10, all_day=False):
-        return {"summary": summary, "location": location,
-                "startEpoch": start, "endEpoch": end,
-                "leadMin": lead, "allDay": all_day}
-
-    events = [
-        event("Feriado municipal", "", day_start, day_end, -1, True),
-        event("Daily con el equipo", "Meet", day_start + 8 * 3600,
-              day_start + 8 * 3600 + 2700, 5),
-        event("Reunion con el disenador", "Zoom", now + 30 * 60,
-              now + 90 * 60),
-        event("Turno con la Dra. Paz", "Consultorio", day_start + 15 * 3600,
-              day_start + 16 * 3600, 20),
-        event("Cumpleanos de Ana", "", day_end + 10 * 3600,
-              day_end + 11 * 3600, 30),
-    ]
-    events.sort(key=lambda item: item["startEpoch"])
-    return {"ok": True, "tz": tz, "dayStart": day_start, "dayEnd": day_end,
-            "count": len(events) if CALENDAR["authorized"] else 0,
-            "events": events if CALENDAR["authorized"] else []}
-
-
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
@@ -291,6 +405,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/status":
             payload = dict(STATE)
             payload["focus"] = focus_payload()
+            payload["weather"] = weather_summary()
             self._json(200, payload)
             return
         if path == "/api/scan":
@@ -300,8 +415,9 @@ class Handler(BaseHTTPRequestHandler):
             self._json(200, spotify_payload())
             return
         if path in ("/api/calendar", "/api/calendar/calendars",
-                    "/api/calendar/events"):
-            # En el firmware el calendario pide sesion incluso para leer.
+                    "/api/calendar/events", "/api/weather"):
+            # En el firmware el calendario y el clima piden sesion incluso para
+            # leer: el lugar es del dueno y la API lo publica.
             if not self._authed():
                 self._unauthorized()
                 return
@@ -309,8 +425,10 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(200, calendar_payload())
             elif path == "/api/calendar/calendars":
                 self._json(200, {"items": CALENDAR["calendars"]})
-            else:
+            elif path == "/api/calendar/events":
                 self._json(200, calendar_events_payload())
+            else:
+                self._json(200, weather_payload())
             return
         if path == "/api/session":
             payload = {"ok": True, "authenticated": self._authed()}
@@ -494,8 +612,6 @@ class Handler(BaseHTTPRequestHandler):
                     STATE["display"]["orientation"] = 2
             if "rotationLocked" in body:
                 STATE["display"]["rotationLocked"] = bool(body["rotationLocked"])
-            if "clock24h" in body:
-                STATE["time"]["clock24h"] = body["clock24h"]
             if "steerSign" in body:
                 STATE["steer"]["sign"] = body["steerSign"]
             if "steerSignY" in body:
@@ -635,6 +751,91 @@ class Handler(BaseHTTPRequestHandler):
                              "selectedName": "", "lastError": "",
                              "fallbackLeadMin": 10, "graceMin": 5})
             self._json(200, calendar_payload())
+            return
+
+        if path == "/api/weather/location":
+            lat = body.get("lat")
+            lon = body.get("lon")
+            raw_name = body.get("name")
+            name = raw_name.strip() if isinstance(raw_name, str) else ""
+            if (not isinstance(lat, (int, float)) or isinstance(lat, bool)
+                    or not isinstance(lon, (int, float)) or isinstance(lon, bool)):
+                self._fail(400, "Faltan las coordenadas")
+                return
+            if not -90.0 <= lat <= 90.0 or not -180.0 <= lon <= 180.0:
+                self._fail(400, "Coordenadas o nombre invalidos")
+                return
+            if not name:
+                self._fail(400, "Falta el nombre del lugar")
+                return
+            if len(name) > WEATHER_NAME_MAX:
+                self._fail(400, "El nombre no puede superar los 48 caracteres")
+                return
+            weather_save_place(float(lat), float(lon), name)
+            self._json(200, weather_payload())
+            return
+
+        if path == "/api/weather/detect":
+            # ipwho.is sale a internet: sin WiFi el firmware devuelve 502, no un
+            # lugar inventado.
+            if not STATE["sta"]["connected"]:
+                self._fail(502, "Conecta el equipo a tu WiFi primero")
+                return
+            weather_save_place(WEATHER_DETECTED["lat"], WEATHER_DETECTED["lon"],
+                               WEATHER_DETECTED["name"])
+            self._json(200, weather_payload())
+            return
+
+        if path == "/api/weather/search":
+            raw_query = body.get("q")
+            query = raw_query.strip() if isinstance(raw_query, str) else ""
+            # El handler del firmware traduce cualquier fallo de la busqueda a
+            # 404 con el error adentro, incluido el WiFi ausente.
+            if not query:
+                self._fail(404, "Escribi una ciudad para buscar")
+                return
+            if not STATE["sta"]["connected"]:
+                self._fail(404, "Conecta el equipo a tu WiFi primero")
+                return
+            if len(query) > WEATHER_NAME_MAX:
+                self._fail(404, "La busqueda es demasiado larga")
+                return
+            needle = query.lower()
+            results = []
+            for city in WEATHER_CITIES:
+                haystack = " ".join((city["name"], city["region"],
+                                     city["country"])).lower()
+                if needle in haystack:
+                    results.append({key: city[key] for key in
+                                    ("name", "region", "country", "lat", "lon")})
+            if not results:
+                self._fail(404, "No encontre esa ciudad")
+                return
+            self._json(200, {"ok": True, "results": results})
+            return
+
+        if path == "/api/weather/refresh":
+            if not weather_apply_refresh():
+                self._fail(409, "Falta guardar la ubicacion")
+                return
+            self._json(200, weather_payload())
+            return
+
+        if path == "/api/weather/config":
+            minutes = body.get("refreshMin")
+            if minutes is not None:
+                if (not isinstance(minutes, int) or isinstance(minutes, bool)
+                        or not WEATHER_REFRESH_MIN_MIN <= minutes
+                        <= WEATHER_REFRESH_MIN_MAX):
+                    self._fail(400, "El refresco va de 5 a 180 minutos")
+                    return
+                WEATHER["refreshMin"] = minutes
+            self._json(200, weather_payload())
+            return
+
+        if path == "/api/weather/forget":
+            weather_forget()
+            self._json(200, weather_payload())
             return
 
         if path == "/api/spotify/config":

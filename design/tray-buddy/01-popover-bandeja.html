@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#c9d2dd">
+<title>ESP BUDDY · Popover de bandeja</title>
+<style>
+/* ESP BUDDY · app de bandeja para Windows — dirección 01.
+   Mismo lenguaje que el panel web (esp32_gadget/web_ui/styles.css): papel,
+   tinta, bordes de 1px, stickers planos, sin gradientes y sin box-shadow.
+   La ventana flotante lleva el radio mínimo del sistema (--r-in, 16px), el
+   mismo de inputs y tiles, para que el recorte de la ventana y el de sus
+   componentes hablen el mismo idioma. Los hijos que tocan el borde repiten ese
+   radio un píxel menos (15) porque el borde de tinta ocupa el píxel de afuera. */
+
+:root {
+  --paper: #ffffff;
+  --sky: #dceeff;
+  --gray: #cccccc;
+  --mist: #e9e9e9;
+  --ink: #000000;
+  --blue: #4da2ff;
+  --mint: #55db9c;
+  --lav: #e9ccff;
+  --ember: #fb4903;
+  --sun: #ffd731;
+  --violet: #5c4ade;
+  --ok-ink: #0f7a45;
+  --bad-ink: #b32b00;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --line: 1px solid var(--ink);
+  --hair: 1px solid rgba(0, 0, 0, 0.16);
+  --r-card: 20px;
+  --r-lg: 40px;
+  --r-in: 16px;
+  --r-pill: 1600px;
+  --tap: 44px;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: #c9d2dd;
+  color: var(--ink);
+  font: 16px/1.5 var(--font);
+  -webkit-font-smoothing: antialiased;
+}
+:where(button, [tabindex]):focus-visible { outline: 2px solid var(--violet); outline-offset: 2px; }
+h1, h2, h3, p { margin: 0; }
+button { font: inherit; color: inherit; cursor: pointer; }
+
+/* ── Escritorio: contexto del sistema, plano y sin decoración ───────────── */
+.desk {
+  position: relative;
+  width: 560px;
+  height: 820px;
+  overflow: hidden;
+  background: #c9d2dd;
+}
+.desk-note {
+  position: absolute; left: 18px; top: 16px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+  color: rgba(0, 0, 0, 0.42);
+}
+.desktop-icons { position: absolute; left: 16px; top: 44px; display: grid; gap: 16px; }
+.desk-icon { width: 68px; display: grid; justify-items: center; gap: 4px; }
+.desk-icon span {
+  font-size: 10px; font-weight: 600; color: #10131a;
+  text-align: center; line-height: 1.2;
+}
+.desk-icon .box {
+  width: 34px; height: 34px; border: 1px solid rgba(0, 0, 0, 0.34);
+  background: #fdfefe;
+}
+
+/* ── Barra de tareas ────────────────────────────────────────────────────── */
+.taskbar {
+  position: absolute; inset: auto 0 0 0; height: 44px;
+  display: flex; align-items: center; gap: 6px;
+  padding: 0 10px;
+  background: #eef0f3;
+  border-top: 1px solid rgba(0, 0, 0, 0.22);
+}
+.tb-app {
+  width: 30px; height: 30px; display: grid; place-items: center;
+  background: transparent; border: 1px solid transparent;
+}
+.tb-app svg { width: 18px; height: 18px; fill: none; stroke: #2b2f36; stroke-width: 1.6; }
+.tb-sep { width: 1px; height: 20px; background: rgba(0, 0, 0, 0.18); margin: 0 4px; }
+.tray { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+
+/* El icono de bandeja del Buddy es la marca del panel: dos ojos negros.
+   Cuadrado y con borde de 1px, igual que la ventana que abre. */
+.tray-buddy {
+  width: 26px; height: 26px; padding: 0;
+  display: grid; place-items: center;
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  position: relative;
+}
+.tray-buddy .eyes { display: flex; gap: 3px; }
+.tray-buddy .eye { width: 6px; height: 7px; border-radius: 38%; background: var(--ink); }
+.tray-buddy[aria-pressed="true"] { background: var(--ink); }
+.tray-buddy[aria-pressed="true"] .eye { background: var(--paper); }
+.tray-buddy[aria-pressed="true"]::after {
+  content: ""; position: absolute; inset: -4px; border: 2px solid var(--violet);
+}
+.tray-glyphs { display: flex; align-items: center; gap: 8px; }
+.tray-glyphs svg { width: 15px; height: 15px; fill: none; stroke: #2b2f36; stroke-width: 1.6; }
+.tray-clock { text-align: right; font-size: 10px; line-height: 1.25; color: #10131a; }
+.tray-clock b { display: block; font-family: var(--mono); font-size: 11px; font-weight: 700; }
+
+/* ── La ventana flotante ────────────────────────────────────────────────── */
+/* La losa negra desplazada (elevación plana, sin box-shadow) vive en el
+   contenedor, no en un ::before con z-index negativo del propio elemento: un
+   pseudo con z-index negativo se pinta por ENCIMA del fondo del elemento
+   cuando este abre contexto de apilado, y eso volvía negro el popover. */
+.win-wrap {
+  position: absolute; right: 14px; bottom: 56px;
+  width: 380px; z-index: 2;
+}
+.win-wrap::before {
+  content: ""; position: absolute; inset: 0;
+  transform: translate(7px, 7px);
+  background: var(--ink);
+  border-radius: var(--r-in);
+}
+.win {
+  position: relative;
+  background: var(--paper);
+  border: var(--line);
+  border-radius: var(--r-in);
+}
+/* Pico hacia el icono de la bandeja: cuadrado rotado cuyo vértice exterior
+   hereda la curva de la ventana, así el recorte no se corta. */
+.win::after {
+  content: "";
+  position: absolute; right: 24px; bottom: -7px;
+  width: 12px; height: 12px;
+  background: var(--paper);
+  border-right: 1px solid var(--ink);
+  border-bottom: 1px solid var(--ink);
+  border-bottom-right-radius: 5px;
+  transform: rotate(45deg);
+}
+
+.titlebar {
+  display: flex; align-items: center; gap: 8px;
+  height: 40px; padding-left: 10px;
+  border-bottom: var(--line);
+  border-radius: 15px 15px 0 0;
+}
+.brand { display: flex; align-items: center; gap: 8px; }
+.brand .logo {
+  width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
+  gap: 2px; border: var(--line); border-radius: var(--r-pill); background: var(--sun);
+}
+.brand .logo i { width: 7px; height: 8px; border-radius: 38%; background: var(--ink); }
+.brand h1 { font-size: 13px; font-weight: 900; letter-spacing: -0.01em; }
+.brand h1 span { font-weight: 400; opacity: 0.55; }
+.win-status {
+  margin-left: auto; display: flex; align-items: center; gap: 5px;
+  font-size: 9px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase;
+}
+.win-status .dot { width: 6px; height: 6px; border-radius: 50%; border: 1px solid var(--ink); background: var(--mint); }
+.caption { display: flex; }
+.caption button {
+  width: 40px; height: 40px; display: grid; place-items: center;
+  background: var(--paper); border: 0; border-left: var(--line);
+}
+/* La última acción del título es la que toca la esquina: hereda la curva. */
+.caption button:last-child { border-top-right-radius: 15px; }
+.caption button:hover { background: var(--mist); }
+.caption button.close:hover { background: var(--ember); }
+.caption svg { width: 12px; height: 12px; fill: none; stroke: var(--ink); stroke-width: 1.6; stroke-linecap: round; }
+
+.body { padding: 14px; display: grid; gap: 12px; background: var(--paper); }
+
+.sec-head {
+  display: flex; align-items: baseline; gap: 8px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase;
+}
+.sec-head .meta { margin-left: auto; font-weight: 700; opacity: 0.5; }
+
+/* 1 · pantalla del LCD */
+.screens { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.tile {
+  min-height: 52px; padding: 7px 6px 6px;
+  display: grid; gap: 4px; justify-items: center; align-content: center;
+  background: var(--paper);
+  border: var(--line);
+  border-radius: var(--r-in);
+  font-size: 9px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase;
+  line-height: 1.1; text-align: center;
+}
+.tile svg { width: 15px; height: 15px; fill: none; stroke: var(--ink); stroke-width: 1.6; }
+.tile:hover { background: var(--mist); }
+.tile[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.tile[aria-pressed="true"] svg { stroke: var(--paper); }
+.tile[aria-pressed="true"] .flag { display: block; }
+.tile .flag { display: none; font-size: 8px; opacity: 0.7; letter-spacing: 0.06em; }
+
+/* 2 · temporizador */
+.focus-card {
+  padding: 14px; display: grid; gap: 12px;
+  background: var(--mint);
+  border: var(--line);
+  border-radius: var(--r-card);
+}
+.focus-top { display: flex; align-items: flex-start; gap: 10px; }
+.focus-label { font-size: 10px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase; }
+.focus-clock {
+  margin-left: auto;
+  font-family: var(--mono); font-size: 40px; font-weight: 700;
+  letter-spacing: -0.03em; line-height: 0.85;
+  font-variant-numeric: tabular-nums;
+}
+.focus-clock small { font-size: 12px; font-weight: 700; letter-spacing: 0; opacity: 0.55; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  min-height: 28px; padding: 4px 11px;
+  background: var(--paper); border: var(--line); border-radius: var(--r-pill);
+  font-size: 10px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase;
+}
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.focus-actions { display: flex; gap: 8px; }
+.btn {
+  min-height: 34px; padding: 0 14px;
+  background: var(--ink); color: var(--paper);
+  border: var(--line); border-radius: var(--r-pill);
+  font-size: 10px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase;
+}
+.btn.ghost { background: var(--paper); color: var(--ink); }
+.btn:hover { background: var(--mist); color: var(--ink); }
+
+/* 3 · calendario */
+.cal-card { border: var(--line); border-radius: var(--r-card); overflow: hidden; background: var(--paper); }
+.next {
+  display: grid; grid-template-columns: 52px 1fr; gap: 10px;
+  padding: 12px; background: var(--lav); border-bottom: var(--line);
+}
+.next .hour { font-family: var(--mono); font-size: 15px; font-weight: 700; }
+.next .what { font-size: 14px; font-weight: 700; line-height: 1.25; }
+.next .where { font-size: 11px; opacity: 0.62; }
+.next .daytag {
+  grid-column: 1 / -1; display: flex; align-items: center; gap: 6px;
+  font-size: 9px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+}
+.next .daytag .rule { flex: 1; height: 1px; background: rgba(0, 0, 0, 0.25); }
+.agenda { display: grid; }
+.agenda-row { display: grid; grid-template-columns: 42px 1fr; gap: 10px; align-items: center; padding: 9px 12px; }
+.agenda-row + .agenda-row { border-top: var(--hair); }
+.agenda-row .hour { font-family: var(--mono); font-size: 12px; font-weight: 700; }
+.agenda-row .what { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; }
+.swatch { width: 9px; height: 9px; border: 1px solid var(--ink); }
+.cal-foot { display: flex; gap: 8px; padding: 10px 12px; border-top: var(--line); background: var(--mist); }
+.cal-foot .btn { min-height: 30px; }
+
+.foot {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px; border-top: var(--line); background: var(--paper);
+  border-radius: 0 0 15px 15px;
+}
+.pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 9px; background: var(--paper);
+  border: var(--line); border-radius: var(--r-pill);
+  font-size: 9px; font-weight: 700; letter-spacing: 0.032em; text-transform: uppercase;
+}
+.pill .dot { width: 6px; height: 6px; border-radius: 50%; border: 1px solid var(--ink); }
+.pill.online { background: var(--mint); }
+.pill.online .dot { background: #ffffff; }
+.foot .addr { font-family: var(--mono); font-size: 11px; opacity: 0.6; }
+.foot .btn { margin-left: auto; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="desk">
+  <p class="desk-note">escritorio · contexto</p>
+
+  <div class="desktop-icons">
+    <div class="desk-icon"><span class="box"></span><span>Este equipo</span></div>
+    <div class="desk-icon"><span class="box"></span><span>Papelera</span></div>
+  </div>
+
+  <!-- ── ventana flotante ─────────────────────────────────────────────── -->
+  <div class="win-wrap">
+  <section class="win" aria-label="Buddy · ventana flotante">
+    <header class="titlebar">
+      <div class="brand">
+        <span class="logo" aria-hidden="true"><i></i><i></i></span>
+        <h1>BUDDY <span>· bandeja</span></h1>
+      </div>
+      <p class="win-status"><span class="dot"></span>En línea</p>
+      <div class="caption">
+        <button type="button" title="Fijar arriba" aria-label="Fijar arriba">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6l-1 6 4 4H6l4-4-1-6zM12 14v6"/></svg>
+        </button>
+        <button type="button" title="Minimizar a la bandeja" aria-label="Minimizar a la bandeja">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12"/></svg>
+        </button>
+        <button class="close" type="button" title="Cerrar" aria-label="Cerrar">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="body">
+      <!-- 1 · pantalla -->
+      <section aria-labelledby="s-screens">
+        <div class="sec-head" id="s-screens">Pantalla del LCD <span class="meta">Sofía en pantalla</span></div>
+        <div class="screens" style="margin-top:8px" role="group" aria-label="Elegir pantalla del LCD">
+          <button class="tile" type="button" aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>
+            Reloj
+          </button>
+          <button class="tile" type="button" aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="M9 10v4M15 10v4"/></svg>
+            Tragamonedas
+          </button>
+          <button class="tile" type="button" aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4l5 13-5-3-5 3 5-13z"/></svg>
+            Meteoritos
+          </button>
+          <button class="tile" type="button" aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10a11 11 0 0116 0M7 13a7 7 0 0110 0M10 16a3 3 0 014 0"/></svg>
+            Red
+          </button>
+          <button class="tile" type="button" aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V6l10-2v12"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="16" r="2"/></svg>
+            Música
+          </button>
+          <button class="tile" type="button" aria-pressed="true">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="11" r="2.4"/><circle cx="15" cy="11" r="2.4"/><path d="M8 17c2.5 1.6 5.5 1.6 8 0"/></svg>
+            Sofía
+            <span class="flag">en pantalla</span>
+          </button>
+          <button class="tile" type="button" aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>
+            Config
+          </button>
+        </div>
+      </section>
+
+      <!-- 2 · temporizador -->
+      <section aria-labelledby="s-timer">
+        <div class="sec-head" id="s-timer">Temporizador <span class="meta">corriendo</span></div>
+        <div class="focus-card" style="margin-top:8px">
+          <div class="focus-top">
+            <div>
+              <p class="focus-label">Concentración</p>
+              <p style="font-size:11px;opacity:.62">25 min · vuelve a Sofía al terminar</p>
+            </div>
+            <p class="focus-clock">24:37<small> /25</small></p>
+          </div>
+          <div class="chips" role="group" aria-label="Duración">
+            <button class="chip" type="button" aria-pressed="false">10 min</button>
+            <button class="chip" type="button" aria-pressed="true">25 min</button>
+            <button class="chip" type="button" aria-pressed="false">45 min</button>
+            <button class="chip" type="button" aria-pressed="false">Personalizado</button>
+          </div>
+          <div class="focus-actions">
+            <button class="btn" type="button">Parar</button>
+            <button class="btn ghost" type="button">+5 min</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3 · calendario -->
+      <section aria-labelledby="s-cal">
+        <div class="sec-head" id="s-cal">Calendario <span class="meta">2 eventos hoy</span></div>
+        <div class="cal-card" style="margin-top:8px">
+          <div class="next">
+            <span class="daytag">Próximo <span class="rule"></span> lun 23 nov</span>
+            <span class="hour">09:00</span>
+            <span>
+              <span class="what">Parcial de Física</span>
+              <span class="where">Aula 402 · 2 h</span>
+            </span>
+          </div>
+          <div class="agenda">
+            <div class="agenda-row">
+              <span class="hour">18:00</span>
+              <span class="what"><span class="swatch" style="background:var(--sun)"></span>Repaso de Física</span>
+            </div>
+            <div class="agenda-row">
+              <span class="hour">20:30</span>
+              <span class="what"><span class="swatch" style="background:var(--lav)"></span>Cena con Vale</span>
+            </div>
+          </div>
+          <div class="cal-foot">
+            <button class="btn ghost" type="button">Ver el mes</button>
+            <button class="btn ghost" type="button">Nuevo evento</button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <footer class="foot">
+      <span class="pill online"><span class="dot"></span>Conectado</span>
+      <span class="addr">192.168.4.1</span>
+      <button class="btn ghost" type="button">Panel</button>
+    </footer>
+  </section>
+  </div>
+
+  <!-- ── barra de tareas ──────────────────────────────────────────────── -->
+  <div class="taskbar">
+    <button class="tb-app" type="button" aria-label="Inicio">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6" height="6"/><rect x="14" y="4" width="6" height="6"/><rect x="4" y="14" width="6" height="6"/><rect x="14" y="14" width="6" height="6"/></svg>
+    </button>
+    <span class="tb-sep"></span>
+    <button class="tb-app" type="button" aria-label="Explorador de archivos">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg>
+    </button>
+    <button class="tb-app" type="button" aria-label="Navegador">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c3 4 3 12 0 16"/></svg>
+    </button>
+    <div class="tray">
+      <div class="tray-glyphs" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M3 10a13 13 0 0118 0M6 13a9 9 0 0112 0M9 16a5 5 0 016 0"/></svg>
+        <svg viewBox="0 0 24 24"><path d="M5 10v4h3l4 3V7l-4 3H5zM16 9c1.5 1.5 1.5 4.5 0 6"/></svg>
+      </div>
+      <button class="tray-buddy" type="button" aria-pressed="true" aria-label="Buddy: abrir ventana">
+        <span class="eyes" aria-hidden="true"><span class="eye"></span><span class="eye"></span></span>
+      </button>
+      <div class="tray-clock"><b>19:08</b>22/11/2026</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

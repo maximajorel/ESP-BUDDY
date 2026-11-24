@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "chosen": "02-parpado-caido.html",
+  "handoffs": {
+    "02-parpado-caido.html": {
+      "status": "implemented",
+      "queued": true,
+      "sentAt": "2026-11-22T14:56:24.758Z",
+      "startedAt": "2026-11-22T14:57:26.097Z",
+      "implementedAt": "2026-11-22T15:05:15.418Z",
+      "note": "Pose SAD implementada en buddy_game.h (rotL −7 / rotR +7, lid 0.14, bottom 0.10, mirada abajo y de costado) con la línea de tiempo comprimida a los 6 s del juego: un suspiro de párpado pesado (tope 0.62, nunca la barra de 4 px) y tres \"no\" decrecientes de mirada y cabeza. 61 checks host, make test 40 passed y el firmware compila sin warnings (1579914 bytes, 50%)."
+    }
+  }
+}

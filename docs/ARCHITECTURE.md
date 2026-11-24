@@ -30,6 +30,8 @@ esp32_gadget.ino        boot, botón, loop
 │   └── net_ap_policy.h cuándo emite el AP (puro, test en host)
 ├── spotify_*.*         OAuth PKCE, consulta, parser y carátula
 ├── calendar_*.*        Google Calendar: device flow, consulta, parser y reacción
+├── weather_*.*         Open-Meteo: lugar, pronóstico, parser y códigos WMO
+│   └── weather_geocode.h  sólo reexporta los dos parsers de `weather_parse`
 ├── buddy_http.*        transporte del bridge: HTTP en la LAN, HTTPS validado
 ├── rotation.*          política de rotación aplicada al panel
 ├── imu.*, rgb.*        sensores y LED
@@ -46,8 +48,9 @@ De arriba hacia abajo, nunca al revés:
    `buddy_face.h`, `buddy_anim.h`, `buddy_dance.h`, `buddy_imu.h`, `buddy_split.h`,
    `buddy_url.h`, `buddy_link.h`, `display_blit.h`,
    `admin_auth.*`, `ui_color.h`, `calendar_time.h`, `calendar_plan.h`,
-   `calendar_forms.h`, `calendar_parse.*` y los `spotify_parse/pkce`. Son la
-   parte que se puede probar en la compu.
+   `calendar_forms.h`, `calendar_parse.*`, `weather_model.h`, `weather_code.*`,
+   `weather_parse.*`, `weather_url.*` y los `spotify_parse/pkce`. Son la parte
+   que se puede probar en la compu.
 
    También viven acá las **utilidades que no son de nadie en particular**:
    `sha256.*` y `url_codec.*`. No son de Spotify ni de Google: las usa más de un
@@ -56,7 +59,8 @@ De arriba hacia abajo, nunca al revés:
    módulo para algo que no tiene nada que ver, y así fue como las credenciales
    del panel terminaron dependiendo de Spotify para poder hashear.
 2. **Estado** — `settings.*` es el único dueño de NVS.
-3. **Servicios** — `net.*`, `spotify*.*`, `imu.*`, `rgb.*`, `rotation.*`.
+3. **Servicios** — `net.*`, `spotify*.*`, `calendar*.*`, `weather*.*`, `imu.*`,
+   `rgb.*`, `rotation.*`.
 4. **Presentación** — `gfx.*`, `display.*`, `screens.*`, `screen_*`, `console.*`.
 
 Una pantalla no habla HTTP directamente: lee estado ya resuelto (`spotifyState()`,
@@ -109,6 +113,12 @@ Las credenciales se guardan como sal + SHA-256 iterado, calculado por
 | `calendar_auth.*` | Device flow de Google y token de acceso en RAM | Tocar NVS (eso es `calendar_store`) |
 | `calendar_http.*` | Transporte HTTPS propio del calendario, con su cliente TLS y su mutex | Conocer eventos ni credenciales |
 | `calendar_store.*` | Credenciales y preferencias del calendario en su propio namespace | Validar reglas de la cara |
+| `weather.*` | Lugar configurado, tarea de consulta a Open-Meteo y el snapshot que lee la cara del reloj | Hablar HTTP directo (eso es `weather_http`) ni dibujar |
+| `weather_http.*` | Transporte HTTPS propio del clima, con su cliente TLS y su mutex | Conocer el pronóstico ni el lugar |
+| `weather_store.*` | Lugar (lat/lon/nombre) y cadencia de refresco en su propio namespace | Decidir qué muestra el reloj |
+| `weather_code.*` | Código WMO a texto en español y a ícono dibujable | Saber de dónde vino el código |
+| `weather_parse.*` | Parseo de `forecast`, `search` e `ipwho.is` a las formas de `weather_model.h` | Pedir red ni tocar NVS |
+| `weather_url.*` | Los paths exactos de Open-Meteo, el geocoding y `ipwho.is` | Construir respuestas |
 | `gfx.*` / `display.*` | Primitivas de dibujo y envío al panel | Conocer pantallas |
 | `sha256.*` | El digest FIPS 180-4 que piden PKCE y la contraseña del panel | Saber quién lo llama ni para qué |
 | `url_codec.*` | Percent-encoding RFC 3986 para query y cuerpo de formulario | Construir un pedido HTTP ni conocer un host |
@@ -129,8 +139,10 @@ dormido: el brillo que responde la API tiene que ser el que se ve.
 
 ## Estado y persistencia
 
-Todo lo persistente vive en NVS, namespace `gadget`. Las claves son cortas por
-límite del backend; esta tabla es la referencia para no inventar una nueva:
+Todo lo persistente vive en NVS. El namespace por defecto es `gadget`, salvo
+las features que traen el suyo (`calendar`, `weather`) para no migrar el blob
+compartido. Las claves son cortas por límite del backend; esta tabla es la
+referencia para no inventar una nueva:
 
 | Clave | Contenido | Dueño |
 | --- | --- | --- |
@@ -148,6 +160,9 @@ límite del backend; esta tabla es la referencia para no inventar una nueva:
 | `cid` / `csec` / `rt` | Client ID, secret y refresh token de Google Calendar | `calendar_store.cpp` |
 | `sel` / `selName` | Calendario elegido y su nombre para el panel | `calendar_store.cpp` |
 | `fbLead` / `grace` | Aviso de respaldo y gracia de la reacción | `calendar_store.cpp` |
+| `lat` / `lon` | Coordenadas del lugar del clima (namespace `weather`) | `weather_store.cpp` |
+| `name` | Nombre del lugar tal como lo devolvió el geocoder (namespace `weather`) | `weather_store.cpp` |
+| `ref` | Cada cuántos minutos se refresca el clima, 5..180, por defecto 15 (namespace `weather`) | `weather_store.cpp` |
 
 ### El calendario y la cara
 
@@ -158,6 +173,19 @@ snapshot del bridge, y sólo cuando el estado no pide atención (`thinking`, `to
 `waiting`, `error`). Así el HUD, el LED, el panel y `/api/status` leen la misma
 respuesta. Leer o escribir el calendario pide sesión aunque sea un `GET`: los
 títulos de los eventos son privados.
+
+### El clima
+
+Open-Meteo no pide clave, así que del clima sólo se guarda el lugar y cada cuánto
+se refresca. `weather.*` sigue el mismo patrón que el calendario: tarea propia,
+cliente TLS propio (`weather_http.*`) y mutex, con el snapshot en RAM que lee
+`screen_clock.cpp` para la cara de clima. La consulta va a `api.open-meteo.com`,
+el buscador de ciudades a `geocoding-api.open-meteo.com` y la detección por IP a
+`ipwho.is`; las tres rutas están en `weather_url.h` y nada más las arma. Un
+refresco que falla no borra la última lectura: deja el snapshot anterior y un
+`lastError` que el panel puede explicar. El lugar es del dueño, así que
+`/api/weather` pide sesión igual que el calendario y `/api/status` publica un
+resumen compacto para el primer pintado.
 
 Regla: un valor nuevo va a su propia clave cuando el blob `cfg` ya está en uso,
 porque el blob se migra por tamaño y agregarle campos obliga a versionarlo. Un
@@ -213,7 +241,9 @@ valor que otro módulo escribe no se duplica en `Settings`.
 
 1. Escribí un `static ApiResult apiX(const String &body)` en `net.cpp` y un
    `static JsonDocument parseBody(...)` con el guard común.
-2. Registralo en la tabla de rutas `GET/POST` correspondiente.
+2. Registralo en la tabla de rutas `GET/POST` correspondiente. Una feature con
+   credenciales, lugar o preferencias propias las guarda en su namespace y su
+   `*_store` (así viven `calendar_store` y `weather_store`), no en el blob `cfg`.
 3. Si el panel o la entrada pública lo usan, actualizá `web_ui/app.js` o
    `web_ui/landing.js`, y corré
    `python tools/pack_web.py esp32_gadget/web_ui esp32_gadget/web_assets.h`.

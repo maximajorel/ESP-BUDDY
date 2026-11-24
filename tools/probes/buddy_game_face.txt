@@ -5,7 +5,21 @@
 # sin cámara es `buddydraw`: cuenta la anatomía que el renderizador usó. El enojo
 # tiene que dar `hot=1.00`, `grow>1.05` y párpados inclinados en sentidos
 # opuestos; "pensando" tiene que dar el parpadeo asimétrico (lidL ~0, lidR ~0.42);
-# al limpiar el ánimo la cara vuelve a la pose del bridge.
+# "triste" es el espejo del enojo, no un entrecerrar: en las tres muestras `deg`
+# tiene que salir -7/+7 (los párpados caen hacia afuera), `bottom=0.10`, `hot=0`
+# y `grow=1.00`. Triste dura 6 s y su gesto es una rampa, así que no se puede
+# apuntar a un instante exacto: cada comando de consola tarda entre uno y dos
+# segundos, más que la ventana de 600 ms del suspiro. Por eso se muestrea cada
+# ~1.4 s y se lee la secuencia:
+#   - la base es `lid=0.14`, menos que concentrada (0.18), con `deg` en -7/+7;
+#   - en alguna muestra intermedia `lid` tiene que subir (0.2 a 0.62) y después
+#     volver a 0.14: ese es el suspiro. `open` sigue en 1.00, o sea un ojo
+#     pesado y nunca la barra de 4 px (`extY` no sirve de prueba: el párpado es
+#     una banda negra, no una abertura, así que el alto del ojo no cambia);
+#   - en el tramo del "no" los ojos se corren de costado (`x` de la pareja fuera
+#     de 92/222) mientras `deg` se queda clavado en -7/+7, que es lo que separa
+#     este ánimo del baile (±4) y de la calma (0).
+# Al limpiar el ánimo la cara vuelve a la pose del bridge.
 #
 # La pantalla tiene que ser SOFIA para que la cara se dibuje.
 boot 4
@@ -24,6 +38,16 @@ buddydraw
 dump
 api POST /api/face {"mood":"sleepy","ms":8000}
 sleep 700
+buddydraw
+api POST /api/face {"mood":"sad","ms":8000}
+buddydraw
+sleep 1400
+buddydraw
+sleep 1400
+buddydraw
+sleep 1400
+buddydraw
+sleep 1400
 buddydraw
 api POST /api/face {"mood":"","ms":0}
 sleep 900

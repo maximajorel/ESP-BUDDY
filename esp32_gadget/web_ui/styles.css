@@ -164,6 +164,16 @@ a { color: var(--ink); }
    The column is as wide as the longest label and every pill fills it, so the
    menu reads as one block instead of a ragged stack. Section ids are the ones
    the old sidebar used, so /admin#spotify keeps working. */
+/* The panel is one sheet: the aside reaches the bottom of the window even when
+   the open section is short, so the column never stops mid-air, and the footer
+   sits under the whole layout instead of under the aside alone. */
+.admin-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+.admin-body .shell { flex: 1 1 auto; }
+
 .shell {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
@@ -1183,7 +1193,11 @@ body.game-open .game { display: block; }
 .board-wrap { flex: 1; display: grid; place-items: center; min-height: 0; padding: 8px 0 14px; }
 .board {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  /* Explicit equal rows, not auto ones: a mark in one cell must never resize
+     its row and squeeze the others. The zero minimums let the 1fr tracks
+     shrink below their content, so the board always keeps its 1:1 ratio. */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(3, minmax(0, 1fr));
   gap: 8px;
   width: min(100%, 330px);
   aspect-ratio: 1;
@@ -1191,6 +1205,8 @@ body.game-open .game { display: block; }
 .cell {
   display: grid;
   place-items: center;
+  min-width: 0;
+  min-height: 0;
   padding: 0;
   border: var(--line);
   border-radius: var(--r-in);
@@ -1235,6 +1251,9 @@ body.game-open .game { display: block; }
 
 /* The panel's own footer sits outside <main>, so it needs the same gutter. */
 main + footer, body > footer { padding: 0 14px 32px; font-size: 11px; }
+/* The panel's footer is the sheet's own closing line, centered under the whole
+   layout; the landing and login keep their own alignment. */
+.admin-body > footer { text-align: center; }
 main + footer p, body > footer p { margin: 0 0 4px; }
 
 @media (min-width: 980px) {

@@ -1,0 +1,21 @@
+# Clima en el reloj: el equipo detecta el lugar, baja Open-Meteo y el toque corto
+# alterna la cara entre reloj (24 h) y clima. `dump` es la única prueba honesta
+# del vidrio, porque el panel no tiene MISO.
+#
+# Antes de correrla, el equipo tiene que tener WiFi de casa configurado: la
+# deteccion por IP y el clima salen a internet. `api GET /api/status` lo dice.
+boot 4
+sleep 12000
+api GET /api/status
+api POST /api/weather/detect
+sleep 6000
+api GET /api/weather
+screen 0
+sleep 900
+dump 4
+tap
+sleep 900
+dump 4
+tap
+sleep 900
+dump 4

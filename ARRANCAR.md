@@ -54,10 +54,6 @@ C:\Users\Máximo Majorel\workspace\esp32\
 │   ├── hello_lcd\          ← primer sketch propio (ST7789 crudo)
 │   ├── particle_lab\       ← simulador de partículas
 │   ├── esp_web_console\    ← consola web anterior
-│   ├── waveshare-demo\     ← demo oficial completo
-│   │   ├── Arduino\examples\LVGL_Arduino\
-│   │   ├── ESP-IDF\
-│   │   └── Firmware\       ← firmware de test precompilado
 │   └── web_ui\             ← UI de la consola web vieja
 └── ARRANCAR.md             ← este archivo
 
@@ -99,6 +95,11 @@ al estado de fábrica:
 python -m esptool --port COM5 -b 921600 write-flash 0x0 "_legacy\waveshare-demo\Firmware\ESP32-S3-LCD-1.47B-Test.bin"
 ```
 
+> `_legacy\waveshare-demo\` **no está en el repo**: son ~264 MB de SDK upstream
+> (ESP-IDF, LVGL, binarios) que `.gitignore` excluye a propósito. Si necesitás
+> los ejemplos o el firmware de fábrica, bajá el demo desde la página del
+> producto (Waveshare ESP32-S3-LCD-1.47B) y descomprimilo en `_legacy\`.
+
 (El binario va en `0x0` porque es una imagen completa: bootloader, tabla de
 particiones y app juntos.)
 
@@ -135,9 +136,10 @@ PSRAM`, arranca igual pero revienta cuando asigna memoria grande.
 2. **Entender el driver**: leé `esp32_gadget\display.cpp` y `gfx.cpp`; el
    ancestro crudo está en `_legacy\hello_lcd\hello_lcd.ino`. Ahí está todo:
    comandos SPI, ventana de escritura, backlight por PWM.
-3. **LVGL**: `_legacy\waveshare-demo\Arduino\examples\LVGL_Arduino\LVGL_Example.cpp`
-   tiene widgets, charts y animaciones.
+3. **LVGL**: el demo oficial trae `Arduino\examples\LVGL_Arduino\
+   LVGL_Example.cpp` con widgets, charts y animaciones. Viene en el paquete de
+   Waveshare (ver la nota de `waveshare-demo\` arriba), no en este repo.
 4. **IMU**: `esp32_gadget\imu.cpp` es el driver del QMI8658; el demo completo
-   está en `_legacy\waveshare-demo\...\Gyro_QMI8658.cpp`.
-5. **ESP-IDF**: `_legacy\waveshare-demo\ESP-IDF\ESP32-S3-LCD-1.47B-Test` es el
-   mismo demo en C puro. Requiere la extensión ESP-IDF de VS Code (~2 GB más).
+   (`...\Gyro_QMI8658.cpp`) viene en ese mismo paquete.
+5. **ESP-IDF**: `ESP-IDF\ESP32-S3-LCD-1.47B-Test` del paquete es el mismo demo
+   en C puro. Requiere la extensión ESP-IDF de VS Code (~2 GB más).

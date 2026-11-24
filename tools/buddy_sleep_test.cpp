@@ -100,6 +100,46 @@ int main() {
   checkInt("a stamp ahead of the clock reads as just moved",
            buddySleepClockIdleMs(&ahead, 4000), 0);
 
+  // The owner's report: "jugando al ta te ti ... se despierta al hacer la accion
+  // pero se vuelve a dormir al toque". A POST from the panel is a person, so it
+  // is a stimulus exactly like a shake; the landing's ten-second GET is not.
+  printf("-- a panel action resets the clock like a shake\n");
+  BuddySleepClock untouched = {};
+  BuddySleepClock actioned = {};
+  buddySleepStimulus(&actioned, 880000);
+  checkInt("20 s after a POST the face is awake",
+           buddySleepClockStage(&actioned, 900000, 0.0f, false), BUDDY_SLEEP_AWAKE);
+  checkInt("the same instant with no action has dozed off",
+           buddySleepClockStage(&untouched, 900000, 0.0f, false), BUDDY_SLEEP_DEEP);
+  checkInt("61 s after the last action it is light, not deep",
+           buddySleepClockStage(&actioned, 941000, 0.0f, false), BUDDY_SLEEP_LIGHT);
+
+  printf("-- the activity stamp is wrap-safe in both directions\n");
+  BuddySleepClock almostWrapped = {};
+  almostWrapped.lastStimulusMs = 0xFFFFFFF0u;
+  checkInt("an action across the wrap is 16 ms of idle, not 49 days",
+           buddySleepClockIdleMs(&almostWrapped, 0x0), 16);
+  checkInt("and it stays awake right after the wrap",
+           buddySleepClockStage(&almostWrapped, 0x0, 0.0f, false),
+           BUDDY_SLEEP_AWAKE);
+  BuddySleepClock future = {};
+  buddySleepStimulus(&future, 300000);
+  checkInt("a stamp 5 ms ahead reads as zero idle",
+           buddySleepClockIdleMs(&future, 299995), 0);
+  checkInt("and does not sleep on that frame",
+           buddySleepClockStage(&future, 299995, 0.0f, false), BUDDY_SLEEP_AWAKE);
+
+  // The gate is pure so it can be pinned here: the ball and the web game are the
+  // owner playing, never a reason to nap.
+  printf("-- the can-doze gate\n");
+  checkInt("idle with the link up may doze",
+           buddySleepCanDoze(true, true, false, false), 1);
+  checkInt("the ball game refuses", buddySleepCanDoze(true, true, true, false), 0);
+  checkInt("a game face refuses", buddySleepCanDoze(true, true, false, true), 0);
+  checkInt("a state asking for attention refuses",
+           buddySleepCanDoze(true, false, false, false), 0);
+  checkInt("no link refuses", buddySleepCanDoze(false, true, false, false), 0);
+
   printf("\n%s (%d failures)\n", g_failures == 0 ? "PASSED" : "FAILED",
          g_failures);
   return g_failures == 0 ? 0 : 1;

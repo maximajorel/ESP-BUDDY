@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "comments": [
+    {
+      "id": "y45cszjj",
+      "file": "02-parpado-caido.html",
+      "selector": "#big",
+      "excerpt": "Vista previa animada del vidrio de 320x172 con la dirección A de la cara triste",
+      "comment": "Este podria sr lo que si fijate que al menos aqui, el parparo inferior derecho superpone al ojo izquierdo. Tambien podriamos imitar un leve gesto de izquierda a derecha diciendo como \"No\" como si estuviese decepcionada de si misma",
+      "createdAt": "2026-11-22T14:50:15.953Z",
+      "status": "resolved",
+      "sentAt": "2026-11-22T14:50:16.006Z",
+      "resolvedAt": "2026-11-22T14:53:09.818Z"
+    },
+    {
+      "id": "abyv3l4q",
+      "file": "02-parpado-caido.html",
+      "selector": "#strip > figure:nth-of-type(2) > canvas",
+      "excerpt": "Fotograma de la dirección A en t = 4.2 s",
+      "comment": "Aca que dó como una linea en el medio. con tal que eso no quede todo ok con este diseño",
+      "createdAt": "2026-11-22T14:53:55.986Z",
+      "status": "resolved",
+      "sentAt": "2026-11-22T14:53:56.035Z",
+      "resolvedAt": "2026-11-22T14:56:02.116Z"
+    }
+  ]
+}

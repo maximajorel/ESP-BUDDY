@@ -1,0 +1,9 @@
+{
+  "title": "Buddy en la bandeja de Windows",
+  "brief": "App de bandeja para Windows que vive en segundo plano y abre una ventana flotante anclada al icono de la bandeja para administrar el Buddy: elegir pantalla del LCD, temporizador y calendario de eventos. Mismo lenguaje que el panel web (papel y tinta, bordes de 1px, stickers planos, tipografía aplastada) y ventana con el radio mínimo del sistema (16px). Dirección elegida: 01, popover pegado a la bandeja.",
+  "artboards": [
+    { "file": "01-popover-bandeja.html", "title": "Popover pegado a la bandeja", "tradeoff": "Dirección elegida. Todo a la vista sin navegar y con ancla visual al icono; el calendario queda en modo lista y el mes no entra.", "width": 560, "height": 820 },
+    { "file": "02-ventana-riel.html", "title": "Ventana ancha con riel", "tradeoff": "Descartada al converger en 01. El mes completo y el menú de bandeja se leen de un vistazo; una sección por vez y la ventana tapa más escritorio.", "width": 940, "height": 660 },
+    { "file": "03-vidrio-agenda.html", "title": "Vidrio y agenda", "tradeoff": "Descartada al converger en 01. Muestra lo que ve el equipo y la agenda del día en orden temporal; se pierde la vista de mes.", "width": 560, "height": 820 }
+  ]
+}
